@@ -17,6 +17,7 @@
 
 import { ApiError, createApiClient } from './api-client.js';
 import { TEXT } from './tutor-text.js';
+import { setVoiceOn, speak, voiceOn, voiceSupported } from './tutor-voice.js';
 
 /** 섹션 순서(backend/src/checkpoint/types.ts의 SECTION_ORDER와 같다). */
 export const SECTIONS = ['ironmaking', 'steelmaking', 'continuous_casting', 'rolling'];
@@ -50,6 +51,8 @@ export const MOTION_BY_TYPE = {
   question: 'ask',
   recheck_question: 'ask_again',
   feedback: 'praise',
+  almost: 'encourage', // 부분 정답: 조금만 더
+  miss: 'sorry', // 틀림·힌트 요청: 아쉬움
   explanation: 'explain',
   key_points: 'encourage',
   error: 'sorry',
@@ -94,6 +97,8 @@ export function createCheckpointChat(c, { api = createApiClient(), overlayPage =
   const scroll = () => (c.scrollCheckpoint ?? c.scrollChat)?.call(c);
   // 요청 중복을 막는 표시. setState는 바로 반영되지 않을 수 있어서 state(cpPending)와 따로 둔다.
   let busy = false;
+  // 마지막으로 읽은 말풍선(같은 말풍선을 다시 읽지 않게).
+  let spokenKey = null;
   // 답하는 중이라 막힌 학습 질문. [멈추고 질문하기]로 멈춘 뒤 보낸다.
   let heldLearning = null;
 
@@ -487,6 +492,9 @@ export function createCheckpointChat(c, { api = createApiClient(), overlayPage =
       const bubble = st.cpTurn[st.cpBubbleIndex] ?? null;
       const bubbleHasNext = st.cpBubbleIndex < st.cpTurn.length - 1;
       const overlayShown = !overlayPage && !!st.cpOverlayOpen && (!!cp || st.cpPending);
+      // 포석호 목소리(tutor-voice.js): 켜져 있으면 새로 보이는 말풍선을 한 번 읽는다.
+      const voiceKey = overlayShown && bubble ? `${cp?.attempt_id}|${st.cpMessages.length}|${st.cpBubbleIndex}|${bubble.text}` : null;
+      if (voiceKey && voiceKey !== spokenKey && voiceOn()) { spokenKey = voiceKey; speak(bubble.text); }
       return {
         // 튜터 패널 머리글('학습 모드')
         cpHeaderMode: TEXT.header.learning,
@@ -559,6 +567,13 @@ export function createCheckpointChat(c, { api = createApiClient(), overlayPage =
         cpOverlayLockFilter: overlayShown ? 'grayscale(1)' : 'none',
         cpOverlayLockNotice: TEXT.overlayLocked,
         cpCharacterMotion: characterMotion(st, bubble),
+        cpVoiceSupported: voiceSupported(), cpVoiceLabel: voiceOn() ? '🔊 목소리 켜짐' : '🔈 목소리 꺼짐',
+        onCpToggleVoice: () => {
+          const on = !voiceOn();
+          setVoiceOn(on);
+          spokenKey = null; // 켜면 지금 말풍선부터 읽는다
+          c.setState({ cpVoiceTick: Date.now() });
+        },
         cpBubbleText: bubble?.text ?? '',
         cpBubbleType: bubble?.type ?? null,
         cpBubbleLabel: bubble ? TEXT.messageLabels[bubble.type] ?? TEXT.defaultMessageLabel : '',

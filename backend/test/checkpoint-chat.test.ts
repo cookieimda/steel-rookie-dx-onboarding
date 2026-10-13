@@ -553,15 +553,15 @@ test("학습 입력창 전송(lockLearning의 send)도 답하는 중에는 [멈�
 
 test("캐릭터 동작 이름표: 발화 type → 동작, result는 통과 여부로 나뉘고 모르는 type은 idle", () => {
   assert.deepEqual(
-    ["intro", "question", "recheck_question", "feedback", "explanation", "key_points", "error"].map((t) => motionFor(t)),
-    ["greet", "ask", "ask_again", "praise", "explain", "encourage", "sorry"],
+    ["intro", "question", "recheck_question", "feedback", "almost", "miss", "explanation", "key_points", "error"].map((t) => motionFor(t)),
+    ["greet", "ask", "ask_again", "praise", "encourage", "sorry", "explain", "encourage", "sorry"],
   );
   assert.equal(motionFor("result", { unlocked: true }), "celebrate");
   assert.equal(motionFor("result", { unlocked: false }), "cheer_retry");
   assert.equal(motionFor("result"), "cheer_retry");
   assert.equal(motionFor("unknown"), "idle");
   assert.equal(motionFor(undefined), "idle");
-  assert.equal(Object.keys(MOTION_BY_TYPE).length, 7);
+  assert.equal(Object.keys(MOTION_BY_TYPE).length, 9);
 });
 
 /** 오버레이 테스트용 페이지: goProcess·openTutor 훅을 기록한다. */

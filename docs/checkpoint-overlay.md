@@ -125,6 +125,13 @@
 - 모델 파일 규칙: `frontend/3d-demo/models/character/tutor.glb`, glTF 2.0 binary(Draco 압축 없음, 텍스처 포함). 발 중앙이 원점·바닥이 Y=0·얼굴이 +Z. 재질은 Metallic 0. 애니메이션 클립을 넣으면 클립 이름을 동작 이름표와 같게 한다.
 - 뼈대·클립이 있는 모델로 바꿔도 `checkpoint-chat.js`와 이름표는 그대로다. 클립 이름만 이름표에 맞춘다.
 
+## 캐릭터 이름·반응·목소리 (2026-10-13)
+
+- 튜터 캐릭터 이름은 **포석호**다. 말풍선 머리말(`TEXT.messageLabels`의 intro·feedback·반응, `defaultMessageLabel`)이 '포석호'다.
+- 판정마다 짧은 반응을 먼저 한다(엔진 `REACTIONS`): 맞힘 `feedback` "정답이에요!"(재확인에서 맞히면 "정답이에요! 이번에는 정확해요."), 부분 정답 `almost` "거의 맞았어요, 조금만 더 생각해 볼까요?"(동작 encourage), 틀림·힌트 요청 `miss` "아쉬워요, 같이 다시 볼게요."(동작 sorry), 재확인에서도 못 맞히면 `key_points` "아쉬워요. 핵심만 정리할게요."
+- 목소리: `tutor-voice.js`가 브라우저 음성 합성(Web Speech API, 한국어 음성)으로 새 말풍선을 한 번 읽는다. 기본 꺼짐, 이해도 확인 머리줄의 [목소리] 버튼으로 켜고 이 브라우저에만 기억한다(`st-rookie-voice`). 서버·비용 없음.
+- 통과 배지는 '단련 완료' → **'학습 완료'**, 시작 버튼은 '담금질 시작하기' → '학습하기'(#119).
+
 ## 캐릭터 모델 현황 (2026-10-08)
 
 파일: `frontend/3d-demo/models/character/tutor.glb`(#84). Tripo에서 텍스처 포함으로 받은 원본(저장소에 넣지 않음)을 줄인 것이다. 뷰어로 모양과 텍스처를 확인했다. 처리: `@gltf-transform/cli` 4.5.1로 `weld` → `simplify --ratio 0.06 --error 0.001` → `quantize`.

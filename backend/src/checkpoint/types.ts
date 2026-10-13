@@ -110,6 +110,10 @@ export type UtteranceType =
   | "intro"
   | "question"
   | "feedback"
+  /** 첫 판정이 partial일 때 설명 앞에 하는 짧은 반응. */
+  | "almost"
+  /** 첫 판정이 wrong·assisted일 때 설명 앞에 하는 짧은 반응. */
+  | "miss"
   | "explanation"
   | "recheck_question"
   | "key_points"

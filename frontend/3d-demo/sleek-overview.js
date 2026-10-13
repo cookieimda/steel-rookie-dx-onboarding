@@ -25,6 +25,15 @@ export function attachSleek() {
       if (dark) this.renderer.toneMappingExposure = NIGHT_EXPOSURE; return r; }; // 다크 모드 화면 밝기(원래 코드는 0.95로 칠한다)
     if ((el.getAttribute('theme') || 'dark') === 'dark') el.renderer.toneMappingExposure = NIGHT_EXPOSURE; // 인트로가 이 값까지 밝힌다
     const tidy = () => tidyScene(el);
+    // 테마를 바꿔 site-backdrop.js가 배경 GLB를 끼우는 순간 바로 손질한다(다음 0.5초 주기까지 손질 전 GLB가 그대로 보였다).
+    // 끼운 GLB에 그때 테마를 적어 두어, 굽기는 이 GLB가 지금 테마 것일 때만 한다(backdropSettled)
+    const ext = el.scene.getObjectByName('SITE_BACKDROP_EXT'), addTo = ext.add.bind(ext), themeOf = () => el.getAttribute('theme') || 'dark';
+    ext.children.forEach(o => { o.userData.sleekTheme ??= themeOf(); });
+    ext.add = function (...objs) { const r = addTo(...objs); objs.forEach(o => { o.userData.sleekTheme = themeOf(); }); try { tidy(); } catch (e) { console.warn('배경 손질 실패', e); } return r; };
+    // 테마를 처음 바꾸면 장면이 기존 배경 묶음(el.backdrop)을 새로 만든다 → 그리기 직전에 바로 숨긴다(site-backdrop.js가 숨기기 전 몇 프레임 예전 건물이 비쳤다)
+    let bk = null, bdSeen = el.backdrop; window.__siteBackdrop?.then(b => { bk = b; });
+    const prevBR = el.scene.onBeforeRender;
+    el.scene.onBeforeRender = function (...a) { prevBR?.apply(this, a); if (el.backdrop !== bdSeen) { bdSeen = el.backdrop; bk?.hideNear?.(); } };
     tidy(); setInterval(tidy, 500); // 새로 생기는 것도 잡는다
     // 처음 시작할 때 검은 덮개 아래에서 반대 테마를 한 번 미리 켜 둔다(배경 만들기·셰이더 컴파일·명암 굽기).
     // 그러지 않으면 처음 라이트/다크를 바꿀 때 이 일이 한꺼번에 몰려 1~2초 멈춘다. 두 번째부터는 캐시를 쓴다
@@ -159,6 +168,10 @@ function tidyScene(el) {
   nightLights(el, dark);
   if (!dark) placeSunDisc(el);
   if (settled && !dark) { const ext = el.scene.getObjectByName('SITE_BACKDROP_EXT'); if (ext && isShown(ext) && ground && !ground.userData.chiaro) { ground.userData.chiaro = true; /* 낮·밤 배경 GLB마다 바닥이 따로라 거기에 표시 */ try { bakeChiaroscuro(el, ext); } catch (e) { console.warn('명암 굽기 실패', e); } changed = true; } }
+  // 테마별 굽기가 끝난 배경 GLB는 재질 종류별로 합친다(mergeBackdrop)
+  const root0 = el.scene.getObjectByName('SITE_BACKDROP_EXT')?.children[0];
+  if (settled && root0 && !root0.userData.merged && ground && (dark ? el.__nightBaked : ground.userData.chiaro && ground.material.userData.myBase?.userData.sunBaked)) {
+    root0.userData.merged = true; try { if (mergeBackdrop(el, root0, dark)) changed = true; } catch (e) { console.warn('배경 합치기 실패', e); } }
   if (!el.__sleekRoads && el._traffic) el.__sleekRoads = buildRoads(el) || 'none';
   if (el.__sleekRoads?.setTheme) el.__sleekRoads.setTheme(dark);
   if (gradeScene(el, dark)) changed = true;
@@ -554,14 +567,11 @@ function scaleInstances(o, k) {
 const isTrunk = (o) => { if (!o.isInstancedMesh || o.userData.scaledK) return false; o.geometry.computeBoundingBox(); const s = o.geometry.boundingBox.getSize(new THREE.Vector3()); return Math.abs(s.y - 1.6) < 0.2 && s.x < 0.5 && s.z < 0.5 && o.material?.color && o.material.color.r >= o.material.color.b; };
 
 // 테마를 바꾸면 site-backdrop.js가 낮·밤 배경 GLB를 비동기로 바꿔 끼운다. 바뀌기 전(옛 GLB가 아직 붙어 있는 동안)에 새 테마용 굽기를 하면
-// 엉뚱한 GLB에 구워진다(밤 건물이 낮 명암 재질로 바뀌고, 밤 바닥에 낮 그림자가 남음). 배경이 실제로 바뀌었거나 6초가 지난 뒤에만 굽는다
+// 엉뚱한 GLB에 구워진다(밤 건물이 낮 명암 재질로 바뀌고, 밤 바닥에 낮 그림자가 남음). 지금 붙은 GLB가 지금 테마 것일 때만 굽는다(끼울 때 테마를 적어 둔다).
+// 예전엔 '배경이 바뀌었거나 6초 뒤'로 판단해서, 미리 받아 둔 GLB로 곧바로 바뀌면 6초 동안 굽지 않은 배경이 보였다
 function backdropSettled(el) {
-  const ext = el.scene.getObjectByName('SITE_BACKDROP_EXT'), dark = (el.getAttribute('theme') || 'dark') === 'dark';
-  if (el.__sDark === undefined) { el.__sDark = dark; return true; }
-  if (dark !== el.__sDark) { el.__sDark = dark; el.__sRoot = ext?.children[0]; el.__sT = performance.now(); }
-  if (!el.__sRoot) return true;
-  if (ext?.children[0] !== el.__sRoot || performance.now() - el.__sT > 6000) { el.__sRoot = null; return true; }
-  return false;
+  const root = el.scene.getObjectByName('SITE_BACKDROP_EXT')?.children[0];
+  return !!root && root.userData.sleekTheme === (el.getAttribute('theme') || 'dark');
 }
 
 // ---- 구워 둔 빛과 겹치는 실제 조명 빼기 ----
@@ -699,97 +709,63 @@ function removeFarBuildings(el, off) {
   return ch;
 }
 
-// ---- 나무: 공 모양 수관 → 잎 그림 평면을 엇갈려 세운 나무(게임에서 쓰는 크로스 빌보드) ----
-// 원래 배경 GLB의 나무는 줄기(가는 원기둥) + 수관(지름 2m 구, 꼭짓점 63개)을 인스턴스로 깔아 덩어리처럼 보였다.
-// 수관만 바꾼다: 같은 위치·크기에 세로 평면 3장(60°씩) + 수평 평면 1장. 잎 그림은 캔버스로 그리고(가지·잎 덩어리·빈틈),
-// 알파 테스트로 잎 모양만 남긴다. 평면의 법선을 수관 가운데에서 바깥(위로 조금 치우침)으로 잡아 둥근 나무처럼 빛을 받게 한다.
-// 그루마다 방향을 무작위로 돌리고 잎 그림 2종을 섞는다. 원래 수관은 숨기되 그림자 굽기 때만 잠깐 보인다(treeBake).
-let leafTex = null, crownGeo = null; // leafTex: 잎 그림 2종을 나란히 넣은 아틀라스 한 장
-function leafTexture(seed) {
-  const N = 512, c = document.createElement('canvas'); c.width = c.height = N; const x = c.getContext('2d');
-  let k = seed; const rnd = () => (k = (k * 16807) % 2147483647) / 2147483647;
-  const cx = N / 2, cy = N * 0.47, rx = N * 0.4, ry = N * 0.41;
-  // 잎 사이로 비치는 가지
-  x.strokeStyle = '#4b3b2d'; x.lineCap = 'round';
-  const branch = (x0, y0, a, len, w, d) => { if (!d || w < 1) return; const x1 = x0 + Math.cos(a) * len, y1 = y0 + Math.sin(a) * len;
-    x.lineWidth = w; x.beginPath(); x.moveTo(x0, y0); x.lineTo(x1, y1); x.stroke();
-    branch(x1, y1, a - 0.35 - rnd() * 0.35, len * 0.72, w * 0.62, d - 1); branch(x1, y1, a + 0.35 + rnd() * 0.35, len * 0.72, w * 0.62, d - 1); };
-  branch(cx, N, -Math.PI / 2, N * 0.24, 18, 5);
-  // 잎 색: 그늘(어두운 녹색) → 중간 → 해 받는 쪽(연두)
-  const C = [[24, 46, 24], [62, 100, 44], [150, 186, 96]];
-  const shade = (t) => { t = Math.max(0, Math.min(1, t)); const [a, b, u] = t < 0.5 ? [C[0], C[1], t * 2] : [C[1], C[2], (t - 0.5) * 2];
-    return `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * u)).join(',')})`; };
-  const clusters = [];
-  for (let i = 0; i < 28; i++) { const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * 0.8; clusters.push([cx + Math.cos(a) * rx * r, cy + Math.sin(a) * ry * r, N * (0.085 + rnd() * 0.07)]); }
-  clusters.sort((a, b) => a[1] - b[1]);
-  for (const [px, py, pr] of clusters) {
-    const up = 1 - (py - (cy - ry)) / (2 * ry); // 수관 위쪽일수록 밝게
-    x.fillStyle = shade(0.12 + up * 0.25); x.beginPath(); x.arc(px, py, pr * 0.82, 0, 7); x.fill(); // 덩어리 안쪽 그늘
-    for (let j = 0; j < 170; j++) {
-      const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * pr, lx = px + Math.cos(a) * r, ly = py + Math.sin(a) * r;
-      const top = 1 - (ly - (py - pr)) / (2 * pr); // 덩어리 위쪽일수록 밝게
-      x.fillStyle = shade(up * 0.45 + top * 0.45 + (rnd() - 0.5) * 0.3);
-      x.beginPath(); x.ellipse(lx, ly, 3 + rnd() * 4.5, 1.8 + rnd() * 2.4, rnd() * Math.PI, 0, 7); x.fill();
-    }
-  }
-  x.globalCompositeOperation = 'destination-out'; // 잎 사이 빈틈
-  for (let i = 0; i < 16; i++) { const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * 0.7; x.beginPath(); x.arc(cx + Math.cos(a) * rx * r, cy + Math.sin(a) * ry * r, 4 + rnd() * 9, 0, 7); x.fill(); }
-  x.globalCompositeOperation = 'source-over';
-  const d = x.getImageData(0, 0, N, N).data; let r = 0, g = 0, b = 0, n = 0;
-  for (let i = 0; i < d.length; i += 16) if (d[i + 3] > 128) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
-  t.userData.mean = new THREE.Color().setRGB(r / n / 255, g / n / 255, b / n / 255, THREE.SRGBColorSpace); // 잎 그림 평균색(원래 나무 색에 맞출 때 씀)
-  return t;
+// ---- 나무: 공 모양 수관 → 로우폴리 소나무 ----
+// 원래 배경 GLB의 나무는 줄기(원기둥, 삼각형 80) + 수관(지름 2m 구)을 인스턴스로 깐다. 전에는 수관을 잎 그림 평면을 엇갈린 나무(삼각형 256)로
+// 바꿨는데, 부지 밖에서 크기 0으로 지운 것까지 그루 수만큼 그려 삼각형을 많이 먹었다. 이제:
+// - 수관 자리에 6각 원뿔 3단 + 4각 줄기의 소나무(삼각형 44). 명암은 꼭짓점 색에 넣는다(단마다 아래 어둡게·위 밝게). 원래 줄기는 숨긴다
+// - 기본 드론 시점 화면의 가운데 80% 밖(가장자리)과 제선 동쪽 해안 띠(사용자 표시)·야적장 돔 위의 나무는 만들지 않고, 남는 것만 인스턴스로 담는다
+// 원래 수관은 숨기되 그림자 굽기 때만 잠깐 보인다(treeBake)
+const DOME_C = [[60, -59.1], [72, -57.9], [84, -56.7], [64, -53.7], [76, -52.5], [88, -51.3]]; // 야적장 돔 가운데(돔 위에 선 나무는 뺀다)
+const TRUNK_COL = new THREE.Color(0x5a4334), ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
+function shadeGeo(g, f) { // 꼭짓점 색 = f(로컬 y)
+  g = g.index ? g.toNonIndexed() : g; const P = g.attributes.position, c = new Float32Array(P.count * 3);
+  for (let i = 0; i < P.count; i++) { const v = f(P.getY(i)); c.set(Array.isArray(v) ? v : [v, v, v], i * 3); }
+  g.setAttribute('color', new THREE.BufferAttribute(c, 3)); return g;
 }
-// 잎 그림 2종(각 512×512)을 가로로 붙인 아틀라스 1024×512. 평균색은 두 그림의 평균
-function leafAtlas() {
-  const a = leafTexture(11), b = leafTexture(4567), c = document.createElement('canvas'); c.width = 1024; c.height = 512;
-  const x = c.getContext('2d'); x.drawImage(a.image, 0, 0); x.drawImage(b.image, 512, 0);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
-  t.userData.mean = a.userData.mean.clone().lerp(b.userData.mean, 0.5); a.dispose(); b.dispose(); return t;
-}
-function crownGeometry() {
-  const parts = [0, 1, 2].map(k => new THREE.PlaneGeometry(2.7, 2.9, 4, 4).rotateY(k * Math.PI / 3));
-  parts.push(new THREE.PlaneGeometry(2.3, 2.3, 4, 4).rotateX(-Math.PI / 2).translate(0, 0.3, 0)); // 위에서 볼 때
-  const pos = [], uv = [], nor = [], idx = []; let off = 0; const v = new THREE.Vector3();
-  parts.forEach(g => {
-    const P = g.attributes.position, U = g.attributes.uv;
-    for (let i = 0; i < P.count; i++) {
-      v.fromBufferAttribute(P, i); pos.push(v.x, v.y, v.z); uv.push(U.getX(i) * 0.5, U.getY(i)); // 평면 4장이 아틀라스의 같은 칸을 겹쳐 쓴다
-      v.y += 0.6; v.normalize(); nor.push(v.x, v.y, v.z); // 수관 가운데에서 바깥으로(위로 조금 치우침) → 둥근 나무처럼 빛을 받는다
-    }
-    for (let i = 0; i < g.index.count; i += 3) { const A = g.index.getX(i) + off, B = g.index.getX(i + 1) + off, C = g.index.getX(i + 2) + off; idx.push(A, B, C, A, C, B); } off += P.count;
-    // 뒷면도 같은 법선의 삼각형을 따로 둔다(DoubleSide는 뒷면에서 법선을 뒤집어, 바깥으로 잡은 법선이 안쪽을 향해 검게 보였다)
-  });
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
-  g.setIndex(idx); g.computeBoundingSphere(); return g;
+// 수관 로컬 좌표(지름 2 구가 있던 자리, 땅 = gy)의 소나무. 줄기 색은 재질 색(base)을 곱해도 갈색이 되게 나눠 둔다
+function pineGeometry(gy, base) {
+  const trunk = [TRUNK_COL.r / base.r, TRUNK_COL.g / base.g, TRUNK_COL.b / base.b].map(v => Math.min(4, v));
+  const parts = [[-1.0, 0.25, 1.05], [-0.35, 0.85, 0.8], [0.25, 1.6, 0.55]].map(([y0, y1, r]) =>
+    shadeGeo(new THREE.ConeGeometry(r, y1 - y0, 6, 1, true).translate(0, (y0 + y1) / 2, 0), y => 0.62 + 0.45 * (y - y0) / (y1 - y0)));
+  if (gy < -0.9) parts.push(shadeGeo(new THREE.CylinderGeometry(0.13, 0.17, -0.9 - gy, 4, 1, true).translate(0, (gy - 0.9) / 2, 0), () => trunk));
+  return concatGeos(parts);
 }
 function isCanopy(o) {
   if (!o.isInstancedMesh || o.userData.treeProxy || o.userData.sleekTree || !o.material?.color) return false;
   o.geometry.computeBoundingBox(); const s = o.geometry.boundingBox.getSize(new THREE.Vector3()), c = o.material.color;
   return Math.abs(s.x - 2) < 0.15 && Math.abs(s.y - 2) < 0.15 && Math.abs(s.z - 2) < 0.15 && o.geometry.attributes.position.count < 200 && c.g > c.r && c.g >= c.b; // 지름 2m 녹색 구
 }
+// 기본 드론 시점(화각 34°, 16:9) 화면의 가운데 80% 안인지
+function inMainView(el) {
+  const o = el._overviewPose(), cam = new THREE.PerspectiveCamera(34, 16 / 9, 0.5, 2000), v = new THREE.Vector3();
+  cam.position.set(o.target.x + o.dist * Math.sin(o.yaw) * Math.cos(o.pitch), o.target.y + o.dist * Math.sin(o.pitch), o.target.z + o.dist * Math.cos(o.yaw) * Math.cos(o.pitch));
+  cam.lookAt(o.target); cam.updateMatrixWorld();
+  return (p) => { v.copy(p).project(cam); return Math.abs(v.x) < 0.8 && Math.abs(v.y) < 0.8; };
+}
 function replaceTrees(el) {
   const ext = el.scene.getObjectByName('SITE_BACKDROP_EXT'); if (!ext) return false;
   const found = []; ext.traverse(o => { if (isCanopy(o)) found.push(o); }); if (!found.length) return false;
-  ext.traverse(o => { if (isTrunk(o)) scaleInstances(o, K_TREE); }); // 줄기
+  ext.traverse(o => { if (isTrunk(o)) { o.userData.scaledK = 1; o.userData.sleekOff = true; Object.defineProperty(o, 'visible', { configurable: true, get: () => false, set: () => {} }); } }); // 줄기: 소나무에 들어 있다
   found.forEach(o => scaleInstances(o, K_TREE));                         // 수관(그림자 굽기용으로도 쓴다)
-  leafTex = leafTex || leafAtlas(); crownGeo = crownGeo || crownGeometry();
-  const M = new THREE.Matrix4(), R = new THREE.Matrix4();
+  const view = inMainView(el), M = new THREE.Matrix4(), R = new THREE.Matrix4(), W = new THREE.Matrix4(), p = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3();
+  const onDome = (x, z) => DOME_C.some(([cx, cz]) => ((x - cx) / 6.3) ** 2 + ((z - cz) / 3.8) ** 2 < 1);
+  const keepAt = (x, z) => inSite(x, z) && view(p.set(x, 0, z)) && !(x > 76 && z < -40) && !onDome(x, z);
   found.forEach((o, oi) => {
     let k = 97 + oi * 31; const rnd = () => (k = (k * 16807) % 2147483647) / 2147483647;
-    // 색: 원래 나무 색(낮·밤 GLB마다 다름)에 맞춘다. 잎 그림 평균색이 원래 색이 되도록 곱하는 색을 정한다
-    const mean = leafTex.userData.mean, base = o.material.color, mul = new THREE.Color(Math.min(2, base.r / mean.r), Math.min(2, base.g / mean.g), Math.min(2, base.b / mean.b));
-    const m = o.material.clone(); Object.assign(m, { map: leafTex, alphaTest: 0.5, transparent: false, side: THREE.FrontSide, shadowSide: THREE.DoubleSide, vertexColors: false, flatShading: false }); m.color.copy(mul);
-    // 인스턴스마다 아틀라스 칸(0 = 왼쪽, 1 = 오른쪽)을 고른다: 수관 하나(그리기 1번)로 잎 그림 2종
-    m.onBeforeCompile = (sh) => { sh.vertexShader = 'attribute float aVar;\n' + sh.vertexShader.replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_MAP\n  vMapUv.x += aVar * 0.5;\n#endif'); };
-    m.customProgramCacheKey = () => 'sleekTreeAtlas'; m.needsUpdate = true;
-    const geo = crownGeo.clone(), vars = new Float32Array(o.count);
-    for (let i = 0; i < o.count; i++) vars[i] = i % 2;
-    geo.setAttribute('aVar', new THREE.InstancedBufferAttribute(vars, 1));
-    const t = new THREE.InstancedMesh(geo, m, o.count);
-    for (let i = 0; i < o.count; i++) { o.getMatrixAt(i, M); t.setMatrixAt(i, M.multiply(R.makeRotationY(rnd() * Math.PI * 2))); }
+    const keep = []; let gy = -1.6, unit = null;
+    for (let i = 0; i < o.count; i++) {
+      o.getMatrixAt(i, M); W.multiplyMatrices(o.matrixWorld, M); W.decompose(p, q, s);
+      if (s.x < 1e-6) continue; // 이미 지운 것
+      if (!unit) { unit = M.clone(); gy = -p.y / s.y; }
+      if (keepAt(p.x, p.z)) keep.push(M.clone().multiply(R.makeRotationY(rnd() * Math.PI * 2)));
+      else o.setMatrixAt(i, ZERO); // 만들지 않는 나무는 그림자도 굽지 않게
+    }
+    o.instanceMatrix.needsUpdate = true;
+    if (!unit) return;
+    const base = o.material.color.clone();
+    const m = o.material.clone(); Object.assign(m, { map: null, alphaTest: 0, transparent: false, side: THREE.FrontSide, vertexColors: true, flatShading: true }); m.color.copy(base);
+    const t = new THREE.InstancedMesh(pineGeometry(gy, base), m, keep.length);
+    keep.forEach((x, i) => t.setMatrixAt(i, x));
     t.instanceMatrix.needsUpdate = true; t.castShadow = o.castShadow; t.receiveShadow = o.receiveShadow;
     t.name = 'SLEEK_TREE'; t.userData.sleekTree = true; t.raycast = () => {}; t.frustumCulled = false;
     o.parent.add(t);
@@ -964,70 +940,98 @@ function buildRoads(el) {
 
 // ---- 라이트 모드: 2시 방향 햇빛 그림자를 바닥 그림에 한 번 구워 넣는다(실시간 그림자 계산 없음) ----
 // 실제 그림자처럼: 물체에 붙은 곳은 날카롭고 진하게, 물체에서 멀어질수록(= 해를 가린 부분이 땅에서 높을수록) 넓게 풀리고 옅게.
-// 1) 위에서 내려다보는 직교 카메라로 모든 물체를 '해 반대쪽 바닥에 눕힌 모양'(평면 투영)으로 그리되, 그 칸을 가린 부분의 높이를 함께 기록한다
+// 1) 위에서 내려다보는 직교 카메라로 물체를 '해 반대쪽 바닥에 눕힌 모양'(평면 투영)으로 그리되, 그 칸을 가린 부분의 높이를 함께 기록한다
 //    (여러 부분이 겹치면 가장 낮은 것 = 가장 가까운 가림을 남긴다: 깊이값을 높이로 써서 깊이 테스트로 고름)
 // 2) 칸마다 그 높이에 비례해 흐림 반경을 정하고(여러 단계로 흐린 그림자 중에서 골라 섞음), 높을수록 옅게
 // 3) 물체 바로 밑 접지 그림자(수직 투영)를 좁게 흐려 더한다 → 바닥 색에 곱한다(푸른 회색 그림자)
-// 공정(장면 zones)은 공정 안 화면에서 다른 공정이 숨으므로, 바닥 그림에 같이 구우면 숨은 공정의 그림자만 바닥에 남는다.
-// 그래서 정적인 것(주변 건물·나무·소품)은 바닥 그림에 굽고(onlyZone 없음, 공정은 뺀다), 공정은 하나씩 따로 구워(zoneSunShadows)
-// 보이는 공정 것만 바닥 셰이더가 곱한다(addZoneShade). 공정 안 화면에서 잠깐 숨긴 건물(hideOccluders)도 그림자는 굽는다.
+// 흐림·섞기는 GPU 화면 패스로 한다(예전엔 1024² 배열을 JS로 스무 번 넘게 흐려 라이트 모드 첫 전환이 4초 멈췄다).
+// 그림자를 드리우는 것은 정해 둔 것만 그린다: 정적(static) = 지금 배경 GLB(건물·나무·굴뚝) + 공정 옆 소품,
+// 공정(zones) = 공정 모델 4개. 예전엔 장면 전체에서 빼는 방식이라 기존 배경의 움직이는 것·가로등 기둥 같은 것이 섞여 바닥에 얼룩 점이 남았다.
+// 공정은 공정 안 화면에서 다른 공정이 숨으므로 정적 그림과 따로 굽고, 보이는 공정 것만 바닥 셰이더가 곱한다(addZoneShade).
 // 돌려주는 값: 칸마다 그림자 진하기(0~1), 0행 = 남쪽
 const SUN_RES = 1024;
-function sunShadeBuf(el, onlyZone) {
-  const R = el.renderer, S = el.scene, RES = SUN_RES, PX = 640 / RES; // 한 칸 = 0.625m
+const SHADE_RADII = [0, 1, 2, 4, 7, 11];
+let shadeKit = null; // 화면 패스용 재질·사각형(한 번 만들어 두고 다시 쓴다)
+function shadePasses() {
+  if (shadeKit) return shadeKit;
+  const vs = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0., 1.); }';
+  // 준비: 두 장의 투영 결과에서 (가림 여부, 가린 높이, 접지) 를 뽑아 흐릴 묶음 두 장으로 나눈다
+  const prep = new THREE.ShaderMaterial({ uniforms: { uSun: { value: null }, uAo: { value: null }, uMode: { value: 0 } }, vertexShader: vs,
+    fragmentShader: 'uniform sampler2D uSun, uAo; uniform int uMode; varying vec2 vUv; void main(){ vec4 s = texture2D(uSun, vUv); float m = s.g > .5 ? 1. : 0., f = texture2D(uAo, vUv).g > .5 ? 1. : 0.;'
+      + ' gl_FragColor = uMode == 0 ? vec4(m) : vec4(m, m, m * s.r, f); }' });
+  // 상자 흐림 한 방향: 채널마다 반경이 다르다(0이면 그대로). 가장자리는 끝 칸을 늘여 쓴다(텍스처 경계 고정)
+  const box = new THREE.ShaderMaterial({ uniforms: { uT: { value: null }, uDir: { value: new THREE.Vector2() }, uR: { value: new THREE.Vector4() } }, vertexShader: vs,
+    fragmentShader: 'uniform sampler2D uT; uniform vec2 uDir; uniform vec4 uR; varying vec2 vUv; void main(){ vec4 a = vec4(0.);'
+      + ' for (int i = -8; i <= 8; i++) { float d = float(i); a += texture2D(uT, vUv + uDir * d) * step(abs(d), uR); } gl_FragColor = a / (2. * uR + 1.); }' });
+  // 섞기: 칸마다 흐림 반경을 골라 단계 사이를 섞고, 높이에 따라 옅게 + 접지 그림자. k = 반경이 rp보다 작은 마지막 단계(예전 while(R[k+1] < rp) k++ 와 같다)
+  const comb = new THREE.ShaderMaterial({ uniforms: { uP: { value: null }, uA: { value: null }, uB: { value: null }, uPX: { value: 640 / SUN_RES } }, vertexShader: vs,
+    fragmentShader: `uniform sampler2D uP, uA, uB; uniform float uPX; varying vec2 vUv;
+      void main(){ vec4 P = texture2D(uP, vUv), A = texture2D(uA, vUv), B = texture2D(uB, vUv);
+        float mask = P.r, hgt = P.b, wide = B.g, hAvg = B.b, ao = B.a, s = 0.;
+        float L[6]; L[0] = mask; L[1] = A.r; L[2] = A.g; L[3] = A.b; L[4] = A.a; L[5] = B.r;
+        float R[6]; ${SHADE_RADII.map((r, i) => `R[${i}] = ${r.toFixed(1)};`).join(' ')}
+        if (wide > .002) {
+          float h = mask > .5 ? hgt : hAvg / wide, rp = (.12 + h * .07) / uPX;
+          int k = 0; for (int j = 1; j < 5; j++) { if (R[j] < rp) k = j; }
+          float r0 = R[0], r1 = R[1], l0 = L[0], l1 = L[1];
+          for (int j = 0; j < 5; j++) { if (j == k) { r0 = R[j]; r1 = R[j + 1]; l0 = L[j]; l1 = L[j + 1]; } }
+          float t = clamp((rp - r0) / (r1 - r0), 0., 1.);
+          s = mix(l0, l1, t) * .6 * (1. - .55 * min(1., h / 45.));
+        }
+        float a = ao * .2; gl_FragColor = vec4(1. - (1. - s) * (1. - a), 0., 0., 1.); }` });
+  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), prep); quad.frustumCulled = false;
+  const scene = new THREE.Scene(); scene.add(quad);
+  return (shadeKit = { prep, box, comb, quad, scene, cam: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1) });
+}
+// 그림자 그림 한 장 굽기. mode: 'static'(배경 GLB + 소품) | 'zones'(공정 모델 4개)
+function sunShadeBuf(el, mode) {
+  const R = el.renderer, S = el.scene, RES = SUN_RES;
   const keep = [], setVis = (o, v) => { keep.push([o, o.visible]); o.visible = v; };
-  occluders().forEach(o => setVis(o, true));
-  if (onlyZone) { let top = onlyZone.root; while (top.parent && top.parent !== S) top = top.parent; S.children.forEach(c => setVis(c, c === top)); for (let o = onlyZone.root; o && o !== S; o = o.parent) setVis(o, true); } else Object.values(el.zones || {}).forEach(z => setVis(z.root, false));
-  try {
-  const cam = new THREE.OrthographicCamera(-320, 320, 320, -320, 1, 3000); cam.position.set(0, 1500, 0); cam.up.set(0, 0, -1); cam.lookAt(0, 0, 0); cam.updateMatrixWorld();
-  const mat = new THREE.ShaderMaterial({ side: THREE.DoubleSide, uniforms: { uK: { value: new THREE.Vector2() } },
-    vertexShader: 'uniform vec2 uK; varying float vH; void main(){ vec4 p = vec4(position, 1.);\n#ifdef USE_INSTANCING\n p = instanceMatrix * p;\n#endif\n vec4 w = modelMatrix * p; vH = max(w.y, 0.); w.xz -= uK * vH; w.y = 0.; vec4 c = projectionMatrix * viewMatrix * w; c.z = (vH / 400.) * 2. - 1.; gl_Position = c; }',
-    fragmentShader: 'varying float vH; void main(){ gl_FragColor = vec4(vH, 1., 0., 1.); }' });
+  const ext = S.getObjectByName('SITE_BACKDROP_EXT'), props = S.getObjectByName('PLANT_PROPS');
+  const zoneTops = new Set(Object.values(el.zones || {}).map(z => { let t = z.root; while (t.parent && t.parent !== S) t = t.parent; return t; }));
+  const allow = mode === 'zones' ? zoneTops : new Set([ext, props]);
+  S.children.forEach(c => setVis(c, allow.has(c) && c.visible));
+  if (mode === 'zones') Object.values(el.zones || {}).forEach(z => { for (let o = z.root; o && o !== S; o = o.parent) setVis(o, true); }); // 공정 안 화면에서 숨은 공정도 굽는다
+  else { Object.values(el.zones || {}).forEach(z => setVis(z.root, false)); occluders().forEach(o => setVis(o, true)); ext?.children.slice(1).forEach(o => setVis(o, false)); } // 배경은 지금 GLB 하나만
+  const rts = [];
+  const rt = (float = true) => { const t = new THREE.WebGLRenderTarget(RES, RES, { type: float ? THREE.FloatType : THREE.UnsignedByteType, depthBuffer: false, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter }); rts.push(t); return t; };
+  const bg = S.background, fog = S.fog, cc = R.getClearColor(new THREE.Color()), ca = R.getClearAlpha(), tm = R.toneMapping, ac = R.autoClear;
   const hidden = [], box = new THREE.Box3();
-  treeBake(S, true);
-  S.traverse(o => { if (!o.visible) return;
-    const flat = o.isMesh && !o.isInstancedMesh && (box.setFromObject(o), box.max.y < 0.6);
-    if (o.name === 'SITE_GROUND' || o.name === 'SLEEK_SEA' || o.parent?.name === 'SLEEK_ROADS' || o.isPoints || o.isLine || o.isSprite || flat) { o.visible = false; hidden.push(o); } });
-  const bg = S.background, fog = S.fog, cc = R.getClearColor(new THREE.Color()), ca = R.getClearAlpha(), tm = R.toneMapping;
-  const rt = new THREE.WebGLRenderTarget(RES, RES, { type: THREE.FloatType, depthBuffer: true });
-  const read = (k) => { mat.uniforms.uK.value.copy(k); R.setRenderTarget(rt); R.clear(); R.render(S, cam); const b = new Float32Array(RES * RES * 4); R.readRenderTargetPixels(rt, 0, 0, RES, RES, b); return b; };
-  let sunBuf, aoBuf;
-  try { S.background = null; S.fog = null; S.overrideMaterial = mat; R.toneMapping = THREE.NoToneMapping; R.setClearColor(0x000000, 0);
-    sunBuf = read(new THREE.Vector2(SUN.x / SUN.y, SUN.z / SUN.y)); aoBuf = read(new THREE.Vector2(0, 0)); }
-  finally { R.setRenderTarget(null); S.overrideMaterial = null; S.background = bg; S.fog = fog; R.toneMapping = tm; R.setClearColor(cc, ca); hidden.forEach(o => { o.visible = true; }); rt.dispose(); mat.dispose(); treeBake(S, false); }
-
-  const n = RES * RES, mask = new Float32Array(n), hgt = new Float32Array(n), foot = new Float32Array(n);
-  for (let i = 0; i < n; i++) { const m = sunBuf[i * 4 + 1] > 0.5 ? 1 : 0; mask[i] = m; hgt[i] = m * sunBuf[i * 4]; foot[i] = aoBuf[i * 4 + 1] > 0.5 ? 1 : 0; }
-  // 가로·세로로 나눠 하는 상자 흐림(두 번 하면 가우스에 가깝다)
-  const boxBlur = (src, r) => { if (r < 0.5) return src; r = Math.round(r); const tmp = new Float32Array(n), out = new Float32Array(n), w = 2 * r + 1;
-    for (let y = 0; y < RES; y++) { let acc = 0; const row = y * RES; for (let x = -r; x <= r; x++) acc += src[row + Math.min(RES - 1, Math.max(0, x))]; for (let x = 0; x < RES; x++) { tmp[row + x] = acc / w; acc += src[row + Math.min(RES - 1, x + r + 1)] - src[row + Math.max(0, x - r)]; } }
-    for (let x = 0; x < RES; x++) { let acc = 0; for (let y = -r; y <= r; y++) acc += tmp[Math.min(RES - 1, Math.max(0, y)) * RES + x]; for (let y = 0; y < RES; y++) { out[y * RES + x] = acc / w; acc += tmp[Math.min(RES - 1, y + r + 1) * RES + x] - tmp[Math.max(0, y - r) * RES + x]; } }
-    return out; };
-  const blur2 = (src, r) => boxBlur(boxBlur(src, r / 1.6), r / 1.6);
-  const RADII = [0, 1, 2, 4, 7, 11], levels = RADII.map(r => blur2(mask, r));
-  // 칸 주변(그림자 밖 반영 칸 포함)의 '가린 부분 높이' 평균
-  const wide = blur2(mask, 12), hAvg = blur2(hgt, 12);
-  const ao = blur2(foot, 2.5), shade = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    let s = 0;
-    if (wide[i] > 0.002) {
-      const h = mask[i] ? hgt[i] : hAvg[i] / wide[i];        // 이 칸을 가린 높이(그림자 밖이면 주변 평균)
-      const rp = (0.12 + h * 0.07) / PX;                      // 흐림 반경(칸): 높을수록(= 물체에서 멀수록) 넓게
-      let k = 0; while (k < RADII.length - 2 && RADII[k + 1] < rp) k++;
-      const t = Math.min(1, Math.max(0, (rp - RADII[k]) / (RADII[k + 1] - RADII[k])));
-      const v = levels[k][i] * (1 - t) + levels[k + 1][i] * t;
-      const dens = 0.6 * (1 - 0.55 * Math.min(1, h / 45));    // 진하기: 붙은 곳 0.6 → 멀리 0.27
-      s = v * dens;
-    }
-    const a = ao[i] * 0.2;                                     // 접지 그림자
-    shade[i] = 1 - (1 - s) * (1 - a);
+  try {
+    const cam = new THREE.OrthographicCamera(-320, 320, 320, -320, 1, 3000); cam.position.set(0, 1500, 0); cam.up.set(0, 0, -1); cam.lookAt(0, 0, 0); cam.updateMatrixWorld();
+    const mat = new THREE.ShaderMaterial({ side: THREE.DoubleSide, uniforms: { uK: { value: new THREE.Vector2() } },
+      vertexShader: 'uniform vec2 uK; varying float vH; void main(){ vec4 p = vec4(position, 1.);\n#ifdef USE_INSTANCING\n p = instanceMatrix * p;\n#endif\n vec4 w = modelMatrix * p; vH = max(w.y, 0.); w.xz -= uK * vH; w.y = 0.; vec4 c = projectionMatrix * viewMatrix * w; c.z = (vH / 400.) * 2. - 1.; gl_Position = c; }',
+      fragmentShader: 'varying float vH; void main(){ gl_FragColor = vec4(vH, 1., 0., 1.); }' });
+    treeBake(S, true);
+    // 바닥에 붙은 납작한 것은 그림자를 만들지 않는다. 인스턴스도 인스턴스 전체 상자로 잰다(바닥 매립등 원판이 굽기 순간에 아직 안 숨겨져 길 따라 점 그림자로 남았다)
+    S.traverse(o => { if (!o.visible) return;
+      const flat = o.isMesh && (o.isInstancedMesh ? (o.computeBoundingBox(), box.copy(o.boundingBox).applyMatrix4(o.matrixWorld)) : box.setFromObject(o)).max.y < 0.6;
+      if (o.name === 'SITE_GROUND' || o.name === 'SLEEK_SEA' || o.parent?.name === 'SLEEK_ROADS' || o.isPoints || o.isLine || o.isSprite || flat) { o.visible = false; hidden.push(o); } });
+    S.background = null; S.fog = null; S.overrideMaterial = mat; R.toneMapping = THREE.NoToneMapping; R.setClearColor(0x000000, 0); R.autoClear = true;
+    const cast = (k) => { const t = new THREE.WebGLRenderTarget(RES, RES, { type: THREE.FloatType, depthBuffer: true, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter }); rts.push(t); mat.uniforms.uK.value.copy(k); R.setRenderTarget(t); R.clear(); R.render(S, cam); return t; };
+    const sunT = cast(new THREE.Vector2(SUN.x / SUN.y, SUN.z / SUN.y)), aoT = cast(new THREE.Vector2(0, 0));
+    S.overrideMaterial = null; mat.dispose();
+    // 화면 패스(흐림·섞기)
+    const K = shadePasses(), pass = (m, out) => { K.quad.material = m; R.setRenderTarget(out); R.render(K.scene, K.cam); return out; };
+    K.prep.uniforms.uSun.value = sunT.texture; K.prep.uniforms.uAo.value = aoT.texture;
+    K.prep.uniforms.uMode.value = 0; const P1 = pass(K.prep, rt()); K.prep.uniforms.uMode.value = 1; const P2 = pass(K.prep, rt());
+    // 상자 흐림 두 번(가로·세로 × 2) = 예전 blur2. 반경은 예전처럼 반올림(r / 1.6)
+    const rr = (r) => Math.round(r / 1.6), blur2 = (src, rad) => { let t = src; for (let n = 0; n < 2; n++) for (const d of [[1, 0], [0, 1]]) {
+      K.box.uniforms.uT.value = t.texture; K.box.uniforms.uDir.value.set(d[0] / RES, d[1] / RES); K.box.uniforms.uR.value.copy(rad); t = pass(K.box, rt()); } return t; };
+    const A = blur2(P1, new THREE.Vector4(rr(SHADE_RADII[1]), rr(SHADE_RADII[2]), rr(SHADE_RADII[3]), rr(SHADE_RADII[4])));
+    const B = blur2(P2, new THREE.Vector4(rr(SHADE_RADII[5]), rr(12), rr(12), rr(2.5))); // 단계 5 · 주변 넓게(가림 비율) · 가린 높이 평균 · 접지
+    K.comb.uniforms.uP.value = P2.texture; K.comb.uniforms.uA.value = A.texture; K.comb.uniforms.uB.value = B.texture;
+    const out = pass(K.comb, rt(false)), buf = new Uint8Array(RES * RES * 4); R.readRenderTargetPixels(out, 0, 0, RES, RES, buf); // 결과는 8비트로 쓰므로 8비트로 읽는다(읽어 오는 양 1/4)
+    const shade = new Float32Array(RES * RES); for (let i = 0; i < RES * RES; i++) shade[i] = buf[i * 4] / 255;
+    return shade; // 읽은 픽셀 0행 = 화면 아래 = 남쪽 → 바닥 캔버스와 같은 방향
+  } finally {
+    R.setRenderTarget(null); S.overrideMaterial = null; S.background = bg; S.fog = fog; R.toneMapping = tm; R.setClearColor(cc, ca); R.autoClear = ac;
+    hidden.forEach(o => { o.visible = true; }); treeBake(S, false); rts.forEach(t => t.dispose());
+    keep.reverse().forEach(([o, v]) => { o.visible = v; });
   }
-  // 읽은 픽셀 0행 = 화면 아래 = 남쪽 → 바닥 캔버스와 같은 방향
-    return shade;
-  } finally { keep.reverse().forEach(([o, v]) => { o.visible = v; }); }
 }
 function bakeSunShadow(el, ground, baseTex) {
-  const RES = SUN_RES, n = RES * RES, shade = sunShadeBuf(el, null);
+  const RES = SUN_RES, n = RES * RES, shade = sunShadeBuf(el, 'static');
   const sc = document.createElement('canvas'); sc.width = sc.height = RES; const sx = sc.getContext('2d'), im = sx.createImageData(RES, RES);
   for (let i = 0; i < n; i++) { im.data[i * 4] = 0x2b; im.data[i * 4 + 1] = 0x35; im.data[i * 4 + 2] = 0x50; im.data[i * 4 + 3] = Math.round(Math.min(1, shade[i]) * 255); } // 그림자 색: 푸른 회색
   sx.putImageData(im, 0, 0);
@@ -1038,18 +1042,23 @@ function bakeSunShadow(el, ground, baseTex) {
   baseTex.needsUpdate = true;
 }
 
-// 공정 그림자: 공정마다 RGBA 한 채널(IDS 순서)에 구워 두고, 바닥 셰이더가 지금 보이는 공정(ZON) 것만 곱한다.
-// 모델이 다 실린 공정부터 한 번에 하나씩 굽는다(한꺼번에 굽는 멈칫거림을 나눔). 굽기 결과 0행(남쪽)을 그대로 0행에 넣는다(바닥 UV와 맞춤: 화면에서 확인)
+// 공정 그림자: 공정마다 RGBA 한 채널(IDS 순서). 공정 모델 4개가 다 실리면 한 번에 굽고(공정끼리 30m 넘게 떨어져 그림자가 겹치지 않는다),
+// 칸마다 가장 가까운 공정의 채널에 나눠 넣는다. 바닥 셰이더가 지금 보이는 공정(ZON) 것만 곱한다. 굽기 결과 0행(남쪽)을 그대로 0행에 넣는다(바닥 UV와 맞춤)
 const ZSHADE = { value: Object.assign(new THREE.DataTexture(new Uint8Array(SUN_RES * SUN_RES * 4), SUN_RES, SUN_RES), { magFilter: THREE.LinearFilter, minFilter: THREE.LinearFilter, needsUpdate: true }) };
-const ZON = { value: new THREE.Vector4() }, zoneShadeDone = new Set();
+const ZON = { value: new THREE.Vector4() };
+let zoneShadeDone = false;
 function zoneSunShadows(el) {
-  for (let i = 0; i < IDS.length; i++) {
-    const id = IDS[i], z = el.zones?.[id]; if (zoneShadeDone.has(id) || !z?.root?.getObjectByName('GLB_' + id)) continue;
-    zoneShadeDone.add(id); const sh = sunShadeBuf(el, z), d = ZSHADE.value.image.data, N = SUN_RES;
-    for (let r = 0; r < N; r++) for (let x = 0; x < N; x++) d[(r * N + x) * 4 + i] = Math.round(Math.min(1, sh[r * N + x]) * 255);
-    ZSHADE.value.needsUpdate = true; el._dirty = true; return true;
+  if (zoneShadeDone || !IDS.every(id => el.zones?.[id]?.root?.getObjectByName('GLB_' + id))) return false;
+  zoneShadeDone = true;
+  const sh = sunShadeBuf(el, 'zones'), d = ZSHADE.value.image.data, N = SUN_RES, PX = 640 / N;
+  const C = IDS.map(id => new THREE.Box3().setFromObject(el.zones[id].root).getCenter(new THREE.Vector3()));
+  for (let r = 0; r < N; r++) for (let x = 0; x < N; x++) {
+    const v = sh[r * N + x]; if (v < 0.002) continue;
+    const wx = -320 + (x + 0.5) * PX, wz = 320 - (r + 0.5) * PX; let best = 0, bd = Infinity; // 0행 = 남쪽(+z)
+    C.forEach((c, i) => { const q = (wx - c.x) ** 2 + (wz - c.z) ** 2; if (q < bd) { bd = q; best = i; } });
+    d[(r * N + x) * 4 + best] = Math.round(Math.min(1, v) * 255);
   }
-  return false;
+  ZSHADE.value.needsUpdate = true; el._dirty = true; return true;
 }
 function addZoneShade(sh) { // 라이트 모드 바닥: 보이는 공정의 그림자를 바닥 그림처럼 푸른 회색으로 곱한다(canvas 곱하기와 같게 sRGB에서 섞고 선형으로)
   sh.uniforms.uSleekZS = ZSHADE; sh.uniforms.uSleekZOn = ZON; sh.uniforms.uSleekBakeOn = BAKE_ON;
@@ -1203,6 +1212,66 @@ function bakeLampLight(ground, pool) {
   ground.material.lightMap = lm; ground.material.lightMapIntensity = 12; ground.material.needsUpdate = true; // 바닥이 어두운 색이라 세게 줘야 보인다
 }
 
+// ---- 배경 건물 합치기(그리기 호출 줄이기) ----
+// 배경 GLB의 일반 메시(건물·굴뚝·지붕 부품 등 200개 남짓)는 테마별 굽기(낮 명암·밤 빛)가 끝나면 더 바뀌지 않는다.
+// 그래서 굽기가 끝난 뒤 재질 종류별로 한 메시로 합친다(라이트 모드 그리기 호출 약 200번 → 몇 번). 메시마다 다른 색은 꼭짓점 색으로 옮긴다.
+// 공정 안 화면에서 앞을 가리는 건물을 하나씩 숨기는 기능(hideOccluders)은 원래 메시 번호(aSleekId)로 숨김표(텍스처)를 보고 셰이더가 그 건물만 화면 밖으로 보낸다.
+// 원래 메시는 장면에서 떼고, 숨기기용으로 visible만 흉내 내는 대리 객체를 남긴다(hideOccluders·그림자 굽기가 그대로 쓴다)
+function mergeBackdrop(el, root, dark) {
+  root.updateMatrixWorld(true);
+  const groups = new Map(), all = [], toRoot = new THREE.Matrix4().copy(root.matrixWorld).invert(), M = new THREE.Matrix4(), NM = new THREE.Matrix3();
+  root.traverse(o => {
+    if (!o.isMesh || o.isInstancedMesh || o.name === 'SITE_GROUND' || o.userData.sleekOff || o.userData.lamp || Array.isArray(o.material)) return;
+    const m = o.material, g = o.geometry; let hasKids = false; o.traverse(c => { if (c !== o && c.isMesh) hasKids = true; }); if (hasKids) return;
+    let key;
+    if (dark) { if (!g.attributes.sleekBake || !m.isMeshStandardMaterial || m.map || m.transparent) return; key = 'n|' + (m.userData.sleekTrim ? 't' : '') + '|' + m.metalness.toFixed(2) + '|' + m.emissive.getHexString() + '|' + m.side; }
+    else { if (!g.attributes.color || !m.isMeshBasicMaterial || !m.vertexColors || m.map || m.transparent) return; key = 'd|' + (m.userData.sleekTrim ? 't' : '') + '|' + m.side; }
+    if (!groups.has(key)) groups.set(key, []); groups.get(key).push(o); all.push(o);
+  });
+  if (all.length < 2) return false;
+  // 숨김표: 원래 메시 하나당 한 칸(0 = 보임, 255 = 숨김)
+  const N = all.length, flags = new Uint8Array(N * 4), hideTex = new THREE.DataTexture(flags, N, 1); hideTex.needsUpdate = true;
+  const proxy = (o, id) => { const p = { name: o.name, userData: o.userData, get visible() { return flags[id * 4] === 0; }, set visible(v) { flags[id * 4] = v ? 0 : 255; hideTex.needsUpdate = true; el._dirty = true; } }; return p; };
+  const boxes = []; // hideOccluders가 쓰는 [대상, 경계 상자] 목록(합치기 전 메시 위치로 잰다)
+  root.traverse(o => { if (!o.isMesh || o.isInstancedMesh || o.name === 'SITE_GROUND' || o.userData.lamp || o.userData.sleekOff) return; const b = new THREE.Box3().setFromObject(o), sz = b.getSize(new THREE.Vector3()); if (Math.max(sz.x, sz.z) > 150) return; boxes.push([o, b]); });
+  const ids = new Map(all.map((o, i) => [o, i])), proxies = new Map(all.map((o, i) => [o, proxy(o, i)]));
+  groups.forEach((list, key) => {
+    const parts = list.map(o => {
+      const g = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone()); M.multiplyMatrices(toRoot, o.matrixWorld); g.applyMatrix4(M);
+      const n = g.attributes.position.count, id = new Float32Array(n).fill(ids.get(o)), out = new THREE.BufferGeometry(), c = o.material.color;
+      out.setAttribute('position', g.attributes.position); if (g.attributes.normal) out.setAttribute('normal', g.attributes.normal);
+      const col = new Float32Array(n * 3), src = g.attributes.color; // 꼭짓점 색 = (낮: 구운 명암 색 ×) 재질 색
+      for (let i = 0; i < n; i++) { col[i * 3] = c.r * (src ? src.getX(i) : 1); col[i * 3 + 1] = c.g * (src ? src.getY(i) : 1); col[i * 3 + 2] = c.b * (src ? src.getZ(i) : 1); }
+      out.setAttribute('color', new THREE.BufferAttribute(col, 3)); out.setAttribute('aSleekId', new THREE.BufferAttribute(id, 1));
+      if (dark) out.setAttribute('sleekBake', g.attributes.sleekBake);
+      return out;
+    });
+    const geo = concatGeos(parts), src = list[0].material, m = src.clone();
+    m.color.set(0xffffff); m.vertexColors = true; m.userData = { ...src.userData };
+    m.onBeforeCompile = (sh) => { sh.uniforms.uSleekHide = { value: hideTex };
+      sh.vertexShader = 'attribute float aSleekId;\nuniform sampler2D uSleekHide;\n' + sh.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>
+  if (texture2D(uSleekHide, vec2((aSleekId + .5) / ${N}.0, .5)).r > .5) gl_Position = vec4(2., 2., 2., 1.);`); };
+    m.customProgramCacheKey = () => 'sleekMerged' + N;
+    const mesh = new THREE.Mesh(geo, m); mesh.name = 'SLEEK_MERGED_' + key; mesh.raycast = () => {};
+    Object.assign(mesh.userData, { scaledY: true, bld: !!src.userData.sleekTrim, merged: true, nightBaked: dark });
+    root.add(mesh);
+  });
+  all.forEach(o => o.parent?.remove(o));
+  root.userData.boxes = boxes.map(([o, b]) => [proxies.get(o) || o, b]);
+  root.userData.merged = true; el._dirty = true;
+  return true;
+}
+
+// 비인덱스 지오메트리 여러 개를 하나로(모두 가진 속성만)
+function concatGeos(list) {
+  const names = Object.keys(list[0].attributes).filter(n => list.every(g => g.attributes[n])), out = new THREE.BufferGeometry();
+  names.forEach(n => { const s = list[0].attributes[n].itemSize, arr = new Float32Array(list.reduce((t, g) => t + g.attributes[n].count * s, 0)); let o = 0;
+    list.forEach(g => { const at = g.attributes[n]; for (let i = 0; i < at.count; i++) for (let q = 0; q < s; q++) arr[o++] = at.getComponent(i, q); });
+    out.setAttribute(n, new THREE.BufferAttribute(arr, s)); });
+  if (!out.attributes.normal) out.computeVertexNormals();
+  out.computeBoundingSphere(); return out;
+}
+
 // ---- 4) 공정을 볼 때(소개 중 포함) 카메라와 공정 사이를 가리는 주변 모델 숨기기 ----
 // 대상 공정: 소개 중이면 그 공정(el.__sleekFocus), 아니면 들어가 있는 공정. 대상이 바뀌면 숨긴 것을 되돌리고 다시 잰다.
 const hidden = new Set();
@@ -1220,11 +1289,13 @@ function hideOccluders(el) {
   for (const fx of [.1, .37, .63, .9]) for (const fz of [.15, .5, .85]) for (const fy of [.15, .5])
     pts.push(new THREE.Vector3(box.min.x + s.x * fx, box.min.y + s.y * fy, box.min.z + s.z * fz));
   // 주변 건물 GLB는 site-backdrop.js가 메시 레이캐스트를 꺼 두어(클릭 통과), 각 메시의 경계 상자와 광선으로 판정한다
-  if (!ext.userData.boxes) { const B = []; ext.updateMatrixWorld(true); ext.traverse(o => { if (!o.isMesh || o.isInstancedMesh || o.name === 'SITE_GROUND' || o.userData.lamp) return; const b = new THREE.Box3().setFromObject(o), sz = b.getSize(new THREE.Vector3()); if (Math.max(sz.x, sz.z) > 150) return; B.push([o, b]); }); ext.userData.boxes = B; } // 바닥처럼 넓은 판은 빼 둔다
+  // 상자 목록은 배경 GLB마다(테마를 바꾸면 GLB가 바뀐다. 합친 배경은 mergeBackdrop이 숨김용 대리 객체로 채워 둔다)
+  const root = ext.children[0]; if (!root) return;
+  if (!root.userData.boxes) { const B = []; root.updateMatrixWorld(true); root.traverse(o => { if (!o.isMesh || o.isInstancedMesh || o.name === 'SITE_GROUND' || o.userData.lamp) return; const b = new THREE.Box3().setFromObject(o), sz = b.getSize(new THREE.Vector3()); if (Math.max(sz.x, sz.z) > 150) return; B.push([o, b]); }); root.userData.boxes = B; } // 바닥처럼 넓은 판은 빼 둔다
   const hit = new THREE.Vector3();
   pts.forEach(p => {
     const dir = p.clone().sub(cam), len = dir.length(); ray.set(cam, dir.normalize());
-    ext.userData.boxes.forEach(([o, b]) => { if (hidden.has(o) || b.containsPoint(p)) return; if (ray.ray.intersectBox(b, hit) && hit.distanceTo(cam) < len) { o.visible = false; hidden.add(o); el._dirty = true; } });
+    root.userData.boxes.forEach(([o, b]) => { if (hidden.has(o) || b.containsPoint(p)) return; if (ray.ray.intersectBox(b, hit) && hit.distanceTo(cam) < len) { o.visible = false; hidden.add(o); el._dirty = true; } });
   });
 }
 

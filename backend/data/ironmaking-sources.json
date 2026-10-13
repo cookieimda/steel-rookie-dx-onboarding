@@ -1290,6 +1290,42 @@
       "evidence": [
         "the operation temperature is as high as 1,600 to 1,700°C. Because the mixture of molten oxides (slag) that are formed during converter refining under oxygen blowing is basic, refractories consisting of basic and high-meting-point oxides, namely MgO and CaO, have long been used for the inner lining of converter vessels. … The latter became widely applied to converters in the 1980s because they were free from the slaking of dolomite, resistance to slag attack was greatly improved because of the composite structure of magnesia and graphite, and spalling resistance was markedly improved as graphite of low thermal expansion effectively absorbed the expansion of magnesia."
       ]
+    },
+    {
+      "id": "nippon-steel-rf-mebios",
+      "title": "Improvement of Sinter Productivity by Adding Return Fine on Raw Materials after Granulation Stage (Development of RF-MEBIOS) (Nippon Steel Technical Report No. 123)",
+      "date": "2020",
+      "date_type": "발행연도",
+      "url": "https://www.nipponsteel.com/en/tech/report/pdf/123-05.pdf",
+      "publisher": "일본제철(Nippon Steel)",
+      "section": "ironmaking",
+      "topics": ["반광", "소결 원료", "드럼 믹서", "조립"],
+      "notes": [
+        "반광(return fines)은 소결기에서 배출된 직후 다시 소결 원료로 쓰인다. 곧바로 다시 쓰기 때문에 따로 말리지 않고 마른 입자로 넣을 수 있다.",
+        "실제 소결 공장에서는 반광 저장조의 반광을 다른 소결 원료와 함께 믹서에 넣고 물과 섞어 알갱이로 만든다(조립).",
+        "소결 시험에서는 전체 원료의 85%를 여러 가루 철광석·사문암·석회석으로, 15%를 반광으로 준비했다."
+      ],
+      "evidence": [
+        "The return fines can be used as the dry particles by eliminating the drying process because the return fines are utilized as raw materials soon after they are discharged from sinter plants.",
+        "The return fines from the existing return fine bin and the other sinter raw materials are mixed and granulated together with water in the mixer.",
+        "At first, 85 mass% of the total raw materials, which were several types of fine ore, serpentine, and limestone, and 15 mass% of the return fines were prepared."
+      ]
+    },
+    {
+      "id": "up-sinter-fines-dissertation",
+      "title": "An assessment of the production of fine material in iron ore sinter (MSc dissertation)",
+      "date": "2008",
+      "date_type": "발행연도",
+      "url": "https://repository.up.ac.za/handle/2263/27950",
+      "publisher": "프리토리아대학교(University of Pretoria)",
+      "section": "ironmaking",
+      "topics": ["반광", "소결광 선별", "고운 소결광"],
+      "notes": [
+        "소결광을 만드는 과정에서 고로 원료로 쓸 수 없는 고운 소결광이 생기고, 이 고운 소결광은 체로 걸러 소결 공장으로 되돌려 다시 쓴다. 이렇게 되돌려 쓰는 소결광을 반광이라고 한다."
+      ],
+      "evidence": [
+        "During the sinter production process fine sinter is produced that is not acceptable as feedstock for the blast furnace. This fine material is screened off and returned to the sinter plant to be recycled."
+      ]
     }
   ]
 }

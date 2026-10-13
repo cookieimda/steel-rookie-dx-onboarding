@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>공정 설계도</title>
+  <!-- 마이페이지 '설계도·필기' 탭이 iframe으로 띄우는 도면 전용 페이지. 3D 화면(v4)의 2D 뷰와 같은 장면(scene_v3.js)을 2D 도면 모드로만 보여 준다.
+       장면은 모델을 이 페이지 기준 models/에서 읽으므로 3d-demo 폴더에 둔다(마이페이지 /login_ui/에서는 모델 경로가 맞지 않는다).
+       주소: ?p=공정&mode=top|plan|front&theme=dark|light. 열린 뒤에는 부모가 postMessage({ type: 'blueprint', process, mode, theme })로 바꾼다.
+       조작(이동·확대)은 받지 않는다. 그 위에 펜 필기(sketch-pad.js)가 겹치므로 도면이 움직이면 필기와 어긋난다. -->
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #0f2c4c; }
+    steel-scene { position: absolute; inset: 0; display: block; }
+  </style>
+  <script type="module" src="./scene_v3.js"></script>
+</head>
+<body>
+  <steel-scene id="scene" view="2d" external-cards="1"></steel-scene>
+  <script type="module">
+    const el = document.getElementById('scene');
+    const MODES = ['top', 'plan', 'front'];
+    const apply = ({ process, mode, theme }) => {
+      if (theme) el.setAttribute('theme', theme);
+      if (process && el.getAttribute('process') !== process) el.setAttribute('process', process);
+      if (MODES.includes(mode)) customElements.whenDefined('steel-scene').then(() => el.setDrawMode?.(mode));
+    };
+    const q = new URLSearchParams(location.search);
+    apply({ process: q.get('p') || 'ironmaking', mode: q.get('mode') || 'plan', theme: q.get('theme') || 'dark' });
+    addEventListener('message', (e) => {
+      if (e.origin !== location.origin || e.data?.type !== 'blueprint') return;
+      apply(e.data);
+    });
+  </script>
+</body>
+</html>

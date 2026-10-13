@@ -87,6 +87,8 @@
     /* 모든 UI 캡슐과 안쪽 버튼·입력창의 외곽선을 없앤다(다크·라이트 공통) */
     [data-sa-cap] { border: none !important; }
     [data-sa-cap] button, [data-sa-cap] input, [data-sa-cap] a, [data-sa-cap] code { border-color: transparent !important; outline: none; }
+    /* UI 캡슐(상단 바·좌측 메뉴·설명 패널·재생바·이름표 버튼)을 1.25배로: 글자 12~13px → 15~16px. 안에 든 캡슐(드롭다운)은 부모를 따라 커지므로 겹쳐 키우지 않는다. 좁은 화면은 그대로 */
+    @media (min-width: 900px) { [data-sa-cap]:not([data-sa-cap] [data-sa-cap]) { zoom: 1.25; } }
     [data-sa-theme="light"] [data-sa-cap] {
       --line: rgba(27,37,50,.10) !important; --line2: rgba(27,37,50,.16) !important; --text: #1b2532 !important; --muted: #5d6878 !important;
       --chrome: rgba(255,255,255,.65) !important; --chrome3: rgba(27,37,50,.06) !important; --chrome4: rgba(27,37,50,.10) !important;
@@ -163,7 +165,7 @@
             </button>
           </sc-for>
         </div>
-        <span style="position:absolute;left:24px;bottom:16px;font-size:12px;color:#9fc6e8;">칸 하나 = 설비 구역 하나 · 공정 순서대로 ㄹ자 배치(실제 위치는 탑뷰·평면도) · 칸을 누르면 설비 정보</span>
+        <span style="position:absolute;left:24px;bottom:108px;font-size:12px;color:#9fc6e8;">칸 하나 = 설비 구역 하나 · 공정 순서대로 ㄹ자 배치(실제 위치는 탑뷰·평면도) · 칸을 누르면 설비 정보</span>
       </div>
     </sc-if>
 
@@ -189,7 +191,7 @@
           <button onClick="{{ t.onClick }}" title="{{ t.tip }}" style="height:30px;padding:0 14px;border:none;border-radius:6px;background:{{ t.bg }};color:{{ t.color }};font-size:13px;font-weight:{{ t.weight }};cursor:pointer;white-space:nowrap;" style-hover="filter:brightness(1.12);">{{ t.label }}</button>
         </sc-for>
       </div>
-      <div style="position:absolute;right:16px;bottom:60px;display:{{ L.tbDisp }};grid-template-columns:auto auto;min-width:300px;border:1.5px solid {{ tb.line }};background:{{ tb.bg }};color:{{ tb.color }};font-size:12px;pointer-events:none;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);">
+      <div style="position:absolute;right:16px;bottom:92px;display:{{ L.tbDisp }};grid-template-columns:auto auto;min-width:300px;border:1.5px solid {{ tb.line }};background:{{ tb.bg }};color:{{ tb.color }};font-size:12px;pointer-events:none;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);">
         <span style="grid-column:1 / 3;padding:8px 12px;border-bottom:1px solid {{ tb.line }};font-size:15px;font-weight:700;">{{ tb.title }}</span>
         <span style="padding:6px 12px;border-right:1px solid {{ tb.line }};border-bottom:1px solid {{ tb.line }};opacity:.75;">도면 번호</span><span style="padding:6px 12px;border-bottom:1px solid {{ tb.line }};font-family:'IBM Plex Mono',monospace;">{{ tb.no }}</span>
         <span style="padding:6px 12px;border-right:1px solid {{ tb.line }};border-bottom:1px solid {{ tb.line }};opacity:.75;">축척</span><span style="padding:6px 12px;border-bottom:1px solid {{ tb.line }};">NTS (실제 치수 아님)</span>

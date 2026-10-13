@@ -1,13 +1,13 @@
 # 메인 페이지에 체크포인트 붙이기
 
-메인 3D 페이지(`frontend/3d-demo/Steel Academy v3.dc.html`)의 튜터 패널은 학습 전용이고, 체크포인트(이해도 확인)는 공정 목록의 [담금질 시작하기]로 여는 3D 화면 위 오버레이에서 한다. 이 문서는 정해진 내용, 모듈 구조, 템플릿에 쓸 값(`vals()` 키)을 적는다. 오버레이 설계는 [checkpoint-overlay.md](checkpoint-overlay.md), 체크포인트 API는 [checkpoint-api.md](checkpoint-api.md)를 본다.
+메인 3D 페이지(`frontend/3d-demo/Steel Academy v3.dc.html`)의 튜터 패널은 학습 전용이고, 체크포인트(이해도 확인)는 공정 목록의 [학습하기]로 여는 3D 화면 위 오버레이에서 한다. 이 문서는 정해진 내용, 모듈 구조, 템플릿에 쓸 값(`vals()` 키)을 적는다. 오버레이 설계는 [checkpoint-overlay.md](checkpoint-overlay.md), 체크포인트 API는 [checkpoint-api.md](checkpoint-api.md)를 본다.
 
 예전 v2 페이지(`Steel Academy v2.dc.html`)의 튜터 패널 모드 탭(학습 | 이해도 확인)과 `tutorMode`는 오버레이로 옮긴 뒤 지웠고, v2 페이지와 v2 전용 `scene_v2.js`도 지웠다(오버레이 PR 4).
 
 ## 결정 사항
 
 1. **답하는 중(준비·답변·재확인·채점 오류)에는 학습 입력을 막는다.** 학습 질문을 하려 하면 "풀던 이해도 확인이 있어요. 잠깐 멈추고 질문할까요? [멈추고 질문하기]"를 보여 주고, 누르면 멈춘 뒤 그 질문을 보낸다(`cpShowPauseOffer`). '나중에 이어 풀기'로 멈춘 시도(`paused`)는 학습 입력을 막지 않는다. 규칙은 [checkpoint-api.md](checkpoint-api.md) '나중에 이어 풀기'.
-2. **잠그는 것은 체크포인트뿐이다.** 공정 목록에는 '미통과 / 단련 완료' 배지만 보여 준다(`sectionBadge`의 `cpBadge`). 공정 이동까지 잠그려면 `checkpoint-chat.js`의 `LOCK_PROCESS_TABS`를 `true`로 바꾼다. 기본값은 `false`다. 앞 공정을 통과하지 못한 섹션의 [담금질 시작하기]는 비활성이다.
+2. **잠그는 것은 체크포인트뿐이다.** 공정 목록에는 '미통과 / 단련 완료' 배지만 보여 준다(`sectionBadge`의 `cpBadge`). 공정 이동까지 잠그려면 `checkpoint-chat.js`의 `LOCK_PROCESS_TABS`를 `true`로 바꾼다. 기본값은 `false`다. 앞 공정을 통과하지 못한 섹션의 [학습하기]는 비활성이다.
 3. **메인 페이지는 로그인 필수다.** `?user=이름` 방식은 ④에서 지운다. `TEST_PASSCODE`(접속 비밀번호)도 ④에서 지운다(아래 '접속 비밀번호 정리').
 4. **v3 페이지는 viiin2님 담당이다.** 템플릿 변경은 viiin2님 리뷰를 받는다.
 5. **오버레이가 떠 있는 동안 3D 화면 조작, 공정 메뉴(공정 이동·설비·섹션 버튼), 하단 재생 바를 막는다.** 상단 바는 미정([checkpoint-overlay.md](checkpoint-overlay.md) 미정 사항 1).
@@ -17,7 +17,7 @@
 ```
 Steel Academy v3.dc.html (페이지, viiin2)
   튜터 패널: 학습 전용  ...this.checkpoint.lockLearning(this.chat.vals(D))   학습 모드 값(답하는 중이면 잠금)
-  공정 목록: steps 항목에 ...this.checkpoint.sectionBadge(id)                배지와 [담금질 시작하기]
+  공정 목록: steps 항목에 ...this.checkpoint.sectionBadge(id)                배지와 [학습하기]
   3D 영역 위 오버레이: ...this.checkpoint.vals()                            체크포인트 값(cp로 시작)
         │                         │                                    │
 learning-chat.js (ssoyoum)      checkpoint-chat.js (수민)               cp-character.js (수민)
@@ -178,7 +178,7 @@ const chatV = this.checkpoint.lockLearning(this.chat.vals(D));   // 학습 값 �
 | `cpSectionPassed` | 불리언 | 통과한 섹션 |
 | `cpSectionShowStart` | 불리언 | 버튼을 보여 줄지. 통과·로그인 전·준비 중·확인 중이면 숨기고 상태 문구만. 잠긴 섹션은 비활성 버튼으로 보인다 |
 | `cpSectionCanStart`, `cpSectionStartOpacity`, `cpSectionCursor` | 불리언·문자열 | 누를 수 있는지(잠긴 섹션, 다른 섹션의 풀던 시도가 열려 있거나 요청 중이면 `false`, 투명도 `.45`, 커서 `not-allowed`) |
-| `cpSectionStartLabel`, `onCpSectionStart` | 문자열·핸들러 | '담금질 시작하기' · '이어 풀기' · '재도전'. 핸들러는 `openSection(section)` |
+| `cpSectionStartLabel`, `onCpSectionStart` | 문자열·핸들러 | '학습하기' · '이어 풀기' · '재도전'. 핸들러는 `openSection(section)` |
 | `cpSectionHasResume`, `cpSectionResumeText` | 불리언·문자열 | 이어 풀기 안내 "풀던 이해도 확인이 있어요 · 제선 1/3 완료". 오버레이가 열려 있으면 숨긴다 |
 
 ### 오버레이
@@ -196,7 +196,7 @@ const chatV = this.checkpoint.lockLearning(this.chat.vals(D));   // 학습 값 �
 | `cpOverlayPlaceholder` | 문자열 | 오버레이 입력 안내. 다음 발화가 남았으면 '[다음]으로 질문까지 본 뒤 답할 수 있어요', 그 밖에는 단계별 안내 |
 | `cpOverlayShowReady` | 불리언 | '준비됐어요' 버튼: 준비 단계에서 시작 인사를 끝까지 본 뒤 |
 | `cpOverlayLockPointer`, `cpOverlayLockOpacity`, `cpOverlayLockFilter` | 문자열 | 오버레이가 떠 있는 동안 페이지의 공정 메뉴(공정 이동·설비·섹션 버튼)와 하단 재생 바를 막는 CSS 값: `none`·`.4`·`grayscale(1)`, 아니면 `auto`·`1`·`none` |
-| `cpOverlayLockNotice` | 문자열 | 공정 메뉴 맨 위 안내 '담금질 중에는 공정 이동과 재생을 쓸 수 없어요'(`TEXT.overlayLocked`) |
+| `cpOverlayLockNotice` | 문자열 | 공정 메뉴 맨 위 안내 '이해도 확인 중에는 공정 이동과 재생을 쓸 수 없어요'(`TEXT.overlayLocked`) |
 | `cpOverlayShowResult` | 불리언 | 결과(게이지·막대): 결과 발화까지 본 뒤. 그때 캐릭터 동작이 `celebrate`·`cheer_retry`다 |
 | `cpShowHistory`, `cpHistoryLabel`, `onCpToggleHistory` | 불리언·문자열·핸들러 | 대화 기록(`cpMessages`) 펼침 · '대화 기록' / '기록 닫기' |
 | `cpExitLabel`, `onCpExit` | 문자열·핸들러 | [나가기](`exit()`) |
@@ -236,8 +236,8 @@ const chatV = this.checkpoint.lockLearning(this.chat.vals(D));   // 학습 값 �
 2. `/`(홈)에서 `trainee01`~`10` 중 하나로 로그인하면 3D 화면(v4)으로 넘어간다. 체크포인트 기록이 남으므로 끝나면 `npm run db:reset-user -- trainee0N --origin live`로 지울 수 있다.
 3. 확인할 것:
    - 오른쪽 위 'AI 튜터' → 머리글이 '학습 모드'이고 모드 탭이 없다. 질문하면 Gemini 답변과 근거가 나온다.
-   - 제선으로 들어가면 공정 목록의 제선 끝에 '시작 전'과 [담금질 시작하기], 제강·연주·압연에는 배지와 버튼이 없다(루브릭 없음).
-   - [담금질 시작하기] → 3D 화면 위 오버레이(곰 캐릭터, 말풍선). '준비됐어요' → 질문(단계 '개념 1/3'). 일부러 모르는 척 답하면 설명과 재확인 질문(단계 '개념 1/3 · 재확인', [다음]으로 넘김).
+   - 제선으로 들어가면 공정 목록의 제선 끝에 '시작 전'과 [학습하기], 제강·연주·압연에는 배지와 버튼이 없다(루브릭 없음).
+   - [학습하기] → 3D 화면 위 오버레이(곰 캐릭터, 말풍선). '준비됐어요' → 질문(단계 '개념 1/3'). 일부러 모르는 척 답하면 설명과 재확인 질문(단계 '개념 1/3 · 재확인', [다음]으로 넘김).
    - 오버레이가 떠 있는 동안 3D 클릭·카메라 조작, 공정 메뉴, 하단 재생 바가 막히고 공정 메뉴 위에 안내가 뜬다. 튜터 패널에서 질문하면 [멈추고 질문하기] 안내.
    - [나가기] → 확인창 → [멈추기]면 오버레이가 닫히고 공정 목록 버튼이 [이어 풀기]가 된다. 새로고침해도 오버레이는 자동으로 열리지 않는다.
    - 끝나면 결과(이해도 %, 기준 80% 선, 개념별 막대)와 통과 안내. 통과하면 제선 배지가 '단련 완료'.

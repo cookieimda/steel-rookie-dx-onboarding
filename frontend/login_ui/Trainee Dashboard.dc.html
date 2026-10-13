@@ -11,6 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Montserrat:wght@500;700;800&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
   <script type="module" src="../3d-demo/process-2d.js"></script>
+  <script type="module" src="./sketch-pad.js"></script>
   <style>
     /* 홈(home-sleek.html)·관리자 화면과 같은 세련안 토큰. 테마는 저장값(st-rookie-theme) → 시스템 설정 순서로 정한다 */
     html, body { margin: 0; min-height: 100%; }
@@ -44,6 +45,8 @@
     .side { display: flex; flex-direction: column; gap: 14px; min-width: 0; min-height: 0; padding: 19px 0; }
     .side > .card { flex: 1 1 0; min-height: 0; }
     .tutor { display: flex; flex-direction: column; }
+    /* 학습 모듈: 탭(작동 단계 / 설계도·필기) + 내용 */
+    .module { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
     @keyframes blink { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
     @media (max-width: 1100px) { .learn { grid-template-columns: 1fr; } .side > .card { flex: none; height: 640px; } }
   </style>
@@ -77,8 +80,44 @@
     </sc-if>
 
     <div class="learn">
+      <div class="module">
+      <!-- 학습 모듈 탭: 작동 단계(2D 애니메이션 모듈) / 설계도·필기(3D 화면의 2D 도면 + 펜 필기). 탭을 바꿔도 두 화면은 상태를 유지하도록 숨기기만 한다 -->
+      <div role="tablist" aria-label="학습 모듈" style="display:flex;gap:4px;padding:4px;border-radius:14px;background:var(--panel2);align-self:flex-start;">
+        <sc-for list="{{ moduleTabs }}" as="t" hint-placeholder-count="2">
+          <button type="button" role="tab" aria-selected="{{ t.on }}" onClick="{{ t.onClick }}" style="height:36px;padding:0 16px;border:none;border-radius:10px;background:{{ t.bg }};color:{{ t.color }};font-size:13px;font-weight:700;cursor:pointer;">{{ t.label }}</button>
+        </sc-for>
+      </div>
       <!-- 2D 학습 모듈(공정 4개·설비 24개). 모듈이 자기 카드 틀을 가지므로 바깥에 카드를 또 두지 않는다 -->
-      <x-import component-from-global-scope="process-2d" process="{{ processId }}" selected="{{ selectedAttr }}" theme="{{ theme }}" hint-size="100%,100%" style="display:block;width:100%;height:auto;min-width:0;"></x-import>
+      <div style="display:{{ stepsDisplay }};min-width:0;">
+        <x-import component-from-global-scope="process-2d" process="{{ processId }}" selected="{{ selectedAttr }}" theme="{{ theme }}" hint-size="100%,100%" style="display:block;width:100%;height:auto;min-width:0;"></x-import>
+      </div>
+      <!-- 설계도·필기: 3D 화면(v4)의 2D 뷰를 도면 전용 페이지(/3d-demo/blueprint.html)로 띄우고 그 위에 펜 필기(sketch-pad.js)를 겹친다.
+           도면 영역 비율을 16:10으로 고정해 필기 좌표(비율)가 화면 크기와 상관없이 같은 자리에 남는다. 도면은 이동·확대하지 않는다 -->
+      <section class="card" aria-label="설계도·필기" style="display:{{ blueprintDisplay }};flex-direction:column;gap:12px;padding:14px;">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;">
+          <div role="tablist" aria-label="공정" style="display:flex;flex-wrap:wrap;gap:4px;">
+            <sc-for list="{{ bpProcesses }}" as="p" hint-placeholder-count="4">
+              <button type="button" role="tab" aria-selected="{{ p.on }}" onClick="{{ p.onClick }}" style="height:32px;padding:0 12px;border-radius:999px;border:1px solid {{ p.border }};background:{{ p.bg }};color:{{ p.color }};font-size:12px;font-weight:600;cursor:pointer;">{{ p.label }}</button>
+            </sc-for>
+          </div>
+          <div role="tablist" aria-label="도면" style="display:flex;gap:2px;padding:3px;border-radius:10px;background:var(--panel2);">
+            <sc-for list="{{ drawTabs }}" as="d" hint-placeholder-count="3">
+              <button type="button" role="tab" aria-selected="{{ d.on }}" title="{{ d.tip }}" onClick="{{ d.onClick }}" style="height:28px;padding:0 12px;border:none;border-radius:8px;background:{{ d.bg }};color:{{ d.color }};font-size:12px;font-weight:600;cursor:pointer;">{{ d.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+        <div style="position:relative;width:100%;aspect-ratio:16 / 10;border-radius:12px;overflow:hidden;background:#0f2c4c;">
+          <iframe id="bpFrame" title="공정 설계도" src="{{ bpSrc }}" style="position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none;"></iframe>
+          <!-- 표제란(3D 화면 2D 뷰와 같은 형식). 필기가 위에 올라갈 수 있게 펜 층보다 아래에 둔다 -->
+          <div aria-hidden="true" style="position:absolute;right:12px;bottom:12px;display:grid;grid-template-columns:auto auto;font-size:11px;color:#d7ecff;background:rgba(15,44,76,.78);border:1px solid rgba(215,236,255,.6);">
+            <span style="padding:5px 10px;border-right:1px solid rgba(215,236,255,.6);border-bottom:1px solid rgba(215,236,255,.6);opacity:.75;">도면명</span><span style="padding:5px 10px;border-bottom:1px solid rgba(215,236,255,.6);">{{ bpTitle }}</span>
+            <span style="padding:5px 10px;border-right:1px solid rgba(215,236,255,.6);opacity:.75;">도면 번호</span><span style="padding:5px 10px;font-family:var(--mono);">{{ bpNo }}</span>
+          </div>
+          <x-import component-from-global-scope="sketch-pad" process="{{ processId }}" mode="{{ drawMode }}" hint-size="100%,100%" style="position:absolute;inset:0;"></x-import>
+        </div>
+        <span style="font-size:12px;color:var(--dim);">도면 위에 펜·형광펜으로 그리거나 텍스트(T)로 메모하면 공정·도면마다 내 계정에 저장돼요. 도면 이동·확대는 3D 화면의 2D 뷰에서 할 수 있어요.</span>
+      </section>
+      </div>
 
       <div class="side">
       <!-- ASK(AI 튜터) / LEARN(이해도 확인) 중 하나만 보인다 -->
@@ -291,9 +330,13 @@ const systemTheme = () => (lightQuery()?.matches ? 'light' : 'dark');
 // learning-chat.js가 쓰는 것: state(processId·selectedId·messages·input·pending·lastResults·speed), data(data_v2.js), chatRef, scene(), goProcess(), scrollChat().
 // 여기서 scene()은 2D 모듈(<process-2d>)이고, 튜터의 focus·highlight는 그 설비 선택, play_animation은 자동 재생이 된다.
 
+// 설계도·필기 탭의 도면: 3D 화면(v4) 2D 뷰와 같은 이름·도면 번호 기호. [탭 이름, 설명, 표제란 도면명, 기호]
+const DRAW_MODES = { top: ['탑뷰', '위에서 내려다본 실제 모습', '배치 탑뷰', 'T'], plan: ['평면도', '위에서 본 선 도면', '배치 평면도', 'P'], front: ['정면도', '앞에서 본 선 도면', '정면도', 'E'] };
+
 class Component extends DCLogic {
   state = { data: null, processes: [], error: null, theme: savedTheme() || systemTheme(), loadedAt: null, statsOpen: false, ai: null, sideTab: 'ask',
-    processId: 'ironmaking', selectedId: 'sinter_plant', messages: [], input: '', pending: false, lastReq: null, lastRes: null, lastResults: [], speed: 1 };
+    processId: 'ironmaking', selectedId: 'sinter_plant', messages: [], input: '', pending: false, lastReq: null, lastRes: null, lastResults: [], speed: 1,
+    moduleTab: 'steps', drawMode: 'plan' }; // 학습 모듈 탭(steps 작동 단계 | blueprint 설계도·필기)과 도면(top·plan·front)
   chatRef = React.createRef();
   componentDidMount() {
     document.body.dataset.theme = this.state.theme;
@@ -321,6 +364,18 @@ class Component extends DCLogic {
     document.body.dataset.theme = theme;
     if (save) { try { localStorage.setItem(THEME_KEY, theme); } catch (e) {} }
     this.setState({ theme });
+  }
+  // 설계도 iframe은 처음 열 때 한 번만 주소를 정하고(다시 불러오면 도면을 처음부터 그린다), 공정·도면·테마는 postMessage로 바꾼다.
+  openBlueprint() {
+    if (!this._bpSrc) this._bpSrc = `/3d-demo/blueprint.html?p=${encodeURIComponent(this.state.processId)}&mode=${this.state.drawMode}&theme=${this.state.theme}`;
+    this.setState({ moduleTab: 'blueprint' });
+  }
+  componentDidUpdate() {
+    const S = this.state, frame = document.getElementById('bpFrame');
+    const key = `${S.processId}|${S.drawMode}|${S.theme}`;
+    if (!this._bpSrc || !frame?.contentWindow || this._bpKey === key) return;
+    this._bpKey = key;
+    frame.contentWindow.postMessage({ type: 'blueprint', process: S.processId, mode: S.drawMode, theme: S.theme }, location.origin);
   }
   module() { return document.querySelector('process-2d'); }
   // learning-chat.js가 부르는 화면 조작
@@ -369,6 +424,16 @@ class Component extends DCLogic {
       sideTabs: [['ask', 'ASK', 'AI 튜터'], ['learn', 'LEARN', '이해도 확인']].map(([k, label, sub]) => { const on = S.sideTab === k;
         return { label, sub, on, bg: on ? 'var(--accent)' : 'transparent', color: on ? 'var(--accent-ink)' : 'var(--muted)', onClick: () => this.setState({ sideTab: k }) }; }),
       processId: S.processId, selectedAttr: S.selectedId || '', chatRef: this.chatRef,
+      // 학습 모듈 탭과 설계도·필기
+      moduleTabs: [['steps', '작동 단계'], ['blueprint', '설계도·필기']].map(([k, label]) => { const on = S.moduleTab === k;
+        return { label, on, bg: on ? 'var(--accent)' : 'transparent', color: on ? 'var(--accent-ink)' : 'var(--muted)', onClick: () => (k === 'blueprint' ? this.openBlueprint() : this.setState({ moduleTab: k })) }; }),
+      stepsDisplay: S.moduleTab === 'steps' ? 'block' : 'none', blueprintDisplay: S.moduleTab === 'blueprint' ? 'flex' : 'none',
+      bpSrc: this._bpSrc || 'about:blank', drawMode: S.drawMode,
+      bpProcesses: S.processes.map(x => { const on = x.id === S.processId;
+        return { label: `${x.num} ${x.name}`, on, bg: on ? 'var(--accent)' : 'transparent', color: on ? 'var(--accent-ink)' : 'var(--muted)', border: on ? 'var(--accent)' : 'var(--line)', onClick: () => this.goProcess(x.id) }; }),
+      drawTabs: Object.entries(DRAW_MODES).map(([m, [label, tip]]) => { const on = S.drawMode === m;
+        return { label, tip, on, bg: on ? 'var(--accent)' : 'transparent', color: on ? 'var(--accent-ink)' : 'var(--muted)', onClick: () => this.setState({ drawMode: m }) }; }),
+      bpTitle: `${P?.name || ''} 공정 ${DRAW_MODES[S.drawMode][2]}`, bpNo: `SA-${P?.num || '00'}-${DRAW_MODES[S.drawMode][3]}`,
       messages: dmMessages(chat.messages), pending: S.pending, chips: chat.chips,
       // 이름 아래: 지금 답하는 기준(공정·설비). AI가 끊겼을 때만 그 사실을 빨간 글씨로
       tutorStatus: S.ai === 'off' ? 'AI 연결 안 됨' : P ? `${P.name}${E ? ` · ${E.name}` : ''}` : '설비를 고르면 그 기준으로 답해요',

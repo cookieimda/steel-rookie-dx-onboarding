@@ -101,12 +101,21 @@ function setupDroneView(el) {
 }
 
 // ---- 3) 잡다한 것 끄기 ----
+function isOldNearStatic(o) { // site-backdrop.js의 isNearStatic과 같은 기준(부지 안, 반경 300 안의 정적 메시)
+  if (!o.isMesh || o.isPoints || o.userData.keep || !o.material || o.material.isShaderMaterial || o.material.blending === THREE.AdditiveBlending) return false;
+  o.updateMatrixWorld(true);
+  const s = o.isInstancedMesh ? (o.computeBoundingSphere(), o.boundingSphere.clone()) : (o.geometry.computeBoundingSphere(), o.geometry.boundingSphere.clone().applyMatrix4(o.matrixWorld));
+  return s.center.length() < 300 && s.radius < 300;
+}
 function tidyScene(el) {
   let changed = false;
   const settled = backdropSettled(el); // 테마를 바꾼 직후 배경 GLB가 바뀌기 전에는 테마별 굽기를 미룬다
   // 원래 장면 코드(scene_v3.js·site-backdrop.js)가 테마를 바꿀 때 네온·빛기둥 등을 다시 켜서, 잠깐씩 예전 모습이 비쳤다.
   // 그래서 숨길 것은 visible 속성을 잠가 버린다(켜려 해도 무시)
   const off = (o) => { if (!o || o.userData.sleekOff) return; Object.defineProperty(o, 'visible', { configurable: true, get: () => false, set: () => {} }); o.userData.sleekOff = true; changed = true; };
+  // 옛 배경(scene_v3.js의 backdrop) 중 부지 안 정적 메시는 site-backdrop.js가 새 배경 GLB와 겹친다고 숨기지만, 공정 화면의 가림 처리(scene_v3.js _occTick)가
+  // visible = true로 되돌려 옛 건물·컨테이너·공 모양 나무가 새 배경 위에 겹쳐 보였다 → 잠근다. 고르는 기준은 site-backdrop.js의 isNearStatic과 같다
+  if (el.scene.getObjectByName('SITE_BACKDROP_EXT')) el.backdrop?.children.forEach(o => { if (!o.userData.sleekOff && (o.userData.oldNear ??= isOldNearStatic(o))) off(o); });
   removeBlockers(el, off); // 그림자를 굽기 전에 먼저 지운다(지운 건물 그림자가 바닥에 남지 않게)
   if (scaleBackdrop(el)) changed = true; // 주변 건물·나무를 공정 축척에 맞게 줄임(그림자 굽기 전에)
   if (replaceTrees(el)) changed = true; // 공 모양 나무 → 잎 그림 평면을 엇갈려 세운 나무

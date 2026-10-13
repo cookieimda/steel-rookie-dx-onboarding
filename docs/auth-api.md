@@ -45,7 +45,7 @@
 - 체크포인트 테이블(`attempts`, `misconceptions`)이 아직 없으면 `checkpoint_data: false`와 빈 기록을 준다.
 - 실제 계정과 시연 계정을 섞어서 준다. `is_demo: true`는 시연 계정(`trainee02`~`20`, `users.is_demo`)이고 화면에서 'demo' 배지를 붙인다. `?include_demo=false`면 시연 계정을 빼고 실제 계정만 준다. `true`·`false` 밖의 값은 `400 INVALID_INCLUDE_DEMO`.
 - `demo_sections`: final 루브릭이 없어 시연 개념 목록(`content/demo/sections.json`)으로 계산한 섹션. 이 섹션은 시연 기록(`origin = 'seed'`)만 센다.
-- 시연 기록: `npm run db:seed-demo [seed]`가 `trainee02`~`20`의 시연 기록(`seed`)을 지우고 다시 만든다(`trainee01`은 실제 테스트 계정이라 만들지 않음). 11~14는 처음 정한 프로필, 나머지는 5가지 유형을 돌려 쓰며 실력을 조금씩 달리해 통과, 재도전 필요, 진행 중이 섞이게 한다. seed가 같으면 같은 기록이 나온다(예: `npm run db:seed-demo -- 58`).
+- 시연 기록: `npm run db:seed-demo [seed]`가 `trainee02`~`20`의 시연 기록(`seed`)을 지우고 다시 만든다(`trainee01`은 실제 테스트 계정이라 만들지 않음). 관리자 화면에서 골고루 보이게 사람마다 진도를 정해 둔다: 수료 8(03~08·18·19), 진행 중 4(09~12), 재도전 필요 4(13~16), 미시작 2(17·20), 시연용 trainee02는 정해 둔 시나리오(제선 재도전 뒤 통과, 제강 재도전 필요). 상태는 seed와 상관없이 같고, 점수·오개념 같은 세부 기록은 seed가 같으면 같다(예: `npm run db:seed-demo -- 58`).
 
 `GET /api/admin/trainees/:id` (토큰 필요, `admin`만): 신입사원 한 명 상세. 관리자 화면에서 사람을 누르면 오른쪽 패널로 보여 준다(`backend/src/admin/trainee-detail.ts`). 신입사원이 아니거나 없으면 `404 TRAINEE_NOT_FOUND`.
 

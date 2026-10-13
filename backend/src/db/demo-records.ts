@@ -29,6 +29,8 @@ export type SectionConcepts = Record<string, Concept[]>;
 interface Profile {
   /** 첫 판정이 correct일 확률. */
   skill: number;
+  /** 섹션 순서대로 첫 판정이 correct일 확률(있으면 skill 대신). 통과시킬 섹션은 높게 둔다. */
+  skills?: number[];
   /** 몇 번째 섹션까지 시도하는지(1~4). */
   reach: number;
   /** 마지막 섹션은 체크포인트를 하다 멈춘 상태로 둔다. */
@@ -42,7 +44,16 @@ interface Profile {
   script?: Partial<Record<string, [Verdict, RecheckVerdict | null][][]>>;
 }
 
-// trainee11~14는 처음 정한 그대로, 나머지는 아래 유형을 돌려 쓰며 실력을 조금씩 다르게 한다.
+// 관리자 화면에서 상태가 골고루 보이게 사람마다 진도를 정해 둔다(trainee03~20): 수료 8, 진행 중 4, 재도전 필요 4, 미시작 2.
+// 통과시킬 섹션은 맞힐 확률을 높게(재도전 2회까지) 두고, 미달로 남길 섹션은 판정을 정해 둬서(script) seed와 상관없이 상태가 같다.
+const DONE = (skills: number[]): Profile => ({ skill: 0.9, skills, reach: 4, stopMidway: false, retries: 2 });
+/** 앞 섹션은 통과하고 마지막(reach번째) 섹션을 풀다 멈춘다. */
+const GOING = (reach: number): Profile => ({ skill: 0.95, reach, stopMidway: true, retries: 2 });
+/** 앞 섹션은 통과하고(재도전 2회까지) 마지막 섹션에서 정해 둔 판정으로 미달(재도전 필요). 정해 둔 섹션의 시도 수는 attempts 길이다. */
+const STUCK = (section: string, attempts: [Verdict, RecheckVerdict | null][][]): Profile =>
+  ({ skill: 0.95, reach: SECTION_ORDER.indexOf(section as (typeof SECTION_ORDER)[number]) + 1, stopMidway: false, retries: 2, script: { [section]: attempts } });
+const IDLE: Profile = { skill: 0, reach: 0, stopMidway: false, retries: 0 };
+
 const PROFILES: Record<string, Profile> = {
   // 시연용 신입사원 2(홈 [시작하기]의 '시연용'): 틀림·부분·힌트 요청, 재도전 뒤 통과, 재도전 필요, 해결·미해결 오개념이 모두 보이게 판정을 정해 둔다.
   trainee02: {
@@ -59,27 +70,40 @@ const PROFILES: Record<string, Profile> = {
       ],
     },
   },
-  trainee11: { skill: 0.8, reach: 4, stopMidway: false, retries: 2 }, // 잘하는 편, 끝까지 감
-  trainee12: { skill: 0.6, reach: 3, stopMidway: true, retries: 2 }, // 세 번째 섹션을 하다 멈춤
-  trainee13: { skill: 0.4, reach: 2, stopMidway: false, retries: 1 }, // 재도전해도 잘 안 됨
-  trainee14: { skill: 0.5, reach: 2, stopMidway: false, retries: 0 }, // 아직 재도전 전
+  // 수료(4개 공정 통과) 8명: 실력을 조금씩 달리해 재도전·오개념 해결 기록이 섞이게 한다.
+  trainee03: DONE([0.95, 0.9, 0.92, 0.9]),
+  trainee04: DONE([0.85, 0.88, 0.9, 0.86]),
+  trainee05: DONE([0.92, 0.95, 0.88, 0.94]),
+  trainee06: DONE([0.8, 0.85, 0.82, 0.88]),
+  trainee07: DONE([0.97, 0.93, 0.95, 0.96]),
+  trainee08: DONE([0.88, 0.82, 0.9, 0.85]),
+  trainee18: DONE([0.9, 0.86, 0.84, 0.9]),
+  trainee19: DONE([0.83, 0.9, 0.87, 0.82]),
+  // 진행 중 4명: 공정마다 다른 곳에서 풀다 멈춤.
+  trainee09: GOING(2), // 제선 통과, 제강 푸는 중
+  trainee10: GOING(3), // 연주 푸는 중
+  trainee11: GOING(4), // 열간압연 푸는 중
+  trainee12: GOING(1), // 제선 푸는 중
+  // 재도전 필요 4명: 미달로 남는 공정과 재도전 횟수를 다르게.
+  trainee13: STUCK("ironmaking", [[["correct", null], ["wrong", "wrong"], ["partial", "partial"]]]), // 제선 50%, 재도전 전
+  trainee14: STUCK("steelmaking", [
+    [["wrong", "partial"], ["correct", null], ["assisted", "wrong"]],
+    [["partial", "partial"], ["wrong", "partial"]],
+  ]), // 제강 재도전해도 67%
+  trainee15: STUCK("continuous_casting", [[["partial", "wrong"], ["correct", null], ["wrong", "partial"]]]), // 연주 50%
+  trainee16: STUCK("ironmaking", [
+    [["wrong", "wrong"], ["assisted", "partial"], ["correct", null]],
+    [["wrong", "partial"], ["partial", "partial"]],
+    [["partial", "partial"], ["wrong", "partial"]],
+  ]), // 제선 두 번 재도전해도 67%
+  // 미시작 2명
+  trainee17: IDLE,
+  trainee20: IDLE,
 };
 
-const ARCHETYPES: Profile[] = [
-  { skill: 0.8, reach: 4, stopMidway: false, retries: 2 }, // 잘하는 편
-  { skill: 0.65, reach: 3, stopMidway: true, retries: 2 }, // 하다 멈춤
-  { skill: 0.45, reach: 2, stopMidway: false, retries: 1 }, // 재도전해도 잘 안 됨
-  { skill: 0.55, reach: 2, stopMidway: false, retries: 0 }, // 아직 재도전 전
-  { skill: 0.7, reach: 4, stopMidway: true, retries: 1 }, // 꽤 하는 편, 마지막 섹션 진행 중
-];
-
-function profileOf(username: string, index: number): Profile {
-  const fixed = PROFILES[username];
-  if (fixed) return fixed;
-  const base = ARCHETYPES[index % ARCHETYPES.length];
-  // 같은 유형끼리도 결과가 갈리도록 사람마다 실력을 -0.05~+0.05 사이로 바꾼다(seed와 무관하게 고정).
-  const jitter = (((index * 37) % 11) - 5) / 100;
-  return { ...base, skill: Math.min(0.95, Math.max(0.2, base.skill + jitter)) };
+/** 정해 두지 않은 계정(시연 계정을 늘린 경우)은 무난한 진도로 둔다. */
+function profileOf(username: string): Profile {
+  return PROFILES[username] ?? { skill: 0.75, reach: 3, stopMidway: false, retries: 1 };
 }
 
 const WRONG_ANSWERS = ["잘 모르겠어요.", "온도를 높이는 설비 같아요.", "쇳물을 식히는 곳이요.", "불순물을 넣는 단계예요."];
@@ -135,13 +159,13 @@ export function seedDemoRecords(db: DatabaseSync, concepts: SectionConcepts, see
       const user = db.prepare("SELECT id FROM users WHERE username = ?").get(username);
       if (user) clearSeed(db, String(user.id));
     }
-    for (const [index, username] of SEEDED_TRAINEES.entries()) {
+    for (const username of SEEDED_TRAINEES) {
       const user = db.prepare("SELECT id FROM users WHERE username = ?").get(username);
       if (!user) continue;
       const userId = String(user.id);
       db.prepare("UPDATE users SET is_demo = 1 WHERE id = ?").run(userId);
       clock = now.getTime() - (2 + random() * 1.5) * 24 * 3600_000;
-      const profile = profileOf(username, index);
+      const profile = profileOf(username);
 
       for (const [sectionIndex, section] of SECTION_ORDER.slice(0, profile.reach).entries()) {
         const sectionConcepts = concepts[section] ?? [];
@@ -166,8 +190,9 @@ export function seedDemoRecords(db: DatabaseSync, concepts: SectionConcepts, see
 
           for (const [i, conceptId] of answered.entries()) {
             const planned = plan?.[retry]?.[i];
-            const verdict = planned ? planned[0] : firstVerdict(profile.skill);
-            const recheck = planned ? planned[1] : verdict === "correct" ? null : recheckVerdict(profile.skill);
+            const skill = profile.skills?.[sectionIndex] ?? profile.skill;
+            const verdict = planned ? planned[0] : firstVerdict(skill);
+            const recheck = planned ? planned[1] : verdict === "correct" ? null : recheckVerdict(skill);
             retried.set(conceptId, conceptResult(conceptId, verdict, recheck));
             const at = tick(0.02, 0.1);
             const name = nameOf.get(conceptId) ?? conceptId;

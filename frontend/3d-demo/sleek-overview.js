@@ -203,9 +203,10 @@ function desaturate(m) {
     if (this.userData.sleekBake) addBake(sh);              // 밤: 구운 빛(키라이트·옴니)
     else if (this.userData.sleekFlat) addFlat(sh, this.userData.sleekFlat === 'g'); // 밤: 고정 빛(인스턴스·소품·바닥)
     if (this.userData.sleekZS) addZoneShade(sh);           // 낮 바닥: 보이는 공정의 그림자
+    if (this.userData.sleekDay) addDay(sh);                // 낮: 고정 빛(하늘빛·햇빛)
   };
   m.onBeforeCompile.sleek = true;
-  m.customProgramCacheKey = function () { const u = this.userData; return key.call(this) + (u.noSat ? '|nosat' : '|sleekSat') + (u.sleekTrim ? '|trim' : '') + (u.sleekBake ? '|bake' : '') + (u.sleekFlat ? '|flat' + u.sleekFlat : '') + (u.sleekZS ? '|zs' : ''); };
+  m.customProgramCacheKey = function () { const u = this.userData; return key.call(this) + (u.noSat ? '|nosat' : '|sleekSat') + (u.sleekTrim ? '|trim' : '') + (u.sleekBake ? '|bake' : '') + (u.sleekFlat ? '|flat' + u.sleekFlat : '') + (u.sleekZS ? '|zs' : '') + (u.sleekDay ? '|day' : ''); };
   m.needsUpdate = true; return true;
 }
 
@@ -279,6 +280,7 @@ function gradeScene(el, dark) {
   const G = GRADE[dark ? 'dark' : 'light'], S = el.scene; let ch = false;
   if (SAT.value !== G.sat) { SAT.value = G.sat; ch = true; }
   const bakeOn = dark ? 1 : 0; if (BAKE_ON.value !== bakeOn) { BAKE_ON.value = bakeOn; ch = true; } // 구운 밤 조명은 다크 모드에서만
+  if (DAY.uSleekDayOn.value !== 1 - bakeOn) { DAY.uSleekDayOn.value = 1 - bakeOn; ch = true; } // 낮 고정 빛은 라이트 모드에서만
   // 하늘: 원래 코드가 테마 바꿀 때·60초마다 그라데이션을 새로 칠하므로, 내 사본이 아니면 그 원본의 채도 낮춘 사본으로 바꾼다. 2D 도면(단색 배경)은 건드리지 않는다
   const bg = S.background;
   if (!el._2d && bg?.isTexture && !bg.userData.sleekSky && bg.image?.width) { S.background = mutedSky(bg); ch = true; }
@@ -413,6 +415,33 @@ function flatBake(el) {
     // 장면이 재질을 clone하면 sleekBake 표시는 복사되지만 훅(onBeforeCompile)은 빠진다 → 구운 빛 훅을 다시 단다(꼭짓점 빛이 없으면 고정 빛으로)
     if (m.userData.sleekBake) { if (m.onBeforeCompile.sleek) return; if (!o.geometry.attributes.sleekBake) m.userData.sleekBake = false; else { desaturate(m); ch = true; return; } }
     m.userData.sleekFlat = o.name === 'SITE_GROUND' ? 'g' : 1;
+    if (!m.onBeforeCompile.sleek && m.userData.noSat === undefined) m.userData.noSat = true;
+    desaturate(m); m.needsUpdate = true; ch = true; }); });
+  return ch;
+}
+// 낮 고정 빛: 라이트 모드의 하늘빛(HemisphereLight)·햇빛(DirectionalLight)도 장면에서 끄고(nightLights), 같은 색·세기·방향의 빛을
+// 셰이더에서 상수로 더한다(three.js의 반구광·방향광 확산 식 그대로). 빛 반복문·햇빛 반사(GGX)·그림자 계산이 빠진다.
+// 값은 그리기 직전마다 숨긴 두 조명에서 읽는다(scene_v3.js의 _applyTheme·_placeSun과 lightContrast가 정한 값 그대로)
+const DAY = { uSleekDayOn: { value: 0 }, uSleekSky: { value: new THREE.Color() }, uSleekGnd: { value: new THREE.Color() }, uSleekSun: { value: new THREE.Color() }, uSleekSunDir: { value: new THREE.Vector3(0, 1, 0) } };
+function addDay(sh) {
+  Object.assign(sh.uniforms, DAY);
+  sh.fragmentShader = 'uniform float uSleekDayOn;\nuniform vec3 uSleekSky;\nuniform vec3 uSleekGnd;\nuniform vec3 uSleekSun;\nuniform vec3 uSleekSunDir;\n' + sh.fragmentShader.replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+  if (uSleekDayOn > 0.5) { vec3 sUp = normalize((viewMatrix * vec4(0., 1., 0., 0.)).xyz), sSun = normalize((viewMatrix * vec4(uSleekSunDir, 0.)).xyz);
+    reflectedLight.indirectDiffuse += mix(uSleekGnd, uSleekSky, 0.5 * dot(geometryNormal, sUp) + 0.5) * BRDF_Lambert(material.diffuseColor);
+    reflectedLight.directDiffuse += uSleekSun * saturate(dot(geometryNormal, sSun)) * BRDF_Lambert(material.diffuseColor); }`);
+}
+function readDay(el) {
+  const h = el.hemiLight, s = el.sunLight;
+  if (h) { DAY.uSleekSky.value.copy(h.color).multiplyScalar(h.intensity); DAY.uSleekGnd.value.copy(h.groundColor).multiplyScalar(h.intensity); }
+  if (s) { DAY.uSleekSun.value.copy(s.color).multiplyScalar(s.intensity); DAY.uSleekSunDir.value.subVectors(s.position, s.target.position).normalize(); }
+}
+// 빛을 받는 재질(공정·나무·소품·가로등·바닥)에 낮 고정 빛 훅을 단다. 다크 모드에서도 미리 달아 두어 테마를 바꿀 때 다시 컴파일하지 않는다
+function dayLight(el) {
+  let ch = false;
+  el.scene.traverse(o => { if (!o.isMesh) return; [].concat(o.material).forEach(m => {
+    if (!(m?.isMeshStandardMaterial || m?.isMeshLambertMaterial || m?.isMeshPhongMaterial)) return;
+    if (m.userData.sleekDay) { if (!m.onBeforeCompile.sleek) { desaturate(m); ch = true; } return; } // 장면이 clone해 훅이 빠진 재질
+    m.userData.sleekDay = true;
     if (!m.onBeforeCompile.sleek && m.userData.noSat === undefined) m.userData.noSat = true;
     desaturate(m); m.needsUpdate = true; ch = true; }); });
   return ch;
@@ -865,21 +894,21 @@ function placeSunDisc(el) {
   });
 }
 
-// 다크 모드 실시간 조명 끄기: 밤 빛은 모두 구워 두었다(공정·건물 = bakeNight, 나머지 = addFlat, 바닥 가로등 = 라이트맵).
-// 그래서 장면의 조명을 모두 끄고(빛 계산·그림자 지도 그리기 없음), 라이트 모드에선 내가 끈 것만 다시 켠다.
+// 실시간 조명 끄기(두 테마 모두): 밤 빛은 모두 구워 두었고(공정·건물 = bakeNight, 나머지 = addFlat, 바닥 가로등 = 라이트맵),
+// 낮 빛(하늘빛·햇빛)은 셰이더 상수(addDay)로 더한다. 그래서 장면의 조명을 모두 끈다(빛 계산·그림자 지도 그리기 없음).
 // 장면이 나중에 붙이는 빛(쇳물 이동 빛 = scene_v3.js의 this.material, 설비 작동 효과 빛 = 장면에 새로 붙는 그룹)은 그리기 직전에 꺼서
 // 빛 개수가 바뀌어 셰이더를 다시 만드는 일이 없게 한다(새로 붙은 장면 자식만 훑는다)
 function nightLights(el, dark) {
-  let ch = false; el.__nightOff = dark;
-  const hide = (o) => { if (o.isLight && o.visible) { o.visible = false; o.userData.sleekNightOff = true; return true; } return false; };
+  let ch = false;
+  const hide = (o) => { if (o.isLight && o.visible) { o.visible = false; return true; } return false; };
   if (!el.__nightHook) { el.__nightHook = true; const prev = el.scene.onBeforeRender, known = new WeakSet();
     el.scene.onBeforeRender = function (...a) { prev?.apply(this, a);
       ZON.value.set(...IDS.map(id => (el.zones?.[id] && isShown(el.zones[id].root) ? 1 : 0))); // 낮 바닥의 공정 그림자: 지금 보이는 공정만
-      if (!el.__nightOff) return;
+      readDay(el);
       el.material?.traverse?.(hide); for (const c of el.scene.children) if (!known.has(c)) { known.add(c); c.traverse(hide); } }; }
-  el.scene.traverse(o => { if (!o.isLight) return;
-    if (dark) { if (hide(o)) ch = true; } else if (o.userData.sleekNightOff) { o.visible = true; o.userData.sleekNightOff = false; ch = true; } });
+  el.scene.traverse(o => { if (hide(o)) ch = true; });
   if (dark && flatBake(el)) ch = true;
+  if (dayLight(el)) ch = true;
   if (ch) el._dirty = true;
 }
 

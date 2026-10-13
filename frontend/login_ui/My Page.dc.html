@@ -2,210 +2,50 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<title>철든 신입 · 로그인</title>
-<link rel="stylesheet" href="./console-login.css">
+<title>ST-ROOKIE · 학습 기록</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="./support.js"></script>
 </head>
 <body>
 <x-dc>
 <helmet>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@700;900&display=swap" rel="stylesheet">
-  <script type="module" src="../3d-demo/steel-2d.js"></script>
   <style>
-    html, body { margin: 0; min-height: 100%; font-family: "IBM Plex Sans KR", sans-serif; }
-    body { --bg: oklch(0.14 0.02 245); --panel: oklch(0.18 0.018 245); --panel2: oklch(0.24 0.022 245); --line: oklch(1 0 0 / .12); --text: oklch(0.96 0.006 240); --muted: oklch(0.7 0.02 240); --accent: #1a9bd7; --ok: oklch(0.74 0.15 155); --mid: oklch(0.82 0.14 80); --bad: oklch(0.68 0.18 25); background: var(--bg); color: var(--text); }
-    body[data-theme="light"] { --bg: oklch(0.95 0.008 245); --panel: oklch(0.995 0.002 245); --panel2: oklch(0.93 0.01 245); --line: oklch(0 0 0 / .09); --text: oklch(0.22 0.02 245); --muted: oklch(0.5 0.02 245); --ok: oklch(0.55 0.15 155); --mid: oklch(0.62 0.14 70); --bad: oklch(0.55 0.19 25); }
-    a { color: var(--accent); text-decoration: none; } a:hover { color: var(--text); }
-    button, input { font-family: inherit; }
+    html, body { margin: 0; min-height: 100%; background: #1c1c1c; color: #f2f2f2; }
     * { box-sizing: border-box; }
   </style>
 </helmet>
-<div style="min-height:100vh;background:var(--bg);color:var(--text);">
-
-  <sc-if value="{{ loggedOut }}" hint-placeholder-val="{{ false }}">
-    <div class="console-entry">
-      <div class="console-orbit" aria-hidden="true"></div>
-      <header class="console-brand"><span class="console-mark">Fe</span><span>철든 신입<small>ST-ROOKIE / STEEL ACADEMY</small></span></header>
-      <section class="console-welcome" aria-label="철든 신입 소개">
-        <span class="console-eyebrow">THE FIRST HEAT / 첫 번째 담금질</span>
-        <h1>아직은 원석.<br>곧, <em>철든 신입.</em></h1>
-        <p>뜨거운 호기심이 단단한 실력이 되는 곳.<br>당신의 첫 번째 담금질을 시작합니다.</p>
-        <div class="forge-art" aria-hidden="true"><span class="forge-heat"></span><span class="forge-slab">Fe<small>FE / 26</small></span><span class="forge-caption">RAW POTENTIAL → REAL CAPABILITY</span></div>
-        <div class="console-path"><span>01 제선</span><span>02 제강</span><span>03 연주</span><span>04 압연</span></div>
-      </section>
-      <div class="console-card" style="width:min(800px,100%);display:flex;flex-direction:column;gap:20px;padding:32px 28px;background:var(--panel);border:1px solid var(--line);border-radius:20px;">
-        <div class="badge-label"><span>LEARNING ACCESS PASS</span><span>NO. 001</span></div>
-        <div style="display:flex;align-items:center;gap:10px;">
-
-          <div style="display:flex;flex-direction:column;gap:2px;"><span style="font-family:'Noto Sans KR',sans-serif;font-weight:700;font-size:15px;letter-spacing:0.05em;white-space:nowrap;">철든 신입</span><span style="font-size:11px;color:var(--muted);">신입사원 기초교육</span></div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:6px;">
-          <h1 style="margin:0;font-family:'Noto Sans KR',sans-serif;font-size:26px;font-weight:900;letter-spacing:-0.02em;">{{ form.title }}</h1>
-          <span style="font-size:13px;color:var(--muted);line-height:1.6;text-wrap:pretty;">{{ form.intro }}</span>
-        </div>
-
-        <sc-if value="{{ showRoleToggle }}" hint-placeholder-val="{{ true }}">
-          <div style="display:flex;flex-direction:column;gap:8px;">
-            <div role="tablist" style="display:grid;grid-template-columns:1fr 1fr;padding:4px;border-radius:999px;background:var(--panel2);">
-              <sc-for list="{{ roleTabs }}" as="t" hint-placeholder-count="2">
-                <button type="button" role="tab" aria-selected="{{ t.on }}" onClick="{{ t.onClick }}" style="height:36px;border:none;border-radius:999px;background:{{ t.bg }};color:{{ t.color }};font-size:13px;font-weight:700;cursor:pointer;">{{ t.label }}</button>
-              </sc-for>
-            </div>
-            <div style="display:flex;align-items:center;gap:10px;flex-wrap:nowrap;overflow-x:auto;max-width:100%;padding-bottom:4px;white-space:nowrap;scrollbar-width:thin;scrollbar-color:var(--line) transparent;font-size:11px;color:var(--muted);">
-              <span style="flex:none;">시연 계정</span>
-              <sc-for list="{{ demoPicks }}" as="d" hint-placeholder-count="4">
-                <button type="button" onClick="{{ d.onClick }}" style="padding:0;border:none;background:none;font-family:'IBM Plex Mono',monospace;font-size:11px;color:{{ d.color }};cursor:pointer;flex:none;" style-hover="color:var(--accent);">{{ d.username }}</button>
-              </sc-for>
-            </div>
-          </div>
-        </sc-if>
-
-        <form onSubmit="{{ form.onSubmit }}" style="display:flex;flex-direction:column;gap:6px;">
-          <sc-for list="{{ form.fields }}" as="f" hint-placeholder-count="2">
-            <div style="display:flex;flex-direction:column;gap:4px;">
-              <input type="{{ f.type }}" value="{{ f.value }}" onChange="{{ f.onChange }}" placeholder="{{ f.placeholder }}" autocomplete="{{ f.autocomplete }}" aria-label="{{ f.placeholder }}" style="height:46px;border:none;border-bottom:1px solid var(--line);border-radius:0;background:transparent;color:var(--text);padding:0 2px;font-size:14px;outline:none;" style-focus="border-bottom-color:var(--accent);">
-              <sc-if value="{{ f.hint }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;color:var(--muted);padding:0 2px;">{{ f.hint }}</span></sc-if>
-            </div>
-          </sc-for>
-
-          <sc-if value="{{ form.isLogin }}" hint-placeholder-val="{{ true }}">
-            <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13px;color:var(--muted);cursor:pointer;width:fit-content;">
-              <input type="checkbox" checked="{{ remember }}" onChange="{{ onRemember }}" style="width:16px;height:16px;margin:0;accent-color:var(--accent);">로그인 상태 유지
-            </label>
-          </sc-if>
-
-          <sc-if value="{{ msg.text }}" hint-placeholder-val="{{ false }}"><span role="status" style="margin-top:6px;font-size:12px;line-height:1.5;color:{{ msg.color }};">{{ msg.text }}</span></sc-if>
-
-          <button type="submit" disabled="{{ busy }}" style="height:48px;margin-top:14px;border-radius:999px;border:none;background:var(--accent);color:#fff;font-size:14px;font-weight:700;cursor:pointer;opacity:{{ busyOpacity }};" style-hover="filter:brightness(1.1);">{{ form.submitLabel }}</button>
-        </form>
-
-        <sc-if value="{{ form.foundId }}" hint-placeholder-val="{{ false }}">
-          <button type="button" onClick="{{ loginWithFound }}" style="height:44px;border-radius:999px;border:1px solid var(--accent);background:transparent;color:var(--accent);font-size:13px;font-weight:700;cursor:pointer;">이 아이디로 로그인</button>
-        </sc-if>
-
-        <nav style="display:flex;justify-content:center;align-items:center;gap:10px;font-size:12px;color:var(--muted);">
-          <sc-for list="{{ form.links }}" as="l" hint-placeholder-count="3">
-            <sc-if value="{{ l.sep }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="color:var(--line);">|</span></sc-if>
-            <button type="button" onClick="{{ l.onClick }}" style="padding:0;border:none;background:none;font-size:12px;font-weight:{{ l.weight }};color:{{ l.color }};cursor:pointer;" style-hover="color:var(--text);">{{ l.label }}</button>
-          </sc-for>
-        </nav>
-      </div>
-    </div>
+<div style="min-height:100vh;">
+  <!-- 로그인 화면은 홈(home-sleek.html)에만 있다. 여기는 로그인한 사람의 역할별 대시보드만 띄우고, 토큰이 없거나 만료됐으면 홈으로 보낸다. -->
+  <sc-if value="{{ isAdmin }}" hint-placeholder-val="{{ false }}">
+    <iframe title="관리자 학습 현황" src="./Admin%20Dashboard.dc.html" style="display:block;width:100%;height:100vh;border:0;"></iframe>
   </sc-if>
-
-  <sc-if value="{{ loggedIn }}" hint-placeholder-val="{{ true }}">
-    <sc-if value="{{ isAdmin }}" hint-placeholder-val="{{ false }}">
-      <iframe title="관리자 학습 현황" src="./Admin%20Dashboard.dc.html" style="display:block;width:100%;height:100vh;border:0;"></iframe>
-    </sc-if>
-    <sc-if value="{{ isTrainee }}" hint-placeholder-val="{{ true }}">
-      <iframe title="신입사원 학습 현황" src="./Trainee%20Dashboard.dc.html" style="display:block;width:100%;height:100vh;border:0;"></iframe>
-    </sc-if>
+  <sc-if value="{{ isTrainee }}" hint-placeholder-val="{{ false }}">
+    <iframe title="신입사원 학습 현황" src="./Trainee%20Dashboard.dc.html" style="display:block;width:100%;height:100vh;border:0;"></iframe>
   </sc-if>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;startLoggedOut&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;'dark'|'light'&quot;}}">
-// 로그인 API는 docs/auth-api.md. 서버(npm start)가 이 페이지를 /login으로 서빙해야 API를 부를 수 있다.
+<script type="text/x-dc" data-dc-script>
+// 로그인 API는 docs/auth-api.md. 서버(npm start)가 이 페이지를 /login으로 서빙한다.
 const TOKEN_KEY = 'st-rookie-token';
-// 로그인 상태 유지면 localStorage(브라우저를 닫아도 유지), 아니면 sessionStorage(탭을 닫으면 로그아웃).
+const HOME_URL = '/login_ui/home-sleek.html';
 const tokenStore = {
   get() { try { return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY); } catch (e) { return null; } },
-  set(token, remember) { try { this.clear(); (remember ? localStorage : sessionStorage).setItem(TOKEN_KEY, token); } catch (e) {} },
   clear() { try { localStorage.removeItem(TOKEN_KEY); sessionStorage.removeItem(TOKEN_KEY); } catch (e) {} },
 };
-async function api(path, body, token) {
-  const headers = { 'content-type': 'application/json' };
-  if (token) headers.authorization = 'Bearer ' + token;
-  let res;
-  try {
-    res = await fetch(path, { method: body ? 'POST' : 'GET', headers, body: body ? JSON.stringify(body) : undefined });
-  } catch (e) {
-    throw new Error('서버에 연결하지 못했어요. npm start 후 http://localhost:3000/login 으로 열어 주세요.');
-  }
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || '요청을 처리하지 못했어요.');
-  return data;
-}
-const EMPTY_FORM = { id: '', pw: '', pw2: '', name: '', emp: '' };
+const toHome = () => window.location.replace(HOME_URL);
 
 class Component extends DCLogic {
-  state = { loggedIn: !(this.props.startLoggedOut ?? true), user: null, theme: this.props.theme ?? 'dark',
-    view: 'login', f: { ...EMPTY_FORM }, remember: false, busy: false, msg: null, foundId: null, demo: { accounts: [], password: null }, roleTab: 'trainee' };
+  state = { user: null };
   componentDidMount() {
-    document.body.dataset.theme = this.state.theme;
-    api('/api/auth/demo-accounts').then(demo => this.setState({ demo }), () => {});
     const token = tokenStore.get();
-    if (token) api('/api/auth/me', null, token).then(({ user }) => { this.setState({ loggedIn: true, user }); }, () => tokenStore.clear());
+    if (!token) return toHome();
+    fetch('/api/auth/me', { headers: { authorization: 'Bearer ' + token } })
+      .then(res => res.ok ? res.json() : Promise.reject(res))
+      .then(({ user }) => this.setState({ user }), err => { if (err && err.status === 401) tokenStore.clear(); toHome(); });
   }
-  // 버튼 연타로 같은 요청이 두 번 가지 않게 busy 동안은 막는다.
-  async submit(run) {
-    if (this.state.busy) return;
-    this.setState({ busy: true, msg: null });
-    try { await run(); } catch (e) { this.setState({ msg: { text: e.message, kind: 'err' } }); } finally { this.setState({ busy: false }); }
-  }
-  signedIn({ token, user }, remember) {
-    tokenStore.set(token, remember);
-    this.setState({ loggedIn: true, user, f: { ...EMPTY_FORM }, msg: null, view: 'login' });
-  }
-  go(view, keep = {}) { this.setState({ view, f: { ...EMPTY_FORM, ...keep }, msg: null, foundId: null }); }
-  pickDemo(username) { this.setState({ f: { ...EMPTY_FORM, id: username, pw: this.state.demo.password || '' }, msg: null }); }
-  formVals() {
-    const S = this.state, f = S.f;
-    const field = (key, placeholder, type = 'text', autocomplete = 'off', hint = '') =>
-      ({ placeholder, type, autocomplete, hint, value: f[key], onChange: e => this.setState({ f: { ...this.state.f, [key]: e.target.value } }) });
-    const link = (label, view, accent) => ({ label, sep: false, weight: accent ? 700 : 500, color: accent ? 'var(--accent)' : 'var(--muted)', onClick: () => this.go(view, view === 'login' ? { id: f.id } : {}) });
-    const links = ls => ls.map((l, i) => ({ ...l, sep: i > 0 }));
-    const pwMatch = () => { if (f.pw !== f.pw2) throw new Error('비밀번호 확인이 맞지 않아요.'); };
-    const toLogin = link('로그인으로', 'login');
-    const forms = {
-      login: {
-        title: '오늘의 나를 단련할 시간', intro: '나의 출입증으로 학습 현장에 입장하세요.', submitLabel: '첫 번째 담금질 시작 →', isLogin: true,
-        fields: [field('id', '아이디', 'text', 'username'), field('pw', '비밀번호', 'password', 'current-password', S.demo.password ? `시연 비밀번호 ${S.demo.password}` : '')],
-        onSubmit: e => { e.preventDefault(); this.submit(async () => this.signedIn(await api('/api/auth/login', { username: f.id, password: f.pw, remember: S.remember }), S.remember)); },
-        links: links([link('아이디 찾기', 'findId'), link('비밀번호 찾기', 'resetPw'), link('회원가입', 'signup', true)]),
-      },
-      signup: {
-        title: '회원가입', intro: '신입사원 계정을 만듭니다. 이름과 사번은 아이디·비밀번호를 찾을 때 씁니다.', submitLabel: '가입하기',
-        fields: [field('name', '이름', 'text', 'name'), field('emp', '사번', 'text', 'off', '예: T2026001'), field('id', '아이디', 'text', 'username', '영문 소문자·숫자·_ 4~20자'),
-          field('pw', '비밀번호', 'password', 'new-password', '8자 이상'), field('pw2', '비밀번호 확인', 'password', 'new-password')],
-        onSubmit: e => { e.preventDefault(); this.submit(async () => { pwMatch(); this.signedIn(await api('/api/auth/signup', { username: f.id, password: f.pw, name: f.name, employee_no: f.emp }), false); }); },
-        links: links([toLogin]),
-      },
-      findId: {
-        title: '아이디 찾기', intro: '가입할 때 입력한 이름과 사번을 입력해 주세요.', submitLabel: '아이디 찾기', foundId: S.foundId,
-        fields: [field('name', '이름', 'text', 'name'), field('emp', '사번')],
-        onSubmit: e => { e.preventDefault(); this.submit(async () => { const { username } = await api('/api/auth/find-id', { name: f.name, employee_no: f.emp }); this.setState({ foundId: username, msg: { text: `아이디는 ${username} 입니다.`, kind: 'ok' } }); }); },
-        links: links([toLogin, link('비밀번호 찾기', 'resetPw')]),
-      },
-      resetPw: {
-        title: '비밀번호 찾기', intro: '아이디·이름·사번이 맞으면 새 비밀번호로 바꿀 수 있습니다.', submitLabel: '비밀번호 바꾸기',
-        fields: [field('id', '아이디', 'text', 'username'), field('name', '이름', 'text', 'name'), field('emp', '사번'),
-          field('pw', '새 비밀번호', 'password', 'new-password', '8자 이상'), field('pw2', '새 비밀번호 확인', 'password', 'new-password')],
-        onSubmit: e => { e.preventDefault(); this.submit(async () => { pwMatch(); await api('/api/auth/reset-password', { username: f.id, name: f.name, employee_no: f.emp, password: f.pw });
-          this.go('login', { id: f.id }); this.setState({ msg: { text: '비밀번호를 바꿨어요. 새 비밀번호로 로그인해 주세요.', kind: 'ok' } }); }); },
-        links: links([toLogin, link('아이디 찾기', 'findId')]),
-      },
-    };
-    const form = forms[S.view] || forms.login;
-    // 시연 계정 목록은 서버(/api/auth/demo-accounts)가 준 그대로 보여 준다.
-    const demoOf = role => S.demo.accounts.filter(a => a.role === role);
-    return {
-      form: { foundId: null, isLogin: false, ...form },
-      showRoleToggle: S.view === 'login' && S.demo.accounts.length > 0,
-      roleTabs: [['trainee', '일반 사용자'], ['admin', '관리자']].map(([k, label]) => ({ label, on: S.roleTab === k, bg: S.roleTab === k ? 'var(--accent)' : 'transparent', color: S.roleTab === k ? '#fff' : 'var(--muted)',
-        onClick: () => { this.setState({ roleTab: k }); const first = demoOf(k)[0]; if (first) this.pickDemo(first.username); } })),
-      demoPicks: demoOf(S.roleTab).map(a => ({ username: a.username, color: f.id === a.username ? 'var(--accent)' : 'var(--muted)', onClick: () => this.pickDemo(a.username) })),
-      remember: S.remember, onRemember: e => this.setState({ remember: e.target.checked }),
-      msg: S.msg ? { text: S.msg.text, color: S.msg.kind === 'ok' ? 'var(--ok)' : 'var(--bad)' } : { text: '' },
-      busy: S.busy, busyOpacity: S.busy ? 0.6 : 1,
-      loginWithFound: () => this.go('login', { id: S.foundId }),
-    };
-  }
-  componentDidUpdate() { document.body.dataset.theme = this.state.theme; }
   renderVals() {
-    const S = this.state;
-    const isAdmin = !!S.user && S.user.role === 'admin';
-    return { loggedIn: S.loggedIn, loggedOut: !S.loggedIn, ...this.formVals(), isAdmin, isTrainee: !isAdmin };
+    const u = this.state.user;
+    return { isAdmin: !!u && u.role === 'admin', isTrainee: !!u && u.role !== 'admin' };
   }
 }
 </script>

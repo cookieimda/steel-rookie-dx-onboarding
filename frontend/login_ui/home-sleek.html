@@ -50,17 +50,23 @@
       <h2 class="title" id="formTitle">LOGIN</h2>
       <p class="subtitle" id="formSub">3D 공정 학습을 <strong>시작</strong>하세요.</p>
 
-      <label class="field"><input id="userId" name="userId" type="text" autocomplete="username" required /><span>ID</span></label>
-      <label class="field"><input id="password" name="password" type="password" autocomplete="current-password" required /><span>PW</span></label>
-      <label class="field signup-only"><input id="name" name="name" type="text" autocomplete="name" /><span>이름</span></label>
-      <label class="field signup-only"><input id="employeeNo" name="employeeNo" type="text" /><span>사번</span></label>
+      <!-- data-modes: 이 칸을 보여 줄 모드(login 로그인, signup 회원가입, find 아이디 찾기, reset 비밀번호 찾기) -->
+      <label class="field" data-modes="login signup reset"><input id="userId" name="userId" type="text" autocomplete="username" /><span>ID</span></label>
+      <label class="field" data-modes="signup find reset"><input id="name" name="name" type="text" autocomplete="name" /><span>이름</span></label>
+      <label class="field" data-modes="signup find reset"><input id="employeeNo" name="employeeNo" type="text" /><span>사번</span></label>
+      <label class="field" data-modes="login signup reset"><input id="password" name="password" type="password" autocomplete="current-password" /><span id="pwLabel">PW</span></label>
 
-      <label class="keep login-only"><input type="checkbox" id="remember" /><i aria-hidden="true"></i>로그인 상태 유지</label>
+      <label class="keep" data-modes="login"><input type="checkbox" id="remember" /><i aria-hidden="true"></i>로그인 상태 유지</label>
 
       <p class="error" id="error" role="alert"></p>
 
       <button type="submit" id="submitBtn">LOGIN</button>
-      <button type="button" class="switch" id="switchBtn">회원가입</button>
+      <nav class="links" aria-label="계정 도움">
+        <button type="button" data-modes="login" data-go="find">아이디 찾기</button>
+        <button type="button" data-modes="login" data-go="reset">비밀번호 찾기</button>
+        <button type="button" data-modes="login" data-go="signup">회원가입</button>
+        <button type="button" data-modes="signup find reset" data-go="login">로그인으로 돌아가기</button>
+      </nav>
     </form>
   </div>
 
@@ -129,19 +135,34 @@
     // 3D 장면이 첫 모델을 띄우면(st:cloud-ready) 3초 뒤에 선과 LOGIN을 그린다.
     addEventListener('st:cloud-ready', () => setTimeout(() => { drawLeader(); document.body.classList.add('callout-on'); }, 3000), { once: true });
 
-    // 로그인 / 회원가입 모드 (회원가입 API: POST /api/auth/signup { username, password, name, employee_no })
-    let mode = 'login';
-    const setMode = (m) => {
-      mode = m;
-      form.classList.toggle('is-signup', m === 'signup');
-      document.getElementById('formTitle').textContent = m === 'signup' ? 'SIGN UP' : 'LOGIN';
-      document.getElementById('formSub').innerHTML = m === 'signup'
-        ? '신입사원 계정을 <strong>만들어</strong> 주세요.' : '3D 공정 학습을 <strong>시작</strong>하세요.';
-      btn.textContent = m === 'signup' ? 'SIGN UP' : 'LOGIN';
-      document.getElementById('switchBtn').textContent = m === 'signup' ? '로그인으로 돌아가기' : '회원가입';
-      errorEl.textContent = '';
+    // 모드: 로그인 / 회원가입 / 아이디 찾기 / 비밀번호 찾기 (API는 docs/auth-api.md)
+    // signup  POST /api/auth/signup { username, password, name, employee_no }
+    // find    POST /api/auth/find-id { name, employee_no } → { username }
+    // reset   POST /api/auth/reset-password { username, name, employee_no, password }
+    const MODES = {
+      login: { title: 'LOGIN', sub: '3D 공정 학습을 <strong>시작</strong>하세요.', submit: 'LOGIN', pw: 'PW' },
+      signup: { title: 'SIGN UP', sub: '신입사원 계정을 <strong>만들어</strong> 주세요.', submit: 'SIGN UP', pw: 'PW' },
+      find: { title: 'FIND ID', sub: '이름과 사번으로 <strong>아이디</strong>를 찾아요.', submit: 'FIND ID' },
+      reset: { title: 'RESET PW', sub: '아이디·이름·사번을 확인하고 <strong>새 비밀번호</strong>를 정해요.', submit: 'RESET', pw: 'NEW PW' },
     };
-    document.getElementById('switchBtn').addEventListener('click', () => setMode(mode === 'login' ? 'signup' : 'login'));
+    let mode = 'login';
+    const setMode = (m, { keepId = false, note = '' } = {}) => {
+      mode = m;
+      const M = MODES[m];
+      form.querySelectorAll('[data-modes]').forEach((el) => { el.hidden = !el.dataset.modes.split(' ').includes(m); });
+      document.getElementById('formTitle').textContent = M.title;
+      document.getElementById('formSub').innerHTML = M.sub;
+      document.getElementById('pwLabel').textContent = M.pw || 'PW';
+      form.password.autocomplete = m === 'login' ? 'current-password' : 'new-password';
+      btn.textContent = M.submit;
+      const id = form.userId.value;
+      form.reset();
+      if (keepId) form.userId.value = id;
+      errorEl.textContent = note;
+      errorEl.classList.toggle('ok', !!note);
+    };
+    form.querySelectorAll('[data-go]').forEach((el) => el.addEventListener('click', () => setMode(el.dataset.go, { keepId: true })));
+    setMode('login');
 
     // 목록이 가운데로 이동하며 커져 로그인 박스가 된다 (목록 위치 → 박스 위치로 transform 애니메이션).
     const panel = form;
@@ -163,7 +184,7 @@
       if (overlay.hidden) return;
       document.body.classList.remove('login-open');
       panel.animate([{ transform: 'none', opacity: 1 }, { transform: flyFrom(), opacity: 0 }], { duration: 450, easing: EASE })
-        .finished.then(() => { overlay.hidden = true; errorEl.textContent = ''; });
+        .finished.then(() => { overlay.hidden = true; setMode('login'); });
     };
     document.querySelectorAll('[data-open-login]').forEach((el) => el.addEventListener('click', () => openLogin('login')));
     document.querySelectorAll('[data-open-signup]').forEach((el) => el.addEventListener('click', () => openLogin('signup')));
@@ -176,23 +197,40 @@
       if (btn.disabled) return;
       const username = form.userId.value.trim();
       const password = form.password.value;
-      if (!username || !password) { errorEl.textContent = '아이디와 비밀번호를 입력해 주세요.'; return; }
       const name = form.elements.name.value.trim(), employee_no = form.employeeNo.value.trim();
-      if (mode === 'signup' && (!name || !employee_no)) { errorEl.textContent = '이름과 사번을 입력해 주세요.'; return; }
+      const need = { login: [username, password], signup: [username, password, name, employee_no], find: [name, employee_no], reset: [username, password, name, employee_no] }[mode];
+      if (need.some((v) => !v)) {
+        errorEl.classList.remove('ok');
+        errorEl.textContent = { login: '아이디와 비밀번호를 입력해 주세요.', find: '이름과 사번을 입력해 주세요.' }[mode] || '모든 칸을 입력해 주세요.';
+        return;
+      }
 
       errorEl.textContent = '';
+      errorEl.classList.remove('ok');
       btn.disabled = true;
       const remember = mode === 'login' && form.remember.checked;
       try {
-        const { token } = mode === 'signup'
-          ? await api('/api/auth/signup', { username, password, name, employee_no })
-          : await api('/api/auth/login', { username, password, remember });
-        tokenStore.set(token, remember);
-        location.href = NEXT_URL;
+        if (mode === 'find') {
+          const { username: found } = await api('/api/auth/find-id', { name, employee_no });
+          setMode('login', { note: `아이디는 ${found} 이에요. 비밀번호를 입력해 로그인하세요.` });
+          form.userId.value = found;
+          form.password.focus();
+        } else if (mode === 'reset') {
+          await api('/api/auth/reset-password', { username, name, employee_no, password });
+          setMode('login', { keepId: true, note: '비밀번호를 바꿨어요. 새 비밀번호로 로그인하세요.' });
+          form.password.focus();
+        } else {
+          const { token } = mode === 'signup'
+            ? await api('/api/auth/signup', { username, password, name, employee_no })
+            : await api('/api/auth/login', { username, password, remember });
+          tokenStore.set(token, remember);
+          location.href = NEXT_URL;
+          return;
+        }
       } catch (err) {
         errorEl.textContent = err.message;
-        btn.disabled = false;
       }
+      btn.disabled = false;
     });
   </script>
 

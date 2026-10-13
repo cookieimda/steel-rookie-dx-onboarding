@@ -69,4 +69,25 @@ export class MeRepository {
       };
     });
   }
+
+  /** 마이페이지 '설계도·필기'의 펜 필기. 공정 하나의 도면별 획 목록(JSON 문자열 그대로). 008_learner_sketches.sql이 없으면 빈 객체. */
+  sketches(userId: string, processId: string): Record<string, string> {
+    try {
+      const rows = this.db.prepare("SELECT draw_mode, strokes FROM learner_sketches WHERE user_id = ? AND process_id = ?").all(userId, processId);
+      return Object.fromEntries(rows.map((r) => [String(r.draw_mode), String(r.strokes)]));
+    } catch {
+      return {};
+    }
+  }
+
+  /** 도면 하나의 필기를 통째로 바꾼다. 획이 없으면 행을 지운다. */
+  saveSketch(userId: string, processId: string, drawMode: string, strokes: string | null, now: string): void {
+    if (strokes === null) {
+      this.db.prepare("DELETE FROM learner_sketches WHERE user_id = ? AND process_id = ? AND draw_mode = ?").run(userId, processId, drawMode);
+      return;
+    }
+    this.db.prepare(`INSERT INTO learner_sketches (user_id, process_id, draw_mode, strokes, updated_at) VALUES (?, ?, ?, ?, ?)
+                     ON CONFLICT (user_id, process_id, draw_mode) DO UPDATE SET strokes = excluded.strokes, updated_at = excluded.updated_at`)
+      .run(userId, processId, drawMode, strokes, now);
+  }
 }

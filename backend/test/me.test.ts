@@ -76,3 +76,37 @@ test("학습 현황은 로그인한 신입사원의 DB 기록만 돌려준다", 
   assert.deepEqual(json.misconceptions.map((m: { id: string }) => m.id), ["m3", "m2", "m1"]);
   assert.ok(!JSON.stringify(json).includes("다른 사람"));
 });
+
+const put = async (path: string, body: unknown, user?: User) => {
+  const headers: Record<string, string> = { "content-type": "application/json", ...(user ? { authorization: `Bearer ${await signToken(user, secret)}` } : {}) };
+  const res = await fetch(base + path, { method: "PUT", headers, body: JSON.stringify(body) });
+  return { status: res.status, json: (await res.json()) as any };
+};
+const stroke = (x: number) => ({ tool: "pen", color: "#e03131", width: 0.0035, points: [[x, 0.2], [x + 0.1, 0.3]] });
+
+test("설계도 필기: 공정·도면별로 본인 것만 저장·조회하고, 다 지우면 빈 목록", async () => {
+  assert.deepEqual((await get("/api/me/sketches/ironmaking", kim)).json.sketches, { top: [], plan: [], front: [] });
+  assert.equal((await put("/api/me/sketches/ironmaking/plan", { strokes: [stroke(0.1), stroke(0.5)] }, kim)).status, 200);
+  assert.equal((await put("/api/me/sketches/ironmaking/front", { strokes: [stroke(0.3)] }, kim)).status, 200);
+  const mine = (await get("/api/me/sketches/ironmaking", kim)).json.sketches;
+  assert.deepEqual([mine.top.length, mine.plan.length, mine.front.length], [0, 2, 1]);
+  assert.deepEqual(mine.plan[0], stroke(0.1));
+  assert.deepEqual((await get("/api/me/sketches/ironmaking", lee)).json.sketches.plan, [], "다른 사람 필기는 안 보인다");
+  assert.deepEqual((await get("/api/me/sketches/steelmaking", kim)).json.sketches.plan, [], "공정마다 따로");
+
+  // 덮어쓰기와 다 지우기(행 삭제)
+  await put("/api/me/sketches/ironmaking/plan", { strokes: [stroke(0.7)] }, kim);
+  assert.deepEqual((await get("/api/me/sketches/ironmaking", kim)).json.sketches.plan, [stroke(0.7)]);
+  await put("/api/me/sketches/ironmaking/plan", { strokes: [] }, kim);
+  assert.deepEqual((await get("/api/me/sketches/ironmaking", kim)).json.sketches.plan, []);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM learner_sketches WHERE user_id = ? AND draw_mode = 'plan'").get(kim.id)!.n, 0);
+});
+
+test("설계도 필기: 로그인 필요, 모르는 공정·도면·형식은 400", async () => {
+  assert.equal((await get("/api/me/sketches/ironmaking")).status, 401);
+  assert.equal((await put("/api/me/sketches/ironmaking/plan", { strokes: [] })).status, 401);
+  assert.equal((await get("/api/me/sketches/mining", kim)).status, 400);
+  assert.equal((await put("/api/me/sketches/ironmaking/side", { strokes: [] }, kim)).status, 400);
+  assert.equal((await put("/api/me/sketches/ironmaking/plan", { strokes: [{ ...stroke(0.1), points: [[1.5, 0]] }] }, kim)).status, 400, "좌표는 0~1");
+  assert.equal((await put("/api/me/sketches/ironmaking/plan", { strokes: [{ ...stroke(0.1), color: "red" }] }, kim)).status, 400);
+});

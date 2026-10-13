@@ -8,7 +8,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/+esm';
 import { PROCESSES } from './data_v2.js';
 
 const IDS = ['ironmaking', 'steelmaking', 'continuous_casting', 'rolling'];
-const LIGHT_MS = 3200;
+const LIGHT_MS = 1200; // 인트로가 밝아지는 시간(3.2초는 로그인 뒤 기다림이 길었다)
 
 export function attachSleek() {
   const tryAttach = () => {
@@ -36,7 +36,7 @@ export function attachSleek() {
       setupFraming(el);
       // 조작(드래그·휠) 처리는 지금 바로 붙이고, 공정 소개는 인트로가 끝난 뒤 시작한다(인트로 중 휠이 원래 거리 줌으로 새던 문제)
       const showcase = startShowcase(el);
-      playIntro(el, showcase);
+      if (introSeen()) skipIntro(el, showcase); else playIntro(el, showcase);
     });
   };
   tryAttach();
@@ -116,15 +116,18 @@ function tidyScene(el) {
   if (scaleBackdrop(el)) changed = true; // 주변 건물·나무를 공정 축척에 맞게 줄임(그림자 굽기 전에)
   if (replaceTrees(el)) changed = true; // 공 모양 나무 → 잎 그림 평면을 엇갈려 세운 나무
   if (removeFarBuildings(el, off)) changed = true; // 바다 건너 먼 건물 실루엣
+  if (cullOutsideSite(el, off)) changed = true;     // 부지(공장 섬) 밖 건물·나무·가로등(굽기 전에 지워 그림자가 남지 않게)
+  siteFog(el);                                      // 부지 경계의 안개 판(바깥을 흐리게 가림)
   if (removeLights(el)) changed = true;             // 구워 둔 조명과 겹치는 실제 조명 빼기(투광등·밤 키라이트·구역 조명)
-  if (settled && (el.getAttribute('theme') || 'dark') === 'dark' && !el.__nightBaked && el.zones && Object.values(el.zones).every(z => z.root?.children.length)) {
-    el.__nightBaked = true; try { bakeNight(el); } catch (e) { console.warn('밤 조명 굽기 실패', e); } changed = true; }
+  // 아래 숨김은 굽기보다 먼저 한다(굽기 뒤에 숨겼더니 공정 사이 연결선 그림자가 밤 바닥에 줄로 남았다)
   off(el._links?.g);                                   // 공정 사이 하늘색 연결선
   (el.zoneArrows || []).forEach(a => { if (a.el && a.el.style.display !== 'none') { a.el.style.display = 'none'; changed = true; } off(a.mesh); off(a.glow); });
   (el._bokehPts || []).forEach(off);                  // 보케(먼 도시 불빛 점)
   off(el.embers);                                      // 불씨
   if (el._fw) { off(el._fw.pts); off(el._fw.glow); }   // 불꽃놀이
   Object.values(el.zones || {}).forEach(z => off(z.neon)); // 구역 네온 테두리
+  if (settled && (el.getAttribute('theme') || 'dark') === 'dark' && !el.__nightBaked && el.zones && Object.values(el.zones).every(z => z.root?.children.length)) {
+    el.__nightBaked = true; try { bakeNight(el); } catch (e) { console.warn('밤 조명 굽기 실패', e); } changed = true; }
   // 원래 상자 이름표(01 제선 …)는 쓰지 않는다. 대신 동그라미 콜아웃(makeCallout). display는 장면이 만지므로 visibility로 숨긴다
   Object.values(el.zones || {}).forEach(z => { if (z.label && z.label.style.visibility !== 'hidden') { z.label.style.visibility = 'hidden'; z.label.style.pointerEvents = 'none'; } });
   const beams = el.scene.getObjectByName('SITE_FLOOR_BEAMS'); off(beams); // 바닥 빛기둥
@@ -360,7 +363,7 @@ const BAKE_ON = { value: 1 };
 const KEY_DIR = new THREE.Vector3(-0.85, 0.95, 0.25).normalize();       // 서쪽 위에서 비추는 달빛(드론 시점에서 왼쪽 위)
 // 다크 모드 전체 빛 세기: 구운 빛(공정·건물·고정 빛)에 모두 곱한다(1 = 원래). 가로등 빛 웅덩이는 LAMP_GAIN을 한 번 더 곱한다.
 // 다크 모드엔 실시간 조명이 없다(nightLights). 화면 전체 밝기(바다·하늘 포함)는 노출 NIGHT_EXPOSURE(원래 0.95)
-const NIGHT_LIGHT = 1.8, LAMP_GAIN = 1.3, NIGHT_EXPOSURE = 1.2;
+const NIGHT_LIGHT = 1.8, LAMP_GAIN = 1.3, NIGHT_EXPOSURE = 3; // 노출 3: 임시 조절 바로 화면을 보며 정한 값(1.2는 너무 어두웠다)
 // 빛 색은 더 푸르게(명도는 그대로: 휘도 0.69 / 0.25 유지)
 const KEY_COL = new THREE.Color(0.54, 0.70, 0.98), AMB_COL = new THREE.Color(0.20, 0.25, 0.38);
 const PROC_GAIN = 0.38 * NIGHT_LIGHT, BLD_GAIN = 1.4 * NIGHT_LIGHT; // 0.38: 켜고 끄며 잰 공정 화면 밝기가 원래의 약 70%(30% 어둡게)가 되는 값
@@ -546,6 +549,106 @@ function removeLights(el) {
   });
   rm.forEach(o => { S.remove(o); ch = true; });
   return ch;
+}
+
+// ---- 부지 밖 지우기 + 안개 판 ----
+// 부지(공장 섬) 경계. 이 바깥(물 건너 남서쪽 육지·남쪽 해안)의 건물·나무·가로등은 필요 없어 지우고, 경계를 따라 안개 판을 세워 흐리게 가린다.
+// 실제 fog 계산은 렉이 있어 쓰지 않는다. 좌표는 위에서 내려다본 배치도에 사용자가 그린 선을 장면 단위로 옮긴 것
+const SITE_AREA = [[-27, -132], [14, -127], [69, -112], [113, -100], [115, -54], [113, -18], [105, 38], [61, 47], [14, 55], [-18, 65], [-45, 79], [-65, 65],
+  [-85, 44], [-101, 28], [-109, 17], [-103, -14], [-97, -50], [-93, -86], [-57, -106]];
+function inSite(x, z) {
+  let c = false;
+  for (let i = 0, j = SITE_AREA.length - 1; i < SITE_AREA.length; j = i++) { const [xi, zi] = SITE_AREA[i], [xj, zj] = SITE_AREA[j]; if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) c = !c; }
+  return c;
+}
+// 메시는 경계 상자의 네 귀·가운데 중 하나라도 부지 안이면 남긴다. 나무·가로등(인스턴스)은 하나씩 크기 0으로. 바닥·바다·도로·산처럼 큰 것(200 넘음)은 남긴다
+function cullOutsideSite(el, off) {
+  let ch = false; const b = new THREE.Box3(), M = new THREE.Matrix4(), p = new THREE.Vector3(), zero = new THREE.Matrix4().makeScale(0, 0, 0);
+  const roots = [el.scene.getObjectByName('SITE_BACKDROP_EXT'), el.backdrop, el.scene.getObjectByName('SLEEK_LAMPS')];
+  roots.forEach(root => root?.traverse(o => {
+    if (!o.isMesh || o.userData.siteChecked || o.userData.sleekOff) return; o.userData.siteChecked = true;
+    if (o.isInstancedMesh) {
+      let hit = false;
+      for (let i = 0; i < o.count; i++) { o.getMatrixAt(i, M); p.setFromMatrixPosition(M).applyMatrix4(o.matrixWorld); if (!inSite(p.x, p.z)) { o.setMatrixAt(i, zero); hit = true; } }
+      if (hit) { o.instanceMatrix.needsUpdate = true; o.computeBoundingSphere?.(); ch = true; }
+      return;
+    }
+    b.setFromObject(o); const sx = b.max.x - b.min.x, sz = b.max.z - b.min.z;
+    if (sx > 200 || sz > 200 || b.isEmpty()) return;
+    const cx = (b.min.x + b.max.x) / 2, cz = (b.min.z + b.max.z) / 2;
+    if (Math.hypot(cx, cz) > 400) return; // 해·달·먼 산 등 먼 배경은 removeFarBuildings가 맡는다
+    if ([[b.min.x, b.min.z], [b.max.x, b.min.z], [b.min.x, b.max.z], [b.max.x, b.max.z], [cx, cz]].some(([x, z]) => inSite(x, z))) return;
+    off(o); ch = true;
+  }));
+  return ch;
+}
+// 안개: 경계 바깥 육지 쪽에 뭉게구름 같은 안개 판을 여러 겹 둔다(실제 fog 계산은 쓰지 않는다. 모두 합쳐 그리기 1번).
+// - 판은 늘 카메라 쪽을 보며 세로로 선다(원통형 빌보드). 십자 판은 모서리·십자 모양이 보였다
+// - 구름 그림은 노이즈로 만든 4가지 모양(아틀라스 한 장)을 판마다 골라 쓰고, 크기·높이·위치를 흩어 반복이 보이지 않게 한다
+// - 기본 시점은 남서쪽 경계 너머에서 부지를 보므로, 카메라가 부지 바깥쪽을 볼 때만 보이고 안쪽을 볼 때·위에서 내려다볼 때·가까이 갈 때는 옅어진다
+// - 굽기용 카메라에 찍히지 않게 레이어 1에만 둔다(장면 카메라는 레이어 1도 보게 켠다)
+// 색은 셰이더가 변환 없이 그대로 내므로 선형 변환 없이 넣는다. 다크는 바다보다 조금 밝은 달빛 회청색, 라이트는 흰빛 회색
+const FOG_COL = { dark: new THREE.Color().setHex(0x536886, THREE.LinearSRGBColorSpace), light: new THREE.Color().setHex(0xf2f6f6, THREE.LinearSRGBColorSpace) };
+function fogAtlas() { // 2×2칸, 칸마다 다른 뭉게구름: 아래는 짙고 위 가장자리는 뭉게뭉게 흩어진다
+  const CW = 256, CH = 128, c = document.createElement('canvas'); c.width = CW * 2; c.height = CH * 2; const x = c.getContext('2d'), im = x.createImageData(c.width, c.height);
+  const hash = (i, j, s) => { const h = Math.sin(i * 127.1 + j * 311.7 + s * 74.7) * 43758.5453; return h - Math.floor(h); };
+  const vn = (px, py, s) => { const i = Math.floor(px), j = Math.floor(py), fx = px - i, fy = py - j, u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
+    return (hash(i, j, s) * (1 - u) + hash(i + 1, j, s) * u) * (1 - v) + (hash(i, j + 1, s) * (1 - u) + hash(i + 1, j + 1, s) * u) * v; };
+  const fbm = (px, py, s) => { let a = 0, w = 0.5, f = 1; for (let o = 0; o < 5; o++) { a += w * vn(px * f, py * f, s + o * 13); f *= 2.03; w *= 0.5; } return a; };
+  for (let t = 0; t < 4; t++) {
+    const ox = (t % 2) * CW, oy = Math.floor(t / 2) * CH;
+    for (let y = 0; y < CH; y++) for (let xx = 0; xx < CW; xx++) {
+      const u = xx / CW, v = 1 - y / CH; // v: 0 = 아래, 1 = 위
+      const n = fbm(u * 4.5, v * 2.2, t * 31 + 7);
+      const top = 0.35 + 0.45 * n;                                  // 구름 윗면 높이가 노이즈로 들쭉날쭉
+      const body = 1 - smoothstepJ(top - 0.25, top + 0.05, v);       // 윗면 아래는 짙게, 위는 비게
+      const side = smoothstepJ(0, 0.22, u) * smoothstepJ(1, 0.78, u); // 좌우 가장자리 옅게
+      const bottom = smoothstepJ(0, 0.12, v);                       // 바닥에서 서서히(땅과 이어지게)
+      const a = Math.max(0, Math.min(1, body * side * bottom * (0.55 + 0.6 * n)));
+      const k = ((oy + y) * c.width + ox + xx) * 4, lum = Math.round(205 + 50 * Math.min(1, n * 1.2) * v); // 위쪽이 조금 밝게(빛 받는 구름 윗면)
+      im.data[k] = im.data[k + 1] = im.data[k + 2] = lum; im.data[k + 3] = Math.round(a * 255);
+    }
+  }
+  x.putImageData(im, 0, 0);
+  const tex = new THREE.CanvasTexture(c); tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false; return tex;
+}
+function smoothstepJ(e0, e1, x) { const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); }
+function siteFog(el) {
+  const dark = (el.getAttribute('theme') || 'dark') === 'dark';
+  let fog = el.scene.getObjectByName('SLEEK_SITE_FOG');
+  if (!fog) {
+    const N = SITE_AREA.length, STEP = 9, ROWS = [[3, 26, 12], [12, 40, 20], [26, 58, 30]]; // 줄마다 [바깥으로 거리, 너비, 높이]: 멀수록 크고 높게
+    const ctr = [], crn = [], siz = [], til = [], outv = []; let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    let cx = 0, cz = 0; SITE_AREA.forEach(([x, z]) => { cx += x / N; cz += z / N; });
+    for (let i = 0; i < N; i++) {
+      const [x0, z0] = SITE_AREA[i], [x1, z1] = SITE_AREA[(i + 1) % N], len = Math.hypot(x1 - x0, z1 - z0), dx = (x1 - x0) / len, dz = (z1 - z0) / len;
+      let nx = dz, nz = -dx; if (nx * ((x0 + x1) / 2 - cx) + nz * ((z0 + z1) / 2 - cz) < 0) { nx = -nx; nz = -nz; } // 부지 바깥쪽
+      if ((nx > -0.3 && nz < 0.3) || (z0 + z1) / 2 < -55) continue; // 지운 것이 있던 육지 쪽(서·남쪽 경계)에만. 나머지는 바다라 가릴 것이 없다
+      ROWS.forEach(([off, w, h], r) => {
+        for (let s = rnd() * STEP; s < len; s += STEP * (0.8 + rnd() * 0.5)) {
+          const o = off + (rnd() - 0.5) * 6, px = x0 + dx * s + nx * o, pz = z0 + dz * s + nz * o, W = w * (0.75 + rnd() * 0.5), H = h * (0.7 + rnd() * 0.6), T = Math.floor(rnd() * 4) + (rnd() < 0.5 ? 4 : 0); // 4 이상 = 좌우 뒤집기
+          for (const [cu, cv] of [[-0.5, 0], [0.5, 0], [0.5, 1], [-0.5, 0], [0.5, 1], [-0.5, 1]]) { ctr.push(px, -0.5, pz); crn.push(cu, cv); siz.push(W, H); til.push(T); outv.push(nx, nz); }
+        }
+      });
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(ctr, 3)); g.setAttribute('aCorner', new THREE.Float32BufferAttribute(crn, 2));
+    g.setAttribute('aSize', new THREE.Float32BufferAttribute(siz, 2)); g.setAttribute('aTile', new THREE.Float32BufferAttribute(til, 1)); g.setAttribute('aOut', new THREE.Float32BufferAttribute(outv, 2));
+    const mat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false, uniforms: { uCol: { value: FOG_COL.dark.clone() }, uMap: { value: fogAtlas() } },
+      vertexShader: 'attribute vec2 aCorner, aSize, aOut; attribute float aTile; varying vec2 vUv; varying float vFade;'
+        + ' void main(){ vec3 c = (modelMatrix * vec4(position, 1.)).xyz; vec3 toCam = cameraPosition - c; vec3 side = normalize(vec3(-toCam.z, 0., toCam.x));'
+        + ' vec3 w = c + side * aCorner.x * aSize.x + vec3(0., aCorner.y * aSize.y, 0.);'
+        + ' float flip = aTile >= 4. ? 1. : 0., t = mod(aTile, 4.); vec2 uv = vec2(flip > .5 ? .5 - aCorner.x : aCorner.x + .5, aCorner.y);'
+        + ' vUv = (uv + vec2(mod(t, 2.), floor(t / 2.))) * .5;'
+        + ' vec3 v = normalize(w - cameraPosition); float dist = length(toCam);'
+        + ' vFade = smoothstep(0.0, 0.4, dot(normalize(v.xz), aOut)) * (1. - smoothstep(0.35, 0.7, abs(v.y))) * smoothstep(12., 45., dist);'
+        + ' gl_Position = projectionMatrix * viewMatrix * vec4(w, 1.); }',
+      fragmentShader: 'uniform vec3 uCol; uniform sampler2D uMap; varying vec2 vUv; varying float vFade;'
+        + ' void main(){ vec4 t = texture2D(uMap, vUv); float a = t.a * 0.3 * vFade; if (a < 0.004) discard; gl_FragColor = vec4(uCol * (0.82 + 0.25 * t.r), a); }' });
+    fog = new THREE.Mesh(g, mat); fog.name = 'SLEEK_SITE_FOG'; fog.raycast = () => {}; fog.renderOrder = 4; fog.frustumCulled = false;
+    fog.layers.set(1); el.camera.layers.enable(1); el.scene.add(fog);
+  }
+  fog.material.uniforms.uCol.value.copy(dark ? FOG_COL.dark : FOG_COL.light);
 }
 
 // ---- 먼 건물 지우기: scene_v3.js가 반지름 약 300~500m에 둘러 깐 실루엣(상자·굴뚝·굴뚝 연기 구·창 불빛) ----
@@ -1055,16 +1158,7 @@ function bakeLampLight(ground, pool) {
   const gb = new THREE.Box3().setFromObject(ground), W = gb.max.x - gb.min.x, D = gb.max.z - gb.min.z; // 바닥 판은 회전돼 있어 월드 좌표로 잰다
   const M = new THREE.Matrix4(), p = new THREE.Vector3(), H = 7 * K_LAMP, R = 16 * 0.56; // 줄인 가로등 높이에 맞춰 빛 웅덩이도 작게 // 등 높이 7m, 빛이 닿는 반경 16m
   x.globalCompositeOperation = 'lighter'; // 가까운 가로등끼리 빛이 더해진다
-  // 투광등 4개: 원뿔이 닿는 자리를 부드럽게(가운데가 하얗게 날지 않게 낮게)
-  FLOODS.forEach(o => { const cx = (o.x - gb.min.x) / W * N, cy = (o.z - gb.min.z) / D * N, r = o.r / W * N, g = x.createRadialGradient(cx, cy, 0, cx, cy, r), c = new THREE.Color(o.color);
-    const rgb = [c.r, c.g, c.b].map(v => Math.round(v * 255)).join(',');
-    for (let k = 0; k <= 8; k++) { const u = k / 8, f = Math.pow(1 - u * u, 2) * 0.22; g.addColorStop(u, `rgba(${rgb},${f.toFixed(3)})`); }
-    x.fillStyle = g; x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fill(); });
-  // 빈터를 은은하게 밝히는 큰 옴니(달빛): 명도·채도 낮은 푸른 회색, 넓고 부드럽게
-  NIGHT_OMNI.forEach(o => { const cx = (o.p[0] - gb.min.x) / W * N, cy = (o.p[1] - gb.min.z) / D * N, r = o.r / W * N, g = x.createRadialGradient(cx, cy, 0, cx, cy, r);
-    // 가운데가 뾰족하지 않게 넓고 완만하게(점광원 감쇠를 그대로 쓰니 가운데가 하얗게 날아갔다)
-    for (let k = 0; k <= 8; k++) { const u = k / 8, f = Math.pow(1 - u * u, 2) * o.ground * 0.3; g.addColorStop(u, `rgba(170,185,210,${f.toFixed(3)})`); }
-    x.fillStyle = g; x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fill(); });
+  // 투광등·빈터 옴니의 푸른 빛은 바닥에 굽지 않는다(노출을 3으로 올린 만큼 바닥 푸른 빛을 빼 대비를 살림). 가로등 빛 웅덩이만 굽는다
   for (let i = 0; i < pool.count; i++) {
     pool.getMatrixAt(i, M); p.setFromMatrixPosition(M).applyMatrix4(pool.matrixWorld);
     // 바닥 UV: u = (x - minX)/W, v = (maxZ - z)/D → 캔버스(flipY) 세로는 (z - minZ)/D
@@ -1118,6 +1212,28 @@ async function warmOtherTheme(el, tidy) {
   for (let i = 0; i < 3; i++) { tidy(); await frame(); }
   R.toneMappingExposure = exp; el._dirty = true;
 }
+// 첫 화면에서 셰이더 컴파일·텍스처·버퍼 올리기가 한꺼번에 몰려 1초 넘게 멈추고 인트로 카메라가 건너뛰던 것을, 검은 덮개가 덮인 동안 미리 끝낸다.
+// 인트로 첫 장면 그대로 노출 0으로 한 번 그린다(화면 밖 물체까지 그리면 오히려 첫 렌더보다 오래 걸렸다)
+function warmUp(el) {
+  const R = el.renderer, e = R.toneMappingExposure;
+  el._applyView?.(); R.toneMappingExposure = 0;
+  try { R.render(el.scene, el.camera); } finally { R.toneMappingExposure = e; }
+}
+// 인트로는 브라우저 탭마다 처음 한 번만(새로고침하거나 다시 들어오면 바로 전체 보기). ?intro=1이면 항상, 저장소가 막히면 매번 보여 준다
+function introSeen() {
+  if (new URLSearchParams(location.search).get('intro') === '1') return false;
+  try { if (sessionStorage.getItem('sleekIntroSeen')) return true; sessionStorage.setItem('sleekIntroSeen', '1'); } catch (e) { /* 저장소 막힘 */ }
+  return false;
+}
+// 인트로 없이 인트로가 끝난 상태로: 덮개를 걷고 드론 시점에 바로 두고 공정 소개를 시작한다
+function skipIntro(el, showcase) {
+  const to = el._overviewPose();
+  Object.assign(el.orbit, { yaw: to.yaw, pitch: to.pitch, dist: to.dist }); el.orbit.target.copy(to.target);
+  warmUp(el); el._dirty = true; document.body.classList.add('sleek-ready');
+  tidyScene(el);
+  showcase.begin();
+  document.dispatchEvent(new CustomEvent('sleek-intro-done'));
+}
 
 // ---- 2) 인트로: 어두운 화면에서 조명이 서서히 켜지며 드론 시점으로 다가간다 ----
 function playIntro(el, showcase) {
@@ -1132,6 +1248,7 @@ function playIntro(el, showcase) {
   // 카메라: 조금 더 높고 먼 곳에서 드론 시점으로 천천히 다가간다
   const to = el._overviewPose();
   Object.assign(el.orbit, { yaw: to.yaw - 0.25, pitch: to.pitch + 0.12, dist: to.dist * 1.35 }); el.orbit.target.copy(to.target);
+  warmUp(el); // 이 첫 장면으로 미리 그려 둔다(덮개는 아직 덮여 있다)
   el._animateTo?.(to);
   setTimeout(() => el._animateTo?.(to), 50);
 

@@ -58,7 +58,7 @@ useLearnerNotesSource({
 // 학습 답 저장(answer-cache.ts): 모델·학습 프롬프트·공개 자료가 바뀌면 버전이 바뀌어 다시 받는다.
 const readText = (path: string) => { try { return readFileSync(join(process.cwd(), path), "utf8"); } catch { return ""; } };
 const answerCache = new AnswerCache(
-  answerCacheVersion(process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL, [readText("llm/prompts/learning-system.md"), readText("backend/data/ironmaking-sources.json")]),
+  answerCacheVersion(process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL, ["llm/prompts/learning-system.md", "backend/data/ironmaking-sources.json", "content/materials/ironmaking/section.md"].map(readText)),
   process.env.ANSWER_CACHE_PATH || join(process.cwd(), "data", "answer-cache.json"),
 );
 const sceneCatalog = await loadSceneCatalog();

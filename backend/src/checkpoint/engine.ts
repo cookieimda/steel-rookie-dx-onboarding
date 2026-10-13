@@ -14,7 +14,7 @@ import {
 } from "../scoring.js";
 import type { LearnerNotes } from "../learning/notes.js";
 import type { AttemptPatch, AttemptRow, CheckpointRepository, ConceptResultRow } from "./repository.js";
-import { toPolite } from "./polite.js";
+import { toPolite } from "../../../llm/src/polite.js";
 import { isSectionPassed, mergeAttemptResults, summarizeSection } from "./section-summary.js";
 import {
   CheckpointError,

@@ -9,6 +9,7 @@ import { z } from "zod";
 import { SECTION_NAMES, type Section } from "../../backend/src/checkpoint/types.js";
 import type { GlossaryEntry } from "../../backend/src/rubrics.js";
 import { escapeDelimited, GeminiCallError, renderPrompt, type GeminiClient } from "./gemini.js";
+import { politeText } from "./polite.js";
 import type { Retrieved, Screen } from "./retrieval.js";
 
 const MAX_ATTEMPTS = 2;
@@ -257,7 +258,8 @@ export function parseLearningReply(
   const allowedConcepts = new Set(input.concepts.map((c) => c.concept_id));
   const m = r.detected_misconception;
   const detected_misconception = m && allowedConcepts.has(m.concept_id) && m.summary.trim() ? { concept_id: m.concept_id, summary: m.summary.trim() } : null;
-  const follow_up = r.follow_up?.trim() || null;
+  // 해요체 규칙을 넣어도 모델이 '~답니다'·'~입니다'를 섞어서 문장 끝 어미를 맞춘다(polite.ts).
+  const follow_up = r.follow_up?.trim() ? politeText(r.follow_up.trim()) : null;
 
   // grounded라고 했지만 쓸 수 있는 근거가 없으면 답을 믿지 않는다. 같은 응답의 화면 조작·카드도 버린다.
   if (r.status === "grounded" && source_ids.length === 0) {
@@ -272,7 +274,7 @@ export function parseLearningReply(
   // 카드는 근거로 설명한 답을 정리하는 것이라 grounded 답변에만 붙인다.
   const allowedCards = new Set((input.keywordConcepts ?? []).map((c) => c.concept_id));
   const keyword_card = r.status === "grounded" && r.keyword_card && allowedCards.has(r.keyword_card.concept_id) ? { concept_id: r.keyword_card.concept_id } : null;
-  return { answer: r.answer.trim(), status: r.status, source_ids, follow_up, detected_misconception, scene_actions, keyword_card };
+  return { answer: politeText(r.answer.trim()), status: r.status, source_ids, follow_up, detected_misconception, scene_actions, keyword_card };
 }
 
 /** Gemini 과부하(HTTP 503 "high demand")·연결 끊김 때 다시 부르기 전에 기다리는 시간(ms). 길이가 다시 부르는 횟수다. */

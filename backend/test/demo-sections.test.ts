@@ -216,3 +216,26 @@ test("시연용 신입사원 2(trainee02): seed와 상관없이 제선 재도전
     assert.equal(d.sections.find((s) => s.section === "continuous_casting")!.stat, null, "제강을 통과하지 못해 연주는 미응시");
   }
 });
+
+test("관리자 화면 시연 분포: seed와 상관없이 수료 8·진행 중 4·재도전 필요 5(trainee02 포함)·미시작 2, trainee01은 기록 없음", async () => {
+  const expected: Record<string, string> = {
+    trainee01: "idle", trainee02: "retry",
+    trainee03: "done", trainee04: "done", trainee05: "done", trainee06: "done", trainee07: "done", trainee08: "done", trainee18: "done", trainee19: "done",
+    trainee09: "active", trainee10: "active", trainee11: "active", trainee12: "active",
+    trainee13: "retry", trainee14: "retry", trainee15: "retry", trainee16: "retry",
+    trainee17: "idle", trainee20: "idle",
+  };
+  // 관리자 화면(Admin Dashboard.dc.html statusOf)과 같은 기준
+  const statusOf = (t: ReturnType<typeof traineeStats>["trainees"][number]) => {
+    const secs = SECTION_ORDER;
+    if (t.passed_sections === secs.length) return "done";
+    if (secs.some((s) => t.sections[s] && !t.sections[s]!.passed)) return "retry";
+    if (secs.some((s) => t.sections[s]) || t.in_progress_sections.length) return "active";
+    return "idle";
+  };
+  for (const seed of [1, 7, 42, 99, 2026]) {
+    const { db } = await seededDb(seed);
+    const got = Object.fromEntries(traineeStats(db, finalRubrics).trainees.map((t) => [t.username, statusOf(t)]));
+    assert.deepEqual(got, expected, `seed ${seed}`);
+  }
+});

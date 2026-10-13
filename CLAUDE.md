@@ -163,10 +163,10 @@ content/
 - 시연 계정 `trainee01`~`20`(신입사원 20명), `admin01`은 서버 시작 때 만든다(`DEMO_ACCOUNTS=off`로 끔).
 - 아이디·비밀번호 찾기는 이름 + 사번으로 본인 확인을 한다(메일 발송 없음). 시연·사내용 수준이다.
 - 관리자는 `GET /api/admin/trainees`로 신입사원별 섹션 이해도·통과 여부·시도 횟수·오개념 개수·마지막 학습일을 본다(`backend/src/admin/`). 체크포인트 테이블(`attempts`, `misconceptions`)이 없으면 계정 목록만 준다.
-- 시연 계정은 `users.is_demo = 1`이다(`trainee11`~`20`, `006_demo_accounts.sql`, 서버 시작 때 `seedDemoAccounts`가 표시). 관리자 화면은 실제 계정과 섞어 보여 주고 시연 계정 이름 옆에 'demo' 배지를 붙인다. `?include_demo=false`면 실제 계정만 센다(`/api/admin/trainees`, `/api/admin/concepts`).
+- 시연 계정은 `users.is_demo = 1`이다(`trainee02`~`20`, 서버 시작 때 `seedDemoAccounts`가 표시. `006_demo_accounts.sql`은 처음 기준인 11~20만 표시). 관리자 화면은 실제 계정과 섞어 보여 주고 시연 계정 이름 옆에 'demo' 배지를 붙인다. `?include_demo=false`면 실제 계정만 센다(`/api/admin/trainees`, `/api/admin/concepts`).
 - 화면: `frontend/login_ui/My Page.dc.html`, 서버의 `/login`. 관리자로 로그인하면 개인 학습 기록 대신 통계를 보여 준다.
 - `npm run db:seed-demo [seed]`: 시연 기록을 무작위로 다시 만든다(`backend/src/db/demo-records.ts`). 점수는 `scoring.ts` 규칙.
-  - **계정 분리**: 시연 기록은 `trainee11`~`20`에만 넣는다. `trainee01`~`10`은 팀원 실제 테스트용이라 시연 기록이 없고, 실행할 때 남아 있는 `seed` 기록을 지운다.
+  - **계정 분리**: 시연 기록은 `trainee02`~`20`에만 넣는다. `trainee01`만 팀원 실제 테스트용이라 시연 기록이 없고, 실행할 때 남아 있는 `seed` 기록을 지운다(2026-10-13, 처음에는 01~10이 실제 테스트용이었다).
   - 개념은 `loadFinalRubrics()`에서 읽고, final 루브릭이 없는 섹션은 시연용 개념 목록 `content/demo/sections.json`(id·이름만)으로 채운다. 이 파일은 시연 기록(`db:seed-demo`)과 관리자 통계만 읽는다. 평가자·체크포인트 엔진·`loadFinalRubrics()`는 읽지 않으므로 실제 계정의 그 섹션 체크포인트는 계속 404다(테스트로 확인). final 루브릭이 생기면 그 섹션은 루브릭 개념을 쓰고 시연 목록은 무시한다.
   - 시연 기록은 `attempts`·`misconceptions`의 `origin = 'seed'`이고, 실제 기록은 `live`(기본값, `005_record_origin.sql`)다. 시연 계정으로 실제 테스트도 하므로 계정이 아니라 기록 단위로 구분한다.
   - 다시 만들 때 `seed` 기록만 지운다. 실제 기록(`live`)과 다른 계정의 기록은 건드리지 않는다.

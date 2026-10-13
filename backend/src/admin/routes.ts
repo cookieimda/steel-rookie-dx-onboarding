@@ -9,6 +9,7 @@ import type { Rubric } from "../rubrics.js";
 import { UsageLimitError } from "../usage.js";
 import { AiSummaryService } from "./ai-summary.js";
 import { conceptStats } from "./concept-stats.js";
+import { traineeDetail } from "./trainee-detail.js";
 import { traineeStats } from "./trainee-stats.js";
 
 export interface AdminOptions {
@@ -45,6 +46,15 @@ export function createAdminRouter(db: DatabaseSync, auth: AuthDeps, options: Adm
     if (includeDemo === null) return;
     res.json(traineeStats(db, undefined, { includeDemo }));
   });
+  // 신입사원 한 명 상세(표에서 사람을 누르면). 오개념은 개수만 낸다.
+  router.get("/api/admin/trainees/:id", requireUser(auth), requireAdmin, (req, res) => {
+    const detail = traineeDetail(db, String(req.params.id), options.rubrics?.());
+    if (!detail) {
+      res.status(404).json({ error: "신입사원을 찾지 못했어요.", code: "TRAINEE_NOT_FOUND" });
+      return;
+    }
+    res.json(detail);
+  });
   router.get("/api/admin/concepts", requireUser(auth), requireAdmin, (req, res) => {
     const section = sectionParam(req, res);
     if (section === null) return;
@@ -72,7 +82,7 @@ export function createAdminRouter(db: DatabaseSync, auth: AuthDeps, options: Adm
         res.status(502).json(unavailable);
       } else {
         console.error(error);
-        res.status(500).json({ error: "서버 오류가 발생했습니다." });
+        res.status(500).json({ error: "서버 오류가 생겼어요." });
       }
     }
   });

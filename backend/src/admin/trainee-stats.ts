@@ -28,7 +28,7 @@ export interface TraineeStat {
   username: string;
   name: string;
   employee_no: string;
-  /** 시연 계정(trainee11~20). 관리자 화면에서 'demo' 배지를 붙인다. */
+  /** 시연 계정(trainee02~20). 관리자 화면에서 'demo' 배지를 붙인다. */
   is_demo: boolean;
   created_at: string;
   last_activity: string | null;

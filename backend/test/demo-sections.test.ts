@@ -9,6 +9,7 @@ import { test } from "node:test";
 import express from "express";
 import { conceptStats } from "../src/admin/concept-stats.js";
 import { createAdminRouter } from "../src/admin/routes.js";
+import { traineeDetail } from "../src/admin/trainee-detail.js";
 import { traineeStats } from "../src/admin/trainee-stats.js";
 import { DEMO_RECORD_TRAINEES, seedDemoAccounts } from "../src/auth/demo-accounts.js";
 import { signToken } from "../src/auth/tokens.js";
@@ -69,19 +70,19 @@ test("loadFinalRubrics()는 시연 목록을 읽지 않고, 시연 목록은 형
   assert.deepEqual(loadDemoSections(join(dir, "none.json")), {}, "파일이 없으면 빈 목록");
 });
 
-test("시연 기록은 trainee11~20에만 생기고, 시연 목록 섹션(제강 등)까지 채워진다", async () => {
+test("시연 기록은 trainee02~20에만 생기고, 시연 목록 섹션(제강 등)까지 채워진다", async () => {
   let demoSectionRecords = 0;
   for (const seed of [1, 7, 42]) {
     const { db } = await seededDb(seed);
     const rows = db.prepare("SELECT u.username, a.section, a.origin FROM attempts a JOIN users u ON u.id = a.user_id").all();
-    assert.ok(rows.every((r) => DEMO_RECORD_TRAINEES.includes(String(r.username))), `${seed}: trainee11~20 밖에 기록이 있음`);
+    assert.ok(rows.every((r) => DEMO_RECORD_TRAINEES.includes(String(r.username))), `${seed}: trainee02~20 밖에 기록이 있음`);
     assert.ok(rows.every((r) => r.origin === "seed"));
     demoSectionRecords += rows.filter((r) => String(r.section) in demo).length;
   }
   assert.ok(demoSectionRecords > 0, "시연 목록 섹션에 시연 기록이 하나도 없음");
 });
 
-test("is_demo: trainee11~20만 1, 이미 있던 계정도 서버 시작(seedDemoAccounts) 때 표시된다", async () => {
+test("is_demo: trainee02~20만 1, 이미 있던 계정도 서버 시작(seedDemoAccounts) 때 표시된다", async () => {
   const db = openDatabase(":memory:");
   const users = new UserRepository(db);
   // 006 전에 만들어진 것처럼 표시 없이 계정을 먼저 만든다.
@@ -91,7 +92,7 @@ test("is_demo: trainee11~20만 1, 이미 있던 계정도 서버 시작(seedDemo
   const flags = Object.fromEntries(db.prepare("SELECT username, is_demo FROM users").all().map((r) => [String(r.username), Number(r.is_demo)]));
   for (let i = 1; i <= 20; i++) {
     const name = `trainee${String(i).padStart(2, "0")}`;
-    assert.equal(flags[name], i >= 11 ? 1 : 0, name);
+    assert.equal(flags[name], i >= 2 ? 1 : 0, name);
   }
   assert.equal(flags.real_user, 0);
   assert.equal(flags.admin01, 0);
@@ -123,9 +124,9 @@ test("include_demo=false면 시연 계정을 빼고, API는 true·false 밖의 �
   const real = traineeStats(db, finalRubrics, { includeDemo: false });
   assert.equal(all.include_demo, true);
   assert.equal(real.include_demo, false);
-  assert.equal(all.trainees.filter((t) => t.is_demo).length, 10);
+  assert.equal(all.trainees.filter((t) => t.is_demo).length, DEMO_RECORD_TRAINEES.length);
   assert.ok(real.trainees.length > 0 && real.trainees.every((t) => !t.is_demo));
-  assert.equal(real.trainees.length, all.trainees.length - 10);
+  assert.equal(real.trainees.length, all.trainees.length - DEMO_RECORD_TRAINEES.length);
   // 시연 기록은 시연 계정에만 있으므로 실제만 보면 개념 통계가 비어 있다.
   assert.ok(conceptStats(db, undefined, finalRubrics).concepts.length > 0);
   assert.deepEqual(conceptStats(db, undefined, finalRubrics, { includeDemo: false }).concepts, []);
@@ -143,7 +144,7 @@ test("include_demo=false면 시연 계정을 빼고, API는 true·false 밖의 �
       return { status: res.status, json: (await res.json()) as any };
     };
     const mixed = await get("/api/admin/trainees");
-    assert.equal(mixed.json.trainees.filter((t: { is_demo: boolean }) => t.is_demo).length, 10);
+    assert.equal(mixed.json.trainees.filter((t: { is_demo: boolean }) => t.is_demo).length, DEMO_RECORD_TRAINEES.length);
     const only = await get("/api/admin/trainees?include_demo=false");
     assert.ok(only.json.trainees.every((t: { is_demo: boolean }) => !t.is_demo));
     assert.deepEqual((await get("/api/admin/concepts?include_demo=false")).json, { concepts: [] });
@@ -152,6 +153,49 @@ test("include_demo=false면 시연 계정을 빼고, API는 true·false 밖의 �
       assert.equal(bad.status, 400, path);
       assert.equal(bad.json.code, "INVALID_INCLUDE_DEMO");
     }
+  } finally {
+    server.close();
+  }
+});
+
+test("신입사원 상세(GET /api/admin/trainees/:id): 목록과 같은 섹션 통계, 개념별 점수, 시도 기록. 없는 사람·관리자는 404", async () => {
+  const { db, users, idOf } = await seededDb(42);
+  const stats = traineeStats(db, finalRubrics);
+  // 제선을 끝낸 시연 계정 하나를 고른다.
+  const someone = stats.trainees.find((t) => t.is_demo && t.sections.ironmaking)!;
+  const detail = traineeDetail(db, someone.id, finalRubrics)!;
+  assert.deepEqual(detail.trainee, someone, "목록과 같은 사람 통계");
+  assert.deepEqual(detail.sections.map((s) => s.section), [...SECTION_ORDER]);
+  const iron = detail.sections.find((s) => s.section === "ironmaking")!;
+  assert.deepEqual(iron.stat, someone.sections.ironmaking);
+  assert.equal(iron.demo, false);
+  assert.deepEqual(iron.concepts.map((c) => c.concept_id), finalRubrics.find((r) => r.section === "ironmaking")!.concepts.map((c) => c.concept_id));
+  // 이해도는 개념 점수의 평균이다.
+  const scores = iron.concepts.map((c) => c.score ?? 0);
+  assert.equal(Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 1000), Math.round(iron.stat!.understanding * 1000));
+  assert.equal(iron.attempts.length, iron.stat!.attempts);
+  assert.ok(iron.attempts.every((a, i) => i === 0 || a.completed_at >= iron.attempts[i - 1].completed_at), "오래된 순서");
+  assert.ok(!JSON.stringify(detail).includes("summary") && !JSON.stringify(detail).includes("answer_text"), "오개념 내용·답변 원문은 내보내지 않음");
+  assert.equal(traineeDetail(db, "nobody", finalRubrics), null);
+  assert.equal(traineeDetail(db, idOf("admin01"), finalRubrics), null, "관리자는 신입사원 상세가 없음");
+
+  const secret = new TextEncoder().encode("test-secret-test-secret-test-secret");
+  const app = express();
+  app.use(createAdminRouter(db, { users, secret }));
+  const server = app.listen(0);
+  await new Promise((resolve) => server.once("listening", resolve));
+  try {
+    const admin = users.findById(idOf("admin01"))!;
+    const get = async (path: string, as = admin) => {
+      const res = await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}${path}`, { headers: { authorization: `Bearer ${await signToken(as, secret)}` } });
+      return { status: res.status, json: (await res.json()) as any };
+    };
+    const ok = await get(`/api/admin/trainees/${someone.id}`);
+    assert.equal(ok.status, 200);
+    assert.equal(ok.json.trainee.username, someone.username);
+    const missing = await get("/api/admin/trainees/nobody");
+    assert.deepEqual([missing.status, missing.json.code], [404, "TRAINEE_NOT_FOUND"]);
+    assert.equal((await get(`/api/admin/trainees/${someone.id}`, users.findById(idOf("trainee01"))!)).status, 403, "신입사원은 볼 수 없음");
   } finally {
     server.close();
   }

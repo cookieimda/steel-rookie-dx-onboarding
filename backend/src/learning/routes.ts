@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { getPublicSources } from "../../../llm/src/ironmaking-sources.js";
 import { LearningFormatError, type LearningAgent, type SceneCatalog } from "../../../llm/src/learning-agent.js";
-import { withScreenEquipment, type Retriever } from "../../../llm/src/retrieval.js";
+import { retrieveWithHistory, withScreenEquipment, type Retriever } from "../../../llm/src/retrieval.js";
 import { LlmUnavailableError, SECTION_ORDER, type Section } from "../checkpoint/types.js";
 import { currentUserId } from "../request-user.js";
 import type { Rubric } from "../rubrics.js";
@@ -102,11 +102,9 @@ export function createLearningRouter({ repo, retriever, agent, rubrics, scene, s
       const equipmentName = scene?.processes.flatMap((p) => p.equipment).find((e) => e.id === equipmentId)?.name ?? null;
       const history = repo.recentTurns(sessionId, HISTORY_TURNS).map((t) => ({ question: t.question, answer: t.answer }));
       // '이 설비의 역할은?'처럼 화면의 설비를 가리키면 검색어에 설비 이름을 붙인다(withScreenEquipment).
-      // "그럼 그건요?"처럼 가리키는 말만 있는 후속 질문은 검색어가 없으므로, 질문만으로 못 찾으면 직전 대화를 붙여 다시 찾는다.
+      // "그 바람은 몇 도야?"처럼 앞 대화를 이어 묻는 질문은 직전 질문을 붙여 찾은 결과와 합친다(retrieveWithHistory, npm run eval:retrieval로 비교).
       const query = withScreenEquipment(question, equipmentName);
-      let chunks = retriever.retrieve(section, query, screen);
-      const last = history.at(-1);
-      if (chunks.length === 0 && last) chunks = retriever.retrieve(section, `${query} ${last.question} ${last.answer}`, screen);
+      const chunks = retrieveWithHistory(retriever, section, query, screen, history.at(-1));
       const reply = await agent.reply({
         section,
         question,

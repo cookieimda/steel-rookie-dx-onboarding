@@ -37,17 +37,26 @@ const MIN_SCORE = 0.08;
 const SCREEN_BOOST = 0.15;
 const TITLE_WEIGHT = 0.3;
 
-/** 질문에 나온 말로 제선 개념(section.md 조각의 태그)을 짐작한다. 설비 이름이 여러 조각에 겹칠 때 순위를 가르는 검색 힌트이고, 답이 아니다. */
+/**
+ * 질문에 나온 말로 제선 개념(section.md 조각의 id·태그)을 짐작한다. 설비 이름이 여러 조각에 겹칠 때 순위를 가르는 검색 힌트이고, 답이 아니다.
+ * id는 section.md 조각 id여야 한다(테스트로 확인).
+ */
+export const CONCEPT_HINTS: Record<Section, { id: string; test: (query: string) => boolean }[]> = {
+  ironmaking: [
+    { id: "sinter_purpose", test: (q) => /소결/.test(q) },
+    { id: "coke_reduction", test: (q) => /코크스/.test(q) && /고로|환원|일산화탄소|역할|왜/.test(q) && !/제조|생산|화성|코크스로/.test(q) },
+    { id: "hot_stove_role", test: (q) => /열풍/.test(q) },
+    { id: "torpedo_role", test: (q) => /토페도|어뢰|TLC|옮|운반/i.test(q) },
+    { id: "taphole_role", test: (q) => /출선|배출|나와|나오/.test(q) && /고로|쇳물|용선|출선/.test(q) },
+    { id: "finex_route", test: (q) => /FINEX|파이넥스/i.test(q) },
+  ],
+  steelmaking: [],
+  continuous_casting: [],
+  rolling: [],
+};
+
 function queryConcepts(section: Section, query: string): string[] {
-  if (section !== "ironmaking") return [];
-  const hints: string[] = [];
-  if (/소결/.test(query)) hints.push("sinter_purpose");
-  if (/코크스/.test(query) && /고로|환원|일산화탄소|역할|왜/.test(query) && !/제조|생산|화성|코크스로/.test(query)) hints.push("coke_reduction");
-  if (/열풍/.test(query)) hints.push("hot_stove_role");
-  if (/토페도|어뢰|TLC|옮|운반/i.test(query)) hints.push("torpedo_role");
-  if (/출선|배출|나와|나오/.test(query) && /고로|쇳물|용선|출선/.test(query)) hints.push("taphole_role");
-  if (/FINEX|파이넥스/i.test(query)) hints.push("finex_route");
-  return hints;
+  return CONCEPT_HINTS[section].filter((h) => h.test(query)).map((h) => h.id);
 }
 
 // 공개 자료 메모에는 설비 id가 없어서, 메모에 나오는 말로 그 공정의 설비를 붙인다(id는 frontend/3d-demo/data_v2.js 기준).
@@ -252,4 +261,48 @@ export class Retriever {
     const byId = new Map(this.chunks(section).map((c) => [c.id, c]));
     return [...new Set(chunkIds.flatMap((id) => byId.get(id)?.source_ids ?? (id.includes("#") ? [id.slice(0, id.indexOf("#"))] : [])))];
   }
+}
+
+/** 이어지는 질문의 직전 대화 한 턴. */
+export interface PreviousTurn {
+  question: string;
+  answer: string;
+}
+
+/**
+ * 이어지는 질문의 근거 검색 방식(llm/eval/run-retrieval.ts로 비교).
+ * - empty-fallback: 질문만으로 못 찾을 때만 직전 질문·답을 붙여 다시 찾는다(예전 방식).
+ * - pointing: 가리키는 말이 있거나 질문만으로 약하게 맞으면 직전 질문을 붙여 찾는다.
+ * - merge: 질문만으로 찾은 것과 직전 질문을 붙여 찾은 것을 합쳐 조각마다 높은 점수를 쓴다(기본).
+ */
+export type FollowUpStrategy = "empty-fallback" | "pointing" | "merge";
+
+// "그건", "그 바람", "그때", "그럼", "그 다음", "거기"처럼 앞 대화를 가리키는 말.
+const FOLLOW_UP_WORDS = /(?:^|[\s,])(?:그|저|이)(?:건|거|게|것|걸|때|곳|런데|럼|래서)(?=$|[\s?.!,])|(?:^|\s)그\s(?:\S+)|거기|다른 이름/;
+/** pointing 방식에서 질문만으로 이보다 약하게 맞으면 이어지는 질문으로 본다. */
+const WEAK_MATCH = 0.3;
+
+export function looksLikeFollowUp(question: string): boolean {
+  return FOLLOW_UP_WORDS.test(question);
+}
+
+/**
+ * 직전 대화를 고려한 근거 검색. 학습 모드 라우트와 검색 평가가 같이 쓴다.
+ * 직전 질문은 주제(설비·물질 이름)를 담고 있어 붙이고, 직전 답은 말이 많아 엉뚱한 조각을 끌어오므로 마지막 수단으로만 붙인다.
+ */
+export function retrieveWithHistory(retriever: Retriever, section: Section, query: string, screen: Screen, previous: PreviousTurn | undefined, strategy: FollowUpStrategy = "merge"): Retrieved[] {
+  const own = retriever.retrieve(section, query, screen);
+  if (!previous) return own;
+  const withAnswer = () => retriever.retrieve(section, `${query} ${previous.question} ${previous.answer}`, screen);
+  if (strategy === "empty-fallback") return own.length ? own : withAnswer();
+  const withQuestion = retriever.retrieve(section, `${query} ${previous.question}`, screen);
+  if (strategy === "pointing") {
+    const follow = looksLikeFollowUp(query) || (own[0]?.score ?? 0) < WEAK_MATCH;
+    const picked = follow ? withQuestion : own;
+    return picked.length ? picked : withAnswer();
+  }
+  const best = new Map<string, Retrieved>();
+  for (const r of [...own, ...withQuestion]) if (!best.has(r.id) || best.get(r.id)!.score < r.score) best.set(r.id, r);
+  const merged = [...best.values()].sort((a, b) => b.score - a.score || a.id.localeCompare(b.id)).slice(0, MAX_RESULTS);
+  return merged.length ? merged : withAnswer();
 }

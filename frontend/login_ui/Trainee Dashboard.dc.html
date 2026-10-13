@@ -148,7 +148,7 @@ class Component extends DCLogic {
       updatedLabel: S.loadedAt ? `불러온 시각 ${S.loadedAt.getHours()}:${String(S.loadedAt.getMinutes()).padStart(2, '0')}` : S.error ? '불러오기 실패' : '불러오는 중…',
       theme: S.theme, themeIcon: S.theme === 'dark' ? '☀' : '☾',
       toggleTheme: () => { const theme = S.theme === 'dark' ? 'light' : 'dark'; document.body.dataset.theme = theme; this.setState({ theme }); },
-      logout: () => { try { localStorage.removeItem('st-rookie-token'); sessionStorage.removeItem('st-rookie-token'); } catch (e) {} window.top.location.href = './My%20Page.dc.html'; },
+      logout: () => { try { localStorage.removeItem('st-rookie-token'); sessionStorage.removeItem('st-rookie-token'); } catch (e) {} window.top.location.href = '/login_ui/home-sleek.html'; },
       kpis: [
         { label: '통과한 섹션', value: T ? String(T.passed_sections) : '—', unit: `/ ${secs.length || '—'}`, sub: '이해도 80% 이상', color: 'var(--ok)' },
         { label: '평균 이해도', value: avg == null ? '—' : pct(avg), unit: '', sub: '응시한 섹션의 마지막 결과', color: avg == null ? 'var(--text)' : scoreColor(avg) },

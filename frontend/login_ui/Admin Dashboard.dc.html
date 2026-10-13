@@ -8,39 +8,57 @@
 <body>
 <x-dc>
 <helmet>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Montserrat:wght@500;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
   <style>
-    html, body { margin: 0; min-height: 100%; font-family: "IBM Plex Sans KR", sans-serif; }
-    body { --bg: oklch(0.14 0.02 245); --panel: oklch(0.18 0.018 245); --panel2: oklch(0.24 0.022 245); --line: oklch(1 0 0 / .12); --text: oklch(0.96 0.006 240); --muted: oklch(0.7 0.02 240); --accent: #1a9bd7; --ok: oklch(0.74 0.15 155); --mid: oklch(0.82 0.14 80); --bad: oklch(0.68 0.18 25); background: var(--bg); color: var(--text); }
-    body[data-theme="light"] { --bg: oklch(0.95 0.008 245); --panel: oklch(0.995 0.002 245); --panel2: oklch(0.93 0.01 245); --line: oklch(0 0 0 / .09); --text: oklch(0.22 0.02 245); --muted: oklch(0.5 0.02 245); --ok: oklch(0.55 0.15 155); --mid: oklch(0.62 0.14 70); --bad: oklch(0.55 0.19 25); }
-    a { color: var(--accent); text-decoration: none; } a:hover { color: var(--text); }
-    button, input, select { font-family: inherit; }
+    /* 홈(home-sleek.html)·로그인(login-sleek.css)과 같은 세련안 토큰: 무채색 바탕, Pretendard·Montserrat·JetBrains Mono, 흰 CTA */
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      --font-ko: "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+      --font-en: "Montserrat", "Pretendard", sans-serif;
+      --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+      --bg: #1c1c1c; --bg-hi: #232327; --nav: rgba(18, 18, 20, .86);
+      --panel: rgba(255, 255, 255, .035); --panel2: rgba(255, 255, 255, .07); --chip-on: rgba(255, 255, 255, .14);
+      --line: rgba(255, 255, 255, .08); --text: #f2f2f2; --muted: #a8a8ad; --dim: #6f6f74;
+      --accent: #f2f2f2; --accent-ink: #111; --ok: #6fcf97; --mid: #e8c25a; --bad: #ff6b6b;
+      background: radial-gradient(ellipse at 50% 0%, var(--bg-hi) 0%, var(--bg) 55%) fixed, var(--bg);
+      color: var(--text); font-family: var(--font-ko); letter-spacing: -0.01em; -webkit-font-smoothing: antialiased;
+    }
+    body[data-theme="light"] {
+      --bg: #f4f4f5; --bg-hi: #ffffff; --nav: rgba(255, 255, 255, .86);
+      --panel: #ffffff; --panel2: rgba(0, 0, 0, .05); --chip-on: rgba(0, 0, 0, .1);
+      --line: rgba(0, 0, 0, .08); --text: #161617; --muted: #5f5f66; --dim: #8a8a90;
+      --accent: #161617; --accent-ink: #fff; --ok: #1f9d55; --mid: #b7791f; --bad: #d64545;
+    }
+    a { color: inherit; text-decoration: none; }
+    button, input, select { font-family: inherit; letter-spacing: inherit; }
     * { box-sizing: border-box; }
   </style>
 </helmet>
-<div style="min-height:100vh;background:var(--bg);color:var(--text);">
-  <header style="position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px 20px;flex-wrap:wrap;padding:14px clamp(16px,3vw,36px);background:color-mix(in srgb, var(--bg) 88%, transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line);">
-    <div style="display:flex;align-items:center;gap:10px;">
-      <span style="width:34px;height:34px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:#fff;">S</span>
-      <div style="display:flex;flex-direction:column;gap:1px;"><span style="font-family:'Noto Sans KR',sans-serif;font-weight:700;font-size:14px;letter-spacing:0.05em;white-space:nowrap;">STEEL ACADEMY</span><span style="font-size:11px;color:var(--muted);">관리자 · 신입사원 학습 현황</span></div>
-    </div>
-    <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;padding:3px 8px;border-radius:999px;border:1px dashed {{ srcColor }};color:{{ srcColor }};white-space:nowrap;">{{ srcLabel }}</span>
+<div style="min-height:100vh;color:var(--text);">
+  <!-- 플로팅 네비: 홈 화면의 둥근 어두운 판 + 오른쪽 밝은 CTA -->
+  <header style="position:sticky;top:16px;z-index:5;width:min(1280px, calc(100% - 32px));margin:16px auto 0;min-height:64px;padding:10px 12px 10px 22px;display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap;background:var(--nav);border:1px solid var(--line);border-radius:18px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);">
+    <a href="/" target="_top" style="display:flex;align-items:center;gap:10px;color:var(--text);font-family:var(--font-en);font-weight:800;font-size:18px;letter-spacing:0.04em;white-space:nowrap;">
+      <span style="width:18px;height:18px;border-radius:5px;background:var(--text);box-shadow:inset 0 0 0 5px var(--bg);flex:none;"></span>ST-ROOKIE
+    </a>
+    <span style="font-family:var(--mono);font-size:10px;letter-spacing:0.22em;color:var(--muted);white-space:nowrap;">ADMIN</span>
+    <span style="font-family:var(--mono);font-size:10px;letter-spacing:0.08em;padding:3px 8px;border-radius:6px;border:1px solid var(--line);color:{{ srcColor }};white-space:nowrap;">● {{ srcLabel }}</span>
     <div style="flex:1;"></div>
     <nav style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-      <a href="../3d-demo/Steel%20Academy%20v3.dc.html" target="_top" style="padding:7px 12px;border-radius:999px;border:1px solid var(--line);font-size:13px;color:var(--muted);" style-hover="color:var(--text);border-color:var(--accent);">학습 화면</a>
-      <a href="./My Page.dc.html" target="_top" style="padding:7px 12px;border-radius:999px;border:1px solid var(--line);font-size:13px;color:var(--muted);" style-hover="color:var(--text);border-color:var(--accent);">마이페이지</a>
-      <button type="button" onClick="{{ toggleTheme }}" aria-label="테마 전환" style="width:34px;height:34px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--text);font-size:14px;cursor:pointer;" style-hover="border-color:var(--accent);">{{ themeIcon }}</button>
-      <button type="button" onClick="{{ logout }}" style="padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:13px;cursor:pointer;" style-hover="color:var(--text);border-color:var(--accent);">로그아웃</button>
+      <button type="button" onClick="{{ toggleTheme }}" aria-label="테마 전환" style="width:40px;height:40px;border-radius:10px;border:none;background:transparent;color:var(--muted);font-size:15px;cursor:pointer;" style-hover="background:var(--panel2);color:var(--text);">{{ themeIcon }}</button>
+      <button type="button" onClick="{{ logout }}" style="height:40px;padding:0 16px;border-radius:10px;border:none;background:transparent;color:var(--muted);font-size:14px;font-weight:500;cursor:pointer;" style-hover="background:var(--panel2);color:var(--text);">로그아웃</button>
+      <a href="/" target="_top" style="display:flex;align-items:center;height:40px;padding:0 20px;border-radius:10px;background:var(--accent);color:var(--accent-ink);font-size:14px;font-weight:700;white-space:nowrap;" style-hover="opacity:.88;">학습 화면</a>
     </nav>
   </header>
 
-  <main style="max-width:1280px;margin:0 auto;padding:28px clamp(16px,3vw,36px) 64px;display:flex;flex-direction:column;gap:28px;">
-    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:10px 24px;flex-wrap:wrap;">
-      <div style="display:flex;flex-direction:column;gap:6px;">
-        <h1 style="margin:0;font-family:'Noto Sans KR',sans-serif;font-size:28px;font-weight:900;letter-spacing:-0.02em;">학습 현황</h1>
-        <span style="font-size:13px;color:var(--muted);">기준 이해도 <b style="font-family:'IBM Plex Mono',monospace;color:var(--text);">80%</b> 이상이면 섹션 통과 · 오개념은 본인만 볼 수 있어 개수만 표시합니다</span>
+  <main style="max-width:1280px;margin:0 auto;padding:44px clamp(16px,3vw,36px) 72px;display:flex;flex-direction:column;gap:28px;">
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px 24px;flex-wrap:wrap;">
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <span style="font-family:var(--mono);font-size:11px;letter-spacing:0.3em;color:var(--muted);">[ TRAINEE DASHBOARD ]</span>
+        <h1 style="margin:0;font-family:var(--font-en);font-weight:800;font-size:clamp(36px,5.4vw,64px);line-height:0.95;letter-spacing:0.02em;">LEARNING STATUS.</h1>
+        <span style="font-size:14px;font-weight:300;color:var(--muted);">신입사원 학습 현황 · 기준 이해도 <b style="font-weight:700;color:var(--text);">80%</b> 이상이면 섹션 통과 · 오개념은 본인만 볼 수 있어 개수만 표시합니다</span>
       </div>
-      <span style="font-size:12px;color:var(--muted);">{{ updatedLabel }}</span>
+      <span style="font-family:var(--mono);font-size:11px;letter-spacing:0.08em;color:var(--dim);">{{ updatedLabel }}</span>
     </div>
     <sc-if value="{{ loadError }}" hint-placeholder-val="{{ false }}">
       <div role="alert" style="padding:14px 18px;border:1px solid var(--bad);border-radius:12px;color:var(--bad);font-size:13px;">{{ loadError }}</div>
@@ -48,35 +66,37 @@
 
     <section style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:18px;overflow:hidden;">
       <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
-        <div style="display:flex;flex-direction:column;gap:8px;padding:18px 20px;background:var(--panel);">
+        <div style="display:flex;flex-direction:column;gap:10px;padding:20px 22px;background:var(--bg);">
           <span style="font-size:12px;color:var(--muted);">{{ k.label }}</span>
-          <span style="display:flex;align-items:baseline;gap:6px;"><span style="font-family:'IBM Plex Mono',monospace;font-size:30px;font-weight:600;color:{{ k.color }};">{{ k.value }}</span><span style="font-size:13px;color:var(--muted);">{{ k.unit }}</span></span>
-          <span style="font-size:12px;color:var(--muted);">{{ k.sub }}</span>
+          <span style="display:flex;align-items:baseline;gap:6px;"><span style="font-family:var(--font-en);font-size:36px;font-weight:800;line-height:1;color:{{ k.color }};">{{ k.value }}</span><span style="font-size:13px;color:var(--muted);">{{ k.unit }}</span></span>
+          <span style="font-size:12px;color:var(--dim);">{{ k.sub }}</span>
         </div>
       </sc-for>
     </section>
 
-    <section aria-label="AI 요약" style="display:flex;flex-direction:column;gap:10px;padding:18px 22px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:18px;">
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <h2 style="margin:0;font-family:'Noto Sans KR',sans-serif;font-size:16px;font-weight:700;">AI 요약 · 보강할 내용</h2>
-        <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:2px 7px;border-radius:999px;border:1px solid var(--line);color:var(--muted);">Gemini</span>
+    <section aria-label="AI 요약" style="display:flex;flex-direction:column;gap:10px;padding:20px 22px;background:var(--panel);border:1px solid var(--line);border-radius:18px;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <span style="font-family:var(--mono);font-size:10px;letter-spacing:0.26em;color:var(--muted);">AI SUMMARY</span>
+        <h2 style="margin:0;font-size:16px;font-weight:700;">보강할 내용</h2>
+        <span style="font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:6px;border:1px solid var(--line);color:var(--muted);">Gemini</span>
         <span style="flex:1;"></span>
-        <span style="font-size:11px;color:var(--muted);">{{ aiMeta }}</span>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--dim);">{{ aiMeta }}</span>
       </div>
-      <p style="margin:0;font-size:14px;line-height:1.7;color:{{ aiColor }};">{{ aiText }}</p>
-      <span style="font-size:11px;color:var(--muted);">{{ aiNote }}</span>
+      <p style="margin:0;font-size:15px;line-height:1.7;color:{{ aiColor }};">{{ aiText }}</p>
+      <span style="font-size:11px;color:var(--dim);">{{ aiNote }}</span>
     </section>
 
     <div style="display:flex;flex-wrap:wrap;gap:20px;align-items:stretch;">
       <section style="flex:1.5 1 520px;min-width:0;display:flex;flex-direction:column;gap:16px;padding:22px;background:var(--panel);border:1px solid var(--line);border-radius:18px;">
-        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px 16px;flex-wrap:wrap;">
-          <div style="display:flex;flex-direction:column;gap:4px;">
-            <h2 style="margin:0;font-family:'Noto Sans KR',sans-serif;font-size:18px;font-weight:700;">오답률 높은 개념</h2>
-            <span style="font-size:12px;color:var(--muted);">체크포인트 첫 답변이 정답이 아니었던 비율</span>
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:8px 16px;flex-wrap:wrap;">
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <span style="font-family:var(--mono);font-size:10px;letter-spacing:0.26em;color:var(--muted);">CONCEPTS</span>
+            <h2 style="margin:0;font-size:18px;font-weight:700;">오답률 높은 개념</h2>
+            <span style="font-size:12px;color:var(--dim);">체크포인트 첫 답변이 정답이 아니었던 비율</span>
           </div>
-          <div role="tablist" style="display:flex;gap:4px;padding:3px;border-radius:999px;background:var(--panel2);flex-wrap:wrap;">
+          <div role="tablist" style="display:flex;gap:4px;padding:4px;border-radius:12px;background:var(--panel2);flex-wrap:wrap;">
             <sc-for list="{{ secTabs }}" as="t" hint-placeholder-count="5">
-              <button type="button" role="tab" aria-selected="{{ t.on }}" onClick="{{ t.onClick }}" style="height:28px;padding:0 12px;border:none;border-radius:999px;background:{{ t.bg }};color:{{ t.color }};font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">{{ t.label }}</button>
+              <button type="button" role="tab" aria-selected="{{ t.on }}" onClick="{{ t.onClick }}" style="height:30px;padding:0 12px;border:none;border-radius:8px;background:{{ t.bg }};color:{{ t.color }};font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">{{ t.label }}</button>
             </sc-for>
           </div>
         </div>
@@ -87,21 +107,21 @@
         </div>
         <ol style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;">
           <sc-for list="{{ concepts }}" as="c" hint-placeholder-count="8">
-            <li style="display:grid;grid-template-columns:28px minmax(120px,1fr) minmax(120px,1.4fr) 56px;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--line);">
-              <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;color:{{ c.rankColor }};">{{ c.rank }}</span>
+            <li style="display:grid;grid-template-columns:28px minmax(120px,1fr) minmax(120px,1.4fr) 56px;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line);">
+              <span style="font-family:var(--mono);font-size:12px;font-weight:600;color:{{ c.rankColor }};">{{ c.rank }}</span>
               <span style="display:flex;flex-direction:column;gap:3px;min-width:0;">
                 <span style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ c.name }}</span>
-                <span style="font-size:11px;color:var(--muted);white-space:nowrap;">{{ c.secName }}</span>
+                <span style="font-size:11px;color:var(--dim);white-space:nowrap;">{{ c.secName }}</span>
               </span>
-              <span style="display:flex;flex-direction:column;gap:5px;">
-                <span style="display:flex;height:10px;border-radius:999px;background:var(--panel2);overflow:hidden;">
+              <span style="display:flex;flex-direction:column;gap:6px;">
+                <span style="display:flex;height:6px;border-radius:999px;background:var(--panel2);overflow:hidden;">
                   <span style="width:{{ c.wWrong }};background:var(--bad);"></span>
                   <span style="width:{{ c.wPartial }};background:var(--mid);"></span>
                   <span style="width:{{ c.wAssist }};background:var(--muted);opacity:.6;"></span>
                 </span>
-                <span style="font-size:11px;color:var(--muted);">{{ c.detail }}</span>
+                <span style="font-size:11px;color:var(--dim);">{{ c.detail }}</span>
               </span>
-              <span style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;color:{{ c.rateColor }};">{{ c.rate }}</span>
+              <span style="text-align:right;font-family:var(--font-en);font-size:17px;font-weight:800;color:{{ c.rateColor }};">{{ c.rate }}</span>
             </li>
           </sc-for>
         </ol>
@@ -114,18 +134,18 @@
       <section style="flex:1 1 340px;min-width:0;contain:size;min-height:480px;display:flex;flex-direction:column;gap:18px;padding:22px;background:var(--panel);border:1px solid var(--line);border-radius:18px;">
         <div style="flex:1 1 0;min-height:0;display:flex;flex-direction:column;gap:12px;">
           <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">
-            <h2 style="margin:0;font-family:'Noto Sans KR',sans-serif;font-size:18px;font-weight:700;">전 과정 수료</h2>
-            <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--ok);">{{ doneCount }}</span>
+            <h2 style="margin:0;font-size:18px;font-weight:700;">전 과정 수료</h2>
+            <span style="font-family:var(--mono);font-size:12px;color:var(--ok);">{{ doneCount }}</span>
           </div>
           <div style="display:flex;flex-direction:column;flex:1 1 auto;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--line) transparent;padding-right:4px;">
             <sc-for list="{{ doneList }}" as="d" hint-placeholder-count="3">
               <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line);">
-                <span style="width:32px;height:32px;border-radius:16px;flex:none;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb, var(--ok) 18%, transparent);color:var(--ok);font-size:13px;font-weight:700;">{{ d.initial }}</span>
+                <span style="width:32px;height:32px;border-radius:10px;flex:none;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb, var(--ok) 16%, transparent);color:var(--ok);font-size:13px;font-weight:700;">{{ d.initial }}</span>
                 <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;">
-                  <span style="font-size:14px;font-weight:600;">{{ d.name }} <span style="font-weight:400;font-size:12px;color:var(--muted);font-family:'IBM Plex Mono',monospace;">{{ d.emp }}</span></span>
-                  <span style="font-size:11px;color:var(--muted);">{{ d.sub }}</span>
+                  <span style="font-size:14px;font-weight:600;">{{ d.name }} <span style="font-weight:400;font-size:11px;color:var(--dim);font-family:var(--mono);">{{ d.emp }}</span></span>
+                  <span style="font-size:11px;color:var(--dim);">{{ d.sub }}</span>
                 </span>
-                <span style="font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;">{{ d.avg }}</span>
+                <span style="font-family:var(--mono);font-size:14px;font-weight:600;">{{ d.avg }}</span>
               </div>
             </sc-for>
             <sc-if value="{{ doneEmpty }}" hint-placeholder-val="{{ false }}"><span style="padding:10px 0;border-top:1px solid var(--line);font-size:13px;color:var(--muted);">아직 수료한 사람이 없습니다.</span></sc-if>
@@ -133,17 +153,17 @@
         </div>
         <div style="flex:1 1 0;min-height:0;display:flex;flex-direction:column;gap:12px;">
           <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">
-            <h2 style="margin:0;font-family:'Noto Sans KR',sans-serif;font-size:18px;font-weight:700;">확인이 필요한 사람</h2>
-            <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--bad);">{{ watchCount }}</span>
+            <h2 style="margin:0;font-size:18px;font-weight:700;">확인이 필요한 사람</h2>
+            <span style="font-family:var(--mono);font-size:12px;color:var(--bad);">{{ watchCount }}</span>
           </div>
           <div style="display:flex;flex-direction:column;flex:1 1 auto;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--line) transparent;padding-right:4px;">
             <sc-for list="{{ watchList }}" as="w" hint-placeholder-count="3">
               <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line);">
                 <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;">
-                  <span style="font-size:14px;font-weight:600;">{{ w.name }} <span style="font-weight:400;font-size:12px;color:var(--muted);font-family:'IBM Plex Mono',monospace;">{{ w.emp }}</span></span>
-                  <span style="font-size:11px;color:var(--muted);">{{ w.sub }}</span>
+                  <span style="font-size:14px;font-weight:600;">{{ w.name }} <span style="font-weight:400;font-size:11px;color:var(--dim);font-family:var(--mono);">{{ w.emp }}</span></span>
+                  <span style="font-size:11px;color:var(--dim);">{{ w.sub }}</span>
                 </span>
-                <span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;background:{{ w.tagBg }};color:{{ w.tagColor }};white-space:nowrap;">{{ w.tag }}</span>
+                <span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:6px;background:{{ w.tagBg }};color:{{ w.tagColor }};white-space:nowrap;">{{ w.tag }}</span>
               </div>
             </sc-for>
           </div>
@@ -152,24 +172,27 @@
     </div>
 
     <section style="display:flex;flex-direction:column;gap:14px;">
-      <h2 style="margin:0;font-family:'Noto Sans KR',sans-serif;font-size:18px;font-weight:700;">섹션별 진행</h2>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <span style="font-family:var(--mono);font-size:10px;letter-spacing:0.26em;color:var(--muted);">IRONMAKING · STEELMAKING · CASTING · ROLLING</span>
+        <h2 style="margin:0;font-size:18px;font-weight:700;">섹션별 진행</h2>
+      </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;">
         <sc-for list="{{ secCards }}" as="s" hint-placeholder-count="4">
-          <div style="display:flex;flex-direction:column;gap:14px;padding:18px 20px;background:var(--panel);border:1px solid var(--line);border-radius:16px;">
+          <div style="display:flex;flex-direction:column;gap:14px;padding:20px 22px;background:var(--panel);border:1px solid var(--line);border-radius:18px;">
             <div style="display:flex;align-items:center;gap:10px;">
-              <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;color:var(--accent);">{{ s.num }}</span>
+              <span style="font-family:var(--font-en);font-size:20px;font-weight:800;color:var(--dim);">{{ s.num }}</span>
               <span style="font-size:16px;font-weight:700;">{{ s.name }}</span>
               <span style="flex:1;"></span>
-              <span style="font-size:11px;color:var(--muted);">평균 <b style="font-family:'IBM Plex Mono',monospace;color:var(--text);">{{ s.avg }}</b></span>
+              <span style="font-size:11px;color:var(--muted);">평균 <b style="font-family:var(--mono);color:var(--text);">{{ s.avg }}</b></span>
             </div>
-            <div style="position:relative;height:8px;border-radius:999px;background:var(--panel2);overflow:hidden;">
-              <span style="position:absolute;left:0;top:0;bottom:0;width:{{ s.wTaken }};background:color-mix(in srgb, var(--accent) 35%, transparent);"></span>
+            <div style="position:relative;height:6px;border-radius:999px;background:var(--panel2);overflow:hidden;">
+              <span style="position:absolute;left:0;top:0;bottom:0;width:{{ s.wTaken }};background:color-mix(in srgb, var(--accent) 30%, transparent);"></span>
               <span style="position:absolute;left:0;top:0;bottom:0;width:{{ s.wPassed }};background:var(--accent);"></span>
             </div>
             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
-              <span style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:11px;color:var(--muted);">통과</span><span style="font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;">{{ s.passed }}</span></span>
-              <span style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:11px;color:var(--muted);">미통과</span><span style="font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;color:{{ s.failColor }};">{{ s.failed }}</span></span>
-              <span style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:11px;color:var(--muted);">평균 시도</span><span style="font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;">{{ s.tries }}</span></span>
+              <span style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:11px;color:var(--dim);">통과</span><span style="font-family:var(--mono);font-size:16px;font-weight:600;">{{ s.passed }}</span></span>
+              <span style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:11px;color:var(--dim);">미통과</span><span style="font-family:var(--mono);font-size:16px;font-weight:600;color:{{ s.failColor }};">{{ s.failed }}</span></span>
+              <span style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:11px;color:var(--dim);">평균 시도</span><span style="font-family:var(--mono);font-size:16px;font-weight:600;">{{ s.tries }}</span></span>
             </div>
           </div>
         </sc-for>
@@ -177,46 +200,49 @@
     </section>
 
     <section style="display:flex;flex-direction:column;gap:14px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px 16px;flex-wrap:wrap;">
-        <h2 style="margin:0;font-family:'Noto Sans KR',sans-serif;font-size:18px;font-weight:700;">신입사원 명단</h2>
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:10px 16px;flex-wrap:wrap;">
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <span style="font-family:var(--mono);font-size:10px;letter-spacing:0.26em;color:var(--muted);">TRAINEES</span>
+          <h2 style="margin:0;font-size:18px;font-weight:700;">신입사원 명단</h2>
+        </div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-          <div role="tablist" style="display:flex;gap:4px;padding:3px;border-radius:999px;background:var(--panel2);flex-wrap:wrap;">
+          <div role="tablist" style="display:flex;gap:4px;padding:4px;border-radius:12px;background:var(--panel2);flex-wrap:wrap;">
             <sc-for list="{{ statusTabs }}" as="t" hint-placeholder-count="5">
-              <button type="button" role="tab" aria-selected="{{ t.on }}" onClick="{{ t.onClick }}" style="height:28px;padding:0 12px;border:none;border-radius:999px;background:{{ t.bg }};color:{{ t.color }};font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">{{ t.label }}</button>
+              <button type="button" role="tab" aria-selected="{{ t.on }}" onClick="{{ t.onClick }}" style="height:30px;padding:0 12px;border:none;border-radius:8px;background:{{ t.bg }};color:{{ t.color }};font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">{{ t.label }}</button>
             </sc-for>
           </div>
-          <input value="{{ query }}" onChange="{{ onQuery }}" placeholder="이름·아이디·사번 검색" aria-label="검색" style="height:34px;width:200px;max-width:100%;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--text);font-size:13px;outline:none;" style-focus="border-color:var(--accent);">
+          <input value="{{ query }}" onChange="{{ onQuery }}" placeholder="이름·아이디·사번 검색" aria-label="검색" style="height:38px;width:220px;max-width:100%;padding:0 14px;border-radius:10px;border:1px solid transparent;background:var(--panel2);color:var(--text);font-size:13px;outline:none;" style-focus="border-color:var(--muted);">
         </div>
       </div>
-      <div style="overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;">
+      <div style="overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:18px;">
         <div style="min-width:900px;display:flex;flex-direction:column;font-size:13px;">
-          <div style="display:grid;grid-template-columns:minmax(160px,1.6fr) repeat(4,minmax(78px,1fr)) minmax(110px,1.1fr) minmax(90px,.9fr) minmax(90px,.9fr) minmax(90px,.9fr);gap:10px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--line);color:var(--muted);font-size:12px;">
+          <div style="display:grid;grid-template-columns:minmax(160px,1.6fr) repeat(4,minmax(78px,1fr)) minmax(110px,1.1fr) minmax(90px,.9fr) minmax(90px,.9fr) minmax(90px,.9fr);gap:10px;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);color:var(--muted);font-size:12px;">
             <sc-for list="{{ cols }}" as="h" hint-placeholder-count="9">
               <button type="button" onClick="{{ h.onClick }}" style="padding:0;border:none;background:none;color:{{ h.color }};font-size:12px;font-weight:600;text-align:{{ h.align }};cursor:{{ h.cursor }};white-space:nowrap;">{{ h.label }}</button>
             </sc-for>
           </div>
           <sc-for list="{{ rows }}" as="r" hint-placeholder-count="6">
             <div style="display:grid;grid-template-columns:minmax(160px,1.6fr) repeat(4,minmax(78px,1fr)) minmax(110px,1.1fr) minmax(90px,.9fr) minmax(90px,.9fr) minmax(90px,.9fr);gap:10px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--line);" style-hover="background:var(--panel2);">
-              <span style="display:flex;flex-direction:column;gap:2px;min-width:0;"><span style="font-weight:600;">{{ r.name }}</span><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);">{{ r.username }} · {{ r.emp }}</span></span>
+              <span style="display:flex;flex-direction:column;gap:2px;min-width:0;"><span style="font-weight:600;">{{ r.name }}</span><span style="font-family:var(--mono);font-size:11px;color:var(--dim);">{{ r.username }} · {{ r.emp }}</span></span>
               <sc-for list="{{ r.cells }}" as="x" hint-placeholder-count="4">
                 <span style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 4px;border-radius:8px;background:{{ x.bg }};">
-                  <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;color:{{ x.color }};">{{ x.value }}</span>
-                  <span style="font-size:10px;color:var(--muted);">{{ x.sub }}</span>
+                  <span style="font-family:var(--mono);font-size:13px;font-weight:600;color:{{ x.color }};">{{ x.value }}</span>
+                  <span style="font-size:10px;color:var(--dim);">{{ x.sub }}</span>
                 </span>
               </sc-for>
               <span style="display:flex;align-items:center;gap:8px;">
                 <span style="display:flex;gap:3px;"><sc-for list="{{ r.dots }}" as="d" hint-placeholder-count="4"><span style="width:14px;height:6px;border-radius:3px;background:{{ d.bg }};"></span></sc-for></span>
-                <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;">{{ r.progress }}</span>
+                <span style="font-family:var(--mono);font-size:12px;">{{ r.progress }}</span>
               </span>
-              <span style="text-align:right;font-family:'IBM Plex Mono',monospace;"><b style="color:{{ r.misColor }};">{{ r.misOpen }}</b><span style="color:var(--muted);font-size:11px;"> / 해결 {{ r.misResolved }}</span></span>
+              <span style="text-align:right;font-family:var(--mono);"><b style="color:{{ r.misColor }};">{{ r.misOpen }}</b><span style="color:var(--dim);font-size:11px;"> / 해결 {{ r.misResolved }}</span></span>
               <span style="text-align:right;color:var(--muted);font-size:12px;">{{ r.last }}</span>
-              <span style="justify-self:end;font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;background:{{ r.tagBg }};color:{{ r.tagColor }};white-space:nowrap;">{{ r.tag }}</span>
+              <span style="justify-self:end;font-size:11px;font-weight:600;padding:3px 9px;border-radius:6px;background:{{ r.tagBg }};color:{{ r.tagColor }};white-space:nowrap;">{{ r.tag }}</span>
             </div>
           </sc-for>
           <sc-if value="{{ rowsEmpty }}" hint-placeholder-val="{{ false }}"><span style="padding:24px 18px;text-align:center;color:var(--muted);">조건에 맞는 신입사원이 없습니다.</span></sc-if>
         </div>
       </div>
-      <span style="font-size:11px;color:var(--muted);">칸: 마지막 체크포인트 이해도 · 시도 횟수. 잠김 = 앞 섹션 미통과. 기록은 DB 데이터이고, 설비·단계 같은 교육 내용은 샘플입니다.</span>
+      <span style="font-size:11px;color:var(--dim);">칸: 마지막 체크포인트 이해도 · 시도 횟수. 잠김 = 앞 섹션 미통과. 기록은 DB 데이터이고, 설비·단계 같은 교육 내용은 샘플입니다.</span>
     </section>
   </main>
 </div>
@@ -276,7 +302,7 @@ class Component extends DCLogic {
     const allU = T.flatMap(t => secs.map(s => t.sections[s]).filter(Boolean).map(x => x.understanding));
     const openMis = T.reduce((a, t) => a + t.misconceptions.open, 0);
     const doneN = st.filter(x => x === 'done').length;
-    const tab = (on, label, onClick) => ({ on, label, onClick, bg: on ? 'var(--panel)' : 'transparent', color: on ? 'var(--text)' : 'var(--muted)' });
+    const tab = (on, label, onClick) => ({ on, label, onClick, bg: on ? 'var(--chip-on)' : 'transparent', color: on ? 'var(--text)' : 'var(--muted)' });
 
     // 오답률 높은 개념
     const C = (D ? D.concepts.concepts : []).filter(c => S.sec === 'all' || c.section === S.sec)
@@ -345,7 +371,7 @@ class Component extends DCLogic {
       toggleTheme: () => { const theme = S.theme === 'dark' ? 'light' : 'dark'; document.body.dataset.theme = theme; this.setState({ theme }); },
       logout: () => {
         try { localStorage.removeItem('st-rookie-token'); sessionStorage.removeItem('st-rookie-token'); } catch (e) {}
-        window.top.location.href = './My%20Page.dc.html';
+        window.top.location.href = '/login_ui/home-sleek.html';
       },
       kpis: [
         { label: '신입사원', value: String(N), unit: '명', sub: '가입한 trainee 계정', color: 'var(--text)' },

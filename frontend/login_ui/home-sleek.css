@@ -95,9 +95,8 @@ body.home {
 }
 .field span { font-family: var(--font-en); font-size: 12px; font-weight: 500; letter-spacing: 0.2em; color: var(--muted); }
 .field:focus-within span { color: #fff; }
-.signup-only { display: none; }
-.is-signup .signup-only { display: flex; }
-.is-signup .login-only { display: none; }
+/* 모드별로 안 쓰는 칸·링크는 hidden(JS가 data-modes로 정함) */
+.panel [hidden] { display: none !important; }
 /* 로그인 상태 유지: 동그란 체크 */
 .keep { display: flex; align-items: center; gap: 8px; margin-top: 36px; font-size: 14px; color: var(--muted); cursor: pointer; user-select: none; }
 .keep input { position: absolute; opacity: 0; pointer-events: none; }
@@ -110,9 +109,13 @@ body.home {
 .panel .error { margin: 10px 0 6px; }
 .panel #submitBtn { height: 54px; border-radius: 6px; background: #f2f2f2; color: #111; font-size: 15px; }
 .panel #submitBtn:hover { background: #fff; }
-.is-signup #submitBtn { margin-top: 36px; }
-.panel .switch { height: 44px; margin-top: 6px; background: transparent; color: var(--muted); font-family: var(--font-ko); font-size: 13px; font-weight: 400; letter-spacing: 0; }
-.panel .switch:hover { background: transparent; color: #fff; }
+/* 로그인 상태 유지 칸이 없는 모드는 버튼 위를 띄운다 */
+.panel .keep[hidden] + .error { margin-top: 36px; }
+.panel .error.ok { color: #fff; }
+.panel .links { display: flex; justify-content: center; align-items: center; gap: 4px; margin-top: 10px; }
+.panel .links button { height: 36px; padding: 0 10px; background: transparent; color: var(--muted); font-family: var(--font-ko); font-size: 13px; font-weight: 400; letter-spacing: 0; }
+.panel .links button:not([hidden]) ~ button:not([hidden])::before { content: "|"; margin-right: 14px; color: var(--line-soft); }
+.panel .links button:hover { background: transparent; color: #fff; }
 
 @media (max-width: 720px) {
   .tabs { display: none; }

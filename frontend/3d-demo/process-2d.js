@@ -38,7 +38,7 @@ const KEYFRAMES = "\n.fire{fill:url(#fireG);animation:flame .5s ease-in-out infi
 
 const SCENE_CSS = `
 /* 장면 색: 다크·라이트 변수. SVG 속성으로 박힌 회색도 아래 속성 선택자로 같은 변수에 묶는다(CSS가 속성보다 우선) */
-:host{--p-bg:#141416;--p-lbl:#9a9aa2;--p-st:#4f535a;--p-st-l:#2a2c30;--p-st2:#2e3035;--p-st2-l:#1e1f22;--p-pipe:#75787f;--p-flow:#cfd2d6;--p-gas:#b4b7bc;--p-metal:#8e9198;--p-grid:#34363b;--p-dark1:#3a3d42;--p-dark2:#1c1d20;--p-dark3:#2e3033;--p-line1:#9a9da3;--p-line2:#e0e0e0}
+:host{--p-bg:#161618;--p-lbl:#b4b4bb;--p-st:#4f535a;--p-st-l:#2a2c30;--p-st2:#2e3035;--p-st2-l:#1e1f22;--p-pipe:#75787f;--p-flow:#cfd2d6;--p-gas:#b4b7bc;--p-metal:#8e9198;--p-grid:#34363b;--p-dark1:#3a3d42;--p-dark2:#1c1d20;--p-dark3:#2e3033;--p-line1:#9a9da3;--p-line2:#e0e0e0}
 :host([theme=light]){--p-bg:#fafafa;--p-lbl:#5f5f66;--p-st:#c9ccd2;--p-st-l:#8b8f97;--p-st2:#dfe1e5;--p-st2-l:#a2a6ad;--p-pipe:#9a9ea6;--p-flow:#6f737b;--p-gas:#8a8e96;--p-metal:#b8bcc3;--p-grid:#d2d5da;--p-dark1:#d3d6db;--p-dark2:#e9ebee;--p-dark3:#dadde1;--p-line1:#7c8089;--p-line2:#6f737b}
 .svg{background:var(--p-bg)}
 .lbl{fill:var(--p-lbl);font-size:11px;text-anchor:middle;font-family:inherit}.lbl.s{font-size:10px}
@@ -57,7 +57,7 @@ const SCENE_CSS = `
 // 바깥 틀: 학습 기록 화면(세련안)과 같은 무채색 토큰
 const CSS = `
 :host{display:block;font-family:"Pretendard",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;font-size:14px;line-height:1.5;letter-spacing:-.01em;
-  --bg:#1f1f22;--panel:#18181a;--chip:rgba(255,255,255,.07);--chip-on:rgba(255,255,255,.14);--line:rgba(255,255,255,.08);--text:#f2f2f2;--muted:#a8a8ad;--dim:#6f6f74;--accent:#f2f2f2;--accent-ink:#111;--lit:#ffb020;--lit-bg:rgba(255,176,32,.12)}
+  --bg:#222225;--panel:#18181a;--chip:rgba(255,255,255,.1);--chip-on:rgba(255,255,255,.18);--line:rgba(255,255,255,.13);--text:#f5f5f5;--muted:#c4c4c9;--dim:#9a9aa0;--accent:#f2f2f2;--accent-ink:#111;--lit:#ffb020;--lit-bg:rgba(255,176,32,.12)}
 :host([theme=light]){--bg:#ffffff;--panel:#f4f4f5;--chip:rgba(0,0,0,.05);--chip-on:rgba(0,0,0,.1);--line:rgba(0,0,0,.08);--text:#161617;--muted:#5f5f66;--dim:#8a8a90;--accent:#161617;--accent-ink:#fff;--lit:#d48806;--lit-bg:rgba(212,136,6,.1)}
 *{box-sizing:border-box}button{font:inherit;letter-spacing:inherit;cursor:pointer}
 .root{background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:14px;outline:none;container-type:inline-size}

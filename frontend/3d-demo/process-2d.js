@@ -71,18 +71,20 @@ const CSS = `
 .eqs button{display:flex;align-items:center;gap:7px;height:32px;padding:0 12px 0 6px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:12px}
 .eqs button:hover{color:var(--text)}.eqs .n{width:20px;height:20px;border-radius:50%;background:var(--chip);display:grid;place-items:center;font-size:11px}
 .eqs button[aria-pressed=true]{border-color:var(--lit);color:var(--text)}.eqs button[aria-pressed=true] .n{background:var(--lit);color:#1a1200;font-weight:700}
-.body{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(260px,1fr);gap:14px;align-items:start}
-.scene{display:flex;flex-direction:column;gap:8px;min-width:0}
+.body{display:flex;flex-direction:column;gap:12px;min-width:0}
+.head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.head h3{margin:0;font-size:18px;font-weight:700}.head .en{font-size:12px;color:var(--dim)}.head .hint{margin-left:auto;font-size:11px;color:var(--dim)}
 .svg{width:100%;height:auto;display:block;border-radius:12px;border:1px solid var(--line)}
-.cap{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--muted)}.cap b{color:var(--lit)}
-.info h3{margin:0;font-size:18px;font-weight:700}.info .en{display:block;font-size:12px;color:var(--dim);font-weight:400;margin:2px 0 12px}
-.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
-.steps li{display:flex;gap:10px;padding:8px 10px;border-radius:10px;border:1px solid transparent;cursor:pointer;font-size:13px;opacity:.55;transition:opacity .25s,background .25s,border-color .25s}
-.steps li .k{width:22px;height:22px;border-radius:6px;background:var(--chip);color:var(--muted);font-size:11px;display:grid;place-items:center;flex-shrink:0}
-.steps li.on{opacity:1;background:var(--lit-bg);border-color:var(--lit)}.steps li.on .k{background:var(--lit);color:#1a1200;font-weight:700}.steps li.done{opacity:.85}
-.steps li .t{color:var(--dim);font-size:11px;margin-left:6px;white-space:nowrap}
+.stepnav{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.stepnav button{width:32px;height:32px;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:13px;font-weight:600;transition:background .2s,color .2s,border-color .2s}
+.stepnav button:hover{color:var(--text);border-color:var(--muted)}
+.stepnav button.done{background:var(--chip);color:var(--text)}
+.stepnav button.on{background:var(--lit);border-color:var(--lit);color:#1a1200}
+.stepnav .bar{flex:1;min-width:40px;height:2px;border-radius:1px;background:var(--line);overflow:hidden}.stepnav .bar i{display:block;height:100%;background:var(--lit);transition:width .3s}
+.stepcard{display:flex;flex-direction:column;gap:6px;padding:14px 16px;border-radius:12px;background:var(--lit-bg);border:1px solid var(--lit);animation:stepIn .3s ease}
+.stepcard .k{font-size:12px;font-weight:700;color:var(--lit)}.stepcard .k span{margin-left:8px;font-weight:500;color:var(--dim)}
+.stepcard p{margin:0;font-size:15px;line-height:1.65}
+@keyframes stepIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 ${SCENE_CSS}
-@container (max-width:760px){.body{grid-template-columns:1fr}}
 `;
 
 const DEFS = `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs> <linearGradient id="hotG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd54f"/><stop offset=".5" stop-color="#ff8c1a"/><stop offset="1" stop-color="#d84315"/></linearGradient> <linearGradient id="fireG" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#ff5722"/><stop offset=".6" stop-color="#ffb300"/><stop offset="1" stop-color="#fff59d" stop-opacity=".8"/></linearGradient> <linearGradient id="coolG" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ffb74d"/><stop offset=".5" stop-color="#e65100"/><stop offset="1" stop-color="#5d1a0a"/></linearGradient> <linearGradient id="heatG" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#3a2a22"/><stop offset=".4" stop-color="#9a2c0a"/><stop offset="1" stop-color="#ffcc33"/></linearGradient> <linearGradient id="strandG" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ffb74d"/><stop offset="1" stop-color="#8e2a0a"/></linearGradient> </defs></svg>`;
@@ -98,8 +100,10 @@ class Process2D extends HTMLElement {
       <div class="bar"><div class="tabs" id="tabs" role="group" aria-label="공정"></div>
         <div class="ctl"><button class="prev">← 이전</button><button class="next">다음 →</button><button class="play">▶ 자동</button></div></div>
       <div class="eqs" id="eqs" role="group" aria-label="설비"></div>
-      <div class="body"><div class="scene"><div id="svgwrap"></div><div class="cap"><span id="cap"></span><span>← → 단계 · ↑ ↓ 설비</span></div></div>
-        <div class="info" id="info"></div></div></div>`;
+      <div class="body"><div class="head"><h3 id="title"></h3><span class="en" id="en"></span><span class="hint">← → 단계 · ↑ ↓ 설비</span></div>
+        <div id="svgwrap"></div>
+        <div class="stepnav" id="stepnav" role="group" aria-label="단계"></div>
+        <div id="stepcard"></div></div></div>`;
     this.$ = id => this.shadowRoot.getElementById(id);
     this.pi = 0; this.ei = 0; this.sub = 0; this.timer = null;
     const root = this.shadowRoot.querySelector('.root');
@@ -154,16 +158,19 @@ class Process2D extends HTMLElement {
     this.$('eqs').querySelectorAll('button').forEach(b => b.onclick = () => { this.ei = +b.dataset.i; this.sub = 0; this.render(); this.emit(); });
     const d = this.cur();
     this.$('svgwrap').innerHTML = `<svg class="svg hl" viewBox="0 0 600 320" xmlns="http://www.w3.org/2000/svg">${SCENES[d.id] || '<text x="300" y="160" class="lbl">장면 준비 중</text>'}</svg>`;
-    this.$('info').innerHTML = `<h3>${esc(d.name)}</h3><span class="en">${esc(d.en)}</span>
-      <ol class="steps">${d.steps.map((s, i) => `<li data-i="${i}"><span class="k">${i + 1}</span><span>${esc(s[0])}${s[1] ? `<span class="t">${esc(s[1])}</span>` : ''}</span></li>`).join('')}</ol>`;
-    this.$('info').querySelectorAll('.steps li').forEach(li => li.onclick = () => { this.sub = +li.dataset.i; this.highlight(); });
+    this.$('title').textContent = d.name; this.$('en').textContent = d.en;
+    this.$('stepnav').innerHTML = d.steps.map((_, i) => `<button data-i="${i}" aria-label="단계 ${i + 1}">${i + 1}</button>`).join('') + '<span class="bar"><i></i></span>';
+    this.$('stepnav').querySelectorAll('button').forEach(b => b.onclick = () => { this.sub = +b.dataset.i; this.highlight(); });
     this.highlight();
   }
   highlight() {
     const d = this.cur(), svg = this.$('svgwrap').querySelector('svg');
     if (svg) svg.querySelectorAll('[data-s]').forEach(g => g.classList.toggle('hit', g.dataset.s.split(' ').includes(String(this.sub + 1))));
-    this.$('cap').innerHTML = `<b>${esc(d.name)}</b> · 단계 ${this.sub + 1} / ${d.steps.length}`;
-    this.$('info').querySelectorAll('.steps li').forEach((li, i) => { li.classList.toggle('on', i === this.sub); li.classList.toggle('done', i < this.sub); });
+    // 그림 아래에는 지금 단계 설명 하나만 보인다(번호 버튼으로 이동)
+    this.$('stepnav').querySelectorAll('button').forEach((b, i) => { b.classList.toggle('on', i === this.sub); b.classList.toggle('done', i < this.sub); b.setAttribute('aria-pressed', String(i === this.sub)); });
+    this.$('stepnav').querySelector('.bar i').style.width = `${d.steps.length > 1 ? (this.sub / (d.steps.length - 1)) * 100 : 100}%`;
+    const [text, time] = d.steps[this.sub];
+    this.$('stepcard').innerHTML = `<div class="stepcard"><span class="k">단계 ${this.sub + 1} / ${d.steps.length}${time ? `<span>${esc(time)}</span>` : ''}</span><p>${esc(text)}</p></div>`;
   }
   step(n) {
     const L = this.cur().steps.length;

@@ -82,9 +82,11 @@ function lastTurn(messages) {
 /**
  * 페이지 컴포넌트에 붙일 체크포인트 채팅을 만든다. componentDidMount에서 한 번 부르고, refreshAll()로 진입 상태를 읽는다.
  * @param c 페이지 컴포넌트: state(processId), setState, data(findProcess). 선택: scrollCheckpoint()(없으면 scrollChat()), goProcess(id), openTutor()
- * @param {{ api?: ReturnType<typeof createApiClient> }} [options]
+ * @param {{ api?: ReturnType<typeof createApiClient>, overlayPage?: string | null, navigate?: (url: string) => void }} [options]
+ *   overlayPage: 이해도 확인 오버레이가 없는 페이지(3D 화면 v4)면 오버레이가 있는 페이지 주소(예: '/login'). 시작·이어 풀기를 누르면 그 페이지로 옮기고,
+ *   이 페이지에서는 오버레이를 열지 않는다(열면 보이지 않는 오버레이가 공정 이동·재생만 막았다).
  */
-export function createCheckpointChat(c, { api = createApiClient() } = {}) {
+export function createCheckpointChat(c, { api = createApiClient(), overlayPage = null, navigate = (url) => window.location.assign(url) } = {}) {
   // 페이지 state는 이 모듈을 불러오기 전에 만들어지므로 체크포인트 키가 없을 수 있다.
   const withDefaults = (s) => ({ ...CHECKPOINT_STATE, ...s });
   const S = () => withDefaults(c.state);
@@ -291,6 +293,7 @@ export function createCheckpointChat(c, { api = createApiClient() } = {}) {
      * 오버레이는 요청 전에 열어 채점 중 동작을 보여 주고, 실패하면 닫는다. 다른 공정이면 페이지 goProcess로 옮긴다.
      */
     async start(section = S().processId) {
+      if (overlayPage) return navigate(overlayPage);
       if (busy || S().cpView || !entryFor(section).canStart) return;
       if (section !== S().processId) c.goProcess?.(section);
       busy = true;
@@ -312,6 +315,7 @@ export function createCheckpointChat(c, { api = createApiClient() } = {}) {
      * 그 섹션의 풀던 시도가 열려 있으면 이어 풀고, 끝난 시도(결과)가 열려 있으면 닫고 시작한다. 시작했는데 멈춘 시도를 받으면 이어 푼다.
      */
     async openSection(section) {
+      if (overlayPage) return navigate(overlayPage);
       const cp = S().cpView;
       if (cp && cp.section === section && cp.state !== 'completed') return chat.resume();
       if (cp?.state === 'completed') chat.close();
@@ -374,6 +378,7 @@ export function createCheckpointChat(c, { api = createApiClient() } = {}) {
      * 멈춘 시도면 POST /resume으로 새 질문을 받는다. 멈추지 않은 시도(새로고침으로 다시 연 경우)는 요청 없이 열기만 한다.
      */
     async resume() {
+      if (overlayPage) return navigate(overlayPage);
       const cp = S().cpView;
       if (!cp || cp.state === 'completed') return;
       c.setState({ cpPauseOffer: false, cpOverlayOpen: true, cpShowHistory: false });
@@ -481,7 +486,7 @@ export function createCheckpointChat(c, { api = createApiClient() } = {}) {
       const progress = doneOf(cp);
       const bubble = st.cpTurn[st.cpBubbleIndex] ?? null;
       const bubbleHasNext = st.cpBubbleIndex < st.cpTurn.length - 1;
-      const overlayShown = !!st.cpOverlayOpen && (!!cp || st.cpPending);
+      const overlayShown = !overlayPage && !!st.cpOverlayOpen && (!!cp || st.cpPending);
       return {
         // 튜터 패널 머리글('학습 모드')
         cpHeaderMode: TEXT.header.learning,

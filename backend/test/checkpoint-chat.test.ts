@@ -884,3 +884,25 @@ test("로그인이 만료되면(401 TOKEN_INVALID) 풀던 화면을 닫고 로�
   await s.chat.send("다시");
   assert.equal(s.net.keys().length, sent, "토큰 없이 다시 보내지 않는다");
 });
+
+test("오버레이가 없는 페이지(3D 화면, overlayPage): 시작·이어 풀기는 그 페이지로 옮기고, 이 페이지에서는 오버레이·잠금을 걸지 않는다", async () => {
+  const net = fakeFetch({
+    "GET /api/sections/ironmaking/progress": progress("ironmaking", { in_progress_attempt_id: "a1" }),
+    ...otherSections,
+    "GET /api/checkpoints/a1": { body: view("awaiting_answer", { concept: concept(1), history: [{ role: "tutor", type: "question", text: "Q1" }] }) },
+  });
+  const api = createApiClient({ fetch: net.fetch, local: memoryStorage({ "st-rookie-token": "tok" }), session: memoryStorage() });
+  const page = fakePage("ironmaking");
+  const went: string[] = [];
+  const chat = createCheckpointChat(page, { api, overlayPage: "/login", navigate: (url: string) => went.push(url) });
+  await chat.refreshAll();
+  await chat.resume();
+  await chat.openSection("ironmaking");
+  await chat.start("ironmaking");
+  assert.deepEqual(went, ["/login", "/login", "/login"]);
+  page.setState({ cpOverlayOpen: true }); // 예전 상태가 남아 있어도
+  const v = chat.vals();
+  assert.equal(v.cpShowOverlay, false);
+  assert.equal(v.cpOverlayLockPointer, "auto", "공정 이동·재생을 막지 않는다");
+  assert.ok(!net.keys().includes("POST /api/checkpoints"), "이 페이지에서는 시작 요청을 보내지 않는다");
+});

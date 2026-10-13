@@ -707,7 +707,7 @@ class Component extends DCLogic {
     addEventListener('resize', this._onResize); this._onResize();
     const [d, lc, cc] = await Promise.all([import('./data_v2.js'), import('./learning-chat.js'), import('./checkpoint-chat.js')]);
     this.data = d; this.chat = await lc.createLearningChat(this); // 학습 모드 채팅(ask, 추천 질문)은 learning-chat.js
-    this.checkpoint = cc.createCheckpointChat(this); this.checkpoint.refreshAll(); // 이해도 확인(학습 잠금, 공정 배지, 오버레이)은 checkpoint-chat.js
+    this.checkpoint = cc.createCheckpointChat(this, { overlayPage: '/login' }); // 오버레이는 학습 기록 화면에만 있다. [이어 풀기]는 그 화면으로 옮긴다 this.checkpoint.refreshAll(); // 이해도 확인(학습 잠금, 공정 배지, 오버레이)은 checkpoint-chat.js
     import('./cp-character.js').catch(e => console.warn('[cp-character] 불러오지 못함', e)); // 오버레이 캐릭터 <cp-character>(x-import가 등록을 기다린다)
     this.setState({ ready: true, speed: this.props.flowSpeed ?? 1 });
     // 3D 영역을 메뉴 밖에 따로 두므로 메뉴 폭 보정은 끈다

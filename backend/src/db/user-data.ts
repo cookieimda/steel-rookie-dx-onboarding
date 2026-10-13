@@ -4,6 +4,7 @@ export interface DeletedCounts {
   attempts: number;
   concept_results: number;
   attempt_messages: number;
+  attempt_questions: number;
   misconceptions: number;
   llm_usage: number;
   learning_turns: number;
@@ -27,6 +28,7 @@ export function deleteUserData(db: DatabaseSync, userId: string, { origin = "all
     const counts: DeletedCounts = {
       concept_results: Number(db.prepare(`DELETE FROM concept_results WHERE attempt_id IN (${attemptsOf})`).run(userId).changes),
       attempt_messages: Number(db.prepare(`DELETE FROM attempt_messages WHERE attempt_id IN (${attemptsOf})`).run(userId).changes),
+      attempt_questions: Number(db.prepare(`DELETE FROM attempt_questions WHERE attempt_id IN (${attemptsOf})`).run(userId).changes),
       attempts: Number(db.prepare(`DELETE FROM attempts WHERE user_id = ?${only}`).run(userId).changes),
       misconceptions: Number(db.prepare(`DELETE FROM misconceptions WHERE user_id = ?${only}`).run(userId).changes),
       llm_usage: withoutOrigin("DELETE FROM llm_usage WHERE user_id = ?"),

@@ -4,7 +4,8 @@
 // - 재확인은 recheck_questions에서 고른다. 루브릭 로드 때 questions와 겹치지 않는지 확인하므로 첫 질문과 다른 질문이 된다.
 // 은행이 비어 있을 때만 LLM이 질문을 만든다(대체 경로). 만든 질문은 유출 검사를 거쳐 걸리면 1회 다시 만들고,
 // 그래도 걸리면 루브릭의 fallback_question(없거나 직전 질문과 같으면 고정 문장)을 쓴다.
-import { LlmUnavailableError, type Tutor } from "../../backend/src/checkpoint/types.js";
+// 이어 풀기: exclude(이 시도에서 이 개념에 이미 쓴 은행 원문)를 빼고 고른다. 은행을 다 썼으면 fallback_question을 다시 쓴다.
+import { LlmUnavailableError, type AskedQuestion, type Tutor } from "../../backend/src/checkpoint/types.js";
 import type { Rubric, RubricConcept } from "../../backend/src/rubrics.js";
 import { escapeDelimited, GeminiCallError, renderPrompt, type GeminiClient } from "./gemini.js";
 import { answerTerms, findLeaks, hasLeak, type LeakResult } from "./question-check.js";
@@ -32,8 +33,10 @@ export interface PolishResult {
 
 export interface DetailedQuestion {
   text: string;
-  /** bank: 질문 은행, generated: 은행이 비어 LLM이 만듦(대체 경로). */
-  source: "bank" | "generated";
+  /** bank: 질문 은행, generated: 은행이 비어 LLM이 만듦(대체 경로), fallback: 이어 풀기로 은행을 다 써서 대체 질문. */
+  source: "bank" | "generated" | "fallback";
+  /** 고른 은행 원문(fallback이면 fallback_question). 이어 풀 때 제외할 기준이다. LLM이 만들었거나 고정 문장이면 null. */
+  bankQuestion: string | null;
   bank?: PolishResult;
   /** generated일 때 시도별 생성 결과와 유출 검사 결과. */
   attempts: { text: string; leaks: LeakResult }[];
@@ -88,7 +91,16 @@ export class GeminiTutor implements Tutor {
 
   private async fromBank(rubric: Rubric, concept: RubricConcept, candidates: string[]): Promise<DetailedQuestion> {
     const bank = await this.polish(rubric, concept, this.pick(candidates));
-    return { text: bank.used === "polished" ? bank.polished! : bank.original, source: "bank", bank, attempts: [], usedFallback: false };
+    return {
+      text: bank.used === "polished" ? bank.polished! : bank.original, source: "bank", bankQuestion: bank.original, bank, attempts: [], usedFallback: false,
+    };
+  }
+
+  /** 은행을 다 쓴 경우(이어 풀기). fallback_question은 유출 검사를 통과한 문장이라 다듬지 않고 그대로 쓴다. */
+  private exhausted(fallback: string | undefined, concept: RubricConcept): DetailedQuestion {
+    return fallback
+      ? { text: fallback, source: "fallback", bankQuestion: fallback, attempts: [], usedFallback: true }
+      : { text: genericQuestion(concept), source: "fallback", bankQuestion: null, attempts: [], usedFallback: true };
   }
 
   private async generated(
@@ -107,13 +119,16 @@ export class GeminiTutor implements Tutor {
       const text = await this.say(prompt + retryNote, temperature, 200);
       const leaks = findLeaks(text, rubric, concept);
       attempts.push({ text, leaks });
-      if (!hasLeak(leaks)) return { text, source: "generated", attempts, usedFallback: false };
+      if (!hasLeak(leaks)) return { text, source: "generated", bankQuestion: null, attempts, usedFallback: false };
     }
-    return { text: fallback, source: "generated", attempts, usedFallback: true };
+    return { text: fallback, source: "generated", bankQuestion: null, attempts, usedFallback: true };
   }
 
-  questionDetailed({ rubric, concept }: Parameters<Tutor["question"]>[0]): Promise<DetailedQuestion> {
-    if (concept.questions?.length) return this.fromBank(rubric, concept, concept.questions);
+  questionDetailed({ rubric, concept, exclude = [] }: Parameters<Tutor["question"]>[0]): Promise<DetailedQuestion> {
+    if (concept.questions?.length) {
+      const left = concept.questions.filter((q) => !exclude.includes(q));
+      return left.length ? this.fromBank(rubric, concept, left) : Promise.resolve(this.exhausted(concept.fallback_question, concept));
+    }
     const prompt = renderPrompt("tutor-question", {
       name: concept.name,
       key_points: keyPointsOnly(concept.key_points),
@@ -122,9 +137,14 @@ export class GeminiTutor implements Tutor {
     return this.generated(rubric, concept, prompt, 0.4, concept.fallback_question ?? genericQuestion(concept));
   }
 
-  recheckQuestionDetailed({ rubric, concept, previousQuestion }: Parameters<Tutor["recheckQuestion"]>[0]): Promise<DetailedQuestion> {
-    const bank = (concept.recheck_questions ?? []).filter((q) => q !== previousQuestion);
+  recheckQuestionDetailed({ rubric, concept, previousQuestion, exclude = [] }: Parameters<Tutor["recheckQuestion"]>[0]): Promise<DetailedQuestion> {
+    const bank = (concept.recheck_questions ?? []).filter((q) => q !== previousQuestion && !exclude.includes(q));
     if (bank.length) return this.fromBank(rubric, concept, bank);
+    if (concept.recheck_questions?.length) {
+      // 은행을 다 썼다(이어 풀기). 직전 질문과 같은 fallback_question은 쓰지 않는다.
+      const fallback = concept.fallback_question !== previousQuestion ? concept.fallback_question : undefined;
+      return Promise.resolve(this.exhausted(fallback, concept));
+    }
     const prompt = renderPrompt("tutor-recheck", {
       name: concept.name,
       key_points: keyPointsOnly(concept.key_points),
@@ -137,12 +157,14 @@ export class GeminiTutor implements Tutor {
     return this.generated(rubric, concept, prompt, 0.7, fallback);
   }
 
-  async question(input: Parameters<Tutor["question"]>[0]): Promise<string> {
-    return (await this.questionDetailed(input)).text;
+  async question(input: Parameters<Tutor["question"]>[0]): Promise<AskedQuestion> {
+    const q = await this.questionDetailed(input);
+    return { text: q.text, bank: q.bankQuestion };
   }
 
-  async recheckQuestion(input: Parameters<Tutor["recheckQuestion"]>[0]): Promise<string> {
-    return (await this.recheckQuestionDetailed(input)).text;
+  async recheckQuestion(input: Parameters<Tutor["recheckQuestion"]>[0]): Promise<AskedQuestion> {
+    const q = await this.recheckQuestionDetailed(input);
+    return { text: q.text, bank: q.bankQuestion };
   }
 
   explanation({ concept, explainFrom, misconception, answer, learnerNotes }: Parameters<Tutor["explanation"]>[0]): Promise<string> {

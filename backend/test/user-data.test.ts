@@ -48,3 +48,14 @@ test("deleteUserData --origin live·all: live는 실제 기록과 학습 대화,
   assert.deepEqual(ids(db, "attempts"), ["other"]);
   assert.deepEqual(ids(db, "misconceptions"), []);
 });
+
+test("deleteUserData: 이어 풀기 질문 기록(attempt_questions)도 지운다(외래 키 때문에 시도보다 먼저)", async () => {
+  const { db, accountId } = await setup();
+  const asked = db.prepare("INSERT INTO attempt_questions (attempt_id, concept_id, phase, bank_question, asked_text, created_at) VALUES (?, 'c', 'initial', 'Q1', 'Q1?', 't')");
+  asked.run("acc-live");
+  asked.run("other");
+  const d = deleteUserData(db, accountId, { origin: "live" });
+  assert.equal(d.attempt_questions, 1);
+  assert.deepEqual(ids(db, "attempts"), ["acc-seed", "hdr-live", "other"]);
+  assert.deepEqual(db.prepare("SELECT attempt_id FROM attempt_questions").all().map((r) => String(r.attempt_id)), ["other"]);
+});

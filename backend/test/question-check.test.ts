@@ -129,6 +129,32 @@ test("질문 은행: 재확인은 recheck_questions에서 고르고, 직전 질�
   assert.equal(avoid.bank!.original, first);
 });
 
+test("이어 풀기: exclude에 든 은행 질문은 고르지 않고, 은행을 다 쓰면 fallback_question을 다시 쓴다(다듬기 호출 없음)", async () => {
+  const [q1, q2] = coke.questions!;
+  const { prompts, tutor } = fakeTutor(["", "", ""]);
+  const other = await tutor.questionDetailed({ rubric, concept: coke, exclude: [q2!] });
+  assert.equal(other.bankQuestion, q1); // random 0.99여도 남은 후보는 q1 하나
+  const asked = await tutor.question({ rubric, concept: coke, exclude: [q1!] });
+  assert.deepEqual(asked, { text: q2, bank: q2 }); // 다듬기 실패 → 원문, bank는 원문
+  const calls = prompts.length;
+  const used = await tutor.questionDetailed({ rubric, concept: coke, exclude: [q1!, q2!] });
+  assert.deepEqual([used.source, used.text, used.bankQuestion, used.usedFallback], ["fallback", coke.fallback_question, coke.fallback_question, true]);
+  const again = await tutor.question({ rubric, concept: coke, exclude: [q1!, q2!, coke.fallback_question!] });
+  assert.deepEqual(again, { text: coke.fallback_question, bank: coke.fallback_question }); // fallback은 다시 쓴다
+  assert.equal(prompts.length, calls); // 대체 질문은 다듬지 않는다
+});
+
+test("이어 풀기: 재확인 은행을 다 쓰면 fallback_question, 직전 질문이 fallback이면 고정 문장", async () => {
+  const [r1, r2] = coke.recheck_questions!;
+  const { tutor } = fakeTutor([""]);
+  const left = await tutor.recheckQuestionDetailed({ rubric, concept: coke, previousQuestion: coke.questions![0]!, exclude: [r2!] });
+  assert.equal(left.bankQuestion, r1);
+  const used = await tutor.recheckQuestionDetailed({ rubric, concept: coke, previousQuestion: coke.questions![0]!, exclude: [r1!, r2!] });
+  assert.deepEqual([used.text, used.usedFallback], [coke.fallback_question, true]);
+  const generic = await tutor.recheckQuestionDetailed({ rubric, concept: coke, previousQuestion: coke.fallback_question!, exclude: [r1!, r2!] });
+  assert.deepEqual([generic.text, generic.bankQuestion], [genericQuestion(coke), null]);
+});
+
 test("은행이 빈 개념: 질문이 유출 검사에 걸리면 걸린 표현을 알려 주고 1회 다시 만든다", async () => {
   const { prompts, tutor } = fakeTutor(["코크스가 만드는 일산화탄소는 무슨 일을 하나요?", "고로에서 코크스가 하는 일을 설명해 주세요."]);
   const q = await tutor.questionDetailed({ rubric, concept: noBank(coke) });

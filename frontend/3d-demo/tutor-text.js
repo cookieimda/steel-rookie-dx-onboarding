@@ -1,29 +1,31 @@
-// 튜터 패널(학습 모드·이해도 확인)의 화면 문구. 탭 이름·버튼·배지·안내 문장은 여기서만 바꾼다.
+// 튜터 패널(학습 모드)과 이해도 확인(공정 목록 버튼·오버레이)의 화면 문구. 버튼·배지·안내 문장은 여기서만 바꾼다.
 // checkpoint-chat.js, api-client.js가 읽는다. 설계: docs/checkpoint-integration.md
 
 export const TEXT = {
-  tabs: {
-    learning: '학습',
-    checkpoint: '이해도 확인',
-  },
-  // 튜터 패널 머리글(모드별). 'AI 튜터' 아래 작은 글씨로 '학습 모드 · 제선'처럼 보인다.
+  // 튜터 패널 머리글. 'AI 튜터' 아래 작은 글씨로 '학습 모드 · 제선'처럼 보인다.
   header: {
     learning: '학습 모드',
-    checkpoint: '이해도 확인 모드',
   },
   badges: {
     passed: '단련 완료',
     notPassed: '미통과',
   },
   buttons: {
-    start: '시작',
-    resume: '이어서 하기',
     retryAttempt: '재도전',
     ready: '준비됐어요',
     retryEvaluation: '다시 채점하기',
     send: '보내기',
-    close: '닫기',
-    login: '로그인',
+    // 나중에 이어 풀기
+    confirmPause: '멈추기',
+    keepGoing: '계속 풀기',
+    resumeShort: '이어 풀기',
+    pauseForLearning: '멈추고 질문하기',
+    // 이해도 확인 오버레이(공정 목록 섹션 버튼, 말풍선, 나가기)
+    startQuench: '담금질 시작하기',
+    next: '다음',
+    history: '대화 기록',
+    hideHistory: '기록 닫기',
+    exit: '나가기',
   },
   // 체크포인트 진입 상태(섹션별).
   entry: {
@@ -35,9 +37,14 @@ export const TEXT = {
     locked: '잠김 · 앞 공정의 이해도 확인을 통과해야 열려요',
     passed: (percent) => `통과 · ${percent}%`,
     inProgress: '진행 중',
+    paused: (done, total) => `멈춤 · ${done}/${total} 완료`,
     retry: (count) => `재도전 · 개념 ${count}개`,
     notStarted: '시작 전',
   },
+  // 공정 목록 섹션 버튼: 앞 공정을 통과하지 못해 잠긴 섹션.
+  sectionLocked: '이전 공정 통과 필요',
+  // 이해도 확인 오버레이가 떠 있는 동안 공정 메뉴에 보이는 안내.
+  overlayLocked: '담금질 중에는 공정 이동과 재생을 쓸 수 없어요',
   // 진행 중 화면.
   title: (sectionName, isRetry) => `이해도 확인 · ${sectionName}${isRetry ? ' (재도전)' : ''}`,
   stage: {
@@ -47,16 +54,13 @@ export const TEXT = {
     recheck: '재확인',
     error: '채점 오류',
     done: '완료',
+    paused: (done, total) => `멈춤 · ${done}/${total} 완료`,
   },
-  readyHint: {
-    first: '준비되면 시작할게요',
-    retry: '지난번에 어려웠던 개념만 다시 물어볼게요',
-  },
-  doneHint: '모든 개념을 확인했어요',
   placeholder: {
     ready: '준비됐어요를 누르거나 입력하세요',
     answer: '답변을 입력하세요',
     error: '다시 채점하기를 눌러 주세요',
+    readNext: '[다음]으로 질문까지 본 뒤 답할 수 있어요',
   },
   // 튜터 메시지 종류별 머리말(서버 Utterance.type).
   messageLabels: {
@@ -84,8 +88,12 @@ export const TEXT = {
     nextOpened: (name) => `통과 · ${name} 이해도 확인이 열렸어요`,
     nextNotReady: '통과 · 다음 공정은 준비 중이에요',
   },
-  // 체크포인트 진행 중 학습 탭에 보이는 안내.
-  learningLocked: '이해도 확인을 마치면 다시 질문할 수 있어요.',
+  // 나중에 이어 풀기. 확인창(recheck: 재확인 대기 중), 튜터 패널 안내.
+  pauseConfirm: (recheck, done, total) => recheck
+    ? `지금까지 판정은 저장되고, 이어 풀 때 다른 재확인 질문으로 물어볼게요. 확인을 마친 개념은 ${done}/${total}개예요. 멈출까요?`
+    : `지금 풀던 개념은 이어 풀 때 다른 질문으로 다시 물어볼게요. 확인을 마친 개념(${done}/${total})은 저장돼요. 멈출까요?`,
+  resumeBanner: (sectionName, done, total) => `풀던 이해도 확인이 있어요 · ${sectionName} ${done}/${total} 완료`,
+  pauseOffer: '풀던 이해도 확인이 있어요. 잠깐 멈추고 질문할까요?',
   // 요청 오류 안내(api-client.js).
   errors: {
     network: '서버에 연결하지 못했어요. 서버가 켜져 있는지 확인한 뒤 다시 시도해 주세요.',

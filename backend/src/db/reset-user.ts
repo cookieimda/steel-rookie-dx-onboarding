@@ -55,5 +55,5 @@ if (!yes) {
 }
 for (const t of targets) {
   const d = deleteUserData(db, t.id, { origin });
-  console.log(`${t.label} 삭제 완료: 시도 ${d.attempts}, 개념 결과 ${d.concept_results}, 대화 ${d.attempt_messages}, 오개념 ${d.misconceptions}, 사용량 ${d.llm_usage}, 학습 대화 ${d.learning_turns}`);
+  console.log(`${t.label} 삭제 완료: 시도 ${d.attempts}, 개념 결과 ${d.concept_results}, 대화 ${d.attempt_messages}, 질문 기록 ${d.attempt_questions}, 오개념 ${d.misconceptions}, 사용량 ${d.llm_usage}, 학습 대화 ${d.learning_turns}`);
 }

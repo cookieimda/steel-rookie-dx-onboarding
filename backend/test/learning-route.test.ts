@@ -8,7 +8,7 @@ import { Retriever, type Chunk } from "../../llm/src/retrieval.js";
 import { LlmUnavailableError } from "../src/checkpoint/types.js";
 import { openDatabase } from "../src/db/database.js";
 import { LearningRepository } from "../src/learning/repository.js";
-import { createLearningRouter } from "../src/learning/routes.js";
+import { createLearningRouter, type LearningDeps } from "../src/learning/routes.js";
 import { SAFETY_ANSWER } from "../src/learning/safety.js";
 import { withRequestUser } from "../src/request-user.js";
 import { loadFinalRubrics } from "../src/rubrics.js";
@@ -26,6 +26,7 @@ const okReply = (over: Partial<LearningReply> = {}): LearningReply => ({
   follow_up: "일산화탄소는 어디서 생기나요?",
   detected_misconception: null,
   scene_actions: [],
+  keyword_card: null,
   ...over,
 });
 
@@ -43,7 +44,7 @@ class FakeAgent implements LearningAgent {
   }
 }
 
-async function setup(scene?: SceneCatalog) {
+async function setup(scene?: SceneCatalog, checkpointProgress?: LearningDeps["checkpointProgress"]) {
   const db = openDatabase(":memory:");
   const repo = new LearningRepository(db);
   const agent = new FakeAgent();
@@ -57,6 +58,7 @@ async function setup(scene?: SceneCatalog) {
     retriever: new Retriever({ chunksFor: (s) => CHUNKS.filter((c) => c.section === s) }),
     rubrics: loadFinalRubrics(),
     scene,
+    checkpointProgress,
     now: () => new Date(Date.UTC(2026, 9, 2, 0, 0, clock++)).toISOString(),
   }));
   const server = app.listen(0);
@@ -66,7 +68,11 @@ async function setup(scene?: SceneCatalog) {
     const res = await fetch(`${base}/api/chat`, { method: "POST", headers: { "content-type": "application/json", "x-user-id": user }, body: JSON.stringify(body) });
     return { status: res.status, json: (await res.json()) as any };
   };
-  return { db, repo, agent, ask, close: () => server.close() };
+  const history = async (sessionId: string, user = "minsu") => {
+    const res = await fetch(`${base}/api/chat/sessions/${sessionId}`, { headers: { "x-user-id": user } });
+    return { status: res.status, json: (await res.json()) as any };
+  };
+  return { db, repo, agent, ask, history, close: () => server.close() };
 }
 
 test("새 질문: 근거 조각·루브릭 개념을 튜터에 넘기고, 출처를 자료 정보로 바꿔 돌려주며 대화를 저장한다", async () => {
@@ -129,6 +135,32 @@ test("같은 세션의 다음 질문에는 이전 대화가 넘어가고, 다른
     assert.equal((await t.ask({ question: "코크스", session_id: first.json.session_id }, "jiwoo")).status, 404);
     assert.equal((await t.ask({ question: "코크스", session_id: "00000000-0000-4000-8000-000000000000" })).status, 404);
     assert.equal(t.agent.calls.length, 2);
+  } finally {
+    t.close();
+  }
+});
+
+test("저장된 대화: 순서대로 질문·답·근거 판정·출처를 돌려주고, 다른 사람·없는 세션·잘못된 id는 404", async () => {
+  const t = await setup();
+  try {
+    const first = await t.ask({ question: "코크스가 뭐예요?", screen: { process_id: "ironmaking", equipment_id: "coke_oven" } });
+    await t.ask({ question: "고로 밸브는 어떻게 열어요?", session_id: first.json.session_id });
+    const { status, json } = await t.history(first.json.session_id);
+    assert.equal(status, 200);
+    assert.equal(json.session_id, first.json.session_id);
+    assert.deepEqual(
+      json.turns.map((x: any) => [x.question, x.status, x.equipment_id, x.sources.map((s: any) => s.id)]),
+      [
+        ["코크스가 뭐예요?", "grounded", "coke_oven", ["posco-brochure-2015"]],
+        ["고로 밸브는 어떻게 열어요?", "safety_redirect", null, []],
+      ],
+    );
+    assert.equal(json.turns[0].answer, "코크스는 환원제예요.");
+    assert.ok(json.turns[0].sources[0].url.startsWith("https://"));
+
+    assert.equal((await t.history(first.json.session_id, "jiwoo")).status, 404);
+    assert.equal((await t.history("00000000-0000-4000-8000-000000000000")).status, 404);
+    assert.equal((await t.history("not-a-uuid")).status, 404);
   } finally {
     t.close();
   }
@@ -204,6 +236,60 @@ test("같은 세션에서 답변 중에 또 질문하면 409", async () => {
     assert.equal((await t.ask({ question: "고로는요?", session_id: first.json.session_id })).status, 409);
     release();
     assert.equal((await pending).status, 200);
+  } finally {
+    t.close();
+  }
+});
+
+test("키워드 카드: 카드 개념을 튜터에 넘기고, 튜터가 고른 카드를 루브릭 내용과 출처로 채워 돌려준다(호출 1회)", async () => {
+  const t = await setup();
+  try {
+    t.agent.next = async () => okReply({ keyword_card: { concept_id: "coke_reduction" } });
+    const { json } = await t.ask({ question: "코크스 역할 정리해 줘", screen: { process_id: "ironmaking" } });
+    assert.deepEqual(t.agent.calls[0].keywordConcepts?.map((c) => c.concept_id), ["coke_reduction"]);
+    assert.equal(t.agent.calls.length, 1);
+    assert.equal(json.keyword_card.concept_id, "coke_reduction");
+    assert.deepEqual(json.keyword_card.keywords, [{ term: "일산화탄소", aliases: ["CO"] }, { term: "환원", aliases: [] }]);
+    assert.equal(json.keyword_card.source.id, "posco-newsroom-fe-2019");
+    assert.ok(json.keyword_card.source.url.startsWith("https://"));
+
+    // 카드를 고르지 않은 답변·안전 질문은 null
+    t.agent.next = async () => okReply();
+    assert.equal((await t.ask({ question: "코크스가 뭐예요?" })).json.keyword_card, null);
+    assert.equal((await t.ask({ question: "고로 밸브는 어떻게 열어요?" })).json.keyword_card, null);
+  } finally {
+    t.close();
+  }
+});
+
+test("키워드 카드: 루브릭이 없는 섹션은 카드 개념이 비어 있다", async () => {
+  const t = await setup();
+  try {
+    await t.ask({ question: "전로가 뭐예요?", screen: { process_id: "steelmaking" } });
+    assert.deepEqual(t.agent.calls[0].keywordConcepts, []);
+  } finally {
+    t.close();
+  }
+});
+
+test("체크포인트 상태: 재도전 개념은 튜터에 넘기고, 진행 중이면 카드 개념을 비우며 튜터가 카드를 내도 붙이지 않는다", async () => {
+  let inProgress = false;
+  const seen: [string, string][] = [];
+  const t = await setup(undefined, (userId, section) => {
+    seen.push([userId, section]);
+    return { retry_concept_ids: ["coke_reduction"], in_progress: inProgress };
+  });
+  try {
+    t.agent.next = async () => okReply({ keyword_card: { concept_id: "coke_reduction" } });
+    const before = await t.ask({ question: "코크스 역할 정리해 줘" });
+    assert.deepEqual(t.agent.calls[0].retryConcepts, ["coke_reduction"]);
+    assert.equal(before.json.keyword_card.concept_id, "coke_reduction");
+    assert.deepEqual(seen, [["minsu", "ironmaking"]]);
+
+    inProgress = true;
+    const during = await t.ask({ question: "코크스 역할 정리해 줘" });
+    assert.deepEqual(t.agent.calls[1].keywordConcepts, []);
+    assert.equal(during.json.keyword_card, null);
   } finally {
     t.close();
   }

@@ -17,6 +17,7 @@ import type { AttemptPatch, AttemptRow, CheckpointRepository, ConceptResultRow }
 import { isSectionPassed, mergeAttemptResults, summarizeSection } from "./section-summary.js";
 import {
   CheckpointError,
+  type AskedQuestion,
   EvaluationFormatError,
   explainFromProblem,
   SECTION_NAMES,
@@ -35,6 +36,7 @@ import {
 
 const PASS_THRESHOLD = 0.8;
 const ERROR_TEXT = "답변을 채점하지 못했어요. 잠시 후 다시 시도해 주세요.";
+const PAUSE_TEXT = "여기서 멈출게요. 맞힌 개념은 저장했고, 이어 풀면 풀던 개념을 다른 질문으로 다시 물어볼게요.";
 
 export interface EngineDeps {
   repo: CheckpointRepository;
@@ -131,6 +133,8 @@ export class CheckpointEngine {
           return this.onAnswer(attempt, rubric, text, "recheck", true, options);
         case "completed":
           throw new CheckpointError(409, "이미 끝난 체크포인트입니다.");
+        case "paused":
+          throw new CheckpointError(409, "멈춘 이해도 확인입니다. resume으로 이어서 풀어 주세요.");
         case "error":
           throw new CheckpointError(409, "채점 오류 상태입니다. retry-evaluation으로 다시 채점해 주세요.");
       }
@@ -150,6 +154,57 @@ export class CheckpointEngine {
     });
   }
 
+  /**
+   * '나중에 이어 풀기'. LLM을 부르지 않는다.
+   * 확정한 개념(current_index 앞)은 그대로 둔다. 답 대기 중이던 개념은 이어 풀 때 안 쓴 다른 질문으로 다시 묻는다.
+   * 재확인 대기 중이던 개념은 첫 판정을 그대로 두고 이어 풀 때 안 쓴 재확인 질문으로 묻는다(멈춰서 재확인을 건너뛸 수 없다).
+   * 채점 오류(error) 상태에서 멈추면 채점하지 못한 답변은 버린다(대화 기록에는 남는다).
+   */
+  async pause(userId: string, attemptId: string): Promise<CheckpointView> {
+    return this.exclusive(attemptId, async () => {
+      const attempt = this.ownedAttempt(userId, attemptId);
+      if (attempt.state === "completed") throw new CheckpointError(409, "이미 끝난 체크포인트입니다.");
+      if (attempt.state === "paused") return this.view(attempt, []);
+      const before = attempt.state === "error" ? (attempt.resume_state ?? "awaiting_answer") : attempt.state;
+      const tutor: Utterance[] = [{ type: "intro", text: PAUSE_TEXT }];
+      return this.commit(attempt, {
+        state: "paused", resume_state: before, current_question: null, pending_answer: null,
+      }, tutor.map(asTutorMessage), tutor);
+    });
+  }
+
+  /** 멈춘 시도를 이어서 연다. 풀던 개념을 이 시도에서 아직 안 쓴 질문으로 다시 묻는다. */
+  async resume(userId: string, attemptId: string): Promise<CheckpointView> {
+    return this.exclusive(attemptId, async () => {
+      const attempt = this.ownedAttempt(userId, attemptId);
+      if (attempt.state !== "paused") throw new CheckpointError(409, "멈춘 이해도 확인이 아닙니다.");
+      const rubric = this.rubric(attempt.section);
+      const concept = findConcept(rubric, attempt.concept_ids[attempt.current_index]!);
+      const intro: Utterance = {
+        type: "intro",
+        text: `이어서 할게요. 개념 ${attempt.concept_ids.length}개 중 ${attempt.current_index}개를 마쳤어요.`,
+      };
+      const now = this.now();
+      if (attempt.resume_state === "awaiting_recheck") {
+        const first = this.repo.getResult(attempt.id, concept.concept_id);
+        if (!first) throw new Error(`재확인할 첫 판정이 없다: ${concept.concept_id}`);
+        const recheck = await this.askRecheck(attempt, rubric, concept, first.question);
+        const tutor: Utterance[] = [intro, { type: "recheck_question", text: recheck.text }];
+        return this.commit(attempt, {
+          state: "awaiting_recheck", current_question: recheck.text, resume_state: null, pending_answer: null,
+        }, tutor.map(asTutorMessage), tutor, () => {
+          this.repo.updateRecheckQuestion(attempt.id, concept.concept_id, recheck.text, now);
+          this.recordQuestion(attempt, concept, "recheck", recheck, now);
+        });
+      }
+      const question = await this.askQuestion(attempt, rubric, concept);
+      const tutor: Utterance[] = [intro, { type: "question", text: question.text }];
+      return this.commit(attempt, {
+        state: "awaiting_answer", current_question: question.text, resume_state: null, pending_answer: null,
+      }, tutor.map(asTutorMessage), tutor, () => this.recordQuestion(attempt, concept, "initial", question, now));
+    });
+  }
+
   get(userId: string, attemptId: string): CheckpointView {
     return this.view(this.ownedAttempt(userId, attemptId), [], { history: true });
   }
@@ -158,6 +213,7 @@ export class CheckpointEngine {
     const rubric = this.rubric(section);
     const completed = this.repo.listCompletedAttempts(userId, section);
     const summary = summarizeSection(rubric, completed.map((a) => ({ unlocked: a.unlocked, results: this.repo.listResults(a.id) })));
+    const open = this.repo.findOpenAttempt(userId, section);
     return {
       section,
       open: this.isSectionOpen(userId, section),
@@ -165,7 +221,9 @@ export class CheckpointEngine {
       understanding: summary.understanding,
       retry_concept_ids: summary.retry_concept_ids,
       unconfirmed_concept_ids: summary.unconfirmed_concept_ids,
-      in_progress_attempt_id: this.repo.findOpenAttempt(userId, section)?.id ?? null,
+      in_progress_attempt_id: open?.id ?? null,
+      // current_index 앞의 개념은 항상 확정돼 있다.
+      in_progress: open ? { attempt_id: open.id, state: open.state, done: open.current_index, total: open.concept_ids.length } : null,
     };
   }
 
@@ -174,12 +232,13 @@ export class CheckpointEngine {
   private async onReady(attempt: AttemptRow, rubric: Rubric, text: string): Promise<CheckpointView> {
     // 어떤 응답이든 시작으로 본다.
     const concept = findConcept(rubric, attempt.concept_ids[0]!);
-    const question = await this.tutor.question({ rubric, concept });
-    const tutor: Utterance[] = [{ type: "question", text: question }];
-    return this.commit(attempt, { state: "awaiting_answer", current_index: 0, current_question: question }, [
+    const question = await this.askQuestion(attempt, rubric, concept);
+    const tutor: Utterance[] = [{ type: "question", text: question.text }];
+    const now = this.now();
+    return this.commit(attempt, { state: "awaiting_answer", current_index: 0, current_question: question.text }, [
       { role: "user", type: null, text },
       ...tutor.map(asTutorMessage),
-    ], tutor);
+    ], tutor, () => this.recordQuestion(attempt, concept, "initial", question, now));
   }
 
   private async onAnswer(attempt: AttemptRow, rubric: Rubric, answer: string, phase: Phase, logUser: boolean, options: EngineOptions): Promise<CheckpointView> {
@@ -217,19 +276,20 @@ export class CheckpointEngine {
       const explanation = await this.tutor.explanation({
         rubric, concept, explainFrom: evaluation.explain_from, misconception, answer, learnerNotes: notes?.context?.trim() || null,
       });
-      const recheckQuestion = await this.tutor.recheckQuestion({ rubric, concept, previousQuestion: question });
+      const recheck = await this.askRecheck(attempt, rubric, concept, question);
       const tutor: Utterance[] = [
         { type: "explanation", text: explanation },
-        { type: "recheck_question", text: recheckQuestion },
+        { type: "recheck_question", text: recheck.text },
       ];
       return this.commit(attempt, {
-        state: "awaiting_recheck", current_question: recheckQuestion, resume_state: null, pending_answer: null,
+        state: "awaiting_recheck", current_question: recheck.text, resume_state: null, pending_answer: null,
       }, [...userMessages, ...tutor.map(asTutorMessage)], tutor, () => {
         this.repo.insertResult({
           attempt_id: attempt.id, concept_id: concept.concept_id, question, answer,
           verdict: evaluation.verdict, evidence: evaluation.evidence, explain_from: evaluation.explain_from,
         }, now);
-        this.repo.updateRecheckQuestion(attempt.id, concept.concept_id, recheckQuestion, now);
+        this.repo.updateRecheckQuestion(attempt.id, concept.concept_id, recheck.text, now);
+        this.recordQuestion(attempt, concept, "recheck", recheck, now);
         recordMisconception();
       });
     }
@@ -265,13 +325,14 @@ export class CheckpointEngine {
     const nextIndex = attempt.current_index + 1;
     if (nextIndex < attempt.concept_ids.length) {
       const next = findConcept(rubric, attempt.concept_ids[nextIndex]!);
-      const nextQuestion = await this.tutor.question({ rubric, concept: next });
-      const tutor: Utterance[] = [feedback, { type: "question", text: nextQuestion }];
+      const nextQuestion = await this.askQuestion(attempt, rubric, next);
+      const tutor: Utterance[] = [feedback, { type: "question", text: nextQuestion.text }];
       return this.commit(attempt, {
-        state: "awaiting_answer", current_index: nextIndex, current_question: nextQuestion, resume_state: null, pending_answer: null,
+        state: "awaiting_answer", current_index: nextIndex, current_question: nextQuestion.text, resume_state: null, pending_answer: null,
       }, [...userMessages, ...tutor.map(asTutorMessage)], tutor, () => {
         write();
         resolve();
+        this.recordQuestion(attempt, next, "initial", nextQuestion, now);
       });
     }
 
@@ -294,6 +355,22 @@ export class CheckpointEngine {
 
   // --- 공통 ---
 
+  /** 첫 질문. 이 시도에서 이 개념에 이미 쓴 은행 질문은 빼고 고른다(이어 풀기). */
+  private askQuestion(attempt: AttemptRow, rubric: Rubric, concept: RubricConcept): Promise<AskedQuestion> {
+    const exclude = this.repo.listUsedBankQuestions(attempt.id, concept.concept_id, "initial");
+    return this.tutor.question({ rubric, concept, exclude });
+  }
+
+  /** 재확인 질문. 이 시도에서 이 개념에 이미 쓴 재확인 은행 질문은 빼고 고른다. */
+  private askRecheck(attempt: AttemptRow, rubric: Rubric, concept: RubricConcept, previousQuestion: string): Promise<AskedQuestion> {
+    const exclude = this.repo.listUsedBankQuestions(attempt.id, concept.concept_id, "recheck");
+    return this.tutor.recheckQuestion({ rubric, concept, previousQuestion, exclude });
+  }
+
+  private recordQuestion(attempt: AttemptRow, concept: RubricConcept, phase: Phase, q: AskedQuestion, now: string): void {
+    this.repo.insertAskedQuestion({ attempt_id: attempt.id, concept_id: concept.concept_id, phase, bank: q.bank, text: q.text }, now);
+  }
+
   /** 시도 상태·대화 기록·추가 쓰기를 하나의 트랜잭션으로 저장하고 응답을 만든다. */
   private commit(
     attempt: AttemptRow,
@@ -313,7 +390,7 @@ export class CheckpointEngine {
 
   private view(attempt: AttemptRow, tutor: Utterance[], options: { history?: boolean } = {}): CheckpointView {
     const rubric = this.rubric(attempt.section);
-    const active: CheckpointState[] = ["awaiting_answer", "awaiting_recheck", "error"];
+    const active: CheckpointState[] = ["awaiting_answer", "awaiting_recheck", "paused", "error"];
     const current = active.includes(attempt.state) ? attempt.current_index : null;
     const conceptId = current === null ? null : attempt.concept_ids[current]!;
     return {

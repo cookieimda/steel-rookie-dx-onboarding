@@ -34,6 +34,8 @@ export interface TraineeStat {
   last_activity: string | null;
   sections: Record<Section, SectionStat | null>;
   passed_sections: number;
+  /** 끝나지 않은 체크포인트(진행 중·'나중에 이어 풀기'로 멈춤)가 있는 섹션. 실패로 세지 않고 '진행 중'으로 보여 준다. */
+  in_progress_sections: Section[];
   /** 체크포인트 오개념이 있었던 개념 수. open: 미해결 행이 있는 개념, resolved: 미해결 행이 하나도 없는 개념. */
   misconceptions: { open: number; resolved: number };
 }
@@ -86,6 +88,7 @@ export function traineeStats(db: DatabaseSync, rubrics: readonly Rubric[] = defa
     last_activity: null,
     sections: Object.fromEntries(SECTION_ORDER.map((s) => [s, null])) as Record<Section, SectionStat | null>,
     passed_sections: 0,
+    in_progress_sections: [],
     misconceptions: { open: 0, resolved: 0 },
   }));
   const base = { sections: SECTION_ORDER, demo_sections, include_demo: includeDemo };
@@ -133,6 +136,14 @@ export function traineeStats(db: DatabaseSync, rubrics: readonly Rubric[] = defa
       };
     }
   }
+
+  // 끝나지 않은 시도는 통계(이해도·통과·시도 수)에 넣지 않고 섹션만 표시한다.
+  for (const row of db.prepare("SELECT DISTINCT user_id, section FROM attempts WHERE state <> 'completed'").all()) {
+    const t = byId.get(String(row.user_id));
+    const section = String(row.section) as Section;
+    if (t && SECTION_ORDER.includes(section)) t.in_progress_sections.push(section);
+  }
+  for (const t of trainees) t.in_progress_sections.sort((a, b) => SECTION_ORDER.indexOf(a) - SECTION_ORDER.indexOf(b));
 
   const activity = db.prepare("SELECT user_id, MAX(updated_at) AS last FROM attempts GROUP BY user_id").all();
   for (const row of activity) {

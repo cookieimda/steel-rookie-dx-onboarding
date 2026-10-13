@@ -155,6 +155,26 @@ test("with checkpoint tables, stats merge retries like the engine and count chec
   db.exec("DELETE FROM concept_results; DELETE FROM attempts; DELETE FROM misconceptions;");
 });
 
+test("이어 풀기로 멈춘 시도는 실패로 세지 않고 in_progress_sections에 '진행 중'으로 보인다", () => {
+  const attempt = db.prepare("INSERT INTO attempts (id, user_id, section, state, understanding, unlocked, created_at, updated_at, completed_at, kind, concept_ids) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]')");
+  attempt.run("p1", kim.id, "ironmaking", "completed", 0.5, 0, "2026-10-01T01:00Z", "2026-10-01T01:10Z", "2026-10-01T01:10Z", "first");
+  attempt.run("p2", kim.id, "ironmaking", "paused", null, null, "2026-10-01T02:00Z", "2026-10-01T02:05Z", null, "retry");
+  attempt.run("p3", lee.id, "ironmaking", "paused", null, null, "2026-10-01T03:00Z", "2026-10-01T03:05Z", null, "first");
+  db.prepare("INSERT INTO concept_results (attempt_id, concept_id, question, answer, verdict, recheck_verdict, created_at, updated_at) VALUES (?, ?, 'q', 'a', ?, ?, 't', 't')").run("p1", "a", "correct", null);
+
+  const stats = traineeStats(db, [IR]);
+  const k = stats.trainees.find((t) => t.username === "trainee01")!;
+  assert.deepEqual(k.in_progress_sections, ["ironmaking"]);
+  assert.equal(k.sections.ironmaking!.attempts, 1); // 멈춘 재도전은 시도 수에 넣지 않는다
+  assert.equal(k.sections.ironmaking!.passed, false);
+  const l = stats.trainees.find((t) => t.username === "trainee02")!;
+  assert.deepEqual(l.in_progress_sections, ["ironmaking"]);
+  assert.equal(l.sections.ironmaking, null); // 끝낸 시도가 없으면 미응시(null)이고 실패가 아니다
+  assert.equal(l.last_activity, "2026-10-01T03:05Z");
+
+  db.exec("DELETE FROM concept_results; DELETE FROM attempts;");
+});
+
 /** 바꾸기 전 traineeStats의 섹션·오개념 집계(dev a3de972). 차이를 보여 주려고 테스트에만 남긴다. */
 function legacyStats(db: DatabaseSync, userId: string) {
   const sections: Record<string, { understanding: number; passed: boolean; attempts: number }> = {};

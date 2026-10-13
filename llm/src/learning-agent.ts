@@ -1,9 +1,10 @@
 // 학습 모드 튜터(Gemini): 근거 조각으로 자유 질문에 답하고, 학습자가 틀린 내용을 단정하면 오개념을 함께 알려 준다.
 // 예전 /api/chat(ironmaking-agent.ts, 지금은 삭제)을 대체했다. 설계는 docs/learning-mode.md '흐름'.
 // - 호출은 1회(temperature 0.3). responseSchema로 형식을 강제하고, 서버에서 한 번 더 검증해 실패하면 1회 다시 부른다.
-// - Gemini 과부하(HTTP 503)는 1초·2초 뒤 최대 2번 다시 부른다. 다시 부를 때마다 하루 호출 수에 들어간다.
+// - Gemini 과부하(HTTP 503)와 순간적인 연결 끊김은 1초·2초 뒤 최대 2번 다시 부른다. 다시 부를 때마다 하루 호출 수에 들어간다.
 // - source_ids는 이번에 검색한 조각 id만, concept_id는 루브릭 개념만 남긴다.
 // - scene_actions(3D 화면 조작)는 화면 목록(data_v2.js)에 있는 공정·설비만 남기고, 다른 공정의 설비면 그 공정으로 먼저 이동시킨다.
+// - keyword_card는 카드를 띄울 개념만 고른다. 카드 내용은 서버가 루브릭에서 꺼낸다(backend/src/learning/keywords.ts). 호출 수는 늘지 않는다.
 import { z } from "zod";
 import { SECTION_NAMES, type Section } from "../../backend/src/checkpoint/types.js";
 import type { GlossaryEntry } from "../../backend/src/rubrics.js";
@@ -50,6 +51,10 @@ export interface LearningInput {
   glossary?: GlossaryEntry[];
   /** 화면 조작에 쓸 공정·설비 목록. 없으면 scene_actions는 항상 빈 배열이다. */
   scene?: SceneCatalog;
+  /** 키워드 카드를 띄울 수 있는 개념(keywords.ts의 keywordCardConcepts). 비어 있으면 keyword_card는 항상 null이다. */
+  keywordConcepts?: { concept_id: string; name: string }[];
+  /** 체크포인트에서 아직 만점이 아닌 개념 id(섹션 진행의 retry_concept_ids). */
+  retryConcepts?: string[];
 }
 
 export interface LearningReply {
@@ -60,6 +65,8 @@ export interface LearningReply {
   follow_up: string | null;
   detected_misconception: { concept_id: string; summary: string } | null;
   scene_actions: SceneAction[];
+  /** 답변 아래에 띄울 키워드 카드의 개념. grounded 답변에서만, keywordConcepts 안에서만. */
+  keyword_card: { concept_id: string } | null;
 }
 
 /** 라우트가 쓰는 학습 모드 튜터. 테스트는 가짜 구현을 넣는다. */
@@ -70,8 +77,8 @@ export interface LearningAgent {
 /** 두 번 모두 형식에 맞지 않는 응답을 받았을 때. 라우트는 502로 답한다. */
 export class LearningFormatError extends Error {}
 
-/** Gemini responseSchema. 고를 수 있는 조각 id·개념 id·화면 id를 enum으로 묶는다(빈 목록이면 enum을 두지 않는다). */
-export function learningResponseSchema(chunkIds: string[], conceptIds: string[], sceneIds: string[] = []): object {
+/** Gemini responseSchema. 고를 수 있는 조각 id·개념 id·화면 id·카드 개념 id를 enum으로 묶는다(빈 목록이면 enum을 두지 않는다). */
+export function learningResponseSchema(chunkIds: string[], conceptIds: string[], sceneIds: string[] = [], keywordConceptIds: string[] = []): object {
   const enumOf = (values: string[]) => (values.length ? { enum: values } : {});
   return {
     type: "OBJECT",
@@ -94,9 +101,15 @@ export function learningResponseSchema(chunkIds: string[], conceptIds: string[],
         properties: { concept_id: { type: "STRING", ...enumOf(conceptIds) }, summary: { type: "STRING" } },
         required: ["concept_id", "summary"],
       },
+      keyword_card: {
+        type: "OBJECT",
+        nullable: true,
+        properties: { concept_id: { type: "STRING", ...enumOf(keywordConceptIds) } },
+        required: ["concept_id"],
+      },
     },
-    required: ["answer", "status", "source_ids", "follow_up", "scene_actions", "detected_misconception"],
-    propertyOrdering: ["answer", "status", "source_ids", "follow_up", "scene_actions", "detected_misconception"],
+    required: ["answer", "status", "source_ids", "follow_up", "scene_actions", "detected_misconception", "keyword_card"],
+    propertyOrdering: ["answer", "status", "source_ids", "follow_up", "scene_actions", "detected_misconception", "keyword_card"],
   };
 }
 
@@ -105,10 +118,13 @@ export function sceneIds(scene: SceneCatalog | undefined): string[] {
   return scene ? scene.processes.flatMap((p) => [p.id, ...p.equipment.map((e) => e.id)]) : [];
 }
 
-export function learningSystemPrompt(input: Pick<LearningInput, "section" | "concepts" | "glossary" | "scene">): string {
+export function learningSystemPrompt(input: Pick<LearningInput, "section" | "concepts" | "glossary" | "scene" | "keywordConcepts">): string {
   return renderPrompt("learning-system", {
     section_name: SECTION_NAMES[input.section],
     concepts: input.concepts.length ? input.concepts.map((c) => `- ${c.concept_id}: ${c.name}`).join("\n") : "(없음: detected_misconception은 항상 null)",
+    keyword_concepts: input.keywordConcepts?.length
+      ? input.keywordConcepts.map((c) => `- ${c.concept_id}: ${c.name}`).join("\n")
+      : "(없음: keyword_card는 항상 null)",
     glossary: input.glossary?.length ? input.glossary.map((g) => `- ${g.term} = ${g.aliases.join(", ")}`).join("\n") : "(없음)",
     scene: input.scene?.processes.length
       ? input.scene.processes.map((p) => `- 공정 ${p.id} (${p.name}): ${p.equipment.map((e) => `${e.id} (${e.name})`).join(", ")}`).join("\n")
@@ -130,9 +146,12 @@ export function learningUserPrompt(input: LearningInput): string {
     ? input.history.map((t) => `학습자: ${escapeDelimited(t.question)}\n튜터: ${escapeDelimited(t.answer)}`).join("\n")
     : "(없음)";
   const notes = input.openMisconceptions.length ? input.openMisconceptions.map((m) => `- ${m.concept_id}: ${m.summary}`).join("\n") : "(없음)";
+  const nameOf = new Map(input.concepts.map((c) => [c.concept_id, c.name]));
+  const retry = input.retryConcepts?.length ? input.retryConcepts.map((id) => `- ${id}${nameOf.has(id) ? `: ${nameOf.get(id)}` : ""}`).join("\n") : "(없음)";
   return [
     `<screen>${screen}</screen>`,
     `<learner_notes>\n${notes}\n</learner_notes>`,
+    `<checkpoint_retry>\n${retry}\n</checkpoint_retry>`,
     `<sources>\n${sources}\n</sources>`,
     `<history>\n${history}\n</history>`,
     `<question>${escapeDelimited(input.question)}</question>`,
@@ -147,6 +166,8 @@ const ReplySchema = z.object({
   // 화면 조작 형식이 틀려도 답변은 살린다(빈 배열로 본다).
   scene_actions: z.array(z.object({ type: z.string(), target_id: z.string() })).catch([]),
   detected_misconception: z.object({ concept_id: z.string(), summary: z.string() }).nullable(),
+  // 카드 형식이 틀려도 답변은 살린다(카드 없음으로 본다).
+  keyword_card: z.object({ concept_id: z.string() }).nullable().catch(null),
 });
 
 /**
@@ -185,7 +206,7 @@ export function normalizeSceneActions(raw: { type: string; target_id: string }[]
 }
 
 /** 형식을 검사하고 허용된 id만 남긴다. 형식이 틀리면 이유 문자열. */
-export function parseLearningReply(raw: string, input: Pick<LearningInput, "chunks" | "concepts" | "scene" | "screen">): LearningReply | string {
+export function parseLearningReply(raw: string, input: Pick<LearningInput, "chunks" | "concepts" | "scene" | "screen" | "keywordConcepts">): LearningReply | string {
   let json: unknown;
   try {
     json = JSON.parse(raw);
@@ -203,15 +224,18 @@ export function parseLearningReply(raw: string, input: Pick<LearningInput, "chun
   const detected_misconception = m && allowedConcepts.has(m.concept_id) && m.summary.trim() ? { concept_id: m.concept_id, summary: m.summary.trim() } : null;
   const follow_up = r.follow_up?.trim() || null;
 
-  // grounded라고 했지만 쓸 수 있는 근거가 없으면 답을 믿지 않는다. 같은 응답의 화면 조작도 버린다.
+  // grounded라고 했지만 쓸 수 있는 근거가 없으면 답을 믿지 않는다. 같은 응답의 화면 조작·카드도 버린다.
   if (r.status === "grounded" && source_ids.length === 0) {
-    return { answer: UNVERIFIED_ANSWER, status: "unverified", source_ids: [], follow_up, detected_misconception, scene_actions: [] };
+    return { answer: UNVERIFIED_ANSWER, status: "unverified", source_ids: [], follow_up, detected_misconception, scene_actions: [], keyword_card: null };
   }
   const scene_actions = normalizeSceneActions(r.scene_actions, input.scene, input.screen.process_id ?? null);
-  return { answer: r.answer.trim(), status: r.status, source_ids, follow_up, detected_misconception, scene_actions };
+  // 카드는 근거로 설명한 답을 정리하는 것이라 grounded 답변에만 붙인다.
+  const allowedCards = new Set((input.keywordConcepts ?? []).map((c) => c.concept_id));
+  const keyword_card = r.status === "grounded" && r.keyword_card && allowedCards.has(r.keyword_card.concept_id) ? { concept_id: r.keyword_card.concept_id } : null;
+  return { answer: r.answer.trim(), status: r.status, source_ids, follow_up, detected_misconception, scene_actions, keyword_card };
 }
 
-/** Gemini가 과부하(HTTP 503 "high demand")일 때 다시 부르기 전에 기다리는 시간(ms). 길이가 다시 부르는 횟수다. */
+/** Gemini 과부하(HTTP 503 "high demand")·연결 끊김 때 다시 부르기 전에 기다리는 시간(ms). 길이가 다시 부르는 횟수다. */
 export const OVERLOAD_RETRY_DELAYS_MS = [1000, 2000];
 
 export class GeminiLearningAgent implements LearningAgent {
@@ -220,14 +244,17 @@ export class GeminiLearningAgent implements LearningAgent {
     private readonly retryDelaysMs: number[] = OVERLOAD_RETRY_DELAYS_MS,
   ) {}
 
-  /** 503 과부하는 몇 초 사이에도 풀리므로 잠시 뒤 다시 부른다. 그 밖의 연결·HTTP 오류는 그대로 올려 보낸다. */
+  /**
+   * 503 과부하와 순간적인 연결 끊김(fetch failed)은 몇 초 사이에도 풀리므로 잠시 뒤 다시 부른다.
+   * 시간 초과(이미 오래 기다림)와 그 밖의 HTTP 오류는 그대로 올려 보낸다.
+   */
   private async generate(request: Parameters<GeminiClient["generate"]>[0]): Promise<string> {
     for (let retry = 0; ; retry++) {
       try {
         return await this.gemini.generate(request);
       } catch (error) {
-        const overloaded = error instanceof GeminiCallError && error.httpStatus === 503;
-        if (!overloaded || retry >= this.retryDelaysMs.length) throw error;
+        const transient = error instanceof GeminiCallError && (error.httpStatus === 503 || error.reason === "network");
+        if (!transient || retry >= this.retryDelaysMs.length) throw error;
         await new Promise((r) => setTimeout(r, this.retryDelaysMs[retry]));
       }
     }
@@ -239,7 +266,12 @@ export class GeminiLearningAgent implements LearningAgent {
       prompt: learningUserPrompt(input),
       temperature: TEMPERATURE,
       maxOutputTokens: MAX_OUTPUT_TOKENS,
-      responseSchema: learningResponseSchema(input.chunks.map((c) => c.id), input.concepts.map((c) => c.concept_id), sceneIds(input.scene)),
+      responseSchema: learningResponseSchema(
+        input.chunks.map((c) => c.id),
+        input.concepts.map((c) => c.concept_id),
+        sceneIds(input.scene),
+        (input.keywordConcepts ?? []).map((c) => c.concept_id),
+      ),
     };
     let problem = "";
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {

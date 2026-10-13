@@ -206,6 +206,21 @@ export class CheckpointRepository {
     return this.db.prepare("SELECT * FROM concept_results WHERE attempt_id = ?").all(attemptId).map(toResult);
   }
 
+  /** 시도에서 낸 질문을 남긴다. bank는 은행 원문(LLM이 만든 질문이면 null). 이어 풀 때 안 쓴 질문을 고르는 데 쓴다. */
+  insertAskedQuestion(q: { attempt_id: string; concept_id: string; phase: Phase; bank: string | null; text: string }, now: string): void {
+    this.db
+      .prepare("INSERT INTO attempt_questions (attempt_id, concept_id, phase, bank_question, asked_text, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+      .run(q.attempt_id, q.concept_id, q.phase, q.bank, q.text, now);
+  }
+
+  /** 이 시도에서 이 개념·단계에 이미 쓴 은행 원문. */
+  listUsedBankQuestions(attemptId: string, conceptId: string, phase: Phase): string[] {
+    return this.db
+      .prepare("SELECT DISTINCT bank_question FROM attempt_questions WHERE attempt_id = ? AND concept_id = ? AND phase = ? AND bank_question IS NOT NULL")
+      .all(attemptId, conceptId, phase)
+      .map((row) => String(row.bank_question));
+  }
+
   insertMisconception(m: Omit<MisconceptionRow, "resolved" | "resolved_at">, now: string): void {
     this.db
       .prepare(

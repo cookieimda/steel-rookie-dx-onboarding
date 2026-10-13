@@ -129,15 +129,23 @@ transfer: `<svg class="scene" viewBox="0 0 700 420" xmlns="http://www.w3.org/200
 
 // 장면 SVG 공용 스타일 (팝업과 공유)
 const SCENE_CSS = `
-/* 장면 SVG (어두운 배경 고정) */
-.lbl{fill:#c3cfda!important;stroke:none!important;stroke-dasharray:none!important;font-size:13px;font-weight:500;text-anchor:middle;font-family:inherit;text-rendering:geometricPrecision;-webkit-font-smoothing:antialiased}.lbl.s{font-size:12px}.lbl.strong{fill:#eef3f8!important;font-weight:700;font-size:14px}
-.structure{fill:#313c48;stroke:#7c8b9a;stroke-width:2}.refractory{fill:#69472d;stroke:#9d6840;stroke-width:2}.liquid{fill:#ff8b2c}.slag{fill:#889b62}
+/* 장면 SVG 색: .svgbox에 변수로 두고 테마(steel-2d·팝업의 theme 속성)에 따라 바꾼다. SVG 안에 속성으로 박힌 색도 아래에서 같은 변수로 덮는다(CSS가 속성보다 우선) */
+.svgbox{--sc-bg1:#141416;--sc-bg2:#111113;--sc-edge:#2a2a2e;--sc-plot:#141416;--sc-grid:#2f2f34;--sc-lbl:#c8c8cd;--sc-lbl-strong:#f2f2f2;--sc-none:#8e8e95;
+  --sc-sf:#34343a;--sc-sl:#8a8a92;--sc-rf:#69472d;--sc-rl:#9d6840;--sc-rail:#7a7a82;--sc-metal:#9a9aa2;--sc-pipe:#8a8a92;--sc-gas:#c0c0c6;--sc-jet:#eef0f2}
+:host([theme=light]) .svgbox{--sc-bg1:#fafafa;--sc-bg2:#f1f1f3;--sc-edge:#e4e4e7;--sc-plot:#ffffff;--sc-grid:#d4d4d8;--sc-lbl:#55555c;--sc-lbl-strong:#161617;--sc-none:#5f5f66;
+  --sc-sf:#e6e6e9;--sc-sl:#7c7c85;--sc-rf:#e2c09d;--sc-rl:#a8713f;--sc-rail:#8e8e96;--sc-metal:#b0b0b7;--sc-pipe:#a0a0a8;--sc-gas:#74747c;--sc-jet:#3d86c6}
+.svgbox{background:linear-gradient(180deg,var(--sc-bg1),var(--sc-bg2));border-color:var(--sc-edge)}
+.svgbox [fill="#313c48"]{fill:var(--sc-sf)}.svgbox [stroke="#7c8b9a"]{stroke:var(--sc-sl)}.svgbox [fill="#0b1118"]{fill:var(--sc-plot)}
+.svgbox [stroke="#2b3948"],.svgbox [stroke="#263441"]{stroke:var(--sc-grid)}.svgbox [fill="#738392"]{fill:var(--sc-rail)}.svgbox [stroke="#738392"]{stroke:var(--sc-rail)}
+.svgbox [fill="#93a0ad"],.svgbox [fill="#8b99a8"]{fill:var(--sc-metal)}.svgbox [stroke="#e6f5ff"],.svgbox [stroke="#eaf7ff"]{stroke:var(--sc-jet)}
+.lbl{fill:var(--sc-lbl)!important;stroke:none!important;stroke-dasharray:none!important;font-size:13px;font-weight:500;text-anchor:middle;font-family:inherit;text-rendering:geometricPrecision;-webkit-font-smoothing:antialiased}.lbl.s{font-size:12px}.lbl.strong{fill:var(--sc-lbl-strong)!important;font-weight:700;font-size:14px}
+.structure{fill:var(--sc-sf);stroke:var(--sc-sl);stroke-width:2}.refractory{fill:var(--sc-rf);stroke:var(--sc-rl);stroke-width:2}.liquid{fill:#ff8b2c}.slag{fill:#889b62}
 .have3d{stroke:#39d98a!important;stroke-width:2.6!important}
 .gap3d{stroke:#ff5d68!important;stroke-width:2.3!important;stroke-dasharray:7 5!important;fill:rgba(255,93,104,.04)!important}
 .scene.found .gap3d{stroke:#39d98a!important;stroke-dasharray:none!important;fill:rgba(57,217,138,.05)!important}
 .scene.found [stroke="#ff5d68"]{stroke:#39d98a!important}
-.ghost{opacity:.28}.pipe{fill:none;stroke:#8392a0;stroke-width:5;stroke-linecap:round;stroke-linejoin:round}
-.gas{fill:none;stroke:#bbc5cf;stroke-width:2;stroke-dasharray:6 7;animation:dash 1.1s linear infinite}.hotFlow{fill:none;stroke:#ff8b2c;stroke-width:5;stroke-linecap:round;stroke-dasharray:9 7;animation:dash .7s linear infinite}.waterFlow{fill:none;stroke:#56c8ff;stroke-width:3;stroke-dasharray:7 7;animation:dash 1s linear infinite}.arrowFlow{fill:none;stroke:#ffd257;stroke-width:2.3;stroke-dasharray:7 6;animation:dash 1.4s linear infinite}
+.ghost{opacity:.28}.pipe{fill:none;stroke:var(--sc-pipe);stroke-width:5;stroke-linecap:round;stroke-linejoin:round}
+.gas{fill:none;stroke:var(--sc-gas);stroke-width:2;stroke-dasharray:6 7;animation:dash 1.1s linear infinite}.hotFlow{fill:none;stroke:#ff8b2c;stroke-width:5;stroke-linecap:round;stroke-dasharray:9 7;animation:dash .7s linear infinite}.waterFlow{fill:none;stroke:#56c8ff;stroke-width:3;stroke-dasharray:7 7;animation:dash 1s linear infinite}.arrowFlow{fill:none;stroke:#ffd257;stroke-width:2.3;stroke-dasharray:7 6;animation:dash 1.4s linear infinite}
 .bubble{fill:#fff;opacity:.82;animation:rise 1.7s linear infinite}.flame{fill:#ffb23e;filter:drop-shadow(0 0 5px rgba(255,139,44,.8));animation:flame .5s ease-in-out infinite alternate}
 .spin{animation:spin 2.6s linear infinite;transform-box:fill-box;transform-origin:center}.pulse{animation:pulse 1.2s ease-in-out infinite}.slide{animation:slide 5s ease-in-out infinite}.crane{animation:crane 8s ease-in-out infinite}.lift{animation:lift 4s ease-in-out infinite}
 .scene.hl [data-s]{opacity:.34;transition:opacity .2s,filter .2s}.scene.hl [data-s].hit{opacity:1;filter:drop-shadow(0 0 7px rgba(255,200,87,.45))}.scene.hl [data-s].always{opacity:1}
@@ -147,15 +155,14 @@ const SCENE_CSS = `
 
 const CSS = `
 :host{display:block;height:100%;min-height:0;font-family:"IBM Plex Sans KR","Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif;font-size:14px;line-height:1.5}
-.root{--bg:#0f141c;--surface:#161d28;--ink:#e9eff8;--muted:#a3b0c2;--border:#2a3547;--soft:#222c3a;--accent:#7ca7ff;--active:#263c60;--orange:#ffad61;--warm:#453226;--steel:#566b88;--darksteel:#8c9fb9;--ok:#39d98a;--miss:#ff5d68;--warn:#ffc857;
+.root{--bg:#18181a;--surface:#1f1f22;--ink:#f2f2f2;--muted:#a8a8ad;--border:#2e2e33;--soft:#2a2a2e;--accent:#f2f2f2;--active:#38383e;--orange:#ffad61;--warm:#453226;--steel:#64676e;--darksteel:#9a9ea6;--ok:#39d98a;--miss:#ff5d68;--warn:#ffc857;
   height:100%;overflow:auto;background:var(--bg);color:var(--ink);box-sizing:border-box;outline:none;container-type:inline-size}
-.root[data-theme=light]{--bg:#f5f7fa;--surface:#fff;--ink:#17263d;--muted:#64748b;--border:#e1e7ef;--soft:#edf2f7;--accent:#2260d8;--active:#eaf1ff;--orange:#e98532;--warm:#fff1e5;--steel:#b4c3d6;--darksteel:#7a91af}
+.root[data-theme=light]{--bg:#f4f4f5;--surface:#fff;--ink:#161617;--muted:#5f5f66;--border:#e4e4e7;--soft:#efeff1;--accent:#161617;--active:#e8e8eb;--orange:#e98532;--warm:#fff1e5;--steel:#c4c6cc;--darksteel:#7c7f88}
 .root *{box-sizing:border-box}
 button{font:inherit;cursor:pointer;touch-action:manipulation}
 .header{padding:14px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5}
 .brand{display:flex;gap:12px;align-items:center}.mark{display:grid;place-items:center;width:38px;height:38px;background:var(--ink);color:var(--surface);border-radius:11px;font-size:17px;font-weight:700}
 .brand strong{display:block;font-size:16px}.subtitle{display:block;font-size:10px;letter-spacing:1.5px;color:var(--muted);margin-top:2px}
-.model{font-size:11px;padding:5px 9px;border-radius:6px;background:var(--soft);color:var(--muted);white-space:nowrap;font-family:ui-monospace,Consolas,monospace}.model.ok{color:var(--ok)}.model.miss{color:var(--miss)}
 .workspace{display:grid;grid-template-columns:176px minmax(0,1fr);min-height:calc(100% - 67px)}
 .sidebar{background:var(--surface);padding:22px 12px;border-right:1px solid var(--border)}
 .navtitle{font-size:11px;color:var(--muted);padding:0 10px;margin-bottom:14px}
@@ -169,7 +176,7 @@ h2{font-size:22px;letter-spacing:-.6px;line-height:1.35;margin:6px 0 4px;font-we
 .toolbar{display:flex;justify-content:space-between;gap:10px;align-items:center;margin:18px 0 12px;flex-wrap:wrap}
 .status{font-size:11px;display:flex;gap:7px;align-items:center;color:var(--muted)}.status i{width:6px;height:6px;border-radius:50%;background:var(--accent)}
 .actions{display:flex;gap:7px}.actions button{border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:7px;padding:7px 11px;font-size:11px;white-space:nowrap;min-height:34px}
-.actions .play{background:var(--ink);color:var(--surface);border-color:var(--ink)}.actions .play.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.actions .play{background:var(--ink);color:var(--surface);border-color:var(--ink)}.actions .play.on{background:var(--accent);border-color:var(--accent);color:var(--surface)}
 .map{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:16px 16px 12px}
 .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
 .lane{min-width:0;position:relative}.lane:not(:last-child):after{content:'→';position:absolute;top:96px;right:-12px;color:var(--muted);font-size:16px}
@@ -187,7 +194,7 @@ h2{font-size:22px;letter-spacing:-.6px;line-height:1.35;margin:6px 0 4px;font-we
 .stage{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(300px,.75fr);gap:12px;align-items:start;margin-top:12px}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:13px}
 .scenecard{padding:10px;position:sticky;top:78px}.scenehead{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:2px 3px 8px}.scenehead .t{font-weight:800}.scenehead .m{font-size:11px;color:var(--muted)}
-.svgbox{background:linear-gradient(180deg,#0b1118,#0a0f15);border:1px solid #1f2b37;border-radius:11px;overflow:hidden;min-height:200px;display:grid;place-items:center}.svgbox svg{width:100%;height:auto;display:block}.svgbox .none{color:#8b99a8;font-size:12px;padding:60px 20px;text-align:center}
+.svgbox{border:1px solid;border-radius:11px;overflow:hidden;min-height:200px;display:grid;place-items:center}.svgbox svg{width:100%;height:auto;display:block}.svgbox .none{color:var(--sc-none);font-size:12px;padding:60px 20px;text-align:center}
 .cap{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-top:8px;font-size:11px;color:var(--muted)}.cap b{color:var(--warn)}
 .side{padding:14px}.side h3{margin:0;font-size:18px;line-height:1.3}.en{font-size:11px;color:var(--muted);font-weight:500;margin-left:7px}
 .badges{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 10px}.badge{border:1px solid;border-radius:999px;padding:2px 8px;font-size:10px}.badge.ok{color:var(--ok)}.badge.miss{color:var(--miss)}.badge.lane{color:var(--muted)}
@@ -228,7 +235,7 @@ class Steel2D extends HTMLElement {
     super();
     this.attachShadow({ mode: 'open' });
     this.shadowRoot.innerHTML = `<style>${CSS}</style><div class="root" tabindex="0">
-      <header class="header"><div class="brand"><span class="mark">St</span><div><strong id="title">제강 공정</strong><span class="subtitle">2D PROCESS EXPLORER · GLB 기준</span></div></div><span class="model" id="model">MODEL · 읽는 중</span></header>
+      <header class="header"><div class="brand"><span class="mark">St</span><div><strong id="title">제강 공정</strong><span class="subtitle">2D PROCESS EXPLORER · GLB 기준</span></div></div></header>
       <div class="workspace">
         <aside class="sidebar"><div class="navtitle">공정 단계</div><nav class="nav" id="nav"></nav><div class="note" id="note"></div></aside>
         <main class="main">
@@ -273,7 +280,6 @@ class Steel2D extends HTMLElement {
     this.stopAuto();
     this.stages = (STAGES[pid] || []).map(s => ({ ...s, groups: [] }));
     const url = this.getAttribute('glb') || `models/${pid}.glb`;
-    this.$('model').textContent = `MODEL · ${url} · 읽는 중`; this.$('model').className = 'model';
     let names = null;
     try { names = await readGlbGroups(new URL(url, document.baseURI).href); } catch (e) { names = null; }
     if (this._token !== token) return;
@@ -282,10 +288,6 @@ class Steel2D extends HTMLElement {
       if (stage) stage.groups.push(name);
       return { name, stage };
     }) : null;
-    const matched = this.stages.filter(s => s.groups.length).length;
-    const m = this.$('model');
-    if (names) { m.textContent = `MODEL · ${url} · 그룹 ${this.groups.length}개 · 단계 ${matched}/${this.stages.length} 연결`; m.className = 'model ok'; }
-    else { m.textContent = `MODEL · ${url} 없음 · 기본 구성`; m.className = 'model miss'; }
     this.$('eyebrow').textContent = `${pid.replace(/_/g, ' ').toUpperCase()} / OVERVIEW`;
     this.$('note').innerHTML = names ? `GLB 그룹 ${this.groups.length}개를 읽어 구성했습니다.<br>GLB를 바꾸면 카드가 따라갑니다.` : `GLB를 읽지 못해 기본 단계만 표시합니다.`;
     this.renderNav(); this.renderGrid();

@@ -24,7 +24,9 @@
 | `POST` | `/api/checkpoints/:id/messages` | 사용자 응답으로 한 단계 진행 |
 | `GET` | `/api/checkpoints/:id` | 현재 상태와 대화 기록(새로고침 복원) |
 | `POST` | `/api/checkpoints/:id/retry-evaluation` | `error` 상태에서 저장해 둔 마지막 답변을 다시 채점 |
-| `GET` | `/api/sections/:section/progress` | 섹션 열림·해금 여부, 이해도, 재도전 대상, 미확인 개념(`unconfirmed_concept_ids`), 진행 중인 시도 |
+| `POST` | `/api/checkpoints/:id/pause` | 나중에 이어 풀기: `paused`로 멈춤(LLM 호출 없음). 이미 `paused`면 그대로 200 |
+| `POST` | `/api/checkpoints/:id/resume` | 멈춘 시도를 이어서: 풀던 개념을 안 쓴 질문으로 다시 물음(아래 '나중에 이어 풀기') |
+| `GET` | `/api/sections/:section/progress` | 섹션 열림·해금 여부, 이해도, 재도전 대상, 미확인 개념(`unconfirmed_concept_ids`), 진행 중인 시도(`in_progress_attempt_id`, `in_progress: { attempt_id, state, done, total }`) |
 
 요청
 
@@ -42,7 +44,7 @@
   "attempt_id": "uuid",
   "section": "ironmaking",
   "kind": "first",                 // first | retry
-  "state": "awaiting_answer",      // awaiting_ready | awaiting_answer | awaiting_recheck | completed | error
+  "state": "awaiting_answer",      // awaiting_ready | awaiting_answer | awaiting_recheck | paused | completed | error
   "concept": { "id": "coke_reduction", "name": "고로에서 코크스의 역할", "index": 2, "total": 3 },
   "tutor": [                       // 이번 요청으로 새로 생긴 튜터 발화
     { "type": "feedback", "text": "맞아요." },
@@ -64,7 +66,7 @@
     "retry_concept_ids": [] }
   ```
 
-- 에러: `400` 입력 오류, `403` 앞 섹션 미통과, `404` 없는 시도·남의 시도·루브릭 없는 섹션, `409` 겹친 요청·끝난 시도·이미 통과한 섹션·error 상태에서 응답, `502`/`503` LLM 연결 실패(상태는 바뀌지 않으므로 같은 메시지를 다시 보낸다, `code: "LLM_UNAVAILABLE"`).
+- 에러: `400` 입력 오류, `403` 앞 섹션 미통과, `404` 없는 시도·남의 시도·루브릭 없는 섹션, `409` 겹친 요청·끝난 시도·이미 통과한 섹션·error 상태에서 응답·paused 상태에서 응답(resume 먼저)·끝난 시도의 pause·paused가 아닌 시도의 resume, `502`/`503` LLM 연결 실패(상태는 바뀌지 않으므로 같은 메시지를 다시 보낸다, `code: "LLM_UNAVAILABLE"`).
 
 ## 3. 상태 머신
 
@@ -112,6 +114,33 @@
 - 이미 통과한 섹션은 다시 응시할 수 없다(409). 한 번 통과했으면 루브릭이 바뀌어도 통과로 유지한다.
 - 결과는 지금 final 루브릭의 개념만으로 합친다(`section-summary.ts`). 바뀌거나 빠진 `concept_id`의 결과는 버리고, 통과 뒤 새로 생긴 개념은 `unconfirmed_concept_ids`(미확인)로 돌려준다.
 
+### 나중에 이어 풀기(pause/resume)
+
+이해도 확인 중간에 빠져나갈 수 있게 한다. 팀 결정(2026-10-07)과 이유:
+
+```
+awaiting_ready · awaiting_answer · awaiting_recheck · error ── pause ──▶ paused ── resume ──▶ awaiting_answer 또는 awaiting_recheck
+                                                                (resume_state에 멈추기 전 단계)      (풀던 개념의 새 질문)
+```
+
+| 멈춘 상태 | 멈출 때 | 이어 풀 때 |
+|---|---|---|
+| `awaiting_ready` | 정리할 것 없음 | 첫 개념의 첫 질문 |
+| `awaiting_answer` | 현재 질문을 버린다(판정 없음) | **이 시도에서 이 개념에 안 쓴** `questions` 중 하나. 다 썼으면 `fallback_question`(다시 써도 됨, 없으면 고정 문장) |
+| `awaiting_recheck` | **첫 판정(`concept_results`)과 그 오개념은 그대로 둔다** | 안 쓴 `recheck_questions` 중 하나로 재확인. 다 썼으면 `fallback_question`(직전 질문과 같으면 고정 문장) |
+| `error` | 채점 못 한 답변(`pending_answer`)은 버린다(대화 기록에는 남음). `resume_state`로 위 두 경우 중 하나 | 위와 같음 |
+
+- 확정한 개념(`current_index` 앞)의 결과는 건드리지 않는다. `done` = `current_index`.
+- **재확인 대기 중에 멈춰도 재확인을 건너뛸 수 없다.** 틀린 뒤에는 튜터가 핵심 요소를 설명하므로, 멈췄다 와서 새 첫 질문을 받게 하면 설명대로 답해 1점을 받는 우회가 생긴다. 그래서 첫 판정을 유지하고 재확인 판정이 최종 점수라는 규칙을 그대로 적용한다(테스트로 확인).
+- 이미 쓴 질문은 `attempt_questions`에 은행 원문(`bank_question`)으로 남긴다. `current_question`·`concept_results.question`에는 말투를 다듬은 문장이 들어 있어 원문을 알 수 없기 때문이다. 제외 범위는 같은 시도 안이고, 재도전 시도는 새로 고른다. 대체 질문(`fallback_question`)은 이미 유출 검사를 통과한 문장이라 다듬지 않는다.
+- `paused`에서 `messages`·`retry-evaluation`은 409. `POST /api/checkpoints`(시작)는 같은 `paused` 시도를 돌려준다(새로 만들지 않음).
+- 멈춘 시도는 끝난 시도가 아니므로 이해도·통과·시도 수에 넣지 않는다(실패로 세지 않음). 관리자 통계는 `in_progress_sections`로 '진행 중'만 표시한다.
+- 화면(튜터 패널, `checkpoint-chat.js`)
+  - 이해도 확인 탭에 [나중에 이어 풀기] 버튼과 확인창, 멈춘 뒤에는 "이어 풀기 (1/3 완료)".
+  - 학습 채팅 잠금은 답하는 중(`awaiting_*`, `error`)에만 건다. `paused`면 학습 채팅을 쓸 수 있다(멈춘 동안 학습 튜터에게 묻고 돌아오는 것은 허용: 같은 개념을 다른 질문으로 다시 묻는다).
+  - 로그인·새로고침 때 이해도 확인 탭으로 자동으로 옮기지 않는다. 학습 탭에서 시작하고 "풀던 이해도 확인이 있어요 [이어 풀기]" 안내만 띄운다. 새로고침은 데이터를 바꾸지 않는다(자동 일시정지 아님).
+  - 답하는 중에 학습 채팅에 입력하려 하면 "풀던 이해도 확인이 있어요. 잠깐 멈추고 질문할까요? [멈추고 질문하기]"를 띄우고, 누르면 pause를 부른 뒤 학습 채팅을 연다.
+
 ## 4. DB (SQLite, `node:sqlite`)
 
 - 파일: `DB_PATH`(기본 `data/st-rookie.sqlite`, Git 제외). 테스트는 `:memory:`.
@@ -120,10 +149,11 @@
 
 | 테이블 | 내용 |
 |---|---|
-| `attempts` | 시도. 상태, 물을 개념 목록(JSON), 현재 개념 인덱스, 현재 질문, error 시 보관한 답변과 돌아갈 상태, 완료 시 이해도·해금 여부 |
+| `attempts` | 시도. 상태, 물을 개념 목록(JSON), 현재 개념 인덱스, 현재 질문, error 시 보관한 답변과 돌아갈 상태(paused면 멈추기 전 상태), 완료 시 이해도·해금 여부 |
 | `concept_results` | 시도×개념. 질문, 답변, 첫 판정, evidence, explain_from, 재확인 질문·답변·판정·evidence |
 | `misconceptions` | 사용자 답변 원문, concept_id, 요약, 단계(initial/recheck), 출처(checkpoint/learning), 해결 여부·시각 |
 | `attempt_messages` | 대화 기록(새로고침 복원, 디버깅) |
+| `attempt_questions` | 시도에서 낸 질문(개념, 단계, 은행 원문, 실제 문장). 이어 풀 때 안 쓴 질문을 고른다(`007_checkpoint_pause.sql`) |
 
 - 섹션의 현재 결과 = 완료된 시도의 결과를 시간 순서로 `applyRetry`에 넣어 합친 것.
 - 오개념은 첫 판정과 재확인 모두에서 기록한다. 같은 개념을 맞히면(같은 시도의 재확인 포함) 그 개념의 미해결 오개념을 해결됨으로 바꾼다.

@@ -58,6 +58,15 @@ export function createCheckpointRouter(engine: CheckpointEngine): Router {
     res.json(await engine.retryEvaluation(userIdOf(req), String(req.params.id)));
   }));
 
+  // 나중에 이어 풀기: 멈추기(LLM 호출 없음)와 이어 풀기(풀던 개념의 새 질문).
+  router.post("/api/checkpoints/:id/pause", handle(async (req, res) => {
+    res.json(await engine.pause(userIdOf(req), String(req.params.id)));
+  }));
+
+  router.post("/api/checkpoints/:id/resume", handle(async (req, res) => {
+    res.json(await engine.resume(userIdOf(req), String(req.params.id)));
+  }));
+
   router.get("/api/sections/:section/progress", handle((req, res) => {
     const section = parse(SectionParam, req.params.section, "section이 올바르지 않습니다.");
     res.json(engine.sectionProgress(userIdOf(req), section));

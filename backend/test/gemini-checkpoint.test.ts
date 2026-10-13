@@ -126,7 +126,7 @@ test("튜터(은행이 빈 개념): 재확인 질문에 이전 질문을 넘기�
   const tutor = new GeminiTutor(client);
   const noBank = { ...concept, questions: undefined, recheck_questions: undefined };
 
-  assert.equal(await tutor.recheckQuestion({ rubric, concept: noBank, previousQuestion: "이전 질문" }), "다른 각도의 질문?");
+  assert.deepEqual(await tutor.recheckQuestion({ rubric, concept: noBank, previousQuestion: "이전 질문" }), { text: "다른 각도의 질문?", bank: null });
   assert.match(sent[0]!.contents[0]!.parts[0]!.text, /이전 질문: 이전 질문/);
   assert.equal(sent[0]!.generationConfig.responseMimeType, "text/plain");
 

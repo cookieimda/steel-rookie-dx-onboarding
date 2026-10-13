@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ST-ROOKIE 로그인</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700;800&display=swap" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet" />
+  <link href="./login-sleek.css" rel="stylesheet" />
+</head>
+<body>
+  <!-- 3D 공정 학습(Steel Academy v3) 들어가기 전 로그인 화면.
+       서버(npm start) 실행 후 http://localhost:3000/login_ui/login-sleek.html 로 연다.
+       API·토큰 규칙은 My Page.dc.html과 같다(docs/auth-api.md). 디자인만 다르다. -->
+  <form class="login" id="loginForm" novalidate>
+    <h1 class="title">LOGIN</h1>
+    <p class="subtitle">3D 공정 학습을 <strong>시작</strong>하세요.</p>
+
+    <label class="sr-only" for="userId">아이디</label>
+    <input id="userId" name="userId" type="text" placeholder="아이디" autocomplete="username" required />
+
+    <label class="sr-only" for="password">비밀번호</label>
+    <input id="password" name="password" type="password" placeholder="비밀번호" autocomplete="current-password" required />
+
+    <p class="error" id="error" role="alert"></p>
+
+    <button type="submit" id="submitBtn">LOGIN</button>
+  </form>
+
+  <script type="module">
+    // 백엔드 계약(바꾸지 않음): POST /api/auth/login { username, password, remember } → { token, user }
+    // 토큰 키와 저장 위치는 3D 화면(api-client.js)이 읽는 규칙과 같아야 로그인 상태가 이어진다.
+    const TOKEN_KEY = 'st-rookie-token';
+    const NEXT_URL = '/3d-demo/Steel%20Academy%20v4.dc.html';
+
+    const tokenStore = {
+      get() { try { return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY); } catch { return null; } },
+      set(token) { try { localStorage.removeItem(TOKEN_KEY); sessionStorage.setItem(TOKEN_KEY, token); } catch {} },
+      clear() { try { localStorage.removeItem(TOKEN_KEY); sessionStorage.removeItem(TOKEN_KEY); } catch {} },
+    };
+
+    async function api(path, body, token) {
+      const headers = { 'content-type': 'application/json' };
+      if (token) headers.authorization = 'Bearer ' + token;
+      let res;
+      try {
+        res = await fetch(path, { method: body ? 'POST' : 'GET', headers, body: body ? JSON.stringify(body) : undefined });
+      } catch {
+        throw new Error('서버에 연결하지 못했어요. npm start 후 다시 열어 주세요.');
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || '로그인하지 못했어요. 다시 시도해 주세요.');
+      return data;
+    }
+
+    // 이미 로그인된 탭이면 바로 3D 화면으로 보낸다.
+    const saved = tokenStore.get();
+    if (saved) api('/api/auth/me', null, saved).then(() => location.replace(NEXT_URL), () => tokenStore.clear());
+
+    const form = document.getElementById('loginForm');
+    const errorEl = document.getElementById('error');
+    const btn = document.getElementById('submitBtn');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (btn.disabled) return;
+      const username = form.userId.value.trim();
+      const password = form.password.value;
+      if (!username || !password) { errorEl.textContent = '아이디와 비밀번호를 입력해 주세요.'; return; }
+
+      errorEl.textContent = '';
+      btn.disabled = true;
+      try {
+        const { token } = await api('/api/auth/login', { username, password, remember: false });
+        tokenStore.set(token);
+        location.href = NEXT_URL;
+      } catch (err) {
+        errorEl.textContent = err.message;
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

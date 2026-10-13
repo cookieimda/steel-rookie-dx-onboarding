@@ -3,7 +3,8 @@ import type { RecheckVerdict, Verdict } from "../scoring.js";
 
 export type Section = Rubric["section"];
 export type Phase = "initial" | "recheck";
-export type CheckpointState = "awaiting_ready" | "awaiting_answer" | "awaiting_recheck" | "completed" | "error";
+/** paused: 학습자가 '나중에 이어 풀기'로 멈춘 시도. resume_state에 멈추기 전 단계(awaiting_ready·awaiting_answer·awaiting_recheck)를 둔다. */
+export type CheckpointState = "awaiting_ready" | "awaiting_answer" | "awaiting_recheck" | "paused" | "completed" | "error";
 export type AttemptKind = "first" | "retry";
 
 /** 섹션 목록과 순서의 단일 기준. 다른 파일은 이것을 import한다(루브릭 스키마의 section enum과 같은지 테스트로 확인). */
@@ -59,9 +60,18 @@ export interface Evaluator {
   evaluate(input: EvaluateInput): Promise<Evaluation>;
 }
 
-/** 튜터 발화. 질문, 부가 설명, 다른 각도의 재확인 질문을 만든다. */
+/** 튜터가 낸 질문. bank는 고른 은행 원문(questions·recheck_questions·fallback_question)이고, LLM이 만든 질문이면 null이다. */
+export interface AskedQuestion {
+  text: string;
+  bank: string | null;
+}
+
+/**
+ * 튜터 발화. 질문, 부가 설명, 다른 각도의 재확인 질문을 만든다.
+ * exclude는 이 시도에서 이 개념에 이미 쓴 은행 원문이다(이어 풀기). 남은 은행 질문이 없으면 fallback_question을 다시 쓴다.
+ */
 export interface Tutor {
-  question(input: { rubric: Rubric; concept: RubricConcept }): Promise<string>;
+  question(input: { rubric: Rubric; concept: RubricConcept; exclude?: readonly string[] }): Promise<AskedQuestion>;
   explanation(input: {
     rubric: Rubric;
     concept: RubricConcept;
@@ -72,7 +82,7 @@ export interface Tutor {
     /** 학습자 메모(학습 모드·이전 체크포인트의 미해결 오개념 요약). 관련 있을 때만 짚는다. 평가자에게는 주지 않는다. */
     learnerNotes?: string | null;
   }): Promise<string>;
-  recheckQuestion(input: { rubric: Rubric; concept: RubricConcept; previousQuestion: string }): Promise<string>;
+  recheckQuestion(input: { rubric: Rubric; concept: RubricConcept; previousQuestion: string; exclude?: readonly string[] }): Promise<AskedQuestion>;
 }
 
 // --- 에러 ---
@@ -148,4 +158,6 @@ export interface SectionProgressView {
   /** 통과한 섹션에서 아직 확인하지 않은 개념(통과 뒤 루브릭에 새로 생긴 개념). 다시 묻지 않고 미확인으로 보여 준다. */
   unconfirmed_concept_ids: string[];
   in_progress_attempt_id: string | null;
+  /** 끝나지 않은 시도의 상태와 확정한 개념 수(done/total). paused면 화면에 '이어 풀기 (1/3 완료)'로 보인다. */
+  in_progress: { attempt_id: string; state: CheckpointState; done: number; total: number } | null;
 }

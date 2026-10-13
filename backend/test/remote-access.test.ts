@@ -48,6 +48,7 @@ test("TEST_PASSCODE가 있으면 모든 /api에 비밀번호를 확인하고, /a
 
   assert.deepEqual(await (await call("GET", "/api/access")).json(), { passcode_required: true, daily_limit: 150 });
   assert.equal((await call("GET", "/")).status, 200);
+  assert.equal((await call("GET", "/?p=ironmaking")).status, 200);
   assert.equal((await call("POST", "/api/checkpoints", {}, { section: "ironmaking" })).status, 401);
   const wrong = await call("POST", "/api/checkpoints", { "X-Test-Passcode": "nope" }, { section: "ironmaking" });
   assert.equal(wrong.status, 401);
@@ -125,4 +126,17 @@ test("deleteUserData: 한 사용자의 시도·답변·대화·오개념·사용
   assert.ok(deleted.attempt_messages >= 4);
   assert.deepEqual(countUserData(db, "minsu"), { attempts: 0, misconceptions: 0, learning_turns: 0 });
   assert.deepEqual(countUserData(db, "jiwoo"), { attempts: 1, misconceptions: 1, learning_turns: 0 });
+});
+
+test("첫 화면(/)은 홈으로 보내고, 쿼리가 있는 주소는 3D 화면(v4)을 준다", async (t) => {
+  const { base } = await serve(t);
+  const home = await fetch(base + "/", { redirect: "manual" });
+  assert.equal(home.status, 302);
+  assert.equal(home.headers.get("location"), "/login_ui/home-sleek.html");
+  assert.match(await (await fetch(base + "/")).text(), /STEEL, IN 3D\./);
+  const scene = await fetch(base + "/?p=ironmaking&tutor=1", { redirect: "manual" });
+  assert.equal(scene.status, 200);
+  assert.match(await scene.text(), /sleek-overview\.js/);
+  const login = await fetch(base + "/login", { redirect: "manual" });
+  assert.equal(login.headers.get("location"), "/login_ui/My%20Page.dc.html");
 });

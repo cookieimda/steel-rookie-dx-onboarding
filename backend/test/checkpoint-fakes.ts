@@ -83,15 +83,28 @@ export class FakeTutor implements Tutor {
     return text;
   }
 
-  question({ concept }: Parameters<Tutor["question"]>[0]) {
-    return this.step("question", concept.concept_id, `Q:${concept.concept_id}`);
+  /**
+   * 은행(questions)이 있으면 exclude를 뺀 첫 질문, 다 썼으면 fallback_question을 낸다(실제 튜터와 같은 순서, 무작위 없이).
+   * 은행이 없으면 Q:<개념 id>.
+   */
+  async question({ concept, exclude = [] }: Parameters<Tutor["question"]>[0]) {
+    const bank = pickBank(concept.questions, exclude, concept.fallback_question);
+    const text = await this.step("question", concept.concept_id, bank ?? `Q:${concept.concept_id}`, { exclude });
+    return { text, bank };
   }
 
   explanation({ concept, explainFrom, misconception, learnerNotes }: Parameters<Tutor["explanation"]>[0]) {
     return this.step("explanation", concept.concept_id, `EX:${concept.concept_id}:${explainFrom}`, { explainFrom, misconception, learnerNotes });
   }
 
-  recheckQuestion({ concept, previousQuestion }: Parameters<Tutor["recheckQuestion"]>[0]) {
-    return this.step("recheck", concept.concept_id, `RQ:${concept.concept_id}`, { previousQuestion });
+  async recheckQuestion({ concept, previousQuestion, exclude = [] }: Parameters<Tutor["recheckQuestion"]>[0]) {
+    const bank = pickBank(concept.recheck_questions, [...exclude, previousQuestion], concept.fallback_question);
+    const text = await this.step("recheck", concept.concept_id, bank ?? `RQ:${concept.concept_id}`, { previousQuestion, exclude });
+    return { text, bank };
   }
+}
+
+function pickBank(bank: string[] | undefined, exclude: readonly string[], fallback: string | undefined): string | null {
+  if (!bank?.length) return null;
+  return bank.find((q) => !exclude.includes(q)) ?? fallback ?? null;
 }

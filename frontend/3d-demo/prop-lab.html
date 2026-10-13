@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>소품 확인</title>
+<!-- 개발용: plant-props.js로 만든 소품을 단독으로 확인한다. 메인 페이지에서 링크하지 않는다. -->
+<style>
+  html, body { margin: 0; height: 100%; background: #dfe3e6; font: 13px/1.4 system-ui, sans-serif; }
+  canvas { display: block; }
+  #bar { position: fixed; top: 12px; left: 12px; display: flex; gap: 6px; flex-wrap: wrap; }
+  #bar button { border: 0; border-radius: 999px; padding: 7px 14px; background: #fff; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+  #bar button.on { background: #1d2126; color: #fff; }
+  #info { position: fixed; bottom: 12px; left: 12px; background: rgba(255,255,255,.85); padding: 6px 10px; border-radius: 8px; }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+<div id="info"></div>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/+esm';
+import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js/+esm';
+import { FBXLoader } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/FBXLoader.js/+esm';
+import { makeReclaimer, makeSlabStack, makeSlabYard, makeCoolingTower, makeQuenchTower, makeCoolingPlant, makePipeRack, makePipeRackCorner, makeCoilYard } from './plant-props.js';
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#dfe3e6');
+scene.fog = new THREE.Fog('#dfe3e6', 250, 600);
+const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.5, 2000);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+scene.add(new THREE.HemisphereLight('#eef3f8', '#8a8478', 1.1));
+const sun = new THREE.DirectionalLight('#fff4e6', 2.4);
+sun.position.set(60, 90, 40); sun.castShadow = true;
+sun.shadow.mapSize.set(4096, 4096);
+Object.assign(sun.shadow.camera, { left: -70, right: 70, top: 70, bottom: -70, near: 1, far: 300 });
+sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.05;
+scene.add(sun);
+
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), new THREE.MeshStandardMaterial({ color: '#b9b6ae', roughness: 1 }));
+ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+const grid = new THREE.GridHelper(600, 60, '#8f8b82', '#a7a39a'); grid.position.y = 0.02; scene.add(grid);
+
+// 축척 기준: 키 1.8m 사람
+const person = new THREE.Mesh(new THREE.CapsuleGeometry(0.25, 1.3, 4, 8), new THREE.MeshStandardMaterial({ color: '#e0572b' }));
+person.position.y = 0.9; person.castShadow = true; scene.add(person);
+
+let current = null, wheel = null;
+const fbx = new FBXLoader();
+function fit(obj, size) { // Tripo 모델은 크기가 제각각이라 가장 긴 변을 size(m)에 맞춘다
+  const b = new THREE.Box3().setFromObject(obj), s = b.getSize(new THREE.Vector3());
+  obj.scale.multiplyScalar(size / Math.max(s.x, s.y, s.z));
+  const b2 = new THREE.Box3().setFromObject(obj), c = b2.getCenter(new THREE.Vector3());
+  obj.position.x -= c.x; obj.position.z -= c.z; obj.position.y -= b2.min.y;
+  obj.traverse(o => { if (o.isMesh) o.castShadow = o.receiveShadow = true; });
+  return obj;
+}
+const VIEWS = {
+  reclaimer: { label: '리클레이머(코드)', make: () => makeReclaimer(), cam: [55, 32, 60], tgt: [12, 8, 0] },
+  slabs: { label: '슬래브 더미(코드)', make: () => makeSlabStack({ layers: 11 }), cam: [9, 6, 10], tgt: [0, 1.4, 0] },
+  yard: { label: '슬래브 야드(코드)', make: () => makeSlabYard(), cam: [32, 20, 30], tgt: [0, 1, 0] },
+  cooling: { label: '냉각탑(코드)', make: () => makeCoolingTower(), cam: [40, 25, 45], tgt: [0, 6, 0] },
+  quench: { label: '소화탑(코드)', make: () => makeQuenchTower(), cam: [45, 30, 50], tgt: [-4, 18, 0] },
+  plant: { label: '냉각 플랜트(코드)', make: () => makeCoolingPlant(), cam: [45, 30, 50], tgt: [2, 4, 0] },
+  piperack: { label: '배관 랙(코드)', make: () => { const g = new THREE.Group(), L = 36, W = 6; const a = makePipeRack({ L }); a.position.x = -L / 2; const c = makePipeRackCorner({ W }); const b = makePipeRack({ L }); b.rotation.y = -Math.PI / 2; b.position.set(W / 2 + 1, 0, W / 2 + 1 + W + L / 2); g.add(a, c, b); return g; }, cam: [30, 18, -26], tgt: [0, 4, 8] },
+  coils: { label: '코일 야드(코드)', make: () => makeCoilYard(), cam: [14, 7, 14], tgt: [0, 1, 0] },
+  tripo_reclaimer: { label: '리클레이머(Tripo)', make: () => fbx.loadAsync('./models/_tripo/reclaimer.fbx').then(o => fit(o, 70)), cam: [55, 32, 60], tgt: [0, 8, 0] },
+  tripo_cooling: { label: '냉각탑(Tripo)', make: () => fbx.loadAsync('./models/_tripo/tripo_convert_d3b0664a-e9e2-431a-8060-2e2daee3130a.fbx').then(o => fit(o, 45)), cam: [40, 25, 45], tgt: [0, 6, 0] },
+  tripo_quench: { label: '소화탑(Tripo)', make: () => fbx.loadAsync('./models/_tripo/tripo_convert_f7e83a45-66aa-4661-9725-d2d4e07c47f4.fbx').then(o => fit(o, 50)), cam: [45, 30, 50], tgt: [0, 18, 0] },
+  tripo_plant: { label: '냉각 플랜트(Tripo)', make: () => fbx.loadAsync('./models/_tripo/tripo_convert_4aab88b9-55e7-41f3-88cb-70658f10e789.fbx').then(o => fit(o, 50)), cam: [45, 30, 50], tgt: [0, 8, 0] },
+  tripo_piperack: { label: '배관 랙(Tripo)', make: () => fbx.loadAsync('./models/_tripo/tripo_convert_ab074522-54d7-49ff-8317-0426eae590cd.fbx').then(o => fit(o, 30)), cam: [25, 15, 28], tgt: [0, 4, 0] },
+  tripo_slab: { label: '슬래브(Tripo)', make: () => fbx.loadAsync('./models/_tripo/slab.fbx').then(o => fit(o, 10)), cam: [9, 6, 10], tgt: [0, 1.4, 0] },
+};
+const bar = document.getElementById('bar');
+async function show(key) {
+  const v = VIEWS[key];
+  if (current) scene.remove(current);
+  current = await v.make(); scene.add(current);
+  wheel = current.userData?.wheel || null;
+  camera.position.set(...v.cam); controls.target.set(...v.tgt); controls.update();
+  person.position.x = key.includes('slab') || key === 'yard' ? 6.5 : 0; person.position.z = key.includes('reclaimer') ? 9 : key.includes('cooling') ? 12 : key.includes('quench') ? -9 : key.includes('plant') ? 9 : key === 'piperack' ? -5 : key === 'coils' ? 8 : 2.5;
+  let tris = 0, draws = 0;
+  current.traverse(o => { if (o.isMesh) { draws++; tris += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3 * (o.isInstancedMesh ? o.count : 1); } });
+  document.getElementById('info').textContent = `${v.label} · 메시 ${draws}개 · 삼각형 ${Math.round(tris).toLocaleString()}개 · 주황 기둥 = 사람 1.8m`;
+  [...bar.children].forEach(b => b.classList.toggle('on', b.dataset.k === key));
+  history.replaceState(null, '', '?v=' + key);
+}
+for (const [k, v] of Object.entries(VIEWS)) {
+  const b = document.createElement('button'); b.textContent = v.label; b.dataset.k = k; b.onclick = () => show(k); bar.appendChild(b);
+}
+window.__show = show; window.__cam = (p, t) => { camera.position.set(...p); controls.target.set(...t); controls.update(); };
+show(new URLSearchParams(location.search).get('v') || 'reclaimer');
+
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+renderer.setAnimationLoop((t) => { if (wheel) wheel.rotation.z = -t * 0.0006; controls.update(); renderer.render(scene, camera); });
+</script>
+</body>
+</html>

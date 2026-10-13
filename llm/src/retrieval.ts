@@ -191,4 +191,13 @@ export class Retriever {
       .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))
       .slice(0, MAX_RESULTS);
   }
+
+  /**
+   * 저장된 조각 id → 근거 자료 id(출처 표시용, 겹치면 한 번). 저장된 대화를 다시 보여 줄 때 쓴다.
+   * 지금 조각 목록에 없는 id(자료가 바뀐 경우)는 공개 자료 메모 형식(`자료id#번호`)이면 앞부분을 쓰고, 아니면 버린다.
+   */
+  sourceIdsOf(section: Section, chunkIds: string[]): string[] {
+    const byId = new Map(this.chunks(section).map((c) => [c.id, c]));
+    return [...new Set(chunkIds.flatMap((id) => byId.get(id)?.source_ids ?? (id.includes("#") ? [id.slice(0, id.indexOf("#"))] : [])))];
+  }
 }

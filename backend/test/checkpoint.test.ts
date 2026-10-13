@@ -7,6 +7,7 @@ import { CheckpointRepository } from "../src/checkpoint/repository.js";
 import { createCheckpointRouter } from "../src/checkpoint/routes.js";
 import { CheckpointError, LlmUnavailableError, type CheckpointView } from "../src/checkpoint/types.js";
 import { openDatabase } from "../src/db/database.js";
+import type { Rubric } from "../src/rubrics.js";
 import { FakeEvaluator, FakeTutor, IRONMAKING, STEELMAKING } from "./checkpoint-fakes.js";
 
 const USER = "u1";
@@ -79,7 +80,7 @@ test("partial → 부가 설명과 다른 각도 재확인 → 재확인 판정�
   const partial = await engine.respond(USER, view.attempt_id, "partial@1");
   assert.equal(partial.state, "awaiting_recheck");
   assert.deepEqual(texts(partial), ["explanation:EX:a:1", "recheck_question:RQ:a"]);
-  assert.deepEqual(tutor.calls.find((c) => c.kind === "recheck")?.extra, { previousQuestion: "Q:a" });
+  assert.deepEqual(tutor.calls.find((c) => c.kind === "recheck")?.extra, { previousQuestion: "Q:a", exclude: [] });
 
   const rechecked = await engine.respond(USER, view.attempt_id, "correct");
   assert.deepEqual(texts(rechecked), ["feedback:맞아요, 이번에는 정확해요.", "question:Q:b"]);
@@ -94,6 +95,37 @@ test("partial → 부가 설명과 다른 각도 재확인 → 재확인 판정�
   assert.deepEqual(done.result?.concepts.map((c) => c.score), [1, 0.5, 1]);
   assert.equal(done.result?.unlocked, true); // 2.5 / 3 ≥ 80%
   assert.deepEqual(evaluator.calls.map((c) => c.phase), ["initial", "recheck", "initial", "recheck", "initial"]);
+});
+
+test("발화 type 약속: feedback은 맞혔을 때만, explanation은 첫 판정이 correct가 아닐 때만, key_points는 재확인에서 못 맞혔을 때만 나온다", async () => {
+  // 화면의 캐릭터 동작(frontend/3d-demo/checkpoint-chat.js의 motionFor)이 판정 없이 이 약속으로 칭찬·설명을 고른다.
+  const runs = [
+    ["correct", "partial", "correct", "wrong", "partial"], // a 맞음, b 부분→재확인 맞음, c 틀림→재확인 부분(마지막)
+    ["assisted", "wrong", "wrong", "wrong", "correct"],    // a 도움→재확인 틀림, b 틀림→재확인 틀림, c 맞음(마지막)
+    ["correct", "correct", "wrong", "correct"],            // c 틀림→재확인 맞음(마지막)
+  ];
+  const seen = new Set<string>();
+  for (const answers of runs) {
+    const { engine, evaluator } = setup();
+    const { view } = await engine.start(USER, "ironmaking");
+    await engine.respond(USER, view.attempt_id, "네");
+    for (const answer of answers) {
+      const out = await engine.respond(USER, view.attempt_id, answer);
+      const phase = evaluator.calls.at(-1)!.phase;
+      const correct = answer === "correct";
+      const types = out.tutor.map((u) => u.type);
+      const label = `${phase}:${answer} → ${types.join(",")}`;
+      seen.add(`${phase}:${answer}`);
+      assert.equal(types.includes("feedback"), correct, label);
+      assert.equal(types.includes("explanation"), phase === "initial" && !correct, label);
+      assert.equal(types.includes("key_points"), phase === "recheck" && !correct, label);
+      if (correct || phase === "recheck") assert.ok(["question", "result"].includes(types.at(-1)!), label);
+      else assert.equal(types.at(-1), "recheck_question", label);
+    }
+  }
+  assert.deepEqual([...seen].sort(), [
+    "initial:assisted", "initial:correct", "initial:partial", "initial:wrong", "recheck:correct", "recheck:partial", "recheck:wrong",
+  ]);
 });
 
 test("핵심 요소를 모두 맞혔지만 사실 오류로 partial이면 explain_from null로 오개념만 교정한 뒤 재확인한다", async () => {
@@ -348,4 +380,145 @@ test("학습자 메모: 부가 설명 때만 읽어 튜터에게 넘기고, 평�
   await engine.respond("other", view.attempt_id, "wrong", { notes: {} });
   assert.deepEqual(asked, [`${USER}:ironmaking`]);
   assert.equal((tutor.calls.filter((c) => c.kind === "explanation").at(-1)!.extra as { learnerNotes: unknown }).learnerNotes, null);
+});
+
+// --- 나중에 이어 풀기(pause/resume) ---
+
+/** 개념마다 질문 은행(첫 질문 2개, 재확인 2개)과 fallback_question을 둔 제선 루브릭. FakeTutor는 안 쓴 첫 후보를 고른다. */
+const BANKED: Rubric = {
+  ...IRONMAKING,
+  concepts: IRONMAKING.concepts.map((c) => ({
+    ...c,
+    questions: [`${c.concept_id}-Q1`, `${c.concept_id}-Q2`],
+    recheck_questions: [`${c.concept_id}-R1`, `${c.concept_id}-R2`],
+    fallback_question: `${c.concept_id}-FB`,
+  })),
+};
+
+function bankedSetup() {
+  const repo = new CheckpointRepository(openDatabase(":memory:"));
+  const evaluator = new FakeEvaluator();
+  const tutor = new FakeTutor();
+  let tick = 0;
+  const engine = new CheckpointEngine({
+    repo, evaluator, tutor, rubrics: [BANKED, STEELMAKING],
+    now: () => new Date(Date.UTC(2026, 0, 1, 0, 0, tick++)).toISOString(),
+  });
+  return { repo, evaluator, tutor, engine };
+}
+
+const isConflict = (e: unknown) => e instanceof CheckpointError && e.status === 409;
+
+test("이어 풀기: 답 대기 중 멈추면 맞힌 개념은 그대로, 풀던 개념은 안 쓴 질문으로 다시 묻고, 은행을 다 쓰면 fallback_question을 다시 쓴다", async () => {
+  const { engine, repo, tutor } = bankedSetup();
+  const { view } = await engine.start(USER, "ironmaking");
+  const id = view.attempt_id;
+  assert.deepEqual(texts(await engine.respond(USER, id, "네")), ["question:a-Q1"]);
+  assert.deepEqual(texts(await engine.respond(USER, id, "correct")), ["feedback:맞아요.", "question:b-Q1"]);
+
+  const paused = await engine.pause(USER, id);
+  assert.equal(paused.state, "paused");
+  assert.deepEqual(paused.concept, { id: "b", name: "개념B", index: 2, total: 3 });
+  assert.deepEqual(paused.progress.map((p) => p.status), ["done", "current", "pending"]);
+  assert.deepEqual(engine.sectionProgress(USER, "ironmaking").in_progress, { attempt_id: id, state: "paused", done: 1, total: 3 });
+  await assert.rejects(engine.respond(USER, id, "correct"), isConflict);
+  assert.equal((await engine.pause(USER, id)).state, "paused"); // 두 번 멈춰도 그대로
+
+  const resumed = await engine.resume(USER, id);
+  assert.equal(resumed.state, "awaiting_answer");
+  assert.deepEqual(texts(resumed), ["intro:이어서 할게요. 개념 3개 중 1개를 마쳤어요.", "question:b-Q2"]);
+  assert.deepEqual(repo.listResults(id).map((r) => [r.concept_id, r.verdict]), [["a", "correct"]]); // 맞힌 개념은 그대로
+
+  await engine.pause(USER, id);
+  assert.equal(texts(await engine.resume(USER, id)).at(-1), "question:b-FB"); // 은행을 다 씀
+  await engine.pause(USER, id);
+  assert.equal(texts(await engine.resume(USER, id)).at(-1), "question:b-FB"); // fallback_question은 다시 쓴다
+  const excludes = tutor.calls.filter((c) => c.kind === "question" && c.conceptId === "b").map((c) => [...(c.extra as { exclude: string[] }).exclude].sort());
+  assert.deepEqual(excludes, [[], ["b-Q1"], ["b-Q1", "b-Q2"], ["b-FB", "b-Q1", "b-Q2"]]);
+
+  await engine.respond(USER, id, "correct");
+  const done = await engine.respond(USER, id, "correct");
+  assert.equal(done.state, "completed");
+  assert.equal(done.result?.understanding, 1);
+  await assert.rejects(engine.pause(USER, id), isConflict);
+  await assert.rejects(engine.resume(USER, id), isConflict);
+});
+
+test("이어 풀기: 재확인 대기 중 pause → resume해도 첫 판정은 유지되고 안 쓴 재확인 질문으로 묻는다(멈춰서 재확인을 건너뛸 수 없다)", async () => {
+  const { engine, repo, evaluator } = bankedSetup();
+  const { view } = await engine.start(USER, "ironmaking");
+  const id = view.attempt_id;
+  await engine.respond(USER, id, "네");
+  const wrong = await engine.respond(USER, id, "wrong|소결을 녹이는 것으로 앎");
+  assert.equal(wrong.state, "awaiting_recheck");
+  assert.equal(wrong.tutor.at(-1)!.text, "a-R1");
+
+  await engine.pause(USER, id);
+  assert.equal(repo.getResult(id, "a")!.verdict, "wrong"); // 첫 판정 유지
+  const resumed = await engine.resume(USER, id);
+  assert.equal(resumed.state, "awaiting_recheck"); // 첫 질문(awaiting_answer)으로 돌아가지 않는다
+  assert.deepEqual(texts(resumed), ["intro:이어서 할게요. 개념 3개 중 0개를 마쳤어요.", "recheck_question:a-R2"]);
+
+  await engine.respond(USER, id, "partial");
+  assert.deepEqual([evaluator.calls.at(-1)!.phase, evaluator.calls.at(-1)!.question], ["recheck", "a-R2"]);
+  const result = repo.getResult(id, "a")!;
+  assert.deepEqual([result.verdict, result.recheck_question, result.recheck_verdict], ["wrong", "a-R2", "partial"]);
+
+  await engine.respond(USER, id, "correct");
+  const done = await engine.respond(USER, id, "correct");
+  // 재확인 판정(partial)이 최종 점수: 멈췄다 와서 첫 질문을 새로 받아 1점을 받는 길은 없다.
+  assert.deepEqual(done.result!.concepts.map((c) => [c.concept_id, c.score]), [["a", 0.5], ["b", 1], ["c", 1]]);
+  assert.equal(repo.listMisconceptions(USER).filter((m) => !m.resolved).length, 1); // 첫 판정의 오개념은 미해결로 남는다
+});
+
+test("이어 풀기: 시작 전·채점 오류 상태에서도 멈출 수 있고, 시작하면 같은 멈춘 시도를 돌려주며 멈춘 동안 재채점은 막는다", async () => {
+  const { engine, repo, evaluator } = bankedSetup();
+  const { view } = await engine.start(USER, "ironmaking");
+  const id = view.attempt_id;
+  await engine.pause(USER, id); // 준비 전
+  assert.deepEqual(texts(await engine.resume(USER, id)), ["intro:이어서 할게요. 개념 3개 중 0개를 마쳤어요.", "question:a-Q1"]);
+
+  evaluator.failNext = 1;
+  assert.equal((await engine.respond(USER, id, "correct")).state, "error");
+  const paused = await engine.pause(USER, id);
+  assert.equal(paused.state, "paused");
+  const row = repo.getAttempt(id)!;
+  assert.deepEqual([row.resume_state, row.pending_answer, row.current_question], ["awaiting_answer", null, null]); // 채점 못 한 답변은 버린다
+  await assert.rejects(engine.retryEvaluation(USER, id), isConflict);
+
+  const again = await engine.start(USER, "ironmaking");
+  assert.equal(again.created, false);
+  assert.equal(again.view.state, "paused");
+  assert.equal(again.view.attempt_id, id);
+  assert.match(again.view.history!.at(-1)!.text, /여기서 멈출게요/);
+
+  assert.equal(texts(await engine.resume(USER, id)).at(-1), "question:a-Q2");
+  assert.throws(() => engine.get("other", id), (e: unknown) => e instanceof CheckpointError && e.status === 404);
+  await assert.rejects(engine.pause("other", id), (e) => e instanceof CheckpointError && e.status === 404);
+});
+
+test("HTTP: pause·resume 200, 멈춘 시도에 답하면 409, 남의 시도는 404", async (t) => {
+  const { engine } = bankedSetup();
+  const app = express();
+  app.use(express.json());
+  app.use(createCheckpointRouter(engine));
+  const server = app.listen(0);
+  t.after(() => server.close());
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const headers = { "Content-Type": "application/json", "X-User-Id": "http-user" };
+  const post = (path: string, body: unknown = {}, h: Record<string, string> = headers) => fetch(base + path, { method: "POST", headers: h, body: JSON.stringify(body) });
+
+  const view = (await (await post("/api/checkpoints", { section: "ironmaking" })).json()) as CheckpointView;
+  await post(`/api/checkpoints/${view.attempt_id}/messages`, { text: "네" });
+  const paused = await post(`/api/checkpoints/${view.attempt_id}/pause`);
+  assert.equal(paused.status, 200);
+  assert.equal(((await paused.json()) as CheckpointView).state, "paused");
+  assert.equal((await post(`/api/checkpoints/${view.attempt_id}/messages`, { text: "correct" })).status, 409);
+  assert.equal((await post(`/api/checkpoints/${view.attempt_id}/pause`, {}, { "Content-Type": "application/json", "X-User-Id": "someone" })).status, 404);
+  const progress = (await (await fetch(`${base}/api/sections/ironmaking/progress`, { headers })).json()) as { in_progress: { state: string; done: number; total: number } };
+  assert.deepEqual([progress.in_progress.state, progress.in_progress.done, progress.in_progress.total], ["paused", 0, 3]);
+  const resumed = await post(`/api/checkpoints/${view.attempt_id}/resume`);
+  assert.equal(resumed.status, 200);
+  assert.equal(((await resumed.json()) as CheckpointView).state, "awaiting_answer");
+  assert.equal((await post(`/api/checkpoints/${view.attempt_id}/resume`)).status, 409);
 });

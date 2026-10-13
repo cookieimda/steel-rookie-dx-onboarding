@@ -3,6 +3,7 @@
   체크포인트(이해도 확인) 테스트 페이지. 메인 페이지(Steel Academy.dc.html)와 연결하지 않은 단독 페이지다.
   - 메인 페이지에 붙였던 원본 UI는 태그 archive/checkpoint-ui-v1에 있다. 프론트가 확정되면 메인 페이지에 다시 적용한다.
   - 서버 상태 머신(/api/checkpoints)이 상태를 관리하고, 이 페이지는 상태와 튜터 발화만 그린다.
+  - 아래쪽 '캐릭터 동작 미리보기'는 이해도 확인 오버레이 캐릭터(cp-character.js)를 이름표별로 눌러 본다(입장 없이 보인다).
   - [임시] 원격 팀원 테스트용 사용자 구분(?user=이름 → X-User-Id)과 접속 비밀번호(X-Test-Passcode).
     로그인(JWT)이 생기면 입장 화면과 두 헤더를 지운다.
 -->
@@ -149,7 +150,55 @@
       <button class="btn" id="cp-exit">섹션 목록으로</button>
     </div>
   </section>
+
+  <section class="card" id="character-preview">
+    <details>
+      <summary><strong>캐릭터 동작 미리보기</strong> <span class="muted" style="font-size:13px">cp-character.js · 이름표별 동작</span></summary>
+      <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;margin-top:12px">
+        <cp-character id="char" motion="idle" model="models/character/tutor.glb" style="background:var(--panel2);border-radius:12px"></cp-character>
+        <div style="flex:1;min-width:240px;display:grid;gap:10px">
+          <div id="char-motions" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+          <div class="mono muted" id="char-status" style="font-size:13px;white-space:pre-line"></div>
+          <form id="char-model-form" style="display:flex;gap:6px">
+            <input id="char-model" class="mono" style="flex:1;min-width:0" value="models/character/tutor.glb" aria-label="모델 주소">
+            <button class="btn" type="submit">다시 불러오기</button>
+          </form>
+          <p class="muted" style="margin:0;font-size:13px">모델 주소를 비우거나 없는 파일로 바꾸면 대체 실루엣이 보여요. 클립 이름이 이름표와 같으면 클립, 아니면 몸 전체 움직임으로 보여요.</p>
+        </div>
+      </div>
+    </details>
+  </section>
 </main>
+
+<script type="module">
+import { MOTIONS, resolveMotion } from './cp-character.js';
+const char = document.getElementById('char');
+const status = document.getElementById('char-status');
+let fallbackReason = null;
+const show = () => {
+  const motion = char.getAttribute('motion');
+  const r = resolveMotion(motion, char.clips);
+  const how = char.rendererKind === 'image' ? '움직이지 않음(대체 이미지)' : r.kind === 'clip' ? `클립 ${r.name}` : `몸 전체 움직임 ${r.name}`;
+  status.textContent = `렌더러: ${char.rendererKind ?? '불러오는 중'}${fallbackReason ? ` (대체 이유: ${fallbackReason})` : ''}\n클립: ${char.clips.join(', ') || '없음'}\n동작: ${motion} → ${how}`;
+  for (const b of document.querySelectorAll('#char-motions button')) b.classList.toggle('primary', b.dataset.motion === motion);
+};
+document.getElementById('char-motions').replaceChildren(...MOTIONS.map((m) => {
+  const b = document.createElement('button');
+  b.className = 'btn mono'; b.type = 'button'; b.textContent = m; b.dataset.motion = m;
+  b.onclick = () => { char.setAttribute('motion', m); show(); };
+  return b;
+}));
+char.addEventListener('cp-character-fallback', (e) => { fallbackReason = e.detail.reason; });
+char.addEventListener('cp-character-ready', show);
+document.getElementById('char-model-form').onsubmit = (e) => {
+  e.preventDefault();
+  fallbackReason = null;
+  const url = document.getElementById('char-model').value.trim();
+  if (url) char.setAttribute('model', url); else char.removeAttribute('model');
+  show();
+};
+show();
+</script>
 
 <script>
 const SECTIONS = [

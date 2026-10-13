@@ -301,11 +301,10 @@
             </sc-for>
           </div>
         </sc-if>
-        <!-- 이해도 확인(담금질): 상태 문구만 보이고, 시작·이어 풀기는 학습 기록 화면에서 한다 -->
+        <!-- 이해도 확인(담금질): 상태 문구만. 시작·이어 풀기는 학습 기록 화면에서 한다 -->
         <sc-if value="{{ s.cpShow }}" hint-placeholder-val="{{ false }}">
           <div style="display:flex;flex-direction:column;gap:8px;padding:0 16px 14px 22px;">
             <span style="display:flex;align-items:center;gap:8px;font-size:12px;color:{{ s.cpSectionStatusColor }};"><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.14em;color:#6b6b70;">CHECKPOINT</span>{{ s.cpSectionStatus }}</span>
-            <a href="/login" style="align-self:flex-start;font-size:12px;color:var(--muted);text-decoration:underline;">이해도 확인은 학습 페이지에서 →</a>
           </div>
         </sc-if>
       </div>

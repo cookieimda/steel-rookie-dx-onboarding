@@ -41,7 +41,8 @@
     /* 학습 모듈(왼쪽) + AI 튜터(오른쪽). 좁은 화면에서는 세로로 쌓는다 */
     .learn { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 20px; align-items: stretch; }
     /* 오른쪽 열은 왼쪽 2D 모듈 높이를 따른다: 카드는 남은 높이를 채우고(basis 0), 채팅·이해도 확인은 그 안에서 스크롤 */
-    .side { display: flex; flex-direction: column; gap: 14px; min-width: 0; min-height: 0; }
+    /* 2D 모듈 안쪽 여백(테두리 1px + 18px)만큼 위아래를 비워, ASK/LEARN 버튼 = 공정 탭 줄, 카드 아래 끝 = 단계 설명 아래 끝 */
+    .side { display: flex; flex-direction: column; gap: 14px; min-width: 0; min-height: 0; padding: 19px 0; }
     .side > .card { flex: 1 1 0; min-height: 0; }
     .tutor { display: flex; flex-direction: column; }
     /* 학습 모듈: 탭(작동 단계 / 설계도·필기) + 내용 */
@@ -51,7 +52,7 @@
   </style>
 </helmet>
 <div style="min-height:100vh;color:var(--text);">
-  <header style="position:sticky;top:16px;z-index:20;width:min(1400px, calc(100% - 32px));margin:16px auto 0;min-height:64px;padding:10px 12px 10px 22px;display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap;background:var(--nav);border:1px solid var(--line);border-radius:18px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);">
+  <header style="position:relative;z-index:20;width:min(1400px, calc(100% - 32px));margin:16px auto 0;min-height:64px;padding:10px 12px 10px 22px;display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap;background:var(--nav);border:1px solid var(--line);border-radius:18px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);">
     <a href="/" target="_top" style="display:flex;align-items:center;gap:10px;color:var(--text);font-family:var(--font-en);font-weight:800;font-size:18px;letter-spacing:0.04em;white-space:nowrap;">
       <span style="width:18px;height:18px;border-radius:5px;background:var(--text);box-shadow:inset 0 0 0 5px var(--bg);flex:none;"></span>ST-ROOKIE
     </a>
@@ -65,7 +66,7 @@
     </nav>
   </header>
 
-  <main style="max-width:1400px;margin:0 auto;padding:44px clamp(16px,3vw,36px) 72px;display:flex;flex-direction:column;gap:28px;">
+  <main style="width:min(1400px, calc(100% - 32px));margin:0 auto;padding:44px 0 72px;display:flex;flex-direction:column;gap:28px;">
     <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px 24px;flex-wrap:wrap;">
       <div style="display:flex;flex-direction:column;gap:12px;">
         <span style="font-family:var(--mono);font-size:11px;letter-spacing:0.3em;color:var(--muted);">[ TRAINEE ]</span>
@@ -120,9 +121,9 @@
 
       <div class="side">
       <!-- ASK(AI 튜터) / LEARN(이해도 확인) 중 하나만 보인다 -->
-      <div role="tablist" aria-label="ASK / LEARN" style="display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:14px;background:var(--panel2);">
+      <div role="tablist" aria-label="ASK / LEARN" style="display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:12px;background:var(--panel2);">
         <sc-for list="{{ sideTabs }}" as="t" hint-placeholder-count="2">
-          <button type="button" role="tab" aria-selected="{{ t.on }}" onClick="{{ t.onClick }}" style="height:44px;border:none;border-radius:10px;background:{{ t.bg }};color:{{ t.color }};cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;"><span style="font-family:var(--font-en);font-size:15px;font-weight:800;letter-spacing:.08em;">{{ t.label }}</span><span style="font-size:10px;opacity:.75;">{{ t.sub }}</span></button>
+          <button type="button" role="tab" aria-selected="{{ t.on }}" onClick="{{ t.onClick }}" style="height:34px;border:none;border-radius:8px;background:{{ t.bg }};color:{{ t.color }};cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;"><span style="font-family:var(--font-en);font-size:14px;font-weight:800;letter-spacing:.08em;">{{ t.label }}</span><span style="font-size:11px;opacity:.75;">{{ t.sub }}</span></button>
         </sc-for>
       </div>
       <sc-if value="{{ showAsk }}" hint-placeholder-val="{{ true }}">
@@ -188,7 +189,7 @@
         </sc-if>
         <sc-if value="{{ cpShowOverlay }}" hint-placeholder-val="{{ false }}">
           <!-- cp-character의 기본 크기(220×260)대로 두고 가운데 정렬, 아래쪽은 잘라 카드 높이를 줄인다 --><div style="display:flex;justify-content:center;height:210px;overflow:hidden;position:relative;z-index:0;"><x-import component-from-global-scope="cp-character" motion="{{ cpCharacterMotion }}" model="/3d-demo/models/character/tutor.glb" hint-size="220,260" style="flex:none;width:220px;height:260px;"></x-import></div>
-          <div id="cpBody" style="display:flex;flex-direction:column;gap:12px;color:var(--text);">
+          <div id="cpBody" style="flex:1 1 auto;display:flex;flex-direction:column;gap:12px;color:var(--text);">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
               <span style="font-size:15px;font-weight:700;">{{ cpTitle }}</span>
               <span style="flex:none;padding:3px 10px;border-radius:999px;border:1px solid {{ cpStageColor }};color:{{ cpStageColor }};font-size:12px;font-weight:600;">{{ cpStageLabel }}</span>
@@ -218,6 +219,16 @@
               <sc-if value="{{ cpOverlayShowReady }}" hint-placeholder-val="{{ false }}"><button onClick="{{ onCpReady }}" style="height:38px;padding:0 16px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;border:1px solid var(--accent);background:transparent;color:var(--text);" style-hover="background:var(--chip-on);">{{ cpReadyLabel }}</button></sc-if>
               <sc-if value="{{ cpShowRetryButton }}" hint-placeholder-val="{{ false }}"><button onClick="{{ onCpRetry }}" style="height:38px;padding:0 16px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;border:1px solid var(--line2);background:transparent;color:var(--text);" style-hover="border-color:var(--accent);">{{ cpRetryLabel }}</button></sc-if>
             </div>
+            <sc-if value="{{ cpShowHistory }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;gap:8px;max-height:240px;overflow-y:auto;padding-top:4px;">
+                <sc-for list="{{ cpMessages }}" as="m" hint-placeholder-count="0">
+                  <sc-if value="{{ m.isUser }}" hint-placeholder-val="{{ false }}"><div style="align-self:flex-end;max-width:85%;background:var(--chip-on);padding:8px 12px;border-radius:12px 12px 4px 12px;font-size:13px;line-height:1.6;">{{ m.text }}</div></sc-if>
+                  <sc-if value="{{ m.isTutor }}" hint-placeholder-val="{{ false }}"><div style="align-self:flex-start;max-width:94%;display:flex;flex-direction:column;gap:2px;background:var(--chrome3);padding:8px 12px;border-left:3px solid {{ m.color }};border-radius:4px 12px 12px 4px;font-size:13px;line-height:1.6;white-space:pre-line;"><span style="font-size:12px;font-weight:700;color:{{ m.color }};">{{ m.label }}</span><span>{{ m.text }}</span></div></sc-if>
+                </sc-for>
+              </div>
+            </sc-if>
+            <!-- 답변 입력·[대화 기록]·[나가기]: 카드 맨 아래 -->
+            <div style="margin-top:auto;display:flex;flex-direction:column;gap:12px;">
             <sc-if value="{{ cpShowComposer }}" hint-placeholder-val="{{ true }}">
               <form onSubmit="{{ onCpSend }}" style="display:flex;gap:8px;opacity:{{ cpOverlayInputOpacity }};">
                 <input value="{{ cpInput }}" onChange="{{ onCpInput }}" disabled="{{ cpOverlayInputDisabled }}" placeholder="{{ cpOverlayPlaceholder }}" style="flex:1;min-width:0;height:46px;background:var(--chrome);color:var(--text);border:1px solid var(--line2);border-radius:9px;padding:0 14px;font-size:15px;outline:none;" style-focus="border-color:var(--accent);">
@@ -229,14 +240,7 @@
               <span style="flex:1;"></span>
               <button onClick="{{ onCpExit }}" style="height:38px;padding:0 16px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;border:1px solid var(--line2);background:transparent;color:var(--text);" style-hover="border-color:var(--bad);color:var(--bad);">{{ cpExitLabel }}</button>
             </div>
-            <sc-if value="{{ cpShowHistory }}" hint-placeholder-val="{{ false }}">
-              <div style="display:flex;flex-direction:column;gap:8px;max-height:240px;overflow-y:auto;padding-top:4px;">
-                <sc-for list="{{ cpMessages }}" as="m" hint-placeholder-count="0">
-                  <sc-if value="{{ m.isUser }}" hint-placeholder-val="{{ false }}"><div style="align-self:flex-end;max-width:85%;background:var(--chip-on);padding:8px 12px;border-radius:12px 12px 4px 12px;font-size:13px;line-height:1.6;">{{ m.text }}</div></sc-if>
-                  <sc-if value="{{ m.isTutor }}" hint-placeholder-val="{{ false }}"><div style="align-self:flex-start;max-width:94%;display:flex;flex-direction:column;gap:2px;background:var(--chrome3);padding:8px 12px;border-left:3px solid {{ m.color }};border-radius:4px 12px 12px 4px;font-size:13px;line-height:1.6;white-space:pre-line;"><span style="font-size:12px;font-weight:700;color:{{ m.color }};">{{ m.label }}</span><span>{{ m.text }}</span></div></sc-if>
-                </sc-for>
-              </div>
-            </sc-if>
+            </div>
           </div>
         </sc-if>
       </section>

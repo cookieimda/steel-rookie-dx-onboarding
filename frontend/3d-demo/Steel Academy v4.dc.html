@@ -202,64 +202,7 @@
     <!-- [세련안] 조작 안내: 구석의 작은 모노 라벨(레퍼런스: Colonia Zacamil의 [EN / ES]) -->
     <span style="position:absolute;right:20px;top:22px;display:{{ L.hintDisp }};font-family:'IBM Plex Sans KR',sans-serif;font-size:12px;letter-spacing:.02em;color:{{ glass.hint }};pointer-events:none;">{{ hintText }}</span>
 
-    <!-- 이해도 확인(담금질) 오버레이: 3D 화면 위 반투명 배경이 3D 클릭·카메라 조작을 막는다. 공정 메뉴(z 8)·우측 패널(z 7)보다는 아래, 아래쪽은 하단 바 높이만큼 비운다. 값은 checkpoint-chat.js vals()의 오버레이 키 -->
-    <sc-if value="{{ cpShowOverlay }}" hint-placeholder-val="{{ false }}">
-      <div style="position:absolute;inset:0;z-index:5;background:rgba(8,12,18,.62);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);display:flex;padding:24px 24px calc({{ L.bottomH }} + 24px) {{ L.ovL }};overflow-y:auto;animation:fadeIn var(--t-fast) var(--ease);">
-        <div style="width:min(680px,100%);margin:auto;display:flex;flex-direction:column;align-items:center;gap:12px;">
-          <x-import component-from-global-scope="cp-character" motion="{{ cpCharacterMotion }}" model="models/character/tutor.glb" hint-size="220,240" style="width:220px;height:240px;"></x-import>
-          <div style="width:100%;display:flex;flex-direction:column;gap:12px;padding:16px 18px;border-radius:14px;background:color-mix(in srgb, var(--chrome2) 94%, transparent);border:1px solid var(--line2);box-shadow:0 18px 40px rgba(0,0,0,.35);color:var(--text);">
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-              <span style="font-size:15px;font-weight:700;">{{ cpTitle }}</span>
-              <span style="flex:none;padding:3px 10px;border-radius:999px;border:1px solid {{ cpStageColor }};color:{{ cpStageColor }};font-size:12px;font-weight:600;">{{ cpStageLabel }}</span>
-              <span style="flex:1;"></span>
-              <sc-for list="{{ cpDots }}" as="d" hint-placeholder-count="0"><span title="{{ d.index }}" style="width:9px;height:9px;border-radius:50%;background:{{ d.color }};"></span></sc-for>
-            </div>
-            <sc-if value="{{ cpBubbleText }}" hint-placeholder-val="{{ false }}">
-              <div style="display:flex;flex-direction:column;gap:4px;background:var(--chrome3);padding:12px 14px;border-left:3px solid {{ cpBubbleColor }};border-radius:4px 12px 12px 4px;font-size:15px;line-height:1.65;white-space:pre-line;text-wrap:pretty;"><span style="font-size:12px;font-weight:700;color:{{ cpBubbleColor }};">{{ cpBubbleLabel }}</span><span>{{ cpBubbleText }}</span></div>
-            </sc-if>
-            <sc-if value="{{ cpPending }}" hint-placeholder-val="{{ false }}">
-              <div style="align-self:flex-start;display:flex;gap:4px;padding:10px 12px;background:var(--chrome3);border-radius:10px;"><span style="width:6px;height:6px;border-radius:3px;background:var(--muted);animation:blink 1s infinite;"></span><span style="width:6px;height:6px;border-radius:3px;background:var(--muted);animation:blink 1s .2s infinite;"></span><span style="width:6px;height:6px;border-radius:3px;background:var(--muted);animation:blink 1s .4s infinite;"></span></div>
-            </sc-if>
-            <sc-if value="{{ cpOverlayShowResult }}" hint-placeholder-val="{{ false }}">
-              <div style="display:flex;flex-direction:column;gap:14px;padding:16px;border-radius:10px;border:1px solid var(--line2);background:var(--chrome);">
-                <div style="display:flex;align-items:baseline;justify-content:space-between;"><span style="font-size:13px;color:#c3ccd7;">{{ cpResult.understandingLabel }}</span><span style="font-size:32px;font-weight:700;font-variant-numeric:tabular-nums;">{{ cpResult.percent }}%</span></div>
-                <div style="position:relative;height:10px;margin-bottom:16px;border-radius:5px;background:var(--chrome3);"><div style="height:100%;width:{{ cpResult.percent }}%;border-radius:5px;background:{{ cpResult.color }};"></div><div style="position:absolute;top:-4px;bottom:-4px;left:{{ cpResult.thresholdPercent }}%;width:2px;background:var(--text);"><span style="position:absolute;top:18px;left:-26px;width:54px;text-align:center;font-size:12px;color:#c3ccd7;">{{ cpResult.thresholdLabel }}</span></div></div>
-                <span style="padding:9px 12px;border-radius:9px;border:1px solid {{ cpResult.color }};color:{{ cpResult.color }};font-size:13px;font-weight:700;">{{ cpResult.passLabel }}</span>
-                <sc-for list="{{ cpResult.bars }}" as="b" hint-placeholder-count="0">
-                  <div style="display:grid;grid-template-columns:minmax(0,1fr) 110px;align-items:center;gap:10px;"><div style="display:flex;flex-direction:column;min-width:0;"><span style="font-size:13px;font-weight:600;">{{ b.name }}</span><span style="font-size:12px;color:#c3ccd7;">{{ b.label }}</span></div><div style="height:8px;border-radius:4px;background:var(--chrome3);overflow:hidden;"><div style="height:100%;width:{{ b.widthPercent }}%;background:{{ b.color }};"></div></div></div>
-                </sc-for>
-              </div>
-            </sc-if>
-            <sc-if value="{{ cpConfirmPause }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-direction:column;gap:10px;padding:12px 14px;border-radius:10px;background:var(--chrome3);border:1px solid var(--line2);"><span style="font-size:13px;line-height:1.55;">{{ cpConfirmPauseText }}</span><div style="display:flex;gap:8px;justify-content:flex-end;"><button onClick="{{ onCpCancelPause }}" style="height:34px;padding:0 14px;border-radius:8px;border:1px solid var(--line2);background:transparent;color:var(--text);font-size:13px;font-weight:700;cursor:pointer;" style-hover="border-color:var(--accent);">{{ cpConfirmPauseNo }}</button><button onClick="{{ onCpConfirmPause }}" style="height:34px;padding:0 14px;border:none;border-radius:8px;background:var(--accent);color:var(--accent-ink);font-size:13px;font-weight:700;cursor:pointer;" style-hover="filter:brightness(1.1);">{{ cpConfirmPauseYes }}</button></div></div></sc-if>
-            <sc-if value="{{ cpHasNotice }}" hint-placeholder-val="{{ false }}"><div style="padding:10px 14px;border-radius:9px;background:rgba(255,90,90,.12);border:1px solid rgba(255,90,90,.4);color:#ffc9c9;font-size:13px;">{{ cpNotice }}</div></sc-if>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              <sc-if value="{{ cpBubbleHasNext }}" hint-placeholder-val="{{ false }}"><button onClick="{{ onCpBubbleNext }}" style="height:38px;padding:0 16px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;border:none;background:var(--accent);color:var(--accent-ink);" style-hover="filter:brightness(1.1);">{{ cpBubbleNextLabel }}</button></sc-if>
-              <sc-if value="{{ cpOverlayShowReady }}" hint-placeholder-val="{{ false }}"><button onClick="{{ onCpReady }}" style="height:38px;padding:0 16px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;border:1px solid var(--accent);background:transparent;color:var(--text);" style-hover="background:rgba(242,242,242,.12);">{{ cpReadyLabel }}</button></sc-if>
-              <sc-if value="{{ cpShowRetryButton }}" hint-placeholder-val="{{ false }}"><button onClick="{{ onCpRetry }}" style="height:38px;padding:0 16px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;border:1px solid var(--line2);background:transparent;color:var(--text);" style-hover="border-color:var(--accent);">{{ cpRetryLabel }}</button></sc-if>
-            </div>
-            <sc-if value="{{ cpShowComposer }}" hint-placeholder-val="{{ true }}">
-              <form onSubmit="{{ onCpSend }}" style="display:flex;gap:8px;opacity:{{ cpOverlayInputOpacity }};">
-                <input value="{{ cpInput }}" onChange="{{ onCpInput }}" disabled="{{ cpOverlayInputDisabled }}" placeholder="{{ cpOverlayPlaceholder }}" style="flex:1;min-width:0;height:46px;background:var(--chrome);color:var(--text);border:1px solid var(--line2);border-radius:9px;padding:0 14px;font-size:15px;outline:none;" style-focus="border-color:var(--accent);box-shadow:0 0 0 3px rgba(242,242,242,.2);">
-                <button type="submit" disabled="{{ cpOverlayInputDisabled }}" style="height:46px;padding:0 18px;border-radius:9px;border:none;background:var(--accent);color:var(--accent-ink);font-size:13px;font-weight:700;cursor:pointer;flex:none;" style-hover="filter:brightness(1.1);">{{ cpSendLabel }}</button>
-              </form>
-            </sc-if>
-            <div style="display:flex;gap:8px;align-items:center;border-top:1px solid var(--line);padding-top:12px;">
-              <button onClick="{{ onCpToggleHistory }}" style="height:38px;padding:0 16px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;border:1px solid var(--line2);background:transparent;color:var(--text);" style-hover="border-color:var(--accent);">{{ cpHistoryLabel }}</button>
-              <span style="flex:1;"></span>
-              <button onClick="{{ onCpExit }}" style="height:38px;padding:0 16px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;border:1px solid var(--line2);background:transparent;color:var(--text);" style-hover="border-color:#ff8a8a;color:#ffb3b3;">{{ cpExitLabel }}</button>
-            </div>
-            <sc-if value="{{ cpShowHistory }}" hint-placeholder-val="{{ false }}">
-              <div style="display:flex;flex-direction:column;gap:8px;max-height:240px;overflow-y:auto;padding-top:4px;">
-                <sc-for list="{{ cpMessages }}" as="m" hint-placeholder-count="0">
-                  <sc-if value="{{ m.isUser }}" hint-placeholder-val="{{ false }}"><div style="align-self:flex-end;max-width:85%;background:rgba(242,242,242,.14);padding:8px 12px;border-radius:12px 12px 4px 12px;font-size:13px;line-height:1.6;">{{ m.text }}</div></sc-if>
-                  <sc-if value="{{ m.isTutor }}" hint-placeholder-val="{{ false }}"><div style="align-self:flex-start;max-width:94%;display:flex;flex-direction:column;gap:2px;background:var(--chrome3);padding:8px 12px;border-left:3px solid {{ m.color }};border-radius:4px 12px 12px 4px;font-size:13px;line-height:1.6;white-space:pre-line;"><span style="font-size:12px;font-weight:700;color:{{ m.color }};">{{ m.label }}</span><span>{{ m.text }}</span></div></sc-if>
-                </sc-for>
-              </div>
-            </sc-if>
-          </div>
-        </div>
-      </div>
-    </sc-if>
+    <!-- 이해도 확인(담금질)은 학습 기록 화면(/login → Trainee Dashboard)으로 옮겼다. 로직은 그대로 checkpoint-chat.js -->
 
   </div>
 
@@ -321,14 +264,6 @@
 
   <!-- [세련안] 이어 풀기 안내: 풀던 이해도 확인이 있으면 상단 알약 아래 가운데에 띄운다(어느 공정에 있든).
        레퍼런스: Colonia Zacamil 첫 화면의 짧은 안내 문장 + 알약 버튼(글자 + 점 찍힌 동그라미). 값은 renderVals의 resume -->
-  <sc-if value="{{ resume.on }}" hint-placeholder-val="{{ false }}">
-    <div data-sa-cap style="position:absolute;left:50%;top:66px;transform:translateX(-50%);z-index:9;display:flex;align-items:center;gap:14px;padding:6px 6px 6px 20px;border-radius:999px;background:rgba(0,0,0,.82);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 10px 28px rgba(0,0,0,.28);color:#f2f2f2;white-space:nowrap;font-family:'IBM Plex Sans KR',sans-serif;animation:saToast 3.4s ease forwards;" data-sa-toast>
-      <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.14em;color:#9a9aa0;">CHECKPOINT · {{ resume.num }}</span>
-      <span style="font-size:13px;font-weight:600;">{{ resume.text }}</span>
-      <button onClick="{{ resume.go }}" disabled="{{ !resume.canStart }}" style="height:36px;display:flex;align-items:center;gap:10px;padding:0 4px 0 16px;border:none;border-radius:999px;background:#f2f2f2;color:#111;font:inherit;font-size:13px;font-weight:700;cursor:{{ resume.cursor }};opacity:{{ resume.op }};" style-hover="background:#fff;">이어 풀기<span style="width:28px;height:28px;flex:none;border-radius:50%;background:#111;display:flex;align-items:center;justify-content:center;"><span style="width:8px;height:8px;border-radius:50%;background:#f2f2f2;"></span></span></button>
-    </div>
-  </sc-if>
-
   <!-- 좌측 공정 메뉴 -->
   <sc-if value="{{ L.navShown }}" hint-placeholder-val="{{ true }}">
   <aside data-sa-nav data-sa-cap style="position:absolute;left:16px;top:9px;max-height:calc(100% - 9px - {{ L.bottomH }} - 24px);width:{{ L.navWpx }};background:rgba(0,0,0,.8);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.08);border-radius:24px;overflow-y:auto;overflow-x:hidden;z-index:8;box-shadow:0 12px 36px rgba(0,0,0,.35);transition:width var(--t-base) var(--ease);">
@@ -372,12 +307,10 @@
             </sc-for>
           </div>
         </sc-if>
-        <!-- 이해도 확인(담금질): 상태 문구와 [담금질 시작하기]·[이어 풀기]·[재도전]. 값은 checkpoint-chat.js sectionBadge의 cpSection* -->
+        <!-- 이해도 확인(담금질): 상태 문구만. 시작·이어 풀기는 학습 기록 화면에서 한다 -->
         <sc-if value="{{ s.cpShow }}" hint-placeholder-val="{{ false }}">
-          <div style="display:flex;flex-direction:column;gap:8px;padding:0 16px 14px 22px;pointer-events:{{ cpOverlayLockPointer }};opacity:{{ cpOverlayLockOpacity }};filter:{{ cpOverlayLockFilter }};transition:opacity var(--t-fast) var(--ease);">
+          <div style="display:flex;flex-direction:column;gap:8px;padding:0 16px 14px 22px;">
             <span style="display:flex;align-items:center;gap:8px;font-size:12px;color:{{ s.cpSectionStatusColor }};"><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.14em;color:#6b6b70;">CHECKPOINT</span>{{ s.cpSectionStatus }}</span>
-            <sc-if value="{{ s.cpSectionHasResume }}" hint-placeholder-val="{{ false }}"><span style="padding:10px 14px;border-radius:16px;background:rgba(255,255,255,.06);font-size:12px;line-height:1.5;">{{ s.cpSectionResumeText }}</span></sc-if>
-            <sc-if value="{{ s.cpSectionShowStart }}" hint-placeholder-val="{{ false }}"><button onClick="{{ s.onCpSectionStart }}" disabled="{{ !s.cpSectionCanStart }}" style="height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 6px 0 18px;border:none;border-radius:999px;background:#f2f2f2;color:#111;font-size:13px;font-weight:700;cursor:{{ s.cpSectionCursor }};opacity:{{ s.cpSectionStartOpacity }};" style-hover="background:#fff;">{{ s.cpSectionStartLabel }}<span style="width:28px;height:28px;flex:none;border-radius:50%;background:#111;display:flex;align-items:center;justify-content:center;"><span style="width:8px;height:8px;border-radius:50%;background:#f2f2f2;"></span></span></button></sc-if>
           </div>
         </sc-if>
       </div>

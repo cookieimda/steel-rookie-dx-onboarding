@@ -33,7 +33,7 @@ export interface SceneCatalog {
 
 /** 근거 없이 grounded라고 답했을 때 대신 보여 줄 답. */
 export const UNVERIFIED_ANSWER =
-  "수집한 포스코 공개 자료에서 이 질문의 답을 확인할 수 없습니다. 실제 운전 조건이나 작업 절차는 해당 자료와 현장 지침에서 별도로 확인해 주세요.";
+  "수집한 공개 자료에서 이 질문의 답을 확인할 수 없습니다. 실제 운전 조건이나 작업 절차는 해당 자료와 현장 지침에서 별도로 확인해 주세요.";
 
 export interface LearningInput {
   section: Section;

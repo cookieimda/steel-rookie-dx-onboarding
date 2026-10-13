@@ -11,8 +11,10 @@ import {
   publicSourceChunks,
   Retriever,
   type Chunk,
+  EQUIPMENT_WORDS,
 } from "../../llm/src/retrieval.js";
-import { publicSources } from "../../llm/src/ironmaking-sources.js";
+import { publicSources, sectionOf } from "../../llm/src/ironmaking-sources.js";
+import { loadSceneCatalog } from "../src/learning/scene-catalog.js";
 
 // 공개 자료 메모 수(메모 하나가 조각 하나).
 const NOTE_COUNT = publicSources.reduce((n, s) => n + s.notes.length, 0);
@@ -20,22 +22,36 @@ const NOTE_COUNT = publicSources.reduce((n, s) => n + s.notes.length, 0);
 const chunk = (id: string, text: string, tags: string[] = [], section: Chunk["section"] = "ironmaking"): Chunk =>
   ({ id, section, title: "", text, source_ids: [`src-${id}`], tags });
 
-test("publicSourceChunks: 공개 자료 메모 하나가 조각 하나이고, 메모에 나온 말로 제선 설비 태그가 붙는다", () => {
+test("publicSourceChunks: 공개 자료 메모 하나가 조각 하나이고, 자료의 공정과 그 공정 설비 태그가 붙는다", () => {
   const chunks = publicSourceChunks();
   assert.equal(chunks.length, NOTE_COUNT);
-  assert.ok(chunks.every((c) => c.section === "ironmaking" && c.source_ids.length === 1 && c.id.startsWith(`${c.source_ids[0]}#`)));
+  assert.ok(chunks.every((c) => c.source_ids.length === 1 && c.id.startsWith(`${c.source_ids[0]}#`)));
+  for (const c of chunks) {
+    const source = publicSources.find((s) => s.id === c.source_ids[0])!;
+    assert.equal(c.section, sectionOf(source));
+    assert.ok(c.tags.every((t) => t in EQUIPMENT_WORDS[c.section]), `${c.id}: ${c.tags}`);
+  }
   const sinter = chunks.find((c) => c.text.includes("소결광으로 만드는 전처리"))!;
   assert.ok(sinter.tags.includes("sinter_plant"));
 });
 
-test("제선 시연: 설비 6개 모두 공개 자료 메모가 있고, 설비 이름으로 물으면 그 설비 메모가 맨 위에 온다", () => {
+test("설비 태그 낱말은 화면 목록(data_v2.js)의 공정·설비와 같다", async () => {
+  const scene = await loadSceneCatalog();
+  for (const p of scene.processes) assert.deepEqual(Object.keys(EQUIPMENT_WORDS[p.id]).sort(), p.equipment.map((e) => e.id).sort(), p.id);
+});
+
+test("공정 4개·설비 24개 모두 공개 자료 메모가 있고, 설비 이름으로 물으면 그 설비 메모가 맨 위에 온다", async () => {
   const chunks = publicSourceChunks();
   const r = new Retriever();
-  const names: Record<string, string> = { sinter_plant: "소결", coke_oven: "코크스", blast_furnace: "고로", hot_stove: "열풍로", taphole_casthouse: "출선구", torpedo_car: "토페도카" };
-  for (const [id, name] of Object.entries(names)) {
-    assert.ok(chunks.some((c) => c.tags.includes(id)), `${id} 메모 없음`);
-    const top = r.retrieve("ironmaking", `${name}는 무슨 일을 해?`, { process_id: "ironmaking", equipment_id: id })[0];
-    assert.ok(top?.tags.includes(id), `${id}: 맨 위 조각 ${top?.id}`);
+  const scene = await loadSceneCatalog();
+  for (const p of scene.processes) {
+    for (const e of p.equipment) {
+      assert.ok(chunks.some((c) => c.section === p.id && c.tags.includes(e.id)), `${p.id}/${e.id} 메모 없음`);
+      // 설비 이름의 첫 부분(가운뎃점·괄호 앞)으로 묻는다. 예: "고로·장입 장치" → "고로"
+      const name = e.name.split(/[·(]/)[0]!.trim();
+      const top = r.retrieve(p.id, `${name}는 무슨 일을 해?`, { process_id: p.id, equipment_id: e.id })[0];
+      assert.ok(top?.tags.includes(e.id), `${p.id}/${e.id}: 맨 위 조각 ${top?.id}`);
+    }
   }
 });
 
@@ -47,6 +63,10 @@ test("retrieve: 실제 공개 자료에서 질문과 맞는 메모를 찾는다"
 
   const coke = r.retrieve("ironmaking", "고로에 코크스를 왜 넣나요?");
   assert.ok(coke.some((c) => c.text.includes("일산화탄소")), "코크스의 환원 역할 메모가 들어가야 한다");
+
+  // "몇 도"는 메모의 "고온"·"온도"로도 찾는다(메모는 "1,300℃의 고온"처럼 적는다).
+  const temp = r.retrieve("ironmaking", "코크스는 몇 도에서 만들어?");
+  assert.ok(temp.some((c) => c.text.includes("1,300℃")), "코크스 건류 온도 메모가 들어가야 한다");
 });
 
 test("retrieve: 관련 없는 질문이나 조각이 없는 섹션은 빈 배열", () => {
@@ -103,11 +123,13 @@ test("parseSectionMarkdown: 제목 하나가 조각 하나, {#id}는 id·태그,
   assert.ok(!chunks[0].text.includes("[src:"));
 });
 
-test("loadSectionChunks: section.md가 있으면 그 문서, 없으면 제선만 공개 자료 메모", () => {
+test("loadSectionChunks: section.md가 있으면 그 문서, 없으면 그 공정의 공개 자료 메모", () => {
   const root = mkdtempSync(join(tmpdir(), "materials-"));
   mkdirSync(join(root, "rolling"));
   writeFileSync(join(root, "rolling", "section.md"), "## 권취기 {#coiler}\n강판을 코일로 감는다.\n");
   assert.deepEqual(loadSectionChunks("rolling", root).map((c) => c.id), ["coiler"]);
-  assert.equal(loadSectionChunks("ironmaking", root).length, NOTE_COUNT);
-  assert.deepEqual(loadSectionChunks("steelmaking", root), []);
+  const notesOf = (section: string) => publicSources.filter((s) => sectionOf(s) === section).reduce((n, s) => n + s.notes.length, 0);
+  assert.equal(loadSectionChunks("ironmaking", root).length, notesOf("ironmaking"));
+  assert.equal(loadSectionChunks("steelmaking", root).length, notesOf("steelmaking"));
+  assert.ok(loadSectionChunks("steelmaking", root).every((c) => c.section === "steelmaking"));
 });

@@ -1,17 +1,19 @@
-// 학습 모드 튜터 품질 평가: 실제 Gemini로 제선 질문 세트(llm/eval/learning/ironmaking.jsonl)를 돌려
+// 학습 모드 튜터 품질 평가: 실제 Gemini로 공정별 질문 세트(llm/eval/learning/{공정}.jsonl)를 돌려
 // 근거 판정(grounded·unverified·safety_redirect), 화면 조작(scene_actions), 오개념 감지가 기대와 맞는지 센다.
-// 실행: npm run eval:learning [-- --resume] [--follow-up] [--records 파일.jsonl]
+// 실행: npm run eval:learning [-- --resume] [--follow-up] [--section 공정] [--records 파일.jsonl]
 //  - 추천 질문(frontend/3d-demo/learning-suggestions.js)도 케이스로 만든다(유형 chip, grounded 기대, 화면 조작은 보지 않음).
+//  - --section이면 그 공정의 케이스만 돌린다.
 //  - --follow-up이면 grounded 답의 '생각해 보기'(follow_up)를 같은 화면에서 한 번 더 물어 근거 있는 답이 나오는지 센다.
 //  - GEMINI_API_KEY 필요, npm test에는 포함하지 않는다. 라우트(backend/src/learning/routes.ts)와 같은 순서로
 //    안전 질문 차단 → retrieve() → 튜터 1회를 부르고(이전 대화·학습자 메모 없음), 공정·설비 목록은 data_v2.js에서 읽는다.
-//  - 결과는 케이스마다 --records(기본 llm/eval/results/learning-ironmaking.jsonl)에 바로 기록하고, 채점은 보고서를 만들 때 한다.
+//  - 결과는 케이스마다 --records(기본 llm/eval/results/learning.jsonl)에 바로 기록하고, 채점은 보고서를 만들 때 한다.
 //    --resume이면 같은 모델·프롬프트로 끝난 케이스를 건너뛴다(기대값만 고치면 다시 부르지 않고 다시 채점된다).
 //  - 케이스 사이에 EVAL_DELAY_MS(기본 1000ms)만큼 쉰다. 429·시간 초과·연결 실패는 run-log.ts의 재시도를 따른다.
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
+import { SECTION_ORDER, type Section } from "../../backend/src/checkpoint/types.js";
 import { loadSceneCatalog } from "../../backend/src/learning/scene-catalog.js";
 import { isSafetyQuestion } from "../../backend/src/learning/safety.js";
 import { loadFinalRubrics } from "../../backend/src/rubrics.js";
@@ -28,15 +30,16 @@ import {
 import { Retriever } from "../src/retrieval.js";
 import { fingerprint, flag, InfraStreak, isInfraError, MAX_CONSECUTIVE_INFRA, openRecordFile, option, RESULTS_DIR, RetryingGeminiClient, sleep, type RunRecord } from "./run-log.js";
 
-const SECTION = "ironmaking" as const;
-export const LEARNING_SET_PATH = join(process.cwd(), "llm", "eval", "learning", "ironmaking.jsonl");
+export const LEARNING_SET_DIR = join(process.cwd(), "llm", "eval", "learning");
+const SectionId = z.enum(SECTION_ORDER as [Section, ...Section[]]);
 
 const Action = z.object({ type: z.enum(SCENE_ACTION_TYPES), target_id: z.string() });
-export const LearningCase = z.object({
+const CaseLine = z.object({
   id: z.string().min(1),
   type: z.string().min(1),
   question: z.string().min(1),
-  screen: z.object({ process_id: z.literal(SECTION).nullable(), equipment_id: z.string().nullable() }),
+  /** process_id가 null이면 전체 공정 화면(답은 파일의 공정 기준). */
+  screen: z.object({ process_id: SectionId.nullable(), equipment_id: z.string().nullable() }),
   expect: z.object({
     status: z.enum(["grounded", "unverified", "safety_redirect"]),
     /** 들어 있어야 하는 조작(순서 무관, 더 있어도 됨). []이면 조작이 없어야 하고, "any"면 보지 않는다. */
@@ -48,39 +51,52 @@ export const LearningCase = z.object({
   }),
   note: z.string().optional(),
 });
-export type LearningCase = z.infer<typeof LearningCase>;
+/** 평가 케이스. section은 파일 이름(llm/eval/learning/{section}.jsonl)에서 정한다. */
+export type LearningCase = z.infer<typeof CaseLine> & { section: Section };
 
-export function loadLearningSet(path = LEARNING_SET_PATH): LearningCase[] {
-  const cases = readFileSync(path, "utf8")
-    .split(/\r?\n/)
-    .map((line, i) => ({ line, i }))
-    .filter(({ line }) => line.trim())
-    .map(({ line, i }) => {
-      const parsed = LearningCase.safeParse(JSON.parse(line));
-      if (!parsed.success) throw new Error(`${path}:${i + 1} 형식 오류: ${parsed.error.issues.map((x) => x.path.join(".")).join(", ")}`);
-      return parsed.data;
-    });
+/** 공정별 질문 세트를 모두 읽는다. 케이스 id는 모든 파일에서 겹치면 안 된다. */
+export function loadLearningSet(dir = LEARNING_SET_DIR): LearningCase[] {
+  const cases = SECTION_ORDER.flatMap((section) => {
+    const path = join(dir, `${section}.jsonl`);
+    if (!existsSync(path)) return [];
+    return readFileSync(path, "utf8")
+      .split(/\r?\n/)
+      .map((line, i) => ({ line, i }))
+      .filter(({ line }) => line.trim())
+      .map(({ line, i }): LearningCase => {
+        const parsed = CaseLine.safeParse(JSON.parse(line));
+        if (!parsed.success) throw new Error(`${path}:${i + 1} 형식 오류: ${parsed.error.issues.map((x) => x.path.join(".")).join(", ")}`);
+        if (parsed.data.screen.process_id && parsed.data.screen.process_id !== section) throw new Error(`${path}:${i + 1} 화면 공정이 파일과 다릅니다`);
+        return { ...parsed.data, section };
+      });
+  });
   const ids = cases.map((c) => c.id);
   const dup = ids.find((id, i) => ids.indexOf(id) !== i);
-  if (dup) throw new Error(`${path} 케이스 id가 겹칩니다: ${dup}`);
+  if (dup) throw new Error(`${dir} 케이스 id가 겹칩니다: ${dup}`);
   return cases;
 }
 
 export const SUGGESTIONS_PATH = join(process.cwd(), "frontend", "3d-demo", "learning-suggestions.js");
 const Suggestions = z.object({ process: z.array(z.string().min(1)), equipment: z.record(z.string(), z.array(z.string().min(1))) });
 
-/** 화면에 띄우는 제선 추천 질문을 케이스로 만든다. 버튼을 누르면 근거 있는 답이 나와야 한다. */
+/** 화면에 띄우는 추천 질문(공정별)을 케이스로 만든다. 버튼을 누르면 근거 있는 답이 나와야 한다. */
 export async function loadSuggestionCases(path = SUGGESTIONS_PATH): Promise<LearningCase[]> {
   const mod = (await import(pathToFileURL(path).href)) as { SUGGESTIONS?: Record<string, unknown> };
-  const s = Suggestions.parse(mod.SUGGESTIONS?.[SECTION]);
-  const make = (equipment_id: string | null, question: string, i: number): LearningCase => ({
-    id: `chip-${equipment_id ?? "process"}-${i + 1}`,
-    type: "chip",
-    question,
-    screen: { process_id: SECTION, equipment_id },
-    expect: { status: "grounded", scene: "any", misconception: null },
+  return SECTION_ORDER.flatMap((section) => {
+    if (!mod.SUGGESTIONS?.[section]) return [];
+    const s = Suggestions.parse(mod.SUGGESTIONS[section]);
+    // 제선은 처음 만든 id(chip-설비-번호)를 그대로 쓴다(기존 기록과 이어지게).
+    const prefix = section === "ironmaking" ? "chip" : `chip-${section}`;
+    const make = (equipment_id: string | null, question: string, i: number): LearningCase => ({
+      id: `${prefix}-${equipment_id ?? "process"}-${i + 1}`,
+      type: "chip",
+      question,
+      section,
+      screen: { process_id: section, equipment_id },
+      expect: { status: "grounded", scene: "any", misconception: null },
+    });
+    return [...s.process.map((q, i) => make(null, q, i)), ...Object.entries(s.equipment).flatMap(([eq, qs]) => qs.map((q, i) => make(eq, q, i)))];
   });
-  return [...s.process.map((q, i) => make(null, q, i)), ...Object.entries(s.equipment).flatMap(([eq, qs]) => qs.map((q, i) => make(eq, q, i)))];
 }
 
 export interface LearningRecord extends RunRecord {
@@ -130,33 +146,37 @@ async function main(): Promise<void> {
   }
   const model = process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
   const delayMs = Number(process.env.EVAL_DELAY_MS ?? 1000);
-  const records = openRecordFile<LearningRecord>(option("records", join(RESULTS_DIR, "learning-ironmaking.jsonl")), flag("resume"));
-  const rubric = loadFinalRubrics().find((r) => r.section === SECTION);
+  const records = openRecordFile<LearningRecord>(option("records", join(RESULTS_DIR, "learning.jsonl")), flag("resume"));
+  const rubrics = loadFinalRubrics();
+  const rubricOf = (section: Section) => rubrics.find((r) => r.section === section);
   const scene = await loadSceneCatalog();
-  const retriever = new Retriever({ glossaryFor: () => rubric?.glossary ?? [] });
+  const retriever = new Retriever({ glossaryFor: (s) => rubricOf(s)?.glossary ?? [] });
   const client = new RetryingGeminiClient();
   const agent = new GeminiLearningAgent(client);
   const streak = new InfraStreak();
   const followUp = flag("follow-up");
-  const cases = [...loadLearningSet(), ...(await loadSuggestionCases())];
+  const only = option("section", "");
+  if (only && !SECTION_ORDER.includes(only as Section)) throw new Error(`--section은 ${SECTION_ORDER.join("|")} 중 하나입니다: ${only}`);
+  const cases = [...loadLearningSet(), ...(await loadSuggestionCases())].filter((c) => !only || c.section === only);
   const done: { c: LearningCase; r: LearningRecord }[] = [];
   let skipped = 0;
   let stopped = false;
-  const inputFor = (question: string, screen: LearningCase["screen"]): LearningInput => ({
-    section: SECTION,
+  // 라우트와 같은 입력: 답·검색은 케이스의 공정 기준, 화면은 케이스의 화면 그대로(전체 공정 화면이면 process_id null).
+  const inputFor = (section: Section, question: string, screen: LearningCase["screen"]): LearningInput => ({
+    section,
     question,
     screen: { ...screen, equipment_name: scene.processes.flatMap((p) => p.equipment).find((e) => e.id === screen.equipment_id)?.name ?? null },
-    chunks: retriever.retrieve(SECTION, question, { process_id: SECTION, equipment_id: screen.equipment_id }),
+    chunks: retriever.retrieve(section, question, { process_id: section, equipment_id: screen.equipment_id }),
     history: [],
     openMisconceptions: [],
-    concepts: rubric?.concepts.map((k) => ({ concept_id: k.concept_id, name: k.name })) ?? [],
-    glossary: rubric?.glossary ?? [],
+    concepts: rubricOf(section)?.concepts.map((k) => ({ concept_id: k.concept_id, name: k.name })) ?? [],
+    glossary: rubricOf(section)?.glossary ?? [],
     scene,
   });
 
-  console.log(`결과 파일: ${records.path} (모델: ${model}, 케이스 ${cases.length}개${followUp ? ", 꼬리 질문 확인" : ""})`);
+  console.log(`결과 파일: ${records.path} (모델: ${model}, 케이스 ${cases.length}개${only ? `, ${only}만` : ""}${followUp ? ", 꼬리 질문 확인" : ""})`);
   for (const c of cases) {
-    const input = inputFor(c.question, c.screen);
+    const input = inputFor(c.section, c.question, c.screen);
     const safety = isSafetyQuestion(c.question);
     // 모델·프롬프트(근거 조각·화면 목록 포함)·꼬리 질문 확인 여부가 같으면 같은 결과로 본다. 안전 질문은 모델을 부르지 않는다.
     const fp = safety ? fingerprint("safety", c.question) : fingerprint(model, learningSystemPrompt(input), learningUserPrompt(input), followUp ? "follow-up" : "");
@@ -193,7 +213,7 @@ async function main(): Promise<void> {
           if (record.follow_up) {
             if (delayMs) await sleep(delayMs);
             try {
-              record.follow_up_status = (await agent.reply(inputFor(record.follow_up, c.screen))).status;
+              record.follow_up_status = (await agent.reply(inputFor(c.section, record.follow_up, c.screen))).status;
             } catch (error) {
               if (error instanceof LearningFormatError) record.follow_up_status = "format_error";
               else if (isInfraError(error)) record.follow_up_status = "infra_error";
@@ -247,6 +267,12 @@ function report(all: { c: LearningCase; r: LearningRecord }[]): void {
     const grounded = asked.filter((o) => o.r.follow_up_status === "grounded");
     console.log(`  꼬리 질문('생각해 보기')을 다시 물었을 때 grounded: ${grounded.length}/${asked.length} (${pct(grounded.length, asked.length)})`);
     for (const o of asked.filter((x) => x.r.follow_up_status !== "grounded")) console.log(`    - ${o.c.id}: "${o.r.follow_up}" → ${o.r.follow_up_status}`);
+  }
+
+  console.log("\n공정별 전체 통과");
+  for (const section of SECTION_ORDER) {
+    const subset = rows.filter((o) => o.c.section === section);
+    if (subset.length) console.log(`  ${section}: ${subset.filter((o) => passed(o.k)).length}/${subset.length}`);
   }
 
   console.log("\n유형별 전체 통과");

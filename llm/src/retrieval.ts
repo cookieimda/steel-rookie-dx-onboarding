@@ -1,10 +1,10 @@
 // 학습 모드 근거 검색: retrieve(section, query, screen) → 근거 조각 최대 5개. 설계는 docs/learning-mode.md '근거 문서와 검색'.
-// 데이터 원천: content/materials/{섹션}/section.md가 있으면 그 문서, 없으면(지금) backend/data/ironmaking-sources.json의 공개 자료 메모.
+// 데이터 원천: content/materials/{섹션}/section.md가 있으면 그 문서, 없으면(지금) backend/data/ironmaking-sources.json에서 그 공정의 공개 자료 메모.
 // 원천만 바꾸면 되도록 검색은 조각(Chunk) 단위로만 다룬다.
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { GlossaryEntry, Rubric } from "../../backend/src/rubrics.js";
-import { publicSources, type PublicSource } from "./ironmaking-sources.js";
+import { publicSources, sectionOf, type PublicSource } from "./ironmaking-sources.js";
 
 export type Section = Rubric["section"];
 
@@ -37,28 +37,55 @@ const MIN_SCORE = 0.08;
 const SCREEN_BOOST = 0.15;
 const TITLE_WEIGHT = 0.3;
 
-// 공개 자료 메모에는 설비 id가 없어서, 메모에 나오는 말로 제선 설비를 붙인다(id는 frontend/3d-demo/data_v2.js 기준).
-const IRONMAKING_EQUIPMENT_WORDS: Record<string, string[]> = {
-  sinter_plant: ["소결"],
-  coke_oven: ["코크스", "석탄"],
-  blast_furnace: ["고로", "용광로", "환원", "용융"],
-  hot_stove: ["열풍로", "풍구", "열풍"],
-  taphole_casthouse: ["출선", "주상"],
-  torpedo_car: ["토페도", "운반"],
+// 공개 자료 메모에는 설비 id가 없어서, 메모에 나오는 말로 그 공정의 설비를 붙인다(id는 frontend/3d-demo/data_v2.js 기준).
+export const EQUIPMENT_WORDS: Record<Section, Record<string, string[]>> = {
+  ironmaking: {
+    sinter_plant: ["소결"],
+    coke_oven: ["코크스", "석탄"],
+    blast_furnace: ["고로", "용광로", "환원", "용융"],
+    hot_stove: ["열풍로", "풍구", "열풍"],
+    taphole_casthouse: ["출선", "주상"],
+    torpedo_car: ["토페도", "운반"],
+  },
+  steelmaking: {
+    hot_metal_pretreatment: ["예비처리", "탈황", "탈인"],
+    bof_converter: ["전로", "취련", "탈탄", "BOF"],
+    oxygen_lance_offgas: ["랜스", "배가스", "LDG", "집진"],
+    tapping_ladle_crane: ["출강", "크레인"],
+    secondary_refining: ["2차 정련", "2차정련", "LF", "RH", "탈가스"],
+    ladle_transfer: ["이송", "래들카", "연주공장", "연주공정"],
+  },
+  continuous_casting: {
+    ladle_turret: ["터릿"],
+    tundish: ["턴디시"],
+    cc_mold: ["주형", "몰드", "진동", "오실레이션"],
+    secondary_cooling: ["2차 냉각", "2차냉각", "스프레이", "가이드 롤"],
+    withdrawal_straightener: ["인발", "교정", "핀치"],
+    torch_cutter: ["절단", "토치"],
+  },
+  rolling: {
+    reheating_furnace: ["재가열"],
+    descaler: ["스케일"],
+    roughing_mill: ["조압연"],
+    finishing_mill: ["사상압연", "마무리 압연"],
+    runout_table: ["런아웃", "냉각대", "층류"],
+    coiler: ["권취", "코일러"],
+  },
 };
 
-/** 공개 자료 메모 하나를 조각 하나로 만든다. 모두 제선 자료다. */
+/** 공개 자료 메모 하나를 조각 하나로 만든다. 조각의 공정은 자료의 section(없으면 제선)이다. */
 export function publicSourceChunks(sources: PublicSource[] = publicSources): Chunk[] {
-  return sources.flatMap((source) =>
-    source.notes.map((note, i) => ({
+  return sources.flatMap((source) => {
+    const section = sectionOf(source);
+    return source.notes.map((note, i) => ({
       id: `${source.id}#${i + 1}`,
-      section: "ironmaking" as const,
+      section,
       title: `${source.title} (${source.topics.join(", ")})`,
       text: note,
       source_ids: [source.id],
-      tags: Object.entries(IRONMAKING_EQUIPMENT_WORDS).filter(([, words]) => words.some((w) => note.includes(w))).map(([id]) => id),
-    })),
-  );
+      tags: Object.entries(EQUIPMENT_WORDS[section]).filter(([, words]) => words.some((w) => note.includes(w))).map(([id]) => id),
+    }));
+  });
 }
 
 /**
@@ -92,11 +119,11 @@ export function parseSectionMarkdown(section: Section, markdown: string): Chunk[
   return chunks;
 }
 
-/** 섹션의 조각. section.md가 있으면 그 문서를, 없으면 공개 자료 메모(제선만)를 쓴다. */
+/** 섹션의 조각. section.md가 있으면 그 문서를, 없으면 그 공정의 공개 자료 메모를 쓴다. */
 export function loadSectionChunks(section: Section, root = join(process.cwd(), "content", "materials")): Chunk[] {
   const path = join(root, section, "section.md");
   if (existsSync(path)) return parseSectionMarkdown(section, readFileSync(path, "utf8"));
-  return section === "ironmaking" ? publicSourceChunks() : [];
+  return publicSourceChunks().filter((c) => c.section === section);
 }
 
 // 한국어는 조사가 붙어 단어가 그대로 맞지 않으므로(고로에서·고로를) 두 글자 조각(bigram)으로 비교한다.
@@ -117,6 +144,9 @@ export function expandQuery(query: string, glossary: GlossaryEntry[] = []): stri
   });
   return [query, ...extra].join(" ");
 }
+
+// 섹션과 상관없는 질문 말 → 메모 말. 메모는 온도를 "1,300℃의 고온"처럼 적어 "몇 도"와 겹치는 글자가 없다.
+const QUESTION_WORDS: GlossaryEntry[] = [{ term: "온도", aliases: ["몇 도", "몇도", "고온"] }];
 
 export interface RetrieverOptions {
   /** 섹션별 조각을 돌려준다. 기본은 loadSectionChunks(테스트는 가짜 조각을 넣는다). */
@@ -142,7 +172,7 @@ export class Retriever {
 
   /** 같은 섹션 안에서 질문과 가장 많이 겹치는 조각을 최대 5개. 겹치는 조각이 없으면 빈 배열(모델은 unverified로 답한다). */
   retrieve(section: Section, query: string, screen: Screen = {}): Retrieved[] {
-    const q = bigrams(expandQuery(query, this.glossaryFor(section)));
+    const q = bigrams(expandQuery(query, [...QUESTION_WORDS, ...this.glossaryFor(section)]));
     if (q.size === 0) return [];
     const share = (text: string) => {
       const c = bigrams(text);

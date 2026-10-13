@@ -57,13 +57,13 @@ const SCENE_CSS = `
 // 바깥 틀: 학습 기록 화면(세련안)과 같은 무채색 토큰
 const CSS = `
 :host{display:block;font-family:"Pretendard",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;font-size:14px;line-height:1.5;letter-spacing:-.01em;
-  --bg:#222225;--panel:#18181a;--chip:rgba(255,255,255,.1);--chip-on:rgba(255,255,255,.18);--line:rgba(255,255,255,.13);--text:#f5f5f5;--muted:#c4c4c9;--dim:#9a9aa0;--accent:#f2f2f2;--accent-ink:#111;--lit:#ffb020;--lit-bg:rgba(255,176,32,.12)}
-:host([theme=light]){--bg:#ffffff;--panel:#f4f4f5;--chip:rgba(0,0,0,.05);--chip-on:rgba(0,0,0,.1);--line:rgba(0,0,0,.08);--text:#161617;--muted:#5f5f66;--dim:#8a8a90;--accent:#161617;--accent-ink:#fff;--lit:#d48806;--lit-bg:rgba(212,136,6,.1)}
+  --bg:#222225;--panel:#18181a;--chip:rgba(255,255,255,.1);--chip-on:rgba(255,255,255,.18);--line:rgba(255,255,255,.13);--text:#f5f5f5;--muted:#c4c4c9;--dim:#9a9aa0;--accent:#f2f2f2;--accent-ink:#111;--lit:#ffb020;--lit-ink:#1a1200;--lit-bg:rgba(255,176,32,.12)}
+:host([theme=light]){--bg:#ffffff;--panel:#f4f4f5;--chip:rgba(0,0,0,.05);--chip-on:rgba(0,0,0,.1);--line:rgba(0,0,0,.1);--text:#161617;--muted:#55555c;--dim:#6b6b71;--accent:#161617;--accent-ink:#fff;--lit:#9a6200;--lit-ink:#ffffff;--lit-bg:rgba(212,136,6,.1)}
 *{box-sizing:border-box}button{font:inherit;letter-spacing:inherit;cursor:pointer}
 .root{background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:14px;outline:none;container-type:inline-size}
 .bar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .tabs{display:flex;gap:4px;padding:4px;border-radius:12px;background:var(--chip)}
-.tabs button{height:34px;padding:0 16px;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:14px;font-weight:600}
+.tabs button{height:34px;padding:0 16px;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:15px;font-weight:600}
 .tabs button[aria-pressed=true]{background:var(--chip-on);color:var(--text)}
 /* 그림 양옆 화살표(이전·다음 단계)와 단계 번호 줄 옆의 자동 재생 */
 .stage{position:relative}
@@ -73,20 +73,20 @@ const CSS = `
 .play{flex:none;width:32px;height:32px;padding:0;display:grid;place-items:center;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--text);font-size:12px;white-space:nowrap}
 .play:hover{background:var(--chip)}.play.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .eqs{display:flex;gap:6px;flex-wrap:wrap}
-.eqs button{display:flex;align-items:center;gap:7px;height:32px;padding:0 12px 0 6px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:12px}
-.eqs button:hover{color:var(--text)}.eqs .n{width:20px;height:20px;border-radius:50%;background:var(--chip);display:grid;place-items:center;font-size:11px}
-.eqs button[aria-pressed=true]{border-color:var(--lit);color:var(--text)}.eqs button[aria-pressed=true] .n{background:var(--lit);color:#1a1200;font-weight:700}
+.eqs button{display:flex;align-items:center;gap:7px;height:32px;padding:0 12px 0 6px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:15px}
+.eqs button:hover{color:var(--text)}.eqs .n{width:22px;height:22px;border-radius:50%;background:var(--chip);display:grid;place-items:center;font-size:13px}
+.eqs button[aria-pressed=true]{border-color:var(--lit);color:var(--text)}.eqs button[aria-pressed=true] .n{background:var(--lit);color:var(--lit-ink);font-weight:700}
 .body{display:flex;flex-direction:column;gap:12px;min-width:0}
-.head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.head h3{margin:0;font-size:18px;font-weight:700}.head .en{font-size:12px;color:var(--dim)}.head .hint{margin-left:auto;font-size:11px;color:var(--dim)}
+.head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.head h3{margin:0;font-size:18px;font-weight:700}.head .en{font-size:15px;color:var(--dim)}.head .hint{margin-left:auto;font-size:15px;color:var(--dim)}
 .svg{width:100%;height:auto;display:block;border-radius:12px;border:1px solid var(--line)}
 .stepnav{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.stepnav button{width:32px;height:32px;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:13px;font-weight:600;transition:background .2s,color .2s,border-color .2s}
+.stepnav button{width:32px;height:32px;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:15px;font-weight:600;transition:background .2s,color .2s,border-color .2s}
 .stepnav button:hover{color:var(--text);border-color:var(--muted)}
 .stepnav button.done{background:var(--chip);color:var(--text)}
-.stepnav button.on{background:var(--lit);border-color:var(--lit);color:#1a1200}
+.stepnav button.on{background:var(--lit);border-color:var(--lit);color:var(--lit-ink)}
 .stepnav .bar{flex:1;min-width:40px;height:2px;border-radius:1px;background:var(--line);overflow:hidden}.stepnav .bar i{display:block;height:100%;background:var(--lit);transition:width .3s}
 .stepcard{display:flex;flex-direction:column;gap:6px;padding:14px 16px;border-radius:12px;background:var(--lit-bg);border:1px solid var(--lit);animation:stepIn .3s ease}
-.stepcard .k{font-size:12px;font-weight:700;color:var(--lit)}.stepcard .k span{margin-left:8px;font-weight:500;color:var(--dim)}
+.stepcard .k{font-size:15px;font-weight:700;color:var(--lit)}.stepcard .k span{margin-left:8px;font-weight:500;color:var(--dim)}
 .stepcard p{margin:0;font-size:15px;line-height:1.65}
 @keyframes stepIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 ${SCENE_CSS}

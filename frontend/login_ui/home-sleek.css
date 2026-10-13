@@ -28,7 +28,7 @@ body.home {
 .nav button {
   height: 40px; padding: 0 16px; border-radius: 10px;
   background: transparent; color: var(--muted);
-  font-family: var(--font-ko); font-size: 14px; font-weight: 500; letter-spacing: 0;
+  font-family: var(--font-ko); font-size: 15px; font-weight: 500; letter-spacing: 0;
 }
 .nav button:hover { background: var(--chip); color: #fff; }
 .nav button[hidden] { display: none; }
@@ -41,11 +41,11 @@ body.home {
   position: fixed; left: 0; right: 0; bottom: 8vh; z-index: 1;
   text-align: center; padding: 0 16px; pointer-events: none;
 }
-.eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.3em; color: var(--muted); margin-bottom: 14px; }
+.eyebrow { font-family: var(--font-mono); font-size: 13px; letter-spacing: 0.3em; color: var(--muted); margin-bottom: 14px; }
 .headline { font-family: var(--font-en); font-weight: 800; font-size: clamp(44px, 8vw, 112px); line-height: 0.95; letter-spacing: 0.02em; color: #fff; }
 .lead { margin-top: 18px; font-size: 15px; font-weight: 300; color: var(--muted); }
 .lead strong { font-weight: 700; color: #fff; }
-.steps { margin-top: 18px; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.22em; color: #6f6f74; }
+.steps { margin-top: 18px; font-family: var(--font-mono); font-size: 13px; letter-spacing: 0.22em; color: #9a9aa0; }
 .steps .on { color: #fff; }
 
 
@@ -91,12 +91,12 @@ body.home {
   -webkit-text-fill-color: var(--text); caret-color: var(--text);
   transition: background-color 600000s 0s, color 600000s 0s;
 }
-.field span { font-family: var(--font-en); font-size: 12px; font-weight: 500; letter-spacing: 0.2em; color: var(--muted); }
+.field span { font-family: var(--font-en); font-size: 13px; font-weight: 500; letter-spacing: 0.2em; color: var(--muted); }
 .field:focus-within span { color: #fff; }
 /* 모드별로 안 쓰는 칸·링크는 hidden(JS가 data-modes로 정함) */
 .panel [hidden] { display: none !important; }
 /* 로그인 상태 유지: 동그란 체크 */
-.keep { display: flex; align-items: center; gap: 8px; margin-top: 36px; font-size: 14px; color: var(--muted); cursor: pointer; user-select: none; }
+.keep { display: flex; align-items: center; gap: 8px; margin-top: 36px; font-size: 15px; color: var(--muted); cursor: pointer; user-select: none; }
 .keep input { position: absolute; opacity: 0; pointer-events: none; }
 .keep i { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--muted); display: grid; place-items: center; }
 .keep i::after { content: ""; width: 6px; height: 10px; margin-top: -2px; border: solid var(--muted); border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); }
@@ -121,11 +121,11 @@ body.home {
 .accounts button:hover, .accounts button:focus-visible { background: transparent; border-color: #fff; padding-left: 6px; outline: none; }
 .accounts button > span { display: flex; flex-direction: column; gap: 3px; }
 .accounts b { font-weight: 500; }
-.accounts small { font-size: 12px; color: var(--muted); }
-.accounts code { font-family: "JetBrains Mono", monospace; font-size: 12px; letter-spacing: 0.08em; color: var(--muted); }
+.accounts small { font-size: 15px; color: var(--muted); }
+.accounts code { font-family: "JetBrains Mono", monospace; font-size: 13px; letter-spacing: 0.08em; color: var(--muted); }
 .accounts button:hover code, .accounts button:focus-visible code { color: #fff; }
 .panel .links { display: flex; justify-content: center; align-items: center; gap: 4px; margin-top: 10px; }
-.panel .links button { height: 36px; padding: 0 10px; background: transparent; color: var(--muted); font-family: var(--font-ko); font-size: 13px; font-weight: 400; letter-spacing: 0; }
+.panel .links button { height: 36px; padding: 0 10px; background: transparent; color: var(--muted); font-family: var(--font-ko); font-size: 15px; font-weight: 400; letter-spacing: 0; }
 .panel .links button:not([hidden]) ~ button:not([hidden])::before { content: "|"; margin-right: 14px; color: var(--line-soft); }
 .panel .links button:hover { background: transparent; color: #fff; }
 

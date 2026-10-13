@@ -60,7 +60,7 @@ const CSS = `
   --bg:#222225;--panel:#18181a;--chip:rgba(255,255,255,.1);--chip-on:rgba(255,255,255,.18);--line:rgba(255,255,255,.13);--text:#f5f5f5;--muted:#c4c4c9;--dim:#9a9aa0;--accent:#f2f2f2;--accent-ink:#111;--lit:#ffb020;--lit-ink:#1a1200;--lit-bg:rgba(255,176,32,.12)}
 :host([theme=light]){--bg:#ffffff;--panel:#f4f4f5;--chip:rgba(0,0,0,.05);--chip-on:rgba(0,0,0,.1);--line:rgba(0,0,0,.1);--text:#161617;--muted:#55555c;--dim:#6b6b71;--accent:#161617;--accent-ink:#fff;--lit:#9a6200;--lit-ink:#ffffff;--lit-bg:rgba(212,136,6,.1)}
 *{box-sizing:border-box}button{font:inherit;letter-spacing:inherit;cursor:pointer}
-.root{background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:14px;outline:none;container-type:inline-size}
+.root{position:relative;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:14px;outline:none;container-type:inline-size}
 .bar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .tabs{display:flex;gap:4px;padding:4px;border-radius:12px;background:var(--chip)}
 .tabs button{height:34px;padding:0 16px;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:15px;font-weight:600}
@@ -72,10 +72,24 @@ const CSS = `
 .steprow{display:flex;align-items:center;gap:10px}.steprow .stepnav{flex:1;min-width:0}
 .play{flex:none;width:32px;height:32px;padding:0;display:grid;place-items:center;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--text);font-size:12px;white-space:nowrap}
 .play:hover{background:var(--chip)}.play.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
-.eqs{display:flex;gap:6px;flex-wrap:wrap}
-.eqs button{display:flex;align-items:center;gap:7px;height:32px;padding:0 12px 0 6px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:15px}
-.eqs button:hover{color:var(--text)}.eqs .n{width:22px;height:22px;border-radius:50%;background:var(--chip);display:grid;place-items:center;font-size:13px}
-.eqs button[aria-pressed=true]{border-color:var(--lit);color:var(--text)}.eqs button[aria-pressed=true] .n{background:var(--lit);color:var(--lit-ink);font-weight:700}
+/* 오른쪽 설비 목록(유튜브 '다음 동영상'처럼): 썸네일 + 번호·단계 수 + 이름. 올리면(hover·focus) 미리보기 창이 뜬다 */
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 288px;gap:16px;align-items:start}
+.chapters{display:flex;flex-direction:column;gap:4px;padding:10px;border-radius:14px;background:var(--panel);border:1px solid var(--line)}
+.chapters .ch-h{display:flex;align-items:baseline;justify-content:space-between;padding:2px 6px 8px;font-size:15px;font-weight:700}.chapters .ch-h span{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:13px;font-weight:400;letter-spacing:.12em;color:var(--muted)}
+.ch{display:grid;grid-template-columns:104px minmax(0,1fr);gap:10px;align-items:center;width:100%;padding:6px;border-radius:10px;border:1px solid transparent;background:transparent;color:var(--text);text-align:left;transition:background .15s,border-color .15s}
+.ch:hover,.ch:focus-visible{background:var(--chip);outline:none}.ch[aria-current=true]{background:var(--chip-on);border-color:var(--lit)}
+.th{width:104px;height:56px;border-radius:8px;overflow:hidden;border:1px solid var(--line);background:var(--p-bg)}.th svg{width:100%;height:100%;display:block}
+.ch .meta{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ch .k{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:13px;color:var(--muted)}.ch[aria-current=true] .k{color:var(--lit);font-weight:700}
+.ch .nm{font-size:15px;font-weight:600;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ch.next{grid-template-columns:1fr;margin-top:6px;border:1px dashed var(--line);padding:10px 12px;color:var(--muted);font-size:15px}.ch.next:hover{color:var(--text)}
+/* 썸네일은 멈춘 그림(글자·움직임 없이 전체가 보이게) */
+svg.thumb *{animation:none!important}svg.thumb .lbl{display:none}svg.thumb [data-s]{opacity:1!important;filter:none!important}
+.peek{position:absolute;z-index:6;width:340px;display:flex;flex-direction:column;gap:8px;padding:10px 10px 12px;border-radius:14px;background:var(--bg);border:1px solid var(--line);box-shadow:0 18px 44px rgba(0,0,0,.35);pointer-events:none;animation:stepIn .16s ease}
+.peek[hidden]{display:none}.peek .big{border-radius:10px;overflow:hidden;border:1px solid var(--line);background:var(--p-bg)}.peek .big svg{width:100%;height:auto;display:block}
+.peek .t{display:flex;align-items:baseline;gap:8px;padding:0 4px}.peek .t b{font-size:15px}.peek .t span{font-size:13px;color:var(--dim)}
+.peek p{margin:0;padding:0 4px;font-size:15px;line-height:1.55;color:var(--muted)}.peek .go{padding:0 4px;font-size:13px;color:var(--lit)}
+@container (max-width:900px){.layout{grid-template-columns:1fr}.chapters{flex-direction:row;overflow-x:auto}.chapters .ch-h{display:none}.ch{grid-template-columns:1fr;width:150px;flex:none}.th{width:100%;height:76px}.peek{display:none}}
 .body{display:flex;flex-direction:column;gap:12px;min-width:0}
 .head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.head h3{margin:0;font-size:18px;font-weight:700}.head .en{font-size:15px;color:var(--dim)}.head .hint{margin-left:auto;font-size:15px;color:var(--dim)}
 .svg{width:100%;height:auto;display:block;border-radius:12px;border:1px solid var(--line)}
@@ -104,11 +118,12 @@ class Process2D extends HTMLElement {
     this.shadowRoot.innerHTML = `<style>${CSS}${KEYFRAMES}</style>${DEFS}<div class="root" tabindex="0">
       <div class="bar"><div class="tabs" id="tabs" role="group" aria-label="공정"></div>
 </div>
-      <div class="eqs" id="eqs" role="group" aria-label="설비"></div>
-      <div class="body"><div class="head"><h3 id="title"></h3><span class="en" id="en"></span><span class="hint">← → 단계 · ↑ ↓ 설비</span></div>
+      <div class="layout"><div class="body"><div class="head"><h3 id="title"></h3><span class="en" id="en"></span><span class="hint">← → 단계 · ↑ ↓ 설비</span></div>
         <div class="stage"><div id="svgwrap"></div><button class="arrow prev" aria-label="이전 단계">‹</button><button class="arrow next" aria-label="다음 단계">›</button></div>
         <div class="steprow"><div class="stepnav" id="stepnav" role="group" aria-label="단계"></div><button class="play" aria-label="자동 재생" title="자동 재생">▶</button></div>
-        <div id="stepcard"></div></div></div>`;
+        <div id="stepcard"></div></div>
+        <aside class="chapters" id="chapters" aria-label="설비 목록"></aside></div>
+      <div class="peek" id="peek" hidden></div></div>`;
     this.$ = id => this.shadowRoot.getElementById(id);
     this.pi = 0; this.ei = 0; this.sub = 0; this.timer = null;
     const root = this.shadowRoot.querySelector('.root');
@@ -159,8 +174,7 @@ class Process2D extends HTMLElement {
   render() {
     this.$('tabs').innerHTML = PROCS.map((p, i) => `<button data-i="${i}" aria-pressed="${i === this.pi}">${esc(p.name)}</button>`).join('');
     this.$('tabs').querySelectorAll('button').forEach(b => b.onclick = () => { this.pi = +b.dataset.i; this.ei = 0; this.sub = 0; this.render(); this.emit(); });
-    this.$('eqs').innerHTML = this.items().map((d, i) => `<button data-i="${i}" aria-pressed="${i === this.ei}"><span class="n">${i + 1}</span>${esc(d.name)}</button>`).join('');
-    this.$('eqs').querySelectorAll('button').forEach(b => b.onclick = () => { this.ei = +b.dataset.i; this.sub = 0; this.render(); this.emit(); });
+    this.renderChapters();
     const d = this.cur();
     this.$('svgwrap').innerHTML = `<svg class="svg hl" viewBox="0 0 600 320" xmlns="http://www.w3.org/2000/svg">${SCENES[d.id] || '<text x="300" y="160" class="lbl">장면 준비 중</text>'}</svg>`;
     this.liftLabels(this.$('svgwrap').querySelector('svg'));
@@ -169,6 +183,30 @@ class Process2D extends HTMLElement {
     this.$('stepnav').querySelectorAll('button').forEach(b => b.onclick = () => { this.sub = +b.dataset.i; this.highlight(); });
     this.highlight();
   }
+  // 오른쪽 설비 목록: 지금 공정의 설비 6개 + 다음 공정으로 가는 줄. 썸네일은 그 설비 장면을 멈춘 그림으로 줄여 보여 준다.
+  renderChapters() {
+    const items = this.items(), next = PROCS[this.pi + 1];
+    const thumb = id => `<svg class="svg thumb" viewBox="0 0 600 320" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">${SCENES[id] || ''}</svg>`;
+    this.$('chapters').innerHTML = `<div class="ch-h">${esc(this.proc().name)} 설비<span>${items.length}</span></div>`
+      + items.map((d, i) => `<button class="ch" data-i="${i}" aria-current="${i === this.ei}"><span class="th">${thumb(d.id)}</span><span class="meta"><span class="k">${String(i + 1).padStart(2, '0')} · ${d.steps.length}단계</span><span class="nm">${esc(d.name)}</span></span></button>`).join('')
+      + (next ? `<button class="ch next" data-next="1">다음 공정 · ${esc(next.name)} →</button>` : '');
+    this.$('chapters').querySelectorAll('.ch').forEach(b => {
+      b.onclick = () => { this.hidePeek(); if (b.dataset.next) { this.pi++; this.ei = 0; } else this.ei = +b.dataset.i; this.sub = 0; this.render(); this.emit(); };
+      if (b.dataset.i !== undefined) { b.onmouseenter = b.onfocus = () => this.showPeek(b); b.onmouseleave = b.onblur = () => this.hidePeek(); }
+    });
+  }
+  // 미리보기 창: 목록 왼쪽(그림 위)에 큰 장면(움직임 포함)과 첫 단계 설명을 띄운다
+  showPeek(btn) {
+    const d = this.items()[+btn.dataset.i], peek = this.$('peek'), root = this.shadowRoot.querySelector('.root');
+    peek.innerHTML = `<div class="big"><svg class="svg" viewBox="0 0 600 320" xmlns="http://www.w3.org/2000/svg">${SCENES[d.id] || ''}</svg></div>
+      <div class="t"><b>${esc(d.name)}</b><span>${esc(d.en)}</span></div><p>1단계 · ${esc(d.steps[0][0])}</p><span class="go">${+btn.dataset.i === this.ei ? '지금 보고 있어요' : `클릭하면 ${d.steps.length}단계를 따라가요`}</span>`;
+    this.liftLabels(peek.querySelector('svg'));
+    peek.hidden = false;
+    const r = root.getBoundingClientRect(), b = btn.getBoundingClientRect(), list = this.$('chapters').getBoundingClientRect();
+    const top = Math.max(8, Math.min(b.top - r.top - 8, r.height - peek.offsetHeight - 8));
+    peek.style.top = `${top}px`; peek.style.left = `${list.left - r.left - peek.offsetWidth - 12}px`;
+  }
+  hidePeek() { const p = this.$('peek'); if (p) p.hidden = true; }
   // 글자를 맨 위 층으로 옮긴다: 장면 SVG는 나중에 그린 그림이 앞 단계 글자를 덮는다(예: 윈드박스 상자가 '팔레트 대차' 글자를 가림).
   // 옮긴 글자는 원래 단계 번호(data-s)를 가진 껍데기에 넣어 단계 강조가 그대로 된다. 움직이는 부품에 붙은 글자는 함께 움직여야 하므로 옮기지 않는다.
   liftLabels(svg) {

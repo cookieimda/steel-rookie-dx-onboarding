@@ -95,7 +95,7 @@
           <span style="font-size:15px;color:var(--dim);">{{ tutorContext }}</span>
         </div>
         <div ref="{{ chatRef }}" style="flex:1 1 0;min-height:0;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:14px;scrollbar-width:thin;scrollbar-color:var(--line) transparent;">
-          <sc-if value="{{ logEmpty }}" hint-placeholder-val="{{ true }}"><span style="font-size:15px;color:var(--muted);line-height:1.6;">궁금한 설비를 고르고 아래에 물어보세요. 지금은 제선 공정 자료로 답할 수 있어요.</span></sc-if>
+          <sc-if value="{{ logEmpty }}" hint-placeholder-val="{{ true }}"><span style="font-size:15px;color:var(--muted);line-height:1.6;">궁금한 설비를 고르고 아래에 물어보세요. 제선·제강·연주·열간압연 모두 공개 자료를 근거로 답해요.</span></sc-if>
           <sc-for list="{{ messages }}" as="m" hint-placeholder-count="0">
             <sc-if value="{{ m.isUser }}" hint-placeholder-val="{{ false }}">
               <div style="align-self:flex-end;max-width:88%;padding:11px 14px;border-radius:14px 14px 4px 14px;background:var(--accent);color:var(--accent-ink);font-size:15px;font-weight:500;line-height:1.6;word-break:break-word;">{{ m.text }}</div>

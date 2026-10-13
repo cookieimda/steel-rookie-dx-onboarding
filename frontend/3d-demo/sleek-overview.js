@@ -17,6 +17,8 @@ export function attachSleek() {
     if (!ready) return setTimeout(tryAttach, 120);
     if (el.__sleek) return; el.__sleek = true;
     setupDroneView(el);
+    // 실시간 그림자 지도는 끈다: 바닥·건물 그림자는 이미 구워 두었는데, 라이트 모드에서 해 그림자를 매 프레임 다시 그려 약한 그래픽에서 버벅였다
+    el.renderer.shadowMap.enabled = false;
     // 원래 코드가 테마를 칠한 직후 바로 톤을 다시 맞춘다(500ms 주기를 기다리면 남색 하늘이 잠깐 비친다)
     const applyTheme = el._applyTheme.bind(el);
     el._applyTheme = function () { const r = applyTheme(), dark = (this.getAttribute('theme') || 'dark') === 'dark'; try { gradeScene(this, dark); } catch (e) { console.warn('톤 맞추기 실패', e); }
@@ -645,7 +647,7 @@ function siteFog(el) {
         + ' vFade = smoothstep(0.0, 0.4, dot(normalize(v.xz), aOut)) * (1. - smoothstep(0.35, 0.7, abs(v.y))) * smoothstep(12., 45., dist);'
         + ' gl_Position = projectionMatrix * viewMatrix * vec4(w, 1.); }',
       fragmentShader: 'uniform vec3 uCol; uniform sampler2D uMap; varying vec2 vUv; varying float vFade;'
-        + ' void main(){ vec4 t = texture2D(uMap, vUv); float a = t.a * 0.3 * vFade; if (a < 0.004) discard; gl_FragColor = vec4(uCol * (0.82 + 0.25 * t.r), a); }' });
+        + ' void main(){ vec4 t = texture2D(uMap, vUv); float a = t.a * 0.25 * vFade; if (a < 0.004) discard; gl_FragColor = vec4(uCol * (0.82 + 0.25 * t.r), a); }' });
     fog = new THREE.Mesh(g, mat); fog.name = 'SLEEK_SITE_FOG'; fog.raycast = () => {}; fog.renderOrder = 4; fog.frustumCulled = false;
     fog.layers.set(1); el.camera.layers.enable(1); el.scene.add(fog);
   }

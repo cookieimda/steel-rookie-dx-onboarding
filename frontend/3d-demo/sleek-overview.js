@@ -17,6 +17,8 @@ export function attachSleek() {
     if (!ready) return setTimeout(tryAttach, 120);
     if (el.__sleek) return; el.__sleek = true;
     setupDroneView(el);
+    // 실시간 그림자 지도는 끈다: 바닥·건물 그림자는 이미 구워 두었는데, 라이트 모드에서 해 그림자를 매 프레임 다시 그려 약한 그래픽에서 버벅였다
+    el.renderer.shadowMap.enabled = false;
     // 원래 코드가 테마를 칠한 직후 바로 톤을 다시 맞춘다(500ms 주기를 기다리면 남색 하늘이 잠깐 비친다)
     const applyTheme = el._applyTheme.bind(el);
     el._applyTheme = function () { const r = applyTheme(), dark = (this.getAttribute('theme') || 'dark') === 'dark'; try { gradeScene(this, dark); } catch (e) { console.warn('톤 맞추기 실패', e); }
@@ -433,8 +435,9 @@ function keyShadow(el, box) {
   const dmat = new THREE.ShaderMaterial({ side: THREE.DoubleSide,
     vertexShader: 'varying float vD; void main(){ vec4 p = vec4(position, 1.);\n#ifdef USE_INSTANCING\n p = instanceMatrix * p;\n#endif\n vec4 mv = viewMatrix * modelMatrix * p; vD = -mv.z; gl_Position = projectionMatrix * mv; }',
     fragmentShader: 'varying float vD; void main(){ gl_FragColor = vec4(vD, 0., 0., 1.); }' });
+  // 바닥에 붙은 납작한 물체(높이 0.6 미만: 옛 바닥 el.ground·바닥 장식 등)는 뺀다. 바닥 바로 위·아래에 겹친 면이 바닥 자신을 가려 밤 바닥 전체에 물결 무늬(자기 그림자)가 찍혔다
   const hidden = []; treeBake(S, true);
-  S.traverse(o => { if (!o.visible) return; if (o.name === 'SITE_GROUND' || o.name === 'SLEEK_SEA' || o.name === 'SLEEK_ROADS' || o.isPoints || o.isLine || o.isSprite) { o.visible = false; hidden.push(o); } });
+  const fb = new THREE.Box3(); S.traverse(o => { if (!o.visible) return; const flat = o.isMesh && !o.isInstancedMesh && (fb.setFromObject(o), fb.max.y < 0.6); if (flat || o.name === 'SITE_GROUND' || o.name === 'SLEEK_SEA' || o.name === 'SLEEK_ROADS' || o.isPoints || o.isLine || o.isSprite) { o.visible = false; hidden.push(o); } });
   const bg = S.background, fog = S.fog, cc = R.getClearColor(new THREE.Color()), ca = R.getClearAlpha(), tm = R.toneMapping;
   const rt = new THREE.WebGLRenderTarget(RES, RES, { type: THREE.FloatType }), depth = new Float32Array(RES * RES * 4);
   try { S.background = null; S.fog = null; S.overrideMaterial = dmat; R.toneMapping = THREE.NoToneMapping; R.setClearColor(0x000000, 1); R.setRenderTarget(rt); R.clear(); R.render(S, cam); R.readRenderTargetPixels(rt, 0, 0, RES, RES, depth); }
@@ -644,7 +647,7 @@ function siteFog(el) {
         + ' vFade = smoothstep(0.0, 0.4, dot(normalize(v.xz), aOut)) * (1. - smoothstep(0.35, 0.7, abs(v.y))) * smoothstep(12., 45., dist);'
         + ' gl_Position = projectionMatrix * viewMatrix * vec4(w, 1.); }',
       fragmentShader: 'uniform vec3 uCol; uniform sampler2D uMap; varying vec2 vUv; varying float vFade;'
-        + ' void main(){ vec4 t = texture2D(uMap, vUv); float a = t.a * 0.3 * vFade; if (a < 0.004) discard; gl_FragColor = vec4(uCol * (0.82 + 0.25 * t.r), a); }' });
+        + ' void main(){ vec4 t = texture2D(uMap, vUv); float a = t.a * 0.25 * vFade; if (a < 0.004) discard; gl_FragColor = vec4(uCol * (0.82 + 0.25 * t.r), a); }' });
     fog = new THREE.Mesh(g, mat); fog.name = 'SLEEK_SITE_FOG'; fog.raycast = () => {}; fog.renderOrder = 4; fog.frustumCulled = false;
     fog.layers.set(1); el.camera.layers.enable(1); el.scene.add(fog);
   }
@@ -808,7 +811,7 @@ function bakeChiaroscuro(el, ext) {
     fragmentShader: 'varying float vD; void main(){ gl_FragColor = vec4(vD, 0., 0., 1.); }' });
   const hidden = [];
   treeBake(S, true);
-  S.traverse(o => { if (!o.visible) return; if (o.name === 'SITE_GROUND' || o.name === 'SLEEK_SEA' || o.name === 'SLEEK_ROADS' || o.isPoints || o.isLine || o.isSprite) { o.visible = false; hidden.push(o); } });
+  const fb = new THREE.Box3(); S.traverse(o => { if (!o.visible) return; const flat = o.isMesh && !o.isInstancedMesh && (fb.setFromObject(o), fb.max.y < 0.6); if (flat || o.name === 'SITE_GROUND' || o.name === 'SLEEK_SEA' || o.name === 'SLEEK_ROADS' || o.isPoints || o.isLine || o.isSprite) { o.visible = false; hidden.push(o); } });
   const bg = S.background, fog = S.fog, cc = R.getClearColor(new THREE.Color()), ca = R.getClearAlpha(), tm = R.toneMapping;
   const rt = new THREE.WebGLRenderTarget(RES, RES, { type: THREE.FloatType }), depth = new Float32Array(RES * RES * 4);
   try { S.background = null; S.fog = null; S.overrideMaterial = dmat; R.toneMapping = THREE.NoToneMapping; R.setClearColor(0x000000, 1); R.setRenderTarget(rt); R.clear(); R.render(S, cam); R.readRenderTargetPixels(rt, 0, 0, RES, RES, depth); }

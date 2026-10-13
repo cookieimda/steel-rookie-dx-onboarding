@@ -1,5 +1,5 @@
 // npm run db:seed-demo [seed]
-// 시연 신입사원의 시연 기록(origin = 'seed')을 지우고 trainee11~20에게만 무작위로 다시 만든다(trainee01~10은 실제 테스트용). seed를 주면 같은 기록이 나온다.
+// 시연 신입사원의 시연 기록(origin = 'seed')을 지우고 trainee02~20에게만 무작위로 다시 만든다(trainee01은 실제 테스트용). seed를 주면 같은 기록이 나온다.
 // 개념은 final 루브릭에서 읽고, final 루브릭이 없는 섹션은 시연 목록(content/demo/sections.json)으로 채운다. 루브릭이 추가되면 그 섹션은 루브릭 개념을 쓴다.
 import { seedDemoAccounts } from "../auth/demo-accounts.js";
 import { UserRepository } from "../auth/users.js";

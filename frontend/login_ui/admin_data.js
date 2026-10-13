@@ -16,6 +16,11 @@ export async function loadAdminData() {
   return { trainees, concepts };
 }
 
+// GET /api/admin/trainees/:id : 신입사원 한 명 상세(섹션별 개념 점수·시도 기록·진행 중, 오개념은 개수만). 표에서 사람을 누르면 부른다.
+export function loadTraineeDetail(id) {
+  return get(`/api/admin/trainees/${encodeURIComponent(id)}`);
+}
+
 // GET /api/admin/ai-summary : 오답률 높은 개념의 집계 숫자만 Gemini에 넘겨 만든 1~2문장 요약.
 // 실패해도 대시보드는 그대로 보이도록 loadAdminData와 따로 부른다. 실패하면 { error: 상태 코드 문자열 }.
 export async function loadAiSummary() {

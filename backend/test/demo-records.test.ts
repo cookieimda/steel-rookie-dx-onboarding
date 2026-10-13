@@ -66,10 +66,10 @@ test("루브릭(개념)이 없는 섹션에는 기록을 만들지 않는다", a
   assert.equal(Number(db.prepare("SELECT COUNT(*) AS n FROM misconceptions WHERE section <> 'ironmaking'").get()?.n), 0);
 });
 
-test("시연 기록은 trainee11~20에만 origin = 'seed'로 넣고, 다시 만들 때 trainee01~10의 seed 기록은 지우고 실제 기록(live)은 남긴다", async () => {
+test("시연 기록은 trainee02~20에만 origin = 'seed'로 넣고, 다시 만들 때 trainee01의 seed 기록은 지우고 실제 기록(live)은 남긴다", async () => {
   const { db } = await seeded(42);
   const seededUsers = db.prepare("SELECT DISTINCT u.username FROM attempts a JOIN users u ON u.id = a.user_id ORDER BY 1").all().map((r) => String(r.username));
-  assert.ok(seededUsers.length > 0 && seededUsers.every((u) => u >= "trainee11" && u <= "trainee20"), seededUsers.join(","));
+  assert.ok(seededUsers.length > 0 && seededUsers.every((u) => u >= "trainee02" && u <= "trainee20"), seededUsers.join(","));
   assert.equal(Number(db.prepare("SELECT COUNT(*) AS n FROM attempts WHERE origin <> 'seed'").get()?.n), 0);
   assert.equal(Number(db.prepare("SELECT COUNT(*) AS n FROM misconceptions WHERE origin <> 'seed' AND id <> 'keep'").get()?.n), 0);
 

@@ -21,15 +21,15 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
   { username: "admin01", role: "admin", name: "관리자", employee_no: "A2026001" },
 ];
 
-/** 시연 기록(db:seed-demo)을 넣는 시연 신입사원 trainee11~20. users.is_demo = 1(006_demo_accounts.sql). trainee01~10은 팀원 실제 테스트 계정이다. */
-export const DEMO_RECORD_TRAINEES: string[] = DEMO_ACCOUNTS.filter((a) => a.role === "trainee").slice(10).map((a) => a.username);
+/** 시연 기록(db:seed-demo)을 넣는 시연 신입사원 trainee02~20. users.is_demo = 1(006_demo_accounts.sql). trainee01은 팀원 실제 테스트 계정이다. */
+export const DEMO_RECORD_TRAINEES: string[] = DEMO_ACCOUNTS.filter((a) => a.role === "trainee").slice(1).map((a) => a.username);
 
 const DEFAULT_DEMO_PASSWORD = "steel-2026-demo";
 
 export const demoAccountsEnabled = () => process.env.DEMO_ACCOUNTS?.trim().toLowerCase() !== "off";
 export const demoPassword = () => process.env.DEMO_PASSWORD?.trim() || DEFAULT_DEMO_PASSWORD;
 
-/** 없는 시연 계정만 만든다. 이미 있는 계정의 비밀번호는 바꾸지 않는다. 시연 기록 계정(trainee11~20)에는 is_demo를 표시한다. */
+/** 없는 시연 계정만 만든다. 이미 있는 계정의 비밀번호는 바꾸지 않는다. 시연 기록 계정(trainee02~20)에는 is_demo를 표시한다. */
 export async function seedDemoAccounts(users: UserRepository): Promise<number> {
   if (!demoAccountsEnabled()) return 0;
   let created = 0;

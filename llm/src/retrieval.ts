@@ -37,6 +37,19 @@ const MIN_SCORE = 0.08;
 const SCREEN_BOOST = 0.15;
 const TITLE_WEIGHT = 0.3;
 
+/** 질문에 나온 말로 제선 개념(section.md 조각의 태그)을 짐작한다. 설비 이름이 여러 조각에 겹칠 때 순위를 가르는 검색 힌트이고, 답이 아니다. */
+function queryConcepts(section: Section, query: string): string[] {
+  if (section !== "ironmaking") return [];
+  const hints: string[] = [];
+  if (/소결/.test(query)) hints.push("sinter_purpose");
+  if (/코크스/.test(query) && /고로|환원|일산화탄소|역할|왜/.test(query) && !/제조|생산|화성|코크스로/.test(query)) hints.push("coke_reduction");
+  if (/열풍/.test(query)) hints.push("hot_stove_role");
+  if (/토페도|어뢰|TLC|옮|운반/i.test(query)) hints.push("torpedo_role");
+  if (/출선|배출|나와|나오/.test(query) && /고로|쇳물|용선|출선/.test(query)) hints.push("taphole_role");
+  if (/FINEX|파이넥스/i.test(query)) hints.push("finex_route");
+  return hints;
+}
+
 // 공개 자료 메모에는 설비 id가 없어서, 메모에 나오는 말로 그 공정의 설비를 붙인다(id는 frontend/3d-demo/data_v2.js 기준).
 export const EQUIPMENT_WORDS: Record<Section, Record<string, string[]>> = {
   ironmaking: {
@@ -83,7 +96,10 @@ export function publicSourceChunks(sources: PublicSource[] = publicSources): Chu
       title: `${source.title} (${source.topics.join(", ")})`,
       text: note,
       source_ids: [source.id],
-      tags: Object.entries(EQUIPMENT_WORDS[section]).filter(([, words]) => words.some((w) => note.includes(w))).map(([id]) => id),
+      tags: [
+        ...Object.entries(EQUIPMENT_WORDS[section]).filter(([, words]) => words.some((w) => note.includes(w))).map(([id]) => id),
+        ...(section === "ironmaking" && /코크스/.test(note) && /환원|일산화탄소|열원/.test(note) ? ["coke_reduction"] : []),
+      ],
     }));
   });
 }
@@ -119,11 +135,12 @@ export function parseSectionMarkdown(section: Section, markdown: string): Chunk[
   return chunks;
 }
 
-/** 섹션의 조각. section.md가 있으면 그 문서를, 없으면 그 공정의 공개 자료 메모를 쓴다. */
+/** 섹션의 조각: 개념별 자료(content/materials/{섹션}/section.md)와 그 공정의 공개 자료 메모를 함께 검색한다. 같은 id면 개념별 자료가 우선이다. */
 export function loadSectionChunks(section: Section, root = join(process.cwd(), "content", "materials")): Chunk[] {
   const path = join(root, section, "section.md");
-  if (existsSync(path)) return parseSectionMarkdown(section, readFileSync(path, "utf8"));
-  return publicSourceChunks().filter((c) => c.section === section);
+  const curated = existsSync(path) ? parseSectionMarkdown(section, readFileSync(path, "utf8")) : [];
+  const publicNotes = publicSourceChunks().filter((c) => c.section === section);
+  return [...new Map([...publicNotes, ...curated].map((c) => [c.id, c])).values()];
 }
 
 // 한국어는 조사가 붙어 단어가 그대로 맞지 않으므로(고로에서·고로를) 두 글자 조각(bigram)으로 비교한다.
@@ -157,9 +174,13 @@ export function withScreenEquipment(query: string, equipmentName?: string | null
 }
 
 // 섹션과 상관없는 질문 말 → 메모 말. 메모는 온도를 "1,300℃의 고온"처럼 적어 "몇 도"와 겹치는 글자가 없다.
-const QUESTION_WORDS: GlossaryEntry[] = [{ term: "온도", aliases: ["몇 도", "몇도", "고온"] }];
+// 자료는 FINEX를 영어로만 적어 "파이넥스"로 물으면 겹치는 글자가 없다.
+const QUESTION_WORDS: GlossaryEntry[] = [{ term: "온도", aliases: ["몇 도", "몇도", "고온"] }, { term: "FINEX", aliases: ["파이넥스"] }];
 
 export interface RetrieverOptions {
+  /** idf는 자료에 흔한 표현보다 구별되는 검색어에 높은 가중치를 준다. overlap은 이전 기준 비교용이다. */
+  ranking?: "idf" | "overlap";
+  maxResults?: number;
   /** 섹션별 조각을 돌려준다. 기본은 loadSectionChunks(테스트는 가짜 조각을 넣는다). */
   chunksFor?: (section: Section) => Chunk[];
   /** 섹션별 용어집. 보통 루브릭의 glossary. */
@@ -168,16 +189,28 @@ export interface RetrieverOptions {
 
 export class Retriever {
   private readonly cache = new Map<Section, Chunk[]>();
+  private readonly frequencies = new Map<Section, Map<string, number>>();
+  private readonly ranking: "idf" | "overlap";
+  private readonly maxResults: number;
   private readonly chunksFor: (section: Section) => Chunk[];
   private readonly glossaryFor: (section: Section) => GlossaryEntry[];
 
   constructor(options: RetrieverOptions = {}) {
+    this.ranking = options.ranking ?? "idf";
+    this.maxResults = options.maxResults ?? MAX_RESULTS;
+    if (!Number.isInteger(this.maxResults) || this.maxResults < 1) throw new Error("maxResults는 양의 정수입니다.");
     this.chunksFor = options.chunksFor ?? ((s) => loadSectionChunks(s));
     this.glossaryFor = options.glossaryFor ?? (() => []);
   }
 
   private chunks(section: Section): Chunk[] {
-    if (!this.cache.has(section)) this.cache.set(section, this.chunksFor(section));
+    if (!this.cache.has(section)) {
+      const chunks = this.chunksFor(section);
+      this.cache.set(section, chunks);
+      const df = new Map<string, number>();
+      for (const c of chunks) for (const g of bigrams(`${c.title} ${c.text}`)) df.set(g, (df.get(g) ?? 0) + 1);
+      this.frequencies.set(section, df);
+    }
     return this.cache.get(section)!;
   }
 
@@ -185,22 +218,30 @@ export class Retriever {
   retrieve(section: Section, query: string, screen: Screen = {}): Retrieved[] {
     const q = bigrams(expandQuery(query, [...QUESTION_WORDS, ...this.glossaryFor(section)]));
     if (q.size === 0) return [];
+    const chunks = this.chunks(section);
+    const concepts = this.ranking === "idf" ? queryConcepts(section, query) : [];
+    const df = this.frequencies.get(section)!;
+    const weight = (g: string) => this.ranking === "idf" ? 1 + Math.log((chunks.length + 1) / ((df.get(g) ?? 0) + 1)) : 1;
+    const total = [...q].reduce((sum, g) => sum + weight(g), 0);
     const share = (text: string) => {
       const c = bigrams(text);
       let hit = 0;
-      for (const g of q) if (c.has(g)) hit++;
-      return hit / q.size;
+      for (const g of q) if (c.has(g)) hit += weight(g);
+      return hit / total;
     };
-    return this.chunks(section)
+    return chunks
       .map((chunk) => {
         // 제목(공개 자료는 자료 제목·주제 목록)은 같은 자료의 메모가 모두 공유하므로 본문보다 약하게 센다.
         const overlap = share(chunk.text) + TITLE_WEIGHT * share(chunk.title);
         const boost = overlap > 0 && screen.equipment_id && chunk.tags.includes(screen.equipment_id) ? SCREEN_BOOST : 0;
-        return { ...chunk, score: Math.round((overlap + boost) * 1000) / 1000 };
+        const conceptBoost = overlap >= MIN_SCORE && concepts.some((id) => chunk.tags.includes(id)) ? 0.25 : 0;
+        // 코크스와 전로를 견주는 조각(coke_vs_converter)은 비교를 물을 때만 쓸모 있어서, 그 밖에는 순위를 낮춘다.
+        const contrastPenalty = chunk.tags.includes("coke_vs_converter") && !/불순물|전로|제강|제거|비교|다르|탄소/.test(query) ? 0.25 : 0;
+        return { ...chunk, score: Math.round((overlap + boost + conceptBoost - contrastPenalty) * 1000) / 1000 };
       })
       .filter((r) => r.score >= MIN_SCORE)
       .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))
-      .slice(0, MAX_RESULTS);
+      .slice(0, this.maxResults);
   }
 
   /**

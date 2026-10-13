@@ -30,7 +30,8 @@ test("publicSourceChunks: 공개 자료 메모 하나가 조각 하나이고, �
   for (const c of chunks) {
     const source = publicSources.find((s) => s.id === c.source_ids[0])!;
     assert.equal(c.section, sectionOf(source));
-    assert.ok(c.tags.every((t) => t in EQUIPMENT_WORDS[c.section]), `${c.id}: ${c.tags}`);
+    // 설비 태그와, 제선 코크스 메모의 개념 힌트(coke_reduction)만 붙는다.
+    assert.ok(c.tags.every((t) => t in EQUIPMENT_WORDS[c.section] || (c.section === "ironmaking" && t === "coke_reduction")), `${c.id}: ${c.tags}`);
   }
   const sinter = chunks.find((c) => c.text.includes("소결광으로 만드는 전처리"))!;
   assert.ok(sinter.tags.includes("sinter_plant"));
@@ -142,12 +143,14 @@ test("parseSectionMarkdown: 제목 하나가 조각 하나, {#id}는 id·태그,
   assert.ok(!chunks[0].text.includes("[src:"));
 });
 
-test("loadSectionChunks: section.md가 있으면 그 문서, 없으면 그 공정의 공개 자료 메모", () => {
+test("loadSectionChunks: 그 공정의 공개 자료 메모에 section.md(개념별 자료)를 더한다", () => {
   const root = mkdtempSync(join(tmpdir(), "materials-"));
   mkdirSync(join(root, "rolling"));
   writeFileSync(join(root, "rolling", "section.md"), "## 권취기 {#coiler}\n강판을 코일로 감는다.\n");
-  assert.deepEqual(loadSectionChunks("rolling", root).map((c) => c.id), ["coiler"]);
   const notesOf = (section: string) => publicSources.filter((s) => sectionOf(s) === section).reduce((n, s) => n + s.notes.length, 0);
+  const rolling = loadSectionChunks("rolling", root);
+  assert.equal(rolling.length, notesOf("rolling") + 1);
+  assert.ok(rolling.some((c) => c.id === "coiler"), "section.md 조각");
   assert.equal(loadSectionChunks("ironmaking", root).length, notesOf("ironmaking"));
   assert.equal(loadSectionChunks("steelmaking", root).length, notesOf("steelmaking"));
   assert.ok(loadSectionChunks("steelmaking", root).every((c) => c.section === "steelmaking"));

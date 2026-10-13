@@ -20,19 +20,19 @@
 
 ## 프론트 구조 (`frontend/3d-demo`)
 
-**최종 페이지는 `Steel Academy v3.dc.html`(v3)이고, 서버 `/`가 이 페이지를 연다.** v3는 v2를 개편해 따로 만든 페이지다(3D는 `scene_v3.js`). v2(`Steel Academy v2.dc.html`, `scene_v2.js`)는 이전 페이지로 남아 있고 같은 `learning-chat.js`·`checkpoint-chat.js`를 쓴다. v1 페이지(`Steel Academy.dc.html`)는 지웠고, 남은 `data.js`·`tutor.js`·`scene.js`는 옛 버전이라 고치지 않는다.
+**최종 페이지는 `Steel Academy v3.dc.html`(v3)이고, 서버 `/`가 이 페이지를 연다.** v3는 v2를 개편해 따로 만든 페이지다(3D는 `scene_v3.js`). v2 페이지(`Steel Academy v2.dc.html`, `scene_v2.js`)는 이해도 확인을 v3 오버레이로 옮긴 뒤 지웠다. v1 페이지(`Steel Academy.dc.html`)는 지웠고, 남은 `data.js`·`tutor.js`·`scene.js`는 옛 버전이라 고치지 않는다.
 
 - `Steel Academy v3.dc.html`: 화면 템플릿과 로직. 로직은 `<script type="text/x-dc">` 안의 `class Component extends DCLogic`에 있고, `support.js`가 읽어서 실행한다(에디터에서 문법 강조가 안 됨). 주소는 `/Steel%20Academy%20v3.dc.html`.
   - `componentDidMount`: `data_v2.js`, `learning-chat.js`, `checkpoint-chat.js`를 불러와 `this.chat`(학습)과 `this.checkpoint`(이해도 확인)를 만들고 3D 이벤트를 구독한다.
   - `ask(text)`: `this.checkpoint.runLearning(() => this.chat.ask(text))`. 체크포인트 진행 중에는 학습 질문을 막는다(설비 패널 '튜터에게 묻기'·튜터 패널 전송이 부른다). `screenContext()`는 `this.chat`에 넘기는 위임.
   - `goProcess(id)`: 공정을 옮길 때 `this.checkpoint.refresh(id)`로 그 공정의 진입 상태를 다시 읽는다.
-  - `renderVals()`: 템플릿 값과 클릭 핸들러(공정 탭, 설비 목록, 재생 제어, 튜터 패널, 개발자 패널). 튜터 패널 값은 `...this.checkpoint.lockLearning(this.chat.vals(D))`와 `...this.checkpoint.vals()`, 공정 목록 배지는 `this.checkpoint.sectionBadge(id)`.
+  - `renderVals()`: 템플릿 값과 클릭 핸들러(공정 탭, 설비 목록, 재생 제어, 튜터 패널, 개발자 패널). 튜터 패널(학습 전용) 값은 `...this.checkpoint.lockLearning(this.chat.vals(D))`, 공정 목록 배지와 [담금질 시작하기]는 `this.checkpoint.sectionBadge(id)`, 3D 화면 위 이해도 확인 오버레이 값은 `...this.checkpoint.vals()`.
 - `learning-chat.js`(ssoyoum): 학습 모드 채팅. `createLearningChat(c)`가 `ask`(질문 → 학습 모드 API `POST /api/chat` → 화면 조작 → 메시지), `runActions`(`goto_process`, `highlight`, `focus`, `play_animation`), `screenContext`, `vals`(메시지·추천 질문·입력창)를 돌려준다. 상태는 페이지 컴포넌트 state에 그대로 있다. 추천 질문은 `learning-suggestions.js`.
-- `checkpoint-chat.js`(수민): 튜터 패널의 이해도 확인 모드. `createCheckpointChat(c)`가 모드 탭(학습 | 이해도 확인, state `tutorMode`), 진입 상태·시작·답변·재채점·결과, 학습 잠금(`runLearning`, `lockLearning`), 공정 배지(`sectionBadge`)를 맡는다. 상태 키와 `vals()` 키는 `cp`로 시작한다. 요청은 `api-client.js`(로그인 토큰), 문장은 `tutor-text.js`. 설계는 [docs/checkpoint-integration.md](docs/checkpoint-integration.md).
-- `data_v2.js`: `PROCESSES`(공정 4개·설비 24개), `SUGGESTED`, `findProcess`, `findEquipment`. 3D 표시용 값과 교육 내용이 섞여 있다. v2·v3 둘 다 쓴다. `tutor_v2.js`(`mockTutor`, 가짜 튜터)는 이제 어느 페이지도 부르지 않는다.
-- `scene_v3.js`: `<steel-scene>` 커스텀 엘리먼트(Three.js). 메서드 `tour`, `jumpTo`, `next`, `stopTour`, `walk`(설비 작동 보기), `layer`(단면 층), `play`, `stop`, `toggle`, `focus`, `overview`, `reset`, `setDrawMode`(2D 뷰), `setLeftLimit`, `setNavWidth`. 이벤트 `steel-select`, `steel-goto`, `steel-overview`, `steel-layer`, `steel-layout`, `steel-model`, `steel-progress`, `steel-tour`, `steel-tour-end`. `step-fx.js`는 작동 보기·단면 보기의 단계별 시각화(`data_v2.js`의 `steps[i]` 기준). v2용 `scene_v2.js`와 2D 팝업 `steel-2d.js`·`steel-2d-popup.js`는 v3가 쓰지 않는다.
-- `models/`: 공정별 GLB, 앵커 `anchors-v2b.json`(v2·v3 공용, v1은 `anchors.json`). 현재 GLB에는 `EQ_<설비 id>` 노드가 없고 앵커로 설비 위치를 잡는다.
-- `checkpoint-test.html`: 체크포인트(이해도 확인) 테스트용 단독 페이지(`/checkpoint-test.html`). 메인 페이지에서 링크하지 않는다. 입장 화면(이름·접속 비밀번호), 섹션별 진입 상태(`/api/sections/:section/progress`), 진행(`/api/checkpoints`, 새로고침 시 진행 중 시도 복원), 재채점, 결과 차트를 포함한다. 바닐라 HTML+JS라 `support.js`를 쓰지 않는다. 메인 페이지(v3)에도 같은 기능이 튜터 패널에 있다(`checkpoint-chat.js`).
+- `checkpoint-chat.js`(수민): 이해도 확인. `createCheckpointChat(c)`가 진입 상태·시작·답변·재채점·결과, 3D 화면 위 오버레이 값(말풍선, 캐릭터 동작 이름표 `motionFor`), 공정 목록 배지와 섹션 버튼(`sectionBadge`), 학습 잠금(`runLearning`, `lockLearning`)을 맡는다. 튜터 패널은 학습 전용이다(모드 탭과 `tutorMode`는 지웠다). 캐릭터는 `cp-character.js`(`<cp-character motion model>`, 모델 `models/character/tutor.glb`). 상태 키와 `vals()` 키는 `cp`로 시작한다. 요청은 `api-client.js`(로그인 토큰), 문장은 `tutor-text.js`. 설계는 [docs/checkpoint-integration.md](docs/checkpoint-integration.md), [docs/checkpoint-overlay.md](docs/checkpoint-overlay.md).
+- `data_v2.js`: `PROCESSES`(공정 4개·설비 24개), `SUGGESTED`, `findProcess`, `findEquipment`. 3D 표시용 값과 교육 내용이 섞여 있다. v3가 쓴다. `tutor_v2.js`(`mockTutor`, 가짜 튜터)는 이제 어느 페이지도 부르지 않는다.
+- `scene_v3.js`: `<steel-scene>` 커스텀 엘리먼트(Three.js). 메서드 `tour`, `jumpTo`, `next`, `stopTour`, `walk`(설비 작동 보기), `layer`(단면 층), `play`, `stop`, `toggle`, `focus`, `overview`, `reset`, `setDrawMode`(2D 뷰), `setLeftLimit`, `setNavWidth`. 이벤트 `steel-select`, `steel-goto`, `steel-overview`, `steel-layer`, `steel-layout`, `steel-model`, `steel-progress`, `steel-tour`, `steel-tour-end`. `step-fx.js`는 작동 보기·단면 보기의 단계별 시각화(`data_v2.js`의 `steps[i]` 기준). 2D 팝업 `steel-2d.js`·`steel-2d-popup.js`는 v3가 쓰지 않는다.
+- `models/`: 공정별 GLB, 앵커 `anchors-v2b.json`(v3가 쓴다, v1은 `anchors.json`). 현재 GLB에는 `EQ_<설비 id>` 노드가 없고 앵커로 설비 위치를 잡는다.
+- `checkpoint-test.html`: 체크포인트(이해도 확인) 테스트용 단독 페이지(`/checkpoint-test.html`). 메인 페이지에서 링크하지 않는다. 입장 화면(이름·접속 비밀번호), 섹션별 진입 상태(`/api/sections/:section/progress`), 진행(`/api/checkpoints`, 새로고침 시 진행 중 시도 복원), 재채점, 결과 차트를 포함한다. 바닐라 HTML+JS라 `support.js`를 쓰지 않는다. 메인 페이지(v3)는 같은 기능을 3D 화면 위 오버레이로 보여 준다(`checkpoint-chat.js`).
 
 설비 `id`(예: `blast_furnace`)는 화면 선택, 튜터 화면 조작, 3D 앵커, 콘텐츠를 잇는 키다. 바꾸지 않는다. 기준은 `data_v2.js`의 24개이고, v1·루브릭과의 차이는 [docs/equipment-ids.md](docs/equipment-ids.md).
 
@@ -45,7 +45,7 @@
 | 수민: 체크포인트·평가자·튜터·질문 은행·eval | `backend/src/checkpoint/`, `backend/src/rubrics.ts`, `backend/src/db/migrations/001_checkpoint.sql`·`007_checkpoint_pause.sql`, `llm/src/evaluator.ts`, `llm/src/tutor.ts`, `llm/src/question-check.ts`, `llm/prompts/evaluator.md`, `llm/prompts/tutor-*.md`, `llm/eval/`, `content/rubrics/`(`schema.json` 제외), `frontend/3d-demo/checkpoint-test.html`, `frontend/3d-demo/checkpoint-chat.js`, `frontend/3d-demo/cp-character.js`(이해도 확인 캐릭터), 원격 테스트 장치(`backend/src/test-access.ts`, `usage.ts`, `request-user.ts`, `db/migrations/002_llm_usage.sql`, `scripts/tunnel.mjs`), 이 파일들의 테스트 |
 | ssoyoum: 학습 모드 | `llm/src/learning-agent.ts`·`llm/src/retrieval.ts`(둘 다 새로 만듦), `llm/prompts/learning*.md`, `backend/src/learning/`(단, `notes.ts`의 `LearnerNotes` 타입과 `buildLearnerNotes` 시그니처는 수민과 합의 후 변경), `frontend/3d-demo/learning-chat.js`, `frontend/3d-demo/tutor_v2.js`, 학습 모드 마이그레이션(`004`부터, `003_users.sql`은 로그인), 이 파일들의 테스트 |
 | 공용: 고치면 작은 PR + 팀 공유 | `llm/src/gemini.ts`, `backend/src/scoring.ts`, `content/rubrics/schema.json`, `backend/src/app.ts`(라우트 등록), `backend/src/db/database.ts`, `backend/src/checkpoint/types.ts`, `package.json`, `CLAUDE.md`, 마이그레이션 번호 |
-| 프론트(viiin2) | `Steel Academy v3.dc.html`, `scene_v3.js`, `step-fx.js`, `Steel Academy v2.dc.html`, `data_v2.js`, `scene_v2.js`, `steel-2d*.js`, `models/`, `frontend/login_ui/`(`Admin Dashboard.dc.html` 제외) |
+| 프론트(viiin2) | `Steel Academy v3.dc.html`, `scene_v3.js`, `step-fx.js`, `data_v2.js`, `steel-2d*.js`, `models/`, `frontend/login_ui/`(`Admin Dashboard.dc.html` 제외) |
 | 수민: 관리자 대시보드 | `backend/src/admin/`, `frontend/login_ui/Admin Dashboard.dc.html`, 시연 개념 목록 `content/demo/sections.json`·`backend/src/demo-sections.ts`, 이 파일들의 테스트 |
 
 - 마이그레이션 번호 규칙: `backend/src/db/migrations/NNN_이름.sql`을 파일 이름 순서로 한 번씩 적용하고 `schema_migrations`에 이름을 남긴다. 001~007은 사용 중이다(005: 기록 출처 `origin`, 006: 시연 계정 `users.is_demo`, 007: 이어 풀기 질문 기록 `attempt_questions`). 새 번호는 지금 가장 큰 번호 + 1로 정하고, 같은 번호를 두 사람이 쓰지 않게 PR을 열기 전에 팀에 알린다. 이미 병합된 마이그레이션 파일은 고치지 않고 새 번호로 추가한다.
@@ -246,7 +246,7 @@ content/
 고치지 않고 이슈로 남긴 것. 고치면 이 목록에서 지운다.
 
 - 테스트 `HTTP: 시작 201·재시작 200, 입력 오류 400, LLM 연결 실패 502`(`backend/test/checkpoint.test.ts`)가 전체 실행에서 가끔 실패한다(26회 중 1회, 단독 실행은 통과): [#14](https://github.com/viiin2/ST-ROOKIE/issues/14)
-- v2 `componentDidUpdate` 콘솔 오류(`support.js`가 인자 하나만 넘김, 설비 선택 시 `setLeftLimit` 미실행): [#15](https://github.com/viiin2/ST-ROOKIE/issues/15)
+- v2 `componentDidUpdate` 콘솔 오류(`support.js`가 인자 하나만 넘김, 설비 선택 시 `setLeftLimit` 미실행): v2 삭제로 해결 [#15](https://github.com/viiin2/ST-ROOKIE/issues/15)
 - 제강 신규 설비 3개(`oxygen_lance_offgas`, `tapping_ladle_crane`, `ladle_transfer`)의 앵커가 `anchors-v2b.json`에 없음: [#16](https://github.com/viiin2/ST-ROOKIE/issues/16)
 - `models/README.md`의 `EQ_<id>` 노드 규칙이 현재 앵커 방식과 다름(GLB에 `EQ_` 노드 없음): [#17](https://github.com/viiin2/ST-ROOKIE/issues/17)
 

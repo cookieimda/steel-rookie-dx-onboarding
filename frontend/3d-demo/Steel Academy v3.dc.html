@@ -444,12 +444,6 @@
         <div style="flex:1;display:flex;flex-direction:column;gap:6px;"><span style="font-family:'Noto Sans KR',sans-serif;font-size:26px;font-weight:900;">AI 튜터</span><span style="font-size:15px;color:#c3ccd7;">{{ cpHeaderMode }} · {{ ctxLabel }}</span></div>
         <button onClick="{{ toggleTutor }}" title="닫기" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:none;border-radius:8px;background:transparent;cursor:pointer;" style-hover="background:var(--chrome3);"><img src="{{ ic.close }}" width="18" height="18" alt=""></button>
       </div>
-      <sc-if value="{{ cpShowTabs }}" hint-placeholder-val="{{ false }}"><!-- 모드 탭은 숨김: 이해도 확인은 3D 화면 위 오버레이에서 한다 -->
-      <div style="display:flex;gap:4px;margin:0 22px 12px;padding:4px;border-radius:10px;background:var(--chrome);border:1px solid var(--line2);">
-        <sc-for list="{{ cpTabs }}" as="t" hint-placeholder-count="2"><button onClick="{{ t.onClick }}" style="flex:1;height:36px;border:none;border-radius:7px;background:{{ t.bg }};color:{{ t.color }};font-size:14px;font-weight:{{ t.weight }};cursor:pointer;" style-hover="color:var(--text);">{{ t.label }}</button></sc-for>
-      </div>
-      </sc-if>
-      <sc-if value="{{ cpIsLearningTab }}" hint-placeholder-val="{{ true }}">
       <!-- 풀던 이해도 확인 안내(멈춤·답하는 중). 값은 checkpoint-chat.js의 vals() -->
       <sc-if value="{{ cpShowResumeBanner }}" hint-placeholder-val="{{ false }}"><div style="display:flex;align-items:center;gap:12px;margin:0 22px 12px;padding:12px 14px;border-radius:10px;background:rgba(34,199,240,.1);border:1px solid rgba(34,199,240,.45);"><span style="flex:1;min-width:0;font-size:13px;line-height:1.5;">{{ cpResumeBannerText }}</span><button onClick="{{ onCpResume }}" style="height:32px;padding:0 14px;border:none;border-radius:7px;background:var(--accent);color:var(--accent-ink);font-size:13px;font-weight:700;cursor:pointer;flex:none;" style-hover="filter:brightness(1.1);">{{ cpResumeBannerLabel }}</button></div></sc-if>
       <div ref="{{ chatRef }}" style="flex:1;min-height:0;overflow-y:auto;padding:4px 22px 14px;display:flex;flex-direction:column;gap:12px;">
@@ -505,64 +499,6 @@
         <input value="{{ input }}" onChange="{{ onInput }}" placeholder="{{ inputPh }}" style="flex:1;min-width:0;height:46px;background:var(--chrome);color:var(--text);border:1px solid var(--line2);border-radius:9px;padding:0 14px;font-size:14px;outline:none;" style-focus="border-color:var(--accent);box-shadow:0 0 0 3px rgba(34,199,240,.2);">
         <button type="submit" style="height:46px;padding:0 18px;border-radius:9px;border:none;background:{{ sendBg }};color:{{ sendColor }};font-size:14px;font-weight:700;cursor:pointer;flex:none;" style-hover="filter:brightness(1.1);">전송</button>
       </form>
-      </sc-if>
-      <!-- 이해도 확인(체크포인트). 값은 checkpoint-chat.js의 vals() -->
-      <sc-if value="{{ cpIsCheckpointTab }}" hint-placeholder-val="{{ false }}">
-      <sc-if value="{{ !cpShowEntry }}" hint-placeholder-val="{{ false }}">
-        <div style="display:flex;flex-direction:column;gap:8px;padding:0 22px 12px;border-bottom:1px solid var(--line);">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span style="font-size:16px;font-weight:700;">{{ cpTitle }}</span><span style="flex:none;padding:3px 10px;border-radius:999px;border:1px solid {{ cpStageColor }};color:{{ cpStageColor }};font-size:12px;font-weight:700;white-space:nowrap;">{{ cpStageLabel }}</span></div>
-          <div style="display:flex;align-items:center;gap:8px;"><span style="flex:1;min-width:0;font-size:13px;color:#c3ccd7;">{{ cpConceptName }}</span><sc-for list="{{ cpDots }}" as="d" hint-placeholder-count="0"><span style="width:9px;height:9px;border-radius:50%;background:{{ d.color }};"></span></sc-for></div>
-        </div>
-      </sc-if>
-      <div ref="{{ chatRef }}" style="flex:1;min-height:0;overflow-y:auto;padding:14px 22px;display:flex;flex-direction:column;gap:12px;">
-        <sc-if value="{{ cpShowEntry }}" hint-placeholder-val="{{ false }}">
-          <div style="display:flex;flex-direction:column;gap:12px;padding:18px;border-radius:10px;border:1px solid var(--line2);background:var(--chrome3);">
-            <span style="font-size:13px;color:#c3ccd7;">{{ cpTabCheckpointLabel }} · {{ cpEntrySectionName }}</span>
-            <span style="font-size:16px;font-weight:700;line-height:1.5;">{{ cpEntryStatus }}</span>
-            <sc-if value="{{ cpNeedsLogin }}" hint-placeholder-val="{{ false }}"><a href="{{ cpLoginUrl }}" style="align-self:flex-start;height:40px;padding:0 18px;display:flex;align-items:center;border-radius:9px;background:var(--accent);color:var(--accent-ink);font-size:14px;font-weight:700;text-decoration:none;">{{ cpLoginLabel }}</a></sc-if>
-            <sc-if value="{{ cpShowStartButton }}" hint-placeholder-val="{{ false }}"><button onClick="{{ onCpStart }}" disabled="{{ !cpCanStart }}" style="align-self:flex-start;height:40px;padding:0 22px;border:none;border-radius:9px;background:var(--accent);color:var(--accent-ink);font-size:14px;font-weight:700;cursor:pointer;opacity:{{ cpStartOpacity }};" style-hover="filter:brightness(1.1);">{{ cpStartLabel }}</button></sc-if>
-          </div>
-        </sc-if>
-        <sc-for list="{{ cpMessages }}" as="m" hint-placeholder-count="0">
-          <sc-if value="{{ m.isUser }}" hint-placeholder-val="{{ false }}"><div style="align-self:flex-end;max-width:85%;display:flex;align-items:center;gap:10px;background:var(--chrome4);color:var(--text);padding:11px 14px;border-radius:12px 12px 4px 12px;font-size:14px;line-height:1.5;"><img src="{{ ic.user }}" width="18" height="18" alt="" style="flex:none;opacity:.85;">{{ m.text }}</div></sc-if>
-          <sc-if value="{{ m.isTutor }}" hint-placeholder-val="{{ false }}"><div style="align-self:flex-start;max-width:94%;display:flex;flex-direction:column;gap:4px;background:var(--chrome3);padding:11px 14px;border-left:3px solid {{ m.color }};border-radius:4px 12px 12px 4px;font-size:14px;line-height:1.65;text-wrap:pretty;"><span style="font-size:12px;font-weight:700;color:{{ m.color }};">{{ m.label }}</span><span>{{ m.text }}</span></div></sc-if>
-        </sc-for>
-        <sc-if value="{{ cpPending }}" hint-placeholder-val="{{ false }}">
-          <div style="align-self:flex-start;display:flex;gap:4px;padding:12px 14px;background:var(--chrome3);border-radius:10px;"><span style="width:6px;height:6px;border-radius:3px;background:var(--muted);animation:blink 1s infinite;"></span><span style="width:6px;height:6px;border-radius:3px;background:var(--muted);animation:blink 1s .2s infinite;"></span><span style="width:6px;height:6px;border-radius:3px;background:var(--muted);animation:blink 1s .4s infinite;"></span></div>
-        </sc-if>
-        <sc-if value="{{ cpShowResult }}" hint-placeholder-val="{{ false }}">
-          <div style="display:flex;flex-direction:column;gap:14px;padding:16px;border-radius:10px;border:1px solid var(--line2);background:var(--chrome);">
-            <div style="display:flex;align-items:baseline;justify-content:space-between;"><span style="font-size:14px;color:#c3ccd7;">{{ cpResult.understandingLabel }}</span><span style="font-size:26px;font-weight:800;">{{ cpResult.percent }}%</span></div>
-            <div style="position:relative;height:10px;margin-bottom:16px;border-radius:5px;background:var(--chrome3);"><div style="height:100%;width:{{ cpResult.percent }}%;border-radius:5px;background:{{ cpResult.color }};"></div><div style="position:absolute;top:-4px;bottom:-4px;left:{{ cpResult.thresholdPercent }}%;width:2px;background:var(--text);"><span style="position:absolute;top:18px;left:-26px;width:54px;text-align:center;font-size:11px;color:#c3ccd7;">{{ cpResult.thresholdLabel }}</span></div></div>
-            <span style="padding:9px 12px;border-radius:9px;border:1px solid {{ cpResult.color }};color:{{ cpResult.color }};font-size:14px;font-weight:700;">{{ cpResult.passLabel }}</span>
-            <sc-for list="{{ cpResult.bars }}" as="b" hint-placeholder-count="0">
-              <div style="display:grid;grid-template-columns:minmax(0,1fr) 110px;align-items:center;gap:10px;"><div style="display:flex;flex-direction:column;min-width:0;"><span style="font-size:14px;font-weight:600;">{{ b.name }}</span><span style="font-size:12px;color:#c3ccd7;">{{ b.label }}</span></div><div style="height:8px;border-radius:4px;background:var(--chrome3);overflow:hidden;"><div style="height:100%;width:{{ b.widthPercent }}%;background:{{ b.color }};"></div></div></div>
-            </sc-for>
-          </div>
-        </sc-if>
-        <sc-if value="{{ cpHasNotice }}" hint-placeholder-val="{{ false }}"><div style="padding:10px 14px;border-radius:9px;background:rgba(255,90,90,.12);border:1px solid rgba(255,90,90,.4);color:#ffc9c9;font-size:13px;line-height:1.55;">{{ cpNotice }}</div></sc-if>
-      </div>
-      <sc-if value="{{ cpShowRunning }}" hint-placeholder-val="{{ false }}">
-        <div style="display:flex;flex-direction:column;gap:10px;padding:14px 22px 18px;border-top:1px solid var(--line);">
-          <sc-if value="{{ cpConfirmPause }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-direction:column;gap:10px;padding:12px 14px;border-radius:10px;background:var(--chrome3);border:1px solid var(--line2);"><span style="font-size:13px;line-height:1.55;">{{ cpConfirmPauseText }}</span><div style="display:flex;gap:8px;justify-content:flex-end;"><button onClick="{{ onCpCancelPause }}" style="height:34px;padding:0 14px;border-radius:8px;border:1px solid var(--line2);background:transparent;color:var(--text);font-size:13px;font-weight:700;cursor:pointer;" style-hover="border-color:var(--accent);">{{ cpConfirmPauseNo }}</button><button onClick="{{ onCpConfirmPause }}" style="height:34px;padding:0 14px;border:none;border-radius:8px;background:var(--accent);color:var(--accent-ink);font-size:13px;font-weight:700;cursor:pointer;" style-hover="filter:brightness(1.1);">{{ cpConfirmPauseYes }}</button></div></div></sc-if>
-          <sc-if value="{{ cpShowResumeButton }}" hint-placeholder-val="{{ false }}"><button onClick="{{ onCpResume }}" style="height:46px;border:none;border-radius:9px;background:var(--accent);color:var(--accent-ink);font-size:14px;font-weight:700;cursor:pointer;" style-hover="filter:brightness(1.1);">{{ cpResumeLabel }}</button></sc-if>
-          <div style="display:flex;gap:8px;">
-            <sc-if value="{{ cpShowReadyButton }}" hint-placeholder-val="{{ false }}"><button onClick="{{ onCpReady }}" style="height:36px;padding:0 16px;border-radius:9px;border:1px solid var(--accent);background:transparent;color:var(--text);font-size:13px;font-weight:700;cursor:pointer;" style-hover="background:rgba(34,199,240,.12);">{{ cpReadyLabel }}</button></sc-if>
-            <sc-if value="{{ cpShowRetryButton }}" hint-placeholder-val="{{ false }}"><button onClick="{{ onCpRetry }}" style="height:36px;padding:0 16px;display:flex;align-items:center;gap:6px;border-radius:9px;border:1px solid var(--line2);background:transparent;color:var(--text);font-size:13px;font-weight:700;cursor:pointer;" style-hover="border-color:var(--accent);"><img src="{{ ic.refreshSm }}" width="14" height="14" alt="">{{ cpRetryLabel }}</button></sc-if>
-            <sc-if value="{{ cpShowPauseButton }}" hint-placeholder-val="{{ false }}"><button onClick="{{ onCpPause }}" style="margin-left:auto;height:36px;padding:0 14px;border-radius:9px;border:1px solid var(--line2);background:transparent;color:#c3ccd7;font-size:13px;font-weight:600;cursor:pointer;" style-hover="border-color:var(--accent);color:var(--text);">{{ cpPauseLabel }}</button></sc-if>
-          </div>
-          <sc-if value="{{ cpShowComposer }}" hint-placeholder-val="{{ true }}">
-          <form onSubmit="{{ onCpSend }}" style="display:flex;gap:8px;opacity:{{ cpInputOpacity }};">
-            <input value="{{ cpInput }}" onChange="{{ onCpInput }}" disabled="{{ cpInputDisabled }}" placeholder="{{ cpPlaceholder }}" style="flex:1;min-width:0;height:46px;background:var(--chrome);color:var(--text);border:1px solid var(--line2);border-radius:9px;padding:0 14px;font-size:14px;outline:none;" style-focus="border-color:var(--accent);box-shadow:0 0 0 3px rgba(34,199,240,.2);">
-            <button type="submit" disabled="{{ cpInputDisabled }}" style="height:46px;padding:0 18px;border-radius:9px;border:none;background:var(--accent);color:var(--accent-ink);font-size:14px;font-weight:700;cursor:pointer;flex:none;" style-hover="filter:brightness(1.1);">{{ cpSendLabel }}</button>
-          </form>
-          </sc-if>
-        </div>
-      </sc-if>
-      <sc-if value="{{ cpShowResult }}" hint-placeholder-val="{{ false }}">
-        <div style="display:flex;justify-content:flex-end;padding:14px 22px 18px;border-top:1px solid var(--line);"><button onClick="{{ onCpClose }}" style="height:40px;padding:0 18px;border-radius:9px;border:1px solid var(--line2);background:transparent;color:var(--text);font-size:14px;font-weight:700;cursor:pointer;" style-hover="border-color:var(--accent);">{{ cpCloseLabel }}</button></div>
-      </sc-if>
-      </sc-if>
     </sc-if>
 
     <!-- 개발자 -->
@@ -700,7 +636,7 @@ class Component extends DCLogic {
     addEventListener('resize', this._onResize); this._onResize();
     const [d, lc, cc] = await Promise.all([import('./data_v2.js'), import('./learning-chat.js'), import('./checkpoint-chat.js')]);
     this.data = d; this.chat = await lc.createLearningChat(this); // 학습 모드 채팅(ask, 추천 질문)은 learning-chat.js
-    this.checkpoint = cc.createCheckpointChat(this, { tabs: false }); this.checkpoint.refreshAll(); // 이해도 확인(모드 탭, 학습 잠금, 공정 배지, 오버레이)은 checkpoint-chat.js
+    this.checkpoint = cc.createCheckpointChat(this); this.checkpoint.refreshAll(); // 이해도 확인(학습 잠금, 공정 배지, 오버레이)은 checkpoint-chat.js
     import('./cp-character.js').catch(e => console.warn('[cp-character] 불러오지 못함', e)); // 오버레이 캐릭터 <cp-character>(x-import가 등록을 기다린다)
     this.setState({ ready: true, speed: this.props.flowSpeed ?? 1 });
     // 3D 영역을 메뉴 밖에 따로 두므로 메뉴 폭 보정은 끈다

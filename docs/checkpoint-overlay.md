@@ -8,7 +8,7 @@
 ## 목표
 
 - 오른쪽 AI 튜터 패널은 학습 전용이다. 모드 탭(학습 | 이해도 확인)을 없애고, 이어 풀기 배너는 공정 목록으로 옮긴다.
-- 공정 목록 각 섹션 끝에 [담금질 시작하기] 버튼과 진행 상태·배지를 둔다.
+- 공정 목록 각 섹션 끝에 [학습하기] 버튼과 진행 상태·배지를 둔다.
 - 버튼을 누르면 3D 화면 위에 오버레이가 뜬다: 3D 캐릭터 + 말풍선 + 답변 입력 + 나가기.
 - 캐릭터 동작은 튜터 발화의 `type`으로 정한다(`question`, `feedback`, `explanation`, `recheck_question`, `result` 등).
 
@@ -62,7 +62,7 @@
 
 키별 형식·설명은 [checkpoint-integration.md](checkpoint-integration.md)의 '공정 목록 섹션 버튼'·'오버레이' 표.
 
-- 공정 목록(섹션별, `sectionBadge(id)`를 넓힘): `cpSectionStatus`, `cpSectionPassed`, `cpSectionShowStart`(통과·로그인 전·잠김·준비 중이면 숨김), `cpSectionCanStart`·`cpSectionStartOpacity`, `cpSectionStartLabel`(담금질 시작하기 / 이어 풀기 / 재도전), `onCpSectionStart`(→ `openSection(id)`), `cpSectionHasResume`, `cpSectionResumeText`. 기존 진입 화면 키(`cpEntryStatus`, `cpCanStart` …)와 헷갈리지 않게 `cpSection`으로 시작한다.
+- 공정 목록(섹션별, `sectionBadge(id)`를 넓힘): `cpSectionStatus`, `cpSectionPassed`, `cpSectionShowStart`(통과·로그인 전·잠김·준비 중이면 숨김), `cpSectionCanStart`·`cpSectionStartOpacity`, `cpSectionStartLabel`(학습하기 / 이어 풀기 / 재도전), `onCpSectionStart`(→ `openSection(id)`), `cpSectionHasResume`, `cpSectionResumeText`. 기존 진입 화면 키(`cpEntryStatus`, `cpCanStart` …)와 헷갈리지 않게 `cpSection`으로 시작한다.
 - 오버레이: `cpShowOverlay`, `cpCharacterMotion`, `cpBubbleText`, `cpBubbleLabel`, `cpBubbleType`, `cpBubbleColor`, `cpBubbleHasNext`, `cpBubbleNextLabel`, `onCpBubbleNext`, `cpCanAnswer`(마지막 발화를 보고 있고 답하는 중일 때만 입력 가능)·`cpOverlayInputDisabled`, `cpShowHistory`·`cpHistoryLabel`·`onCpToggleHistory`(앞의 설명 다시 보기), `cpExitLabel`, `onCpExit`.
 - 그대로 다시 쓰는 값: 입력(`cpInput`, `onCpSend` …), 준비·재채점 버튼, 멈춤 확인창(`cpConfirmPause` …), 결과(`cpResult`), 진행 점(`cpDots`).
 
@@ -78,7 +78,7 @@
 | `runLearning`·`lockLearning` | 잠금 규칙 | 그대로. `tutorMode` 관련 줄만 정리 |
 
 - 탭 값(`cpTabs` 등)과 `tutorMode`는 PR 4에서 지웠다. v2 페이지는 이때 함께 지웠다(미정 사항 4).
-- `tutor-text.js`(수민)에 `담금질 시작하기`, `나가기`, 말풍선 [다음] 문구를 추가한다.
+- `tutor-text.js`(수민)에 `학습하기`, `나가기`, 말풍선 [다음] 문구를 추가한다.
 
 ## 캐릭터 모듈 (`frontend/3d-demo/cp-character.js`)
 
@@ -158,7 +158,7 @@
 ## v3 HTML 변경 범위 (viiin2)
 
 1. 튜터 패널: 모드 탭 줄과 이해도 확인 블록을 지우고, 학습 블록을 감싼 `cpIsLearningTab` 조건을 푼다. 학습 잠금 문구와 [멈추고 질문하기]는 남긴다.
-2. 공정 목록(넓은 화면): 펼친 섹션의 설비 목록 아래에 상태 문구와 [담금질 시작하기]/[이어 풀기]. 이어 풀기 배너를 이쪽으로 옮긴다. 좁은 화면(rail)은 배지 점만(미정 사항).
+2. 공정 목록(넓은 화면): 펼친 섹션의 설비 목록 아래에 상태 문구와 [학습하기]/[이어 풀기]. 이어 풀기 배너를 이쪽으로 옮긴다. 좁은 화면(rail)은 배지 점만(미정 사항).
 3. 오버레이: 3D 영역 div 안 `steel-scene` 위. 아래쪽 띠에 `<cp-character>` + 말풍선 + 입력 + 버튼(준비됐어요, 다시 채점하기, 나가기), 결과 차트. 바탕은 `pointer-events: none`, 실제 요소만 `auto`로 해서 3D 드래그가 통하게 한다.
 4. 로직: `componentDidMount`에서 `cp-character.js` 불러오기, `openTutor()` 추가, `goProcess`·투어·작동 보기에 오버레이 잠금 검사.
 
@@ -168,7 +168,7 @@
 |---|---|---|
 | 학습 패널 | **잠금(확정)**. [멈추고 질문하기] → 멈춤 → 오버레이 닫기 → 튜터 패널 열기 | 사용 가능 |
 | 카메라 회전·확대·3D 클릭 | **막음(확정)**. 오버레이의 반투명 배경이 3D 영역 전체를 덮는다 | 허용 |
-| 공정 메뉴(공정 이동·설비 선택·섹션 버튼)·하단 재생 바 | **막음(확정)**. 흐리게·흑백으로 보이고 누를 수 없다(`cpOverlayLock*`). 공정 메뉴 맨 위에 '담금질 중에는 공정 이동과 재생을 쓸 수 없어요' | 허용 |
+| 공정 메뉴(공정 이동·설비 선택·섹션 버튼)·하단 재생 바 | **막음(확정)**. 흐리게·흑백으로 보이고 누를 수 없다(`cpOverlayLock*`). 공정 메뉴 맨 위에 '이해도 확인 중에는 공정 이동과 재생을 쓸 수 없어요' | 허용 |
 | 상단 바(홈·전체 공정·경로 표시) | 열려 있음(미정 사항 1) | 허용 |
 | 설비 클릭 | 하이라이트만, 설비 패널은 열지 않음(제안) | 허용 |
 | 나가기 | 확인창 → 멈춤 | 닫기 |
@@ -194,7 +194,7 @@
 ## 미정 사항
 
 1. 오버레이 중 상단 바의 홈·전체 공정·경로 표시(지금은 눌러서 전체 공정으로 옮길 수 있다). 3D 화면 조작·공정 메뉴·하단 재생 바는 막기로 확정
-2. 좁은 화면(rail)에서 [담금질 시작하기] 위치
+2. 좁은 화면(rail)에서 [학습하기] 위치
 3. 말풍선 넘김: [다음] 버튼 / 자동 넘김 + 클릭으로 건너뛰기
 4. ~~v2 페이지의 이해도 확인 탭을 남길지 지울지~~ → v2 페이지 자체를 지우기로 결정(PR 4)
 5. 오버레이가 열려 있을 때 튜터 패널을 함께 열 수 있게 할지

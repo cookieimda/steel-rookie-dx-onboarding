@@ -103,7 +103,7 @@ test("시작 → 답변 → 재확인 → 결과: 섹션 버튼, 단계 표시, 
   let b = chat.sectionBadge("ironmaking");
   assert.equal(b.cpSectionStatus, TEXT.entry.notStarted);
   assert.equal(b.cpSectionCanStart, true);
-  assert.equal(b.cpSectionStartLabel, TEXT.buttons.startQuench);
+  assert.equal(b.cpSectionStartLabel, TEXT.buttons.startLearning);
   assert.deepEqual(SECTION_IDS.map((id: string) => chat.sectionBadge(id).cpBadge), [TEXT.badges.notPassed, "", "", ""]);
   let v = vals();
   assert.equal(v.cpLearningLocked, false);
@@ -604,7 +604,7 @@ test("오버레이: 섹션 버튼으로 시작 → 말풍선이 이번 응답의
   assert.equal(b.cpSectionStatus, TEXT.entry.notStarted);
   assert.equal(b.cpSectionShowStart, true);
   assert.equal(b.cpSectionCanStart, true);
-  assert.equal(b.cpSectionStartLabel, TEXT.buttons.startQuench);
+  assert.equal(b.cpSectionStartLabel, TEXT.buttons.startLearning);
   assert.equal(b.cpSectionHasResume, false);
   const steel = s.chat.sectionBadge("steelmaking");
   assert.equal(steel.cpSectionStatus, TEXT.entry.noCheckpoint);

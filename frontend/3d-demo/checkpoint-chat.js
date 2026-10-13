@@ -10,7 +10,7 @@
 // - 나중에 이어 풀기(paused): 멈춘 동안에는 학습 채팅을 쓸 수 있다. 튜터 패널에 "풀던 이해도 확인이 있어요 [이어 풀기]" 안내를 띄운다.
 //   로그인·새로고침으로 시도를 다시 열 때는 오버레이를 열지 않는다(docs/checkpoint-api.md '나중에 이어 풀기').
 // - 튜터 패널은 학습 전용이다(모드 탭 없음). 이해도 확인은 오버레이에서만 한다.
-// - 이해도 확인 오버레이(docs/checkpoint-overlay.md): 공정 목록의 섹션별 [담금질 시작하기](sectionBadge의 cpSection* 값)로 열고,
+// - 이해도 확인 오버레이(docs/checkpoint-overlay.md): 공정 목록의 섹션별 [학습하기](sectionBadge의 cpSection* 값)로 열고,
 //   3D 화면 위에 캐릭터 + 말풍선 + 입력을 보여 준다(vals()의 오버레이 값). 말풍선은 이번 응답의 튜터 발화(cpTurn)를 차례로 보여 주고,
 //   캐릭터 동작은 지금 보이는 발화의 type으로 정한다(motionFor).
 // - API: docs/checkpoint-api.md. 요청은 api-client.js(로그인 토큰·접속 비밀번호·오류 문장).
@@ -311,7 +311,7 @@ export function createCheckpointChat(c, { api = createApiClient(), overlayPage =
     },
 
     /**
-     * 공정 목록의 섹션 버튼([담금질 시작하기]·[이어 풀기]·[재도전]).
+     * 공정 목록의 섹션 버튼([학습하기]·[이어 풀기]·[재도전]).
      * 그 섹션의 풀던 시도가 열려 있으면 이어 풀고, 끝난 시도(결과)가 열려 있으면 닫고 시작한다. 시작했는데 멈춘 시도를 받으면 이어 푼다.
      */
     async openSection(section) {
@@ -433,7 +433,7 @@ export function createCheckpointChat(c, { api = createApiClient(), overlayPage =
 
     /**
      * 공정 목록 항목 값(페이지 steps 항목에 펼친다). 배지는 루브릭이 없거나 아직 못 읽은 공정이면 없음.
-     * cpSection*: 섹션 끝의 상태 문구와 [담금질 시작하기]·[이어 풀기]·[재도전] 버튼. 다른 섹션의 풀던 시도가 열려 있으면 시작할 수 없다.
+     * cpSection*: 섹션 끝의 상태 문구와 [학습하기]·[이어 풀기]·[재도전] 버튼. 다른 섹션의 풀던 시도가 열려 있으면 시작할 수 없다.
      */
     sectionBadge(section) {
       const st = S();
@@ -465,7 +465,7 @@ export function createCheckpointChat(c, { api = createApiClient(), overlayPage =
         cpSectionCanStart: canStart,
         cpSectionStartOpacity: canStart ? '1' : '.45',
         cpSectionCursor: canStart ? 'pointer' : 'not-allowed',
-        cpSectionStartLabel: entry.kind === 'resume' ? TEXT.buttons.resumeShort : entry.kind === 'retry' ? TEXT.buttons.retryAttempt : TEXT.buttons.startQuench,
+        cpSectionStartLabel: entry.kind === 'resume' ? TEXT.buttons.resumeShort : entry.kind === 'retry' ? TEXT.buttons.retryAttempt : TEXT.buttons.startLearning,
         onCpSectionStart: () => chat.openSection(section),
         // 이어 풀기 안내(튜터 패널 배너를 공정 목록으로 옮긴 것). 열려 있는 시도면 그 진행, 아니면 진입 상태의 진행 수.
         // 오버레이가 열려 있는 동안은 안내를 숨긴다.

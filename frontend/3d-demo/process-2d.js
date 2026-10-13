@@ -70,7 +70,7 @@ const CSS = `
 .arrow{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:color-mix(in srgb,var(--bg) 82%,transparent);color:var(--text);font-size:20px;line-height:1;display:grid;place-items:center;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);transition:background .2s,border-color .2s}
 .arrow:hover{background:var(--chip-on);border-color:var(--muted)}.arrow.prev{left:10px}.arrow.next{right:10px}
 .steprow{display:flex;align-items:center;gap:10px}.steprow .stepnav{flex:1;min-width:0}
-.play{flex:none;height:32px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--text);font-size:12px;white-space:nowrap}
+.play{flex:none;width:32px;height:32px;padding:0;display:grid;place-items:center;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--text);font-size:12px;white-space:nowrap}
 .play:hover{background:var(--chip)}.play.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .eqs{display:flex;gap:6px;flex-wrap:wrap}
 .eqs button{display:flex;align-items:center;gap:7px;height:32px;padding:0 12px 0 6px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:12px}
@@ -107,7 +107,7 @@ class Process2D extends HTMLElement {
       <div class="eqs" id="eqs" role="group" aria-label="설비"></div>
       <div class="body"><div class="head"><h3 id="title"></h3><span class="en" id="en"></span><span class="hint">← → 단계 · ↑ ↓ 설비</span></div>
         <div class="stage"><div id="svgwrap"></div><button class="arrow prev" aria-label="이전 단계">‹</button><button class="arrow next" aria-label="다음 단계">›</button></div>
-        <div class="steprow"><div class="stepnav" id="stepnav" role="group" aria-label="단계"></div><button class="play">▶ 자동</button></div>
+        <div class="steprow"><div class="stepnav" id="stepnav" role="group" aria-label="단계"></div><button class="play" aria-label="자동 재생" title="자동 재생">▶</button></div>
         <div id="stepcard"></div></div></div>`;
     this.$ = id => this.shadowRoot.getElementById(id);
     this.pi = 0; this.ei = 0; this.sub = 0; this.timer = null;
@@ -193,11 +193,11 @@ class Process2D extends HTMLElement {
   play() {
     if (this.timer) clearInterval(this.timer);
     this.timer = setInterval(() => this.step(1), AUTO_MS);
-    const b = this.shadowRoot.querySelector('.play'); b.textContent = '⏸ 자동'; b.classList.add('on');
+    const b = this.shadowRoot.querySelector('.play'); b.textContent = '⏸'; b.setAttribute('aria-label', '자동 재생 멈춤'); b.classList.add('on');
   }
   stop() {
     if (this.timer) clearInterval(this.timer); this.timer = null;
-    const b = this.shadowRoot.querySelector('.play'); if (b) { b.textContent = '▶ 자동'; b.classList.remove('on'); }
+    const b = this.shadowRoot.querySelector('.play'); if (b) { b.textContent = '▶'; b.setAttribute('aria-label', '자동 재생'); b.classList.remove('on'); }
   }
 }
 if (!customElements.get('process-2d')) customElements.define('process-2d', Process2D);

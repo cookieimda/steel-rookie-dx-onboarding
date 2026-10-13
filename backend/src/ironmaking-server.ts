@@ -75,7 +75,8 @@ const learningAgent = new GeminiLearningAgent(gemini);
 const checkpointProgress = (userId: string, section: Section) => {
   if (!rubrics.some((r) => r.section === section)) return null;
   const p = engine.sectionProgress(userId, section);
-  return { retry_concept_ids: p.retry_concept_ids, in_progress: p.in_progress_attempt_id !== null };
+  // answering: 답하는 중(멈춘 시도 제외). 보충학습은 이때만 막는다.
+  return { retry_concept_ids: p.retry_concept_ids, in_progress: p.in_progress_attempt_id !== null, answering: !!p.in_progress && p.in_progress.state !== "paused" };
 };
 const learning = createLearningRouter({
   repo: learningRepo,

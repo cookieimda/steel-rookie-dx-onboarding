@@ -65,7 +65,7 @@ class FakeEvaluator implements Evaluator {
   }
 }
 
-async function setup(opts: { inProgress?: boolean; retry?: string[]; chunks?: Chunk[] } = {}) {
+async function setup(opts: { inProgress?: boolean; paused?: boolean; retry?: string[]; chunks?: Chunk[] } = {}) {
   const db = openDatabase(":memory:");
   const learningRepo = new LearningRepository(db);
   const repo = new SupplementRepository(db);
@@ -77,7 +77,7 @@ async function setup(opts: { inProgress?: boolean; retry?: string[]; chunks?: Ch
   const engine = new SupplementEngine({
     repo, learningRepo, agent, tutor, evaluator, rubrics, scene, now,
     retriever: new Retriever({ chunksFor: () => opts.chunks ?? CHUNKS }),
-    checkpointProgress: (_u, section) => (section === "ironmaking" ? { retry_concept_ids: opts.retry ?? [], in_progress: !!opts.inProgress } : null),
+    checkpointProgress: (_u, section) => (section === "ironmaking" ? { retry_concept_ids: opts.retry ?? [], in_progress: !!opts.inProgress || !!opts.paused, answering: !!opts.inProgress } : null),
   });
   const app = express();
   app.use(express.json());
@@ -371,6 +371,15 @@ test("시연 기록(seed) 오개념도 후보·설명에 쓰고(시연 계정), 
     assert.equal(done.body.outcome, "resolved");
     assert.doesNotMatch(done.body.messages[1]!.text, /해결로 바꿨어요/, "시연 기록은 해결로 바꾸지 않음");
     assert.deepEqual((await s.call("GET", "/api/learning/supplements?section=ironmaking")).body.candidates, []);
+  } finally {
+    s.close();
+  }
+});
+
+test("이해도 확인을 '나중에 이어 풀기'로 멈춘 동안은 보충학습을 할 수 있다(학습 채팅과 같음)", async () => {
+  const s = await setup({ paused: true });
+  try {
+    assert.equal((await s.call("POST", "/api/learning/supplements", { section: "ironmaking", concept_id: "sinter_purpose" })).status, 201);
   } finally {
     s.close();
   }

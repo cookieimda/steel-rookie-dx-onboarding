@@ -4,7 +4,7 @@
 // - 점수와 상관없다. 확인 문제를 맞히면 그 개념의 학습 모드 오개념 메모(source = learning)만 해결한다.
 //   체크포인트 오개념은 체크포인트에서 맞혀야 해결된다(CLAUDE.md '오개념 기록').
 // - 단계 수는 정해져 있다: 확인 문제 최대 2번(처음, 다시 설명한 뒤 1번). 체크포인트의 재확인 1회 규칙과 같다.
-// - 체크포인트를 푸는 중이면 시작·답하기를 막는다(409). 2시간 넘게 멈춘 보충학습은 끝낸다.
+// - 이해도 확인에 답하는 중이면 시작·답하기를 막는다(409). 멈춘(paused) 동안은 쓸 수 있다. 2시간 넘게 멈춘 보충학습은 끝낸다.
 // - 실행 기록(도구 호출·주고받은 말·화면 조작 결과)은 learning_supplement_steps에 남긴다.
 import express from "express";
 import { z } from "zod";
@@ -85,8 +85,11 @@ export interface SupplementDeps {
   evaluator: Evaluator;
   rubrics: Rubric[];
   scene?: SceneCatalog;
-  /** 체크포인트에서 아직 만점이 아닌 개념과 진행 중 여부. 루브릭이 없는 공정이면 null. */
-  checkpointProgress?: (userId: string, section: Section) => { retry_concept_ids: string[]; in_progress: boolean } | null;
+  /**
+   * 체크포인트에서 아직 만점이 아닌 개념과 진행 중 여부. 루브릭이 없는 공정이면 null.
+   * answering: 답하는 중(멈춤 paused가 아닌 진행 중 시도). 없으면 in_progress로 본다.
+   */
+  checkpointProgress?: (userId: string, section: Section) => { retry_concept_ids: string[]; in_progress: boolean; answering?: boolean } | null;
   now?: () => string;
 }
 
@@ -116,8 +119,10 @@ export class SupplementEngine {
     return concept;
   }
 
+  /** 이해도 확인에 답하는 중이면 막는다. '나중에 이어 풀기'로 멈춘 동안은 학습 채팅처럼 쓸 수 있다(CLAUDE.md '확정'). */
   private assertNoCheckpoint(userId: string, section: Section): void {
-    if (this.deps.checkpointProgress?.(userId, section)?.in_progress) {
+    const p = this.deps.checkpointProgress?.(userId, section);
+    if (p && (p.answering ?? p.in_progress)) {
       throw new SupplementError(409, "이해도 확인을 푸는 중에는 보충학습을 할 수 없어요. 이해도 확인을 마치거나 멈춘 뒤 다시 시작해 주세요.", "CHECKPOINT_IN_PROGRESS");
     }
   }

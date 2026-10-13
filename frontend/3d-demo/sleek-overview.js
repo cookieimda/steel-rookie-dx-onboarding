@@ -709,97 +709,63 @@ function removeFarBuildings(el, off) {
   return ch;
 }
 
-// ---- 나무: 공 모양 수관 → 잎 그림 평면을 엇갈려 세운 나무(게임에서 쓰는 크로스 빌보드) ----
-// 원래 배경 GLB의 나무는 줄기(가는 원기둥) + 수관(지름 2m 구, 꼭짓점 63개)을 인스턴스로 깔아 덩어리처럼 보였다.
-// 수관만 바꾼다: 같은 위치·크기에 세로 평면 3장(60°씩) + 수평 평면 1장. 잎 그림은 캔버스로 그리고(가지·잎 덩어리·빈틈),
-// 알파 테스트로 잎 모양만 남긴다. 평면의 법선을 수관 가운데에서 바깥(위로 조금 치우침)으로 잡아 둥근 나무처럼 빛을 받게 한다.
-// 그루마다 방향을 무작위로 돌리고 잎 그림 2종을 섞는다. 원래 수관은 숨기되 그림자 굽기 때만 잠깐 보인다(treeBake).
-let leafTex = null, crownGeo = null; // leafTex: 잎 그림 2종을 나란히 넣은 아틀라스 한 장
-function leafTexture(seed) {
-  const N = 512, c = document.createElement('canvas'); c.width = c.height = N; const x = c.getContext('2d');
-  let k = seed; const rnd = () => (k = (k * 16807) % 2147483647) / 2147483647;
-  const cx = N / 2, cy = N * 0.47, rx = N * 0.4, ry = N * 0.41;
-  // 잎 사이로 비치는 가지
-  x.strokeStyle = '#4b3b2d'; x.lineCap = 'round';
-  const branch = (x0, y0, a, len, w, d) => { if (!d || w < 1) return; const x1 = x0 + Math.cos(a) * len, y1 = y0 + Math.sin(a) * len;
-    x.lineWidth = w; x.beginPath(); x.moveTo(x0, y0); x.lineTo(x1, y1); x.stroke();
-    branch(x1, y1, a - 0.35 - rnd() * 0.35, len * 0.72, w * 0.62, d - 1); branch(x1, y1, a + 0.35 + rnd() * 0.35, len * 0.72, w * 0.62, d - 1); };
-  branch(cx, N, -Math.PI / 2, N * 0.24, 18, 5);
-  // 잎 색: 그늘(어두운 녹색) → 중간 → 해 받는 쪽(연두)
-  const C = [[24, 46, 24], [62, 100, 44], [150, 186, 96]];
-  const shade = (t) => { t = Math.max(0, Math.min(1, t)); const [a, b, u] = t < 0.5 ? [C[0], C[1], t * 2] : [C[1], C[2], (t - 0.5) * 2];
-    return `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * u)).join(',')})`; };
-  const clusters = [];
-  for (let i = 0; i < 28; i++) { const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * 0.8; clusters.push([cx + Math.cos(a) * rx * r, cy + Math.sin(a) * ry * r, N * (0.085 + rnd() * 0.07)]); }
-  clusters.sort((a, b) => a[1] - b[1]);
-  for (const [px, py, pr] of clusters) {
-    const up = 1 - (py - (cy - ry)) / (2 * ry); // 수관 위쪽일수록 밝게
-    x.fillStyle = shade(0.12 + up * 0.25); x.beginPath(); x.arc(px, py, pr * 0.82, 0, 7); x.fill(); // 덩어리 안쪽 그늘
-    for (let j = 0; j < 170; j++) {
-      const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * pr, lx = px + Math.cos(a) * r, ly = py + Math.sin(a) * r;
-      const top = 1 - (ly - (py - pr)) / (2 * pr); // 덩어리 위쪽일수록 밝게
-      x.fillStyle = shade(up * 0.45 + top * 0.45 + (rnd() - 0.5) * 0.3);
-      x.beginPath(); x.ellipse(lx, ly, 3 + rnd() * 4.5, 1.8 + rnd() * 2.4, rnd() * Math.PI, 0, 7); x.fill();
-    }
-  }
-  x.globalCompositeOperation = 'destination-out'; // 잎 사이 빈틈
-  for (let i = 0; i < 16; i++) { const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * 0.7; x.beginPath(); x.arc(cx + Math.cos(a) * rx * r, cy + Math.sin(a) * ry * r, 4 + rnd() * 9, 0, 7); x.fill(); }
-  x.globalCompositeOperation = 'source-over';
-  const d = x.getImageData(0, 0, N, N).data; let r = 0, g = 0, b = 0, n = 0;
-  for (let i = 0; i < d.length; i += 16) if (d[i + 3] > 128) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
-  t.userData.mean = new THREE.Color().setRGB(r / n / 255, g / n / 255, b / n / 255, THREE.SRGBColorSpace); // 잎 그림 평균색(원래 나무 색에 맞출 때 씀)
-  return t;
+// ---- 나무: 공 모양 수관 → 로우폴리 소나무 ----
+// 원래 배경 GLB의 나무는 줄기(원기둥, 삼각형 80) + 수관(지름 2m 구)을 인스턴스로 깐다. 전에는 수관을 잎 그림 평면을 엇갈린 나무(삼각형 256)로
+// 바꿨는데, 부지 밖에서 크기 0으로 지운 것까지 그루 수만큼 그려 삼각형을 많이 먹었다. 이제:
+// - 수관 자리에 6각 원뿔 3단 + 4각 줄기의 소나무(삼각형 44). 명암은 꼭짓점 색에 넣는다(단마다 아래 어둡게·위 밝게). 원래 줄기는 숨긴다
+// - 기본 드론 시점 화면의 가운데 80% 밖(가장자리)과 제선 동쪽 해안 띠(사용자 표시)·야적장 돔 위의 나무는 만들지 않고, 남는 것만 인스턴스로 담는다
+// 원래 수관은 숨기되 그림자 굽기 때만 잠깐 보인다(treeBake)
+const DOME_C = [[60, -59.1], [72, -57.9], [84, -56.7], [64, -53.7], [76, -52.5], [88, -51.3]]; // 야적장 돔 가운데(돔 위에 선 나무는 뺀다)
+const TRUNK_COL = new THREE.Color(0x5a4334), ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
+function shadeGeo(g, f) { // 꼭짓점 색 = f(로컬 y)
+  g = g.index ? g.toNonIndexed() : g; const P = g.attributes.position, c = new Float32Array(P.count * 3);
+  for (let i = 0; i < P.count; i++) { const v = f(P.getY(i)); c.set(Array.isArray(v) ? v : [v, v, v], i * 3); }
+  g.setAttribute('color', new THREE.BufferAttribute(c, 3)); return g;
 }
-// 잎 그림 2종(각 512×512)을 가로로 붙인 아틀라스 1024×512. 평균색은 두 그림의 평균
-function leafAtlas() {
-  const a = leafTexture(11), b = leafTexture(4567), c = document.createElement('canvas'); c.width = 1024; c.height = 512;
-  const x = c.getContext('2d'); x.drawImage(a.image, 0, 0); x.drawImage(b.image, 512, 0);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
-  t.userData.mean = a.userData.mean.clone().lerp(b.userData.mean, 0.5); a.dispose(); b.dispose(); return t;
-}
-function crownGeometry() {
-  const parts = [0, 1, 2].map(k => new THREE.PlaneGeometry(2.7, 2.9, 4, 4).rotateY(k * Math.PI / 3));
-  parts.push(new THREE.PlaneGeometry(2.3, 2.3, 4, 4).rotateX(-Math.PI / 2).translate(0, 0.3, 0)); // 위에서 볼 때
-  const pos = [], uv = [], nor = [], idx = []; let off = 0; const v = new THREE.Vector3();
-  parts.forEach(g => {
-    const P = g.attributes.position, U = g.attributes.uv;
-    for (let i = 0; i < P.count; i++) {
-      v.fromBufferAttribute(P, i); pos.push(v.x, v.y, v.z); uv.push(U.getX(i) * 0.5, U.getY(i)); // 평면 4장이 아틀라스의 같은 칸을 겹쳐 쓴다
-      v.y += 0.6; v.normalize(); nor.push(v.x, v.y, v.z); // 수관 가운데에서 바깥으로(위로 조금 치우침) → 둥근 나무처럼 빛을 받는다
-    }
-    for (let i = 0; i < g.index.count; i += 3) { const A = g.index.getX(i) + off, B = g.index.getX(i + 1) + off, C = g.index.getX(i + 2) + off; idx.push(A, B, C, A, C, B); } off += P.count;
-    // 뒷면도 같은 법선의 삼각형을 따로 둔다(DoubleSide는 뒷면에서 법선을 뒤집어, 바깥으로 잡은 법선이 안쪽을 향해 검게 보였다)
-  });
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
-  g.setIndex(idx); g.computeBoundingSphere(); return g;
+// 수관 로컬 좌표(지름 2 구가 있던 자리, 땅 = gy)의 소나무. 줄기 색은 재질 색(base)을 곱해도 갈색이 되게 나눠 둔다
+function pineGeometry(gy, base) {
+  const trunk = [TRUNK_COL.r / base.r, TRUNK_COL.g / base.g, TRUNK_COL.b / base.b].map(v => Math.min(4, v));
+  const parts = [[-1.0, 0.25, 1.05], [-0.35, 0.85, 0.8], [0.25, 1.6, 0.55]].map(([y0, y1, r]) =>
+    shadeGeo(new THREE.ConeGeometry(r, y1 - y0, 6, 1, true).translate(0, (y0 + y1) / 2, 0), y => 0.62 + 0.45 * (y - y0) / (y1 - y0)));
+  if (gy < -0.9) parts.push(shadeGeo(new THREE.CylinderGeometry(0.13, 0.17, -0.9 - gy, 4, 1, true).translate(0, (gy - 0.9) / 2, 0), () => trunk));
+  return concatGeos(parts);
 }
 function isCanopy(o) {
   if (!o.isInstancedMesh || o.userData.treeProxy || o.userData.sleekTree || !o.material?.color) return false;
   o.geometry.computeBoundingBox(); const s = o.geometry.boundingBox.getSize(new THREE.Vector3()), c = o.material.color;
   return Math.abs(s.x - 2) < 0.15 && Math.abs(s.y - 2) < 0.15 && Math.abs(s.z - 2) < 0.15 && o.geometry.attributes.position.count < 200 && c.g > c.r && c.g >= c.b; // 지름 2m 녹색 구
 }
+// 기본 드론 시점(화각 34°, 16:9) 화면의 가운데 80% 안인지
+function inMainView(el) {
+  const o = el._overviewPose(), cam = new THREE.PerspectiveCamera(34, 16 / 9, 0.5, 2000), v = new THREE.Vector3();
+  cam.position.set(o.target.x + o.dist * Math.sin(o.yaw) * Math.cos(o.pitch), o.target.y + o.dist * Math.sin(o.pitch), o.target.z + o.dist * Math.cos(o.yaw) * Math.cos(o.pitch));
+  cam.lookAt(o.target); cam.updateMatrixWorld();
+  return (p) => { v.copy(p).project(cam); return Math.abs(v.x) < 0.8 && Math.abs(v.y) < 0.8; };
+}
 function replaceTrees(el) {
   const ext = el.scene.getObjectByName('SITE_BACKDROP_EXT'); if (!ext) return false;
   const found = []; ext.traverse(o => { if (isCanopy(o)) found.push(o); }); if (!found.length) return false;
-  ext.traverse(o => { if (isTrunk(o)) scaleInstances(o, K_TREE); }); // 줄기
+  ext.traverse(o => { if (isTrunk(o)) { o.userData.scaledK = 1; o.userData.sleekOff = true; Object.defineProperty(o, 'visible', { configurable: true, get: () => false, set: () => {} }); } }); // 줄기: 소나무에 들어 있다
   found.forEach(o => scaleInstances(o, K_TREE));                         // 수관(그림자 굽기용으로도 쓴다)
-  leafTex = leafTex || leafAtlas(); crownGeo = crownGeo || crownGeometry();
-  const M = new THREE.Matrix4(), R = new THREE.Matrix4();
+  const view = inMainView(el), M = new THREE.Matrix4(), R = new THREE.Matrix4(), W = new THREE.Matrix4(), p = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3();
+  const onDome = (x, z) => DOME_C.some(([cx, cz]) => ((x - cx) / 6.3) ** 2 + ((z - cz) / 3.8) ** 2 < 1);
+  const keepAt = (x, z) => inSite(x, z) && view(p.set(x, 0, z)) && !(x > 76 && z < -40) && !onDome(x, z);
   found.forEach((o, oi) => {
     let k = 97 + oi * 31; const rnd = () => (k = (k * 16807) % 2147483647) / 2147483647;
-    // 색: 원래 나무 색(낮·밤 GLB마다 다름)에 맞춘다. 잎 그림 평균색이 원래 색이 되도록 곱하는 색을 정한다
-    const mean = leafTex.userData.mean, base = o.material.color, mul = new THREE.Color(Math.min(2, base.r / mean.r), Math.min(2, base.g / mean.g), Math.min(2, base.b / mean.b));
-    const m = o.material.clone(); Object.assign(m, { map: leafTex, alphaTest: 0.5, transparent: false, side: THREE.FrontSide, shadowSide: THREE.DoubleSide, vertexColors: false, flatShading: false }); m.color.copy(mul);
-    // 인스턴스마다 아틀라스 칸(0 = 왼쪽, 1 = 오른쪽)을 고른다: 수관 하나(그리기 1번)로 잎 그림 2종
-    m.onBeforeCompile = (sh) => { sh.vertexShader = 'attribute float aVar;\n' + sh.vertexShader.replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_MAP\n  vMapUv.x += aVar * 0.5;\n#endif'); };
-    m.customProgramCacheKey = () => 'sleekTreeAtlas'; m.needsUpdate = true;
-    const geo = crownGeo.clone(), vars = new Float32Array(o.count);
-    for (let i = 0; i < o.count; i++) vars[i] = i % 2;
-    geo.setAttribute('aVar', new THREE.InstancedBufferAttribute(vars, 1));
-    const t = new THREE.InstancedMesh(geo, m, o.count);
-    for (let i = 0; i < o.count; i++) { o.getMatrixAt(i, M); t.setMatrixAt(i, M.multiply(R.makeRotationY(rnd() * Math.PI * 2))); }
+    const keep = []; let gy = -1.6, unit = null;
+    for (let i = 0; i < o.count; i++) {
+      o.getMatrixAt(i, M); W.multiplyMatrices(o.matrixWorld, M); W.decompose(p, q, s);
+      if (s.x < 1e-6) continue; // 이미 지운 것
+      if (!unit) { unit = M.clone(); gy = -p.y / s.y; }
+      if (keepAt(p.x, p.z)) keep.push(M.clone().multiply(R.makeRotationY(rnd() * Math.PI * 2)));
+      else o.setMatrixAt(i, ZERO); // 만들지 않는 나무는 그림자도 굽지 않게
+    }
+    o.instanceMatrix.needsUpdate = true;
+    if (!unit) return;
+    const base = o.material.color.clone();
+    const m = o.material.clone(); Object.assign(m, { map: null, alphaTest: 0, transparent: false, side: THREE.FrontSide, vertexColors: true, flatShading: true }); m.color.copy(base);
+    const t = new THREE.InstancedMesh(pineGeometry(gy, base), m, keep.length);
+    keep.forEach((x, i) => t.setMatrixAt(i, x));
     t.instanceMatrix.needsUpdate = true; t.castShadow = o.castShadow; t.receiveShadow = o.receiveShadow;
     t.name = 'SLEEK_TREE'; t.userData.sleekTree = true; t.raycast = () => {}; t.frustumCulled = false;
     o.parent.add(t);

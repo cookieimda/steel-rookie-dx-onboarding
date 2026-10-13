@@ -1,5 +1,5 @@
 // 설계도 위 펜 필기 <sketch-pad process="ironmaking" mode="plan">. 마이페이지 '설계도·필기' 탭에서 도면(iframe) 위에 겹친다.
-// - 도구: 펜(검정·빨강·파랑), 형광펜, 지우개(닿은 획을 통째로 지움), 되돌리기, 모두 지우기.
+// - 도구: 펜(검정·빨강·파랑), 형광펜, 텍스트(누른 자리에 글 입력, 마지막 펜 색), 지우개(닿은 획·글을 통째로 지움), 되돌리기, 모두 지우기.
 // - 좌표는 이 영역 크기에 대한 비율(0~1)로 둔다. 부모가 도면 영역 비율을 고정하므로 화면 크기가 바뀌어도 같은 자리에 그려진다.
 // - 공정·도면(top·plan·front)마다 내 계정에 저장한다: GET /api/me/sketches/:process, PUT /api/me/sketches/:process/:mode(그린 뒤 0.8초).
 //   로그인하지 않았으면 그릴 수는 있지만 저장하지 않는다고 알린다.
@@ -15,8 +15,12 @@ export const TOOLS = [
   { id: 'red', label: '빨강 펜', tool: 'pen', color: '#e03131', width: 0.0035, swatch: '#e03131' },
   { id: 'blue', label: '파랑 펜', tool: 'pen', color: '#1971c2', width: 0.0035, swatch: '#1971c2' },
   { id: 'marker', label: '형광펜', tool: 'marker', color: '#ffd43b', width: 0.018, swatch: '#ffd43b' },
+  { id: 'text', label: '텍스트', tool: 'text', width: 0.02 },
   { id: 'eraser', label: '지우개', tool: 'eraser' },
 ];
+/** 텍스트 한 줄 최대 길이(서버 검증과 같다). */
+export const MAX_TEXT = 200;
+const TEXT_FONT = (px) => `600 ${px}px Pretendard, "Malgun Gothic", sans-serif`;
 
 const round = (v) => Math.round(v * 10000) / 10000;
 
@@ -34,6 +38,7 @@ class SketchPad extends HTMLElement {
     super();
     this.data = {};          // process → { top: [], plan: [], front: [] }
     this.toolId = 'red';
+    this.penColor = '#e03131'; // 텍스트는 마지막으로 고른 펜 색으로 쓴다
     this.drawing = null;     // 그리는 중인 획
     this.saveTimer = null;
     this.history = [];       // 되돌리기: { process, mode, strokes(이전 상태) }
@@ -87,6 +92,7 @@ class SketchPad extends HTMLElement {
     for (const t of TOOLS) {
       const on = this.toolId === t.id;
       if (t.tool === 'eraser') { btn(t.label, '⌫', () => this.pick(t.id), on); continue; }
+      if (t.tool === 'text') { btn(`${t.label} (누른 자리에 입력, Enter로 확정)`, 'T', () => this.pick(t.id), on); continue; }
       const dot = document.createElement('span');
       dot.style.cssText = `display:block;width:${t.tool === 'marker' ? 16 : 12}px;height:${t.tool === 'marker' ? 8 : 12}px;border-radius:${t.tool === 'marker' ? '3px' : '50%'};background:${t.swatch};${t.tool === 'marker' ? 'opacity:.8;' : ''}box-shadow:0 0 0 1px rgba(255,255,255,.35);`;
       btn(t.label, dot, () => this.pick(t.id), on);
@@ -98,7 +104,56 @@ class SketchPad extends HTMLElement {
     this.bar.append(this.statusEl);
   }
 
-  pick(id) { this.toolId = id; this.renderBar(); this.canvas.style.cursor = id === 'eraser' ? 'cell' : 'crosshair'; }
+  pick(id) {
+    this.commitText();
+    this.toolId = id;
+    const t = TOOLS.find((x) => x.id === id);
+    if (t?.tool === 'pen') this.penColor = t.color;
+    this.renderBar();
+    this.canvas.style.cursor = id === 'eraser' ? 'cell' : id === 'text' ? 'text' : 'crosshair';
+  }
+
+  /** 텍스트 도구: 누른 자리에 입력칸을 띄운다. Enter·바깥 누르기로 확정, Esc로 취소. */
+  openText([x, y]) {
+    this.commitText();
+    const size = TOOLS.find((t) => t.id === 'text').width * this.w;
+    const input = document.createElement('input');
+    input.type = 'text'; input.maxLength = MAX_TEXT; input.placeholder = '메모 입력 후 Enter';
+    input.setAttribute('aria-label', '필기 텍스트');
+    input.style.cssText = `position:absolute;left:${x * this.w}px;top:${y * this.h}px;min-width:160px;max-width:60%;padding:2px 6px;font:${TEXT_FONT(size)};color:${this.penColor};background:rgba(255,255,255,.92);border:1px dashed ${this.penColor};border-radius:4px;outline:none;z-index:2;`;
+    this.textInput = { el: input, at: [x, y], color: this.penColor };
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); this.commitText(); }
+      else if (e.key === 'Escape') { e.preventDefault(); this.commitText(true); }
+      e.stopPropagation();
+    });
+    input.addEventListener('blur', () => this.commitText());
+    this.append(input);
+    setTimeout(() => input.focus(), 0);
+  }
+
+  commitText(cancel = false) {
+    const t = this.textInput;
+    if (!t) return;
+    this.textInput = null;
+    const text = t.el.value.trim().slice(0, MAX_TEXT);
+    t.el.remove();
+    if (cancel || !text) return;
+    this.remember();
+    this.strokes = [...this.strokes, { tool: 'text', color: t.color, width: TOOLS.find((x) => x.id === 'text').width, text, points: [[round(t.at[0]), round(t.at[1])]] }];
+    this.redraw();
+    this.scheduleSave();
+  }
+
+  /** 텍스트 획이 차지하는 상자(px). 지우개와 그리기에 쓴다. */
+  textBox(s) {
+    const px = s.width * this.w;
+    this.ctx.save(); this.ctx.font = TEXT_FONT(px);
+    const width = this.ctx.measureText(s.text).width;
+    this.ctx.restore();
+    const pad = px * 0.3;
+    return { x: s.points[0][0] * this.w, y: s.points[0][1] * this.h, w: width + pad * 2, h: px * 1.4, pad, px };
+  }
 
   setStatus(text, tone = 'muted') {
     this.statusEl.textContent = text;
@@ -140,6 +195,7 @@ class SketchPad extends HTMLElement {
     this.canvas.setPointerCapture?.(e.pointerId);
     const p = this.point(e);
     if (this.toolId === 'eraser') { this.erasing = true; this.erase(p); return; }
+    if (this.toolId === 'text') { e.preventDefault(); this.openText(p); return; }
     const t = TOOLS.find((x) => x.id === this.toolId);
     this.drawing = { tool: t.tool, color: t.color, width: t.width, points: [p] };
     this.redraw();
@@ -169,6 +225,7 @@ class SketchPad extends HTMLElement {
   erase([x, y]) {
     const px = x * this.w, py = y * this.h, radius = 10;
     const keep = this.strokes.filter((s) => {
+      if (s.tool === 'text') { const b = this.textBox(s); return !(px >= b.x - radius && px <= b.x + b.w + radius && py >= b.y - radius && py <= b.y + b.h + radius); }
       const pts = s.points.map(([a, b]) => [a * this.w, b * this.h]);
       if (pts.length === 1) return Math.hypot(px - pts[0][0], py - pts[0][1]) > radius;
       return !pts.some((q, i) => i > 0 && distToSegment(px, py, pts[i - 1][0], pts[i - 1][1], q[0], q[1]) <= radius);
@@ -232,6 +289,17 @@ class SketchPad extends HTMLElement {
     ctx.clearRect(0, 0, this.w, this.h);
     const list = this.drawing ? [...this.strokes, this.drawing] : this.strokes;
     for (const s of list) {
+      if (s.tool === 'text') {
+        // 남색 도면 위에서도 읽히게 밝은 바탕을 깐다.
+        const b = this.textBox(s);
+        ctx.save();
+        ctx.fillStyle = 'rgba(255,255,255,.9)';
+        ctx.beginPath(); ctx.roundRect ? ctx.roundRect(b.x, b.y, b.w, b.h, 4) : ctx.rect(b.x, b.y, b.w, b.h); ctx.fill();
+        ctx.fillStyle = s.color; ctx.font = TEXT_FONT(b.px); ctx.textBaseline = 'middle';
+        ctx.fillText(s.text, b.x + b.pad, b.y + b.h / 2);
+        ctx.restore();
+        continue;
+      }
       ctx.save();
       ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       ctx.strokeStyle = s.color; ctx.fillStyle = s.color;

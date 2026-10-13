@@ -16,12 +16,22 @@ const Query = z.object({ section: z.enum(SECTION_ORDER as [Section, ...Section[]
 export const DRAW_MODES = ["top", "plan", "front"] as const;
 export const MAX_SKETCH_BYTES = 300_000;
 const Point = z.tuple([z.number().min(0).max(1), z.number().min(0).max(1)]);
-const Stroke = z.object({
+const Color = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+const LineStroke = z.object({
   tool: z.enum(["pen", "marker"]),
-  color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  color: Color,
   width: z.number().positive().max(0.05),
   points: z.array(Point).min(1).max(2000),
 });
+/** 텍스트 메모: 누른 자리(점 하나)에 한 줄. width는 글자 크기(영역 너비 비율). */
+const TextStroke = z.object({
+  tool: z.literal("text"),
+  color: Color,
+  width: z.number().positive().max(0.08),
+  text: z.string().trim().min(1).max(200),
+  points: z.array(Point).length(1),
+});
+const Stroke = z.union([LineStroke, TextStroke]);
 const SketchBody = z.object({ strokes: z.array(Stroke).max(500) });
 const SketchParams = z.object({ process: z.enum(SECTION_ORDER as [Section, ...Section[]]), mode: z.enum(DRAW_MODES).optional() });
 

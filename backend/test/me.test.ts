@@ -102,6 +102,16 @@ test("설계도 필기: 공정·도면별로 본인 것만 저장·조회하고,
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM learner_sketches WHERE user_id = ? AND draw_mode = 'plan'").get(kim.id)!.n, 0);
 });
 
+test("설계도 필기: 텍스트 메모(점 하나·한 줄 200자)도 저장한다", async () => {
+  const note = { tool: "text", color: "#1971c2", width: 0.02, text: "여기서 반광이 되돌아간다", points: [[0.4, 0.5]] };
+  assert.equal((await put("/api/me/sketches/ironmaking/top", { strokes: [stroke(0.1), note] }, kim)).status, 200);
+  assert.deepEqual((await get("/api/me/sketches/ironmaking", kim)).json.sketches.top[1], note);
+  assert.equal((await put("/api/me/sketches/ironmaking/top", { strokes: [{ ...note, text: "  " }] }, kim)).status, 400, "빈 글");
+  assert.equal((await put("/api/me/sketches/ironmaking/top", { strokes: [{ ...note, text: "가".repeat(201) }] }, kim)).status, 400, "200자 넘음");
+  assert.equal((await put("/api/me/sketches/ironmaking/top", { strokes: [{ ...note, points: [[0.1, 0.1], [0.2, 0.2]] }] }, kim)).status, 400, "점은 하나");
+  await put("/api/me/sketches/ironmaking/top", { strokes: [] }, kim);
+});
+
 test("설계도 필기: 로그인 필요, 모르는 공정·도면·형식은 400", async () => {
   assert.equal((await get("/api/me/sketches/ironmaking")).status, 401);
   assert.equal((await put("/api/me/sketches/ironmaking/plan", { strokes: [] })).status, 401);

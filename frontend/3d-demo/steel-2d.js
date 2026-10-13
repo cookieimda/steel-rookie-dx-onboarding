@@ -129,15 +129,23 @@ transfer: `<svg class="scene" viewBox="0 0 700 420" xmlns="http://www.w3.org/200
 
 // 장면 SVG 공용 스타일 (팝업과 공유)
 const SCENE_CSS = `
-/* 장면 SVG (어두운 배경 고정) */
-.lbl{fill:#c3cfda!important;stroke:none!important;stroke-dasharray:none!important;font-size:13px;font-weight:500;text-anchor:middle;font-family:inherit;text-rendering:geometricPrecision;-webkit-font-smoothing:antialiased}.lbl.s{font-size:12px}.lbl.strong{fill:#eef3f8!important;font-weight:700;font-size:14px}
-.structure{fill:#313c48;stroke:#7c8b9a;stroke-width:2}.refractory{fill:#69472d;stroke:#9d6840;stroke-width:2}.liquid{fill:#ff8b2c}.slag{fill:#889b62}
+/* 장면 SVG 색: .svgbox에 변수로 두고 테마(steel-2d·팝업의 theme 속성)에 따라 바꾼다. SVG 안에 속성으로 박힌 색도 아래에서 같은 변수로 덮는다(CSS가 속성보다 우선) */
+.svgbox{--sc-bg1:#0b1118;--sc-bg2:#0a0f15;--sc-edge:#1f2b37;--sc-plot:#0b1118;--sc-grid:#2b3948;--sc-lbl:#c3cfda;--sc-lbl-strong:#eef3f8;--sc-none:#8b99a8;
+  --sc-sf:#313c48;--sc-sl:#7c8b9a;--sc-rf:#69472d;--sc-rl:#9d6840;--sc-rail:#738392;--sc-metal:#93a0ad;--sc-pipe:#8392a0;--sc-gas:#bbc5cf;--sc-jet:#e6f5ff}
+:host([theme=light]) .svgbox{--sc-bg1:#f8fafc;--sc-bg2:#eef2f7;--sc-edge:#dbe3ec;--sc-plot:#ffffff;--sc-grid:#c9d3de;--sc-lbl:#4a5868;--sc-lbl-strong:#17263d;--sc-none:#64748b;
+  --sc-sf:#e3e9f0;--sc-sl:#7a8899;--sc-rf:#e2c09d;--sc-rl:#a8713f;--sc-rail:#8a99a8;--sc-metal:#a9b5c2;--sc-pipe:#9aa7b4;--sc-gas:#6f7f8f;--sc-jet:#3d86c6}
+.svgbox{background:linear-gradient(180deg,var(--sc-bg1),var(--sc-bg2));border-color:var(--sc-edge)}
+.svgbox [fill="#313c48"]{fill:var(--sc-sf)}.svgbox [stroke="#7c8b9a"]{stroke:var(--sc-sl)}.svgbox [fill="#0b1118"]{fill:var(--sc-plot)}
+.svgbox [stroke="#2b3948"],.svgbox [stroke="#263441"]{stroke:var(--sc-grid)}.svgbox [fill="#738392"]{fill:var(--sc-rail)}.svgbox [stroke="#738392"]{stroke:var(--sc-rail)}
+.svgbox [fill="#93a0ad"],.svgbox [fill="#8b99a8"]{fill:var(--sc-metal)}.svgbox [stroke="#e6f5ff"],.svgbox [stroke="#eaf7ff"]{stroke:var(--sc-jet)}
+.lbl{fill:var(--sc-lbl)!important;stroke:none!important;stroke-dasharray:none!important;font-size:13px;font-weight:500;text-anchor:middle;font-family:inherit;text-rendering:geometricPrecision;-webkit-font-smoothing:antialiased}.lbl.s{font-size:12px}.lbl.strong{fill:var(--sc-lbl-strong)!important;font-weight:700;font-size:14px}
+.structure{fill:var(--sc-sf);stroke:var(--sc-sl);stroke-width:2}.refractory{fill:var(--sc-rf);stroke:var(--sc-rl);stroke-width:2}.liquid{fill:#ff8b2c}.slag{fill:#889b62}
 .have3d{stroke:#39d98a!important;stroke-width:2.6!important}
 .gap3d{stroke:#ff5d68!important;stroke-width:2.3!important;stroke-dasharray:7 5!important;fill:rgba(255,93,104,.04)!important}
 .scene.found .gap3d{stroke:#39d98a!important;stroke-dasharray:none!important;fill:rgba(57,217,138,.05)!important}
 .scene.found [stroke="#ff5d68"]{stroke:#39d98a!important}
-.ghost{opacity:.28}.pipe{fill:none;stroke:#8392a0;stroke-width:5;stroke-linecap:round;stroke-linejoin:round}
-.gas{fill:none;stroke:#bbc5cf;stroke-width:2;stroke-dasharray:6 7;animation:dash 1.1s linear infinite}.hotFlow{fill:none;stroke:#ff8b2c;stroke-width:5;stroke-linecap:round;stroke-dasharray:9 7;animation:dash .7s linear infinite}.waterFlow{fill:none;stroke:#56c8ff;stroke-width:3;stroke-dasharray:7 7;animation:dash 1s linear infinite}.arrowFlow{fill:none;stroke:#ffd257;stroke-width:2.3;stroke-dasharray:7 6;animation:dash 1.4s linear infinite}
+.ghost{opacity:.28}.pipe{fill:none;stroke:var(--sc-pipe);stroke-width:5;stroke-linecap:round;stroke-linejoin:round}
+.gas{fill:none;stroke:var(--sc-gas);stroke-width:2;stroke-dasharray:6 7;animation:dash 1.1s linear infinite}.hotFlow{fill:none;stroke:#ff8b2c;stroke-width:5;stroke-linecap:round;stroke-dasharray:9 7;animation:dash .7s linear infinite}.waterFlow{fill:none;stroke:#56c8ff;stroke-width:3;stroke-dasharray:7 7;animation:dash 1s linear infinite}.arrowFlow{fill:none;stroke:#ffd257;stroke-width:2.3;stroke-dasharray:7 6;animation:dash 1.4s linear infinite}
 .bubble{fill:#fff;opacity:.82;animation:rise 1.7s linear infinite}.flame{fill:#ffb23e;filter:drop-shadow(0 0 5px rgba(255,139,44,.8));animation:flame .5s ease-in-out infinite alternate}
 .spin{animation:spin 2.6s linear infinite;transform-box:fill-box;transform-origin:center}.pulse{animation:pulse 1.2s ease-in-out infinite}.slide{animation:slide 5s ease-in-out infinite}.crane{animation:crane 8s ease-in-out infinite}.lift{animation:lift 4s ease-in-out infinite}
 .scene.hl [data-s]{opacity:.34;transition:opacity .2s,filter .2s}.scene.hl [data-s].hit{opacity:1;filter:drop-shadow(0 0 7px rgba(255,200,87,.45))}.scene.hl [data-s].always{opacity:1}
@@ -187,7 +195,7 @@ h2{font-size:22px;letter-spacing:-.6px;line-height:1.35;margin:6px 0 4px;font-we
 .stage{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(300px,.75fr);gap:12px;align-items:start;margin-top:12px}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:13px}
 .scenecard{padding:10px;position:sticky;top:78px}.scenehead{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:2px 3px 8px}.scenehead .t{font-weight:800}.scenehead .m{font-size:11px;color:var(--muted)}
-.svgbox{background:linear-gradient(180deg,#0b1118,#0a0f15);border:1px solid #1f2b37;border-radius:11px;overflow:hidden;min-height:200px;display:grid;place-items:center}.svgbox svg{width:100%;height:auto;display:block}.svgbox .none{color:#8b99a8;font-size:12px;padding:60px 20px;text-align:center}
+.svgbox{border:1px solid;border-radius:11px;overflow:hidden;min-height:200px;display:grid;place-items:center}.svgbox svg{width:100%;height:auto;display:block}.svgbox .none{color:var(--sc-none);font-size:12px;padding:60px 20px;text-align:center}
 .cap{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-top:8px;font-size:11px;color:var(--muted)}.cap b{color:var(--warn)}
 .side{padding:14px}.side h3{margin:0;font-size:18px;line-height:1.3}.en{font-size:11px;color:var(--muted);font-weight:500;margin-left:7px}
 .badges{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 10px}.badge{border:1px solid;border-radius:999px;padding:2px 8px;font-size:10px}.badge.ok{color:var(--ok)}.badge.miss{color:var(--miss)}.badge.lane{color:var(--muted)}

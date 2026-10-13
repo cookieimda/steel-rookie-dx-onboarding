@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ST-ROOKIE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&family=Montserrat:wght@500;700;800&display=swap" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet" />
+  <link href="./login-sleek.css" rel="stylesheet" />
+  <link href="./home-sleek.css" rel="stylesheet" />
+</head>
+<body class="home">
+  <!-- 홈 화면(세련안). 레퍼런스의 점 입자 지구본 대신 우리 공정 GLB를 점 입자로 보여 준다.
+       http://localhost:3000/login_ui/home-sleek.html. 로그인 로직은 login-sleek.html과 같다. -->
+  <canvas id="cloud" aria-hidden="true"></canvas>
+
+  <nav class="nav">
+    <a class="brand" href="#"><span class="brand-mark"></span>ST-ROOKIE</a>
+    <div class="tabs" role="tablist" aria-label="공정 선택">
+      <button role="tab" data-model="ironmaking" aria-selected="true">제선</button>
+      <button role="tab" data-model="steelmaking">제강</button>
+      <button role="tab" data-model="continuous_casting">연주</button>
+      <button role="tab" data-model="rolling">압연</button>
+    </div>
+    <div class="nav-actions">
+      <button class="link" id="logoutBtn" hidden>로그아웃</button>
+      <button class="cta" data-open-login>시작하기</button>
+    </div>
+  </nav>
+
+  <main class="hero">
+    <p class="eyebrow">[ 3D PROCESS SIMULATOR ]</p>
+    <h1 class="headline">STEEL, IN 3D.</h1>
+    <p class="lead">쇳물이 강판이 되기까지, 네 개의 공정을 <strong>직접 돌려 보며</strong> 배우세요.</p>
+    <p class="steps"><span data-step="ironmaking">IRONMAKING</span> · <span data-step="steelmaking">STEELMAKING</span> · <span data-step="continuous_casting">CASTING</span> · <span data-step="rolling">ROLLING</span></p>
+  </main>
+
+  <!-- 라인 UI: 3D가 뜨고 3초 뒤, 2D 선이 그려지며 오른쪽 아래 LOGIN이 나타난다. LOGIN이 곧 로그인 버튼이다. -->
+  <svg class="leader" id="leader" aria-hidden="true"><path id="leaderPath" pathLength="1" /></svg>
+  <div class="callout" id="callout">
+    <button class="callout-title" data-open-login>LOGIN</button>
+  </div>
+
+  <!-- 로그인: 네이버 로그인 참고, 흑백 라인 UI. 줄 왼쪽 끝부터 입력하고 줄 오른쪽에 ID / PW 표시. -->
+  <div class="overlay" id="overlay" hidden>
+    <form class="login panel" id="loginForm" novalidate>
+      <button type="button" class="close" id="closeBtn" aria-label="닫기">×</button>
+      <h2 class="title" id="formTitle">LOGIN</h2>
+      <p class="subtitle" id="formSub">3D 공정 학습을 <strong>시작</strong>하세요.</p>
+
+      <label class="field"><input id="userId" name="userId" type="text" autocomplete="username" required /><span>ID</span></label>
+      <label class="field"><input id="password" name="password" type="password" autocomplete="current-password" required /><span>PW</span></label>
+      <label class="field signup-only"><input id="name" name="name" type="text" autocomplete="name" /><span>이름</span></label>
+      <label class="field signup-only"><input id="employeeNo" name="employeeNo" type="text" /><span>사번</span></label>
+
+      <label class="keep login-only"><input type="checkbox" id="remember" /><i aria-hidden="true"></i>로그인 상태 유지</label>
+
+      <p class="error" id="error" role="alert"></p>
+
+      <button type="submit" id="submitBtn">LOGIN</button>
+      <button type="button" class="switch" id="switchBtn">회원가입</button>
+    </form>
+  </div>
+
+  <script type="module">
+    // ---- 로그인 (login-sleek.html과 같은 계약: docs/auth-api.md) ----
+    const TOKEN_KEY = 'st-rookie-token';
+    const NEXT_URL = '/3d-demo/Steel%20Academy%20v4.dc.html'; // v4(세련안) 3D 화면
+
+    const tokenStore = {
+      get() { try { return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY); } catch { return null; } },
+      // 로그인 상태 유지(remember)면 localStorage(7일 토큰), 아니면 sessionStorage(12시간). api-client.js는 둘 다 읽는다.
+      set(token, remember) { try { this.clear(); (remember ? localStorage : sessionStorage).setItem(TOKEN_KEY, token); } catch {} },
+      clear() { try { localStorage.removeItem(TOKEN_KEY); sessionStorage.removeItem(TOKEN_KEY); } catch {} },
+    };
+
+    async function api(path, body, token) {
+      const headers = { 'content-type': 'application/json' };
+      if (token) headers.authorization = 'Bearer ' + token;
+      let res;
+      try {
+        res = await fetch(path, { method: body ? 'POST' : 'GET', headers, body: body ? JSON.stringify(body) : undefined });
+      } catch {
+        throw new Error('서버에 연결하지 못했어요. npm start 후 다시 열어 주세요.');
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || '로그인하지 못했어요. 다시 시도해 주세요.');
+      return data;
+    }
+
+    // 이미 로그인돼 있으면 "시작하기"가 바로 3D 화면으로 간다.
+    // 로그아웃 API는 없다(JWT). 이 브라우저에 저장된 토큰을 지우는 것으로 로그아웃한다.
+    let loggedIn = false;
+    const logoutBtn = document.getElementById('logoutBtn');
+    const setLoggedIn = (on) => { loggedIn = on; logoutBtn.hidden = !on; };
+    logoutBtn.addEventListener('click', () => { tokenStore.clear(); setLoggedIn(false); });
+    const saved = tokenStore.get();
+    if (saved) api('/api/auth/me', null, saved).then(() => setLoggedIn(true), () => tokenStore.clear());
+
+    const overlay = document.getElementById('overlay');
+    const form = document.getElementById('loginForm');
+    const errorEl = document.getElementById('error');
+    const btn = document.getElementById('submitBtn');
+    const callout = document.getElementById('callout');
+    const leaderPath = document.getElementById('leaderPath');
+
+    // ---- 라인 UI 선: 3D와 실제로 잇지 않는 고정 2D 선. 목록 왼쪽 위에서 비스듬히 내려와 목록 위 가로줄이 된다 ----
+    const drawLeader = () => {
+      // 모델 아래쪽에서 비스듬히 내려와 한 번 꺾여 오른쪽으로 길게 뻗는다. LOGIN은 그 줄 오른쪽 끝 바로 아래.
+      // 위치는 히어로 문구 기준: 줄은 [3D PROCESS SIMULATOR] 조금 위, 끝은 헤드라인 오른쪽 끝보다 160px 더.
+      const W = innerWidth;
+      if (W < 720) { // 좁은 화면: 목록은 CSS 위치(아래), 가로줄만
+        callout.style.cssText = '';
+        const r = callout.getBoundingClientRect();
+        leaderPath.setAttribute('d', `M${r.left},${r.top} L${r.right},${r.top}`);
+        return;
+      }
+      const eyebrow = document.querySelector('.eyebrow').getBoundingClientRect();
+      const headline = document.querySelector('.headline').getBoundingClientRect();
+      const y = eyebrow.top - 30, end = Math.min(W * 0.94, headline.right + 160);
+      const elbow = end - 355, x0 = elbow - 50, y0 = y - innerHeight * 0.15; // 시작점이 모델 아래쪽에 닿게
+      callout.style.cssText = `top:${y + 6}px; right:${W - end}px; bottom:auto; left:auto; width:auto;`;
+      leaderPath.setAttribute('d', `M${x0},${y0} L${elbow},${y} L${end},${y}`);
+    };
+    addEventListener('resize', drawLeader); drawLeader();
+    document.fonts.ready.then(drawLeader); // 폰트가 늦게 오면 목록 높이가 바뀐다
+    // 3D 장면이 첫 모델을 띄우면(st:cloud-ready) 3초 뒤에 선과 LOGIN을 그린다.
+    addEventListener('st:cloud-ready', () => setTimeout(() => { drawLeader(); document.body.classList.add('callout-on'); }, 3000), { once: true });
+
+    // 로그인 / 회원가입 모드 (회원가입 API: POST /api/auth/signup { username, password, name, employee_no })
+    let mode = 'login';
+    const setMode = (m) => {
+      mode = m;
+      form.classList.toggle('is-signup', m === 'signup');
+      document.getElementById('formTitle').textContent = m === 'signup' ? 'SIGN UP' : 'LOGIN';
+      document.getElementById('formSub').innerHTML = m === 'signup'
+        ? '신입사원 계정을 <strong>만들어</strong> 주세요.' : '3D 공정 학습을 <strong>시작</strong>하세요.';
+      btn.textContent = m === 'signup' ? 'SIGN UP' : 'LOGIN';
+      document.getElementById('switchBtn').textContent = m === 'signup' ? '로그인으로 돌아가기' : '회원가입';
+      errorEl.textContent = '';
+    };
+    document.getElementById('switchBtn').addEventListener('click', () => setMode(mode === 'login' ? 'signup' : 'login'));
+
+    // 목록이 가운데로 이동하며 커져 로그인 박스가 된다 (목록 위치 → 박스 위치로 transform 애니메이션).
+    const panel = form;
+    const flyFrom = () => {
+      const a = callout.getBoundingClientRect(), b = panel.getBoundingClientRect();
+      return `translate(${a.left - b.left}px, ${a.top - b.top}px) scale(${a.width / b.width}, ${a.height / b.height})`;
+    };
+    const EASE = 'cubic-bezier(.2,.8,.2,1)';
+    const openLogin = (m = 'login') => {
+      if (loggedIn) { location.href = NEXT_URL; return; }
+      if (!overlay.hidden) return setMode(m);
+      setMode(m);
+      overlay.hidden = false;
+      document.body.classList.add('login-open');
+      panel.animate([{ transform: flyFrom(), opacity: 0.2 }, { transform: 'none', opacity: 1 }], { duration: 700, easing: EASE });
+      form.userId.focus({ preventScroll: true });
+    };
+    const closeLogin = () => {
+      if (overlay.hidden) return;
+      document.body.classList.remove('login-open');
+      panel.animate([{ transform: 'none', opacity: 1 }, { transform: flyFrom(), opacity: 0 }], { duration: 450, easing: EASE })
+        .finished.then(() => { overlay.hidden = true; errorEl.textContent = ''; });
+    };
+    document.querySelectorAll('[data-open-login]').forEach((el) => el.addEventListener('click', () => openLogin('login')));
+    document.querySelectorAll('[data-open-signup]').forEach((el) => el.addEventListener('click', () => openLogin('signup')));
+    document.getElementById('closeBtn').addEventListener('click', closeLogin);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeLogin(); });
+    addEventListener('keydown', (e) => { if (e.key === 'Escape') closeLogin(); });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (btn.disabled) return;
+      const username = form.userId.value.trim();
+      const password = form.password.value;
+      if (!username || !password) { errorEl.textContent = '아이디와 비밀번호를 입력해 주세요.'; return; }
+      const name = form.elements.name.value.trim(), employee_no = form.employeeNo.value.trim();
+      if (mode === 'signup' && (!name || !employee_no)) { errorEl.textContent = '이름과 사번을 입력해 주세요.'; return; }
+
+      errorEl.textContent = '';
+      btn.disabled = true;
+      const remember = mode === 'login' && form.remember.checked;
+      try {
+        const { token } = mode === 'signup'
+          ? await api('/api/auth/signup', { username, password, name, employee_no })
+          : await api('/api/auth/login', { username, password, remember });
+        tokenStore.set(token, remember);
+        location.href = NEXT_URL;
+      } catch (err) {
+        errorEl.textContent = err.message;
+        btn.disabled = false;
+      }
+    });
+  </script>
+
+  <script type="module">
+    // ---- 공정 GLB → 점 입자 ----
+    // 모델 표면에서 같은 개수(COUNT)의 점을 뽑아 두고, 탭을 바꾸면 점이 흩어졌다가 다음 모델 모양으로 모인다.
+    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/+esm';
+    import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js/+esm';
+    import { MeshSurfaceSampler } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/math/MeshSurfaceSampler.js/+esm';
+
+    const COUNT = 16000;
+    const MODEL_URL = (id) => `/3d-demo/models/${id}.glb`;
+
+    const canvas = document.getElementById('cloud');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
+    camera.position.set(0, 1.1, 4.2);
+    camera.lookAt(0, 0.15, 0);
+
+    // 처음엔 구 껍질 위에 흩어 둔 상태에서 시작한다.
+    const pos = new Float32Array(COUNT * 3);
+    const from = new Float32Array(COUNT * 3);
+    let target = new Float32Array(COUNT * 3);
+    const seed = new Float32Array(COUNT); // 점마다 흩어지는 방향·밝기 차이
+    for (let i = 0; i < COUNT; i++) {
+      const v = new THREE.Vector3().randomDirection().multiplyScalar(2.2 + Math.random());
+      pos.set([v.x, v.y, v.z], i * 3);
+      seed[i] = Math.random();
+    }
+    from.set(pos); target.set(pos);
+
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geom.setAttribute('seed', new THREE.BufferAttribute(seed, 1));
+    const mat = new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      uniforms: { uSize: { value: 2.2 * renderer.getPixelRatio() } },
+      vertexShader: `
+        attribute float seed; uniform float uSize; varying float vAlpha;
+        void main() {
+          vec4 mv = modelViewMatrix * vec4(position, 1.0);
+          gl_Position = projectionMatrix * mv;
+          gl_PointSize = uSize * (0.6 + seed * 0.8) * (3.6 / -mv.z);
+          vAlpha = clamp(1.6 - (-mv.z - 3.2) * 0.9, 0.15, 1.0) * (0.45 + seed * 0.55); // 뒤쪽 점은 흐리게
+        }`,
+      fragmentShader: `
+        varying float vAlpha;
+        void main() {
+          float d = length(gl_PointCoord - 0.5);
+          if (d > 0.5) discard;
+          gl_FragColor = vec4(vec3(0.93), vAlpha * smoothstep(0.5, 0.1, d));
+        }`,
+    });
+    const cloud = new THREE.Points(geom, mat);
+    scene.add(cloud);
+
+    // 모델 표면을 면적 비율대로 샘플링하고, 크기 1.6 정도로 맞춰 가운데 둔다.
+    const loader = new GLTFLoader();
+    const cache = {};
+    async function sampleModel(id) {
+      if (cache[id]) return cache[id];
+      const gltf = await loader.loadAsync(MODEL_URL(id));
+      gltf.scene.updateMatrixWorld(true);
+      const meshes = [];
+      gltf.scene.traverse((o) => {
+        if (!o.isMesh) return;
+        // 우리 GLB는 정점이 Int16으로 양자화돼 있어 그대로 변환하면 -1~1로 잘린다 → float로 풀어서 쓴다.
+        const src = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry).attributes.position;
+        const f = new Float32Array(src.count * 3);
+        for (let i = 0; i < src.count; i++) f.set([src.getX(i), src.getY(i), src.getZ(i)], i * 3);
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.BufferAttribute(f, 3));
+        g.applyMatrix4(o.matrixWorld);
+        const p = g.attributes.position, a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+        let area = 0;
+        for (let i = 0; i < p.count; i += 3) {
+          a.fromBufferAttribute(p, i); b.fromBufferAttribute(p, i + 1); c.fromBufferAttribute(p, i + 2);
+          area += b.sub(a).cross(c.sub(a)).length() / 2;
+        }
+        if (area > 0) meshes.push({ g, area });
+      });
+      const total = meshes.reduce((s, m) => s + m.area, 0);
+      const out = new Float32Array(COUNT * 3);
+      const v = new THREE.Vector3();
+      let k = 0;
+      meshes.forEach((m, mi) => {
+        const n = mi === meshes.length - 1 ? COUNT - k : Math.round((m.area / total) * COUNT);
+        const sampler = new MeshSurfaceSampler(new THREE.Mesh(m.g)).build();
+        for (let j = 0; j < n && k < COUNT; j++, k++) { sampler.sample(v); out.set([v.x, v.y, v.z], k * 3); }
+      });
+      const box = new THREE.Box3().setFromArray(out);
+      const center = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+      const s = 3.0 / Math.max(size.x, size.y, size.z);
+      for (let i = 0; i < COUNT; i++) {
+        out[i * 3] = (out[i * 3] - center.x) * s;
+        out[i * 3 + 1] = (out[i * 3 + 1] - center.y) * s;
+        out[i * 3 + 2] = (out[i * 3 + 2] - center.z) * s;
+      }
+      return (cache[id] = out);
+    }
+
+    let morphStart = 0;
+    const MORPH_MS = 1800;
+    async function show(id) {
+      document.querySelectorAll('.tabs button').forEach((b) => b.setAttribute('aria-selected', b.dataset.model === id));
+      document.querySelectorAll('.steps span').forEach((s) => s.classList.toggle('on', s.dataset.step === id));
+      try {
+        const next = await sampleModel(id);
+        from.set(pos); target = next; morphStart = performance.now();
+      } catch (e) { console.warn('모델을 불러오지 못했어요:', id, e); }
+    }
+    document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => show(b.dataset.model)));
+
+    // 마우스를 따라 살짝 기울인다.
+    const tilt = { x: 0, y: 0 };
+    addEventListener('pointermove', (e) => { tilt.x = (e.clientY / innerHeight - 0.5) * 0.25; tilt.y = (e.clientX / innerWidth - 0.5) * 0.4; });
+
+    function resize() {
+      const w = innerWidth, h = innerHeight;
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      camera.position.z = Math.max(4.2, 5 / camera.aspect); // 세로 화면에서도 모델 전체가 보이게 뒤로 뺀다
+      camera.updateProjectionMatrix();
+      cloud.position.y = w < 720 ? 0.75 : 0.55;
+    }
+    addEventListener('resize', resize); resize();
+
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+    renderer.setAnimationLoop((now) => {
+      if (morphStart) {
+        const t = Math.min(1, (now - morphStart) / MORPH_MS);
+        const e = ease(t), burst = Math.sin(Math.PI * t) * 0.9; // 중간에 바깥으로 흩어졌다가 모인다
+        for (let i = 0; i < COUNT; i++) {
+          const i3 = i * 3, r = 1 + burst * (0.3 + seed[i]);
+          pos[i3] = (from[i3] + (target[i3] - from[i3]) * e) * r;
+          pos[i3 + 1] = (from[i3 + 1] + (target[i3 + 1] - from[i3 + 1]) * e) * r;
+          pos[i3 + 2] = (from[i3 + 2] + (target[i3 + 2] - from[i3 + 2]) * e) * r;
+        }
+        geom.attributes.position.needsUpdate = true;
+        if (t >= 1) morphStart = 0;
+      }
+      if (!reduce) cloud.rotation.y += 0.0025;
+      cloud.rotation.x += (tilt.x - cloud.rotation.x) * 0.04;
+      scene.rotation.y += (tilt.y - scene.rotation.y) * 0.04;
+      renderer.render(scene, camera);
+    });
+
+    show('ironmaking').finally(() => dispatchEvent(new Event('st:cloud-ready')));
+  </script>
+</body>
+</html>

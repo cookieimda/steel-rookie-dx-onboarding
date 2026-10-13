@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sleek 3D 작업 기록</title>
+<style>
+  :root { --bg:#f4f6f8; --card:#ffffff; --ink:#1b2532; --sub:#5d6878; --line:#e3e8ee; --accent:#3f9db4; --chip:#eaf3f6; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#121214; --card:#1c1c1f; --ink:#f2f2f2; --sub:#a1a1a6; --line:#2c2c30; --accent:#5bb6cb; --chip:#22303a; } }
+  :root[data-theme="dark"] { --bg:#121214; --card:#1c1c1f; --ink:#f2f2f2; --sub:#a1a1a6; --line:#2c2c30; --accent:#5bb6cb; --chip:#22303a; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:"Pretendard",-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif; line-height:1.6; }
+  .wrap { max-width:1100px; margin:0 auto; padding:40px 16px 80px; }
+  .mono { font-family:"JetBrains Mono",ui-monospace,Consolas,monospace; font-size:11px; letter-spacing:.14em; color:var(--sub); }
+  h1 { font-size:34px; margin:6px 0 8px; letter-spacing:-.02em; }
+  h2 { font-size:22px; margin:0 0 4px; letter-spacing:-.01em; }
+  p.lead { color:var(--sub); margin:0 0 24px; }
+  nav.toc { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 32px; }
+  nav.toc a { padding:6px 12px; border-radius:999px; background:var(--chip); color:var(--ink); text-decoration:none; font-size:13px; }
+  section { background:var(--card); border-radius:20px; padding:24px; margin:0 0 20px; }
+  .meta { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 14px; }
+  .tag { font-size:12px; padding:2px 10px; border-radius:999px; background:var(--chip); color:var(--sub); }
+  ul { margin:6px 0 14px; padding-left:20px; } li { margin:2px 0; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:12px; }
+  figure { margin:0; } figure img { width:100%; display:block; border-radius:12px; background:#000; }
+  figcaption { font-size:12px; color:var(--sub); margin-top:6px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; margin:6px 0 4px; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--sub); font-weight:600; font-size:12px; }
+  code { font-family:"JetBrains Mono",ui-monospace,Consolas,monospace; font-size:12px; background:var(--chip); padding:1px 6px; border-radius:6px; }
+  .note { font-size:13px; color:var(--sub); }
+  @media (max-width:600px) { h1 { font-size:26px; } section { padding:18px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="mono">[ ST-ROOKIE · DESIGN/SLEEK-UI ]</div>
+  <h1>Sleek 3D 작업 기록</h1>
+  <p class="lead">2026-10-10 세션. 홈(무채색)과 3D 화면의 톤 차이를 줄이는 것에서 시작해, 상단 알약 UI, 반실사 나무·트림시트, 밤 조명 굽기, 바다까지 정리했다. 작업 위치는 <code>../ST-ROOKIE-dev</code>(<code>design/sleek-ui</code>), 커밋 전.</p>
+
+  <nav class="toc">
+    <a href="#s1">1. 톤 진단</a><a href="#s2">2. 색감·카메라</a><a href="#s3">3. 상단 알약 UI</a><a href="#s4">4. UI 통일</a>
+    <a href="#s5">5. 나무·트림시트</a><a href="#s6">6. 라이트 모드 캡슐</a><a href="#s7">7. 원경·시연 패널</a>
+    <a href="#s8">8. 가로등·축척</a><a href="#s9">9. 밤 조명 굽기</a><a href="#s10">10. 바다·정리</a><a href="#files">변경 파일</a>
+  </nav>
+
+  <section id="s1">
+    <div class="mono">[ 01 ]</div><h2>톤 진단: 홈과 3D 화면의 차이</h2>
+    <div class="meta"><span class="tag">측정</span></div>
+    <ul>
+      <li>평균 밝기는 비슷(37 vs 33)했고, 차이는 <b>채도</b>(0.02 vs 0.60), <b>푸른 픽셀</b>(0% vs 85%), <b>하이라이트</b>(255 vs 101)였다.</li>
+      <li>UI 틀은 남색(<code>#141b24</code>), 강조색은 하늘색, 영문 글꼴(Montserrat)이 3D 화면에 없었다.</li>
+    </ul>
+    <div class="grid">
+      <figure><img src="img/01-home.jpg" alt="홈 화면"><figcaption>홈: 무채색 + 흰색</figcaption></figure>
+      <figure><img src="img/02-dark-before.jpg" alt="수정 전 다크 3D"><figcaption>수정 전 3D(다크): 남색 위주</figcaption></figure>
+      <figure><img src="img/03-light-before.jpg" alt="수정 전 라이트 3D"><figcaption>수정 전 3D(라이트): 진한 파란 바다·하늘</figcaption></figure>
+    </div>
+  </section>
+
+  <section id="s2">
+    <div class="mono">[ 02 ]</div><h2>색감과 카메라</h2>
+    <ul>
+      <li>무채색으로 한 번 바꿨다가, 피드백에 따라 <b>원래 색감 + 채도 60%</b>로 정리. UI 틀만 검정.</li>
+      <li>공정 설비는 원래 색 유지(쇳물 주황 등 의미 있는 색).</li>
+      <li>공정 화면이 오른쪽으로 쏠리던 원인(<code>_resize</code>가 폭 10% 밀기)을 찾아, 메뉴·패널에 가리지 않는 영역 가운데로 맞춤(<code>setupFraming</code>).</li>
+    </ul>
+    <div class="grid">
+      <figure><img src="img/04-dark-neutral.jpg" alt="무채색 다크"><figcaption>무채색 시도(다크)</figcaption></figure>
+      <figure><img src="img/05-light-muted.jpg" alt="채도 낮춘 라이트"><figcaption>원래 색 + 채도 60%(라이트)</figcaption></figure>
+      <figure><img src="img/06-camera-centered.jpg" alt="카메라 가운데 정렬"><figcaption>시연 중 설비가 메뉴·패널 사이 가운데</figcaption></figure>
+    </div>
+  </section>
+
+  <section id="s3">
+    <div class="mono">[ 03 ]</div><h2>상단 알약 UI (레퍼런스: Colonia Zacamil)</h2>
+    <ul>
+      <li>오른쪽 위 아이콘 4개 → 위쪽 가운데 검정 알약 하나. 공정 고르기는 알약이 늘어나며 펼쳐짐.</li>
+      <li>외관 | 2D 뷰, 전체 보기도 알약에 통합. 단면·흐름 탭 제거(백엔드 연결 없음 확인).</li>
+      <li>이어 풀기 알림: 3D 인트로 뒤 약 3초 보였다가 사라지는 한 줄 토스트.</li>
+      <li>한글에 모노 글꼴을 쓰면 자간이 벌어져서, 모노는 영문·숫자 라벨(<code>[ 01 ]</code>)에만.</li>
+    </ul>
+    <div class="grid">
+      <figure><img src="img/07-pill-process.jpg" alt="알약 메뉴"><figcaption>알약 메뉴(공정 · 제강)</figcaption></figure>
+      <figure><img src="img/08-resume-toast.jpg" alt="이어 풀기 알림"><figcaption>이어 풀기 토스트</figcaption></figure>
+    </div>
+  </section>
+
+  <section id="s4">
+    <div class="mono">[ 04 ]</div><h2>UI 통일: 왼쪽 메뉴·재생 바·오른쪽 패널</h2>
+    <ul>
+      <li>검정 + 둥근 알약, 선택은 흰 칩, 재생은 흰 동그라미 + 검은 아이콘.</li>
+      <li>오른쪽 패널은 3D 위에 뜬 카드로, 3D 영역을 자르지 않음. 강조색 하늘색 → 흰색.</li>
+    </ul>
+    <div class="grid">
+      <figure><img src="img/09-unified-nav.jpg" alt="통일된 메뉴와 패널"><figcaption>설비 선택 시 메뉴·패널</figcaption></figure>
+      <figure><img src="img/10-tutor-panel.jpg" alt="튜터 패널"><figcaption>AI 튜터 패널</figcaption></figure>
+    </div>
+  </section>
+
+  <section id="s5">
+    <div class="mono">[ 05 ]</div><h2>반실사 나무와 건물 트림시트</h2>
+    <ul>
+      <li>공 모양 수관 → 잎 그림 평면 4장(세로 3 + 수평 1). 잎 그림 2종을 아틀라스 1장에, UV 겹치기로 그리기 호출 절반.</li>
+      <li>건물 143개가 트림시트 1장 공유: 바닥 쪽 얼룩 / 벽 패널 이음매·빗물 자국 / 지붕 자갈. 노이즈 → 블러 → 합성, ±10% 안쪽.</li>
+    </ul>
+    <div class="grid">
+      <figure><img src="img/11-trees-overview.jpg" alt="나무 전체"><figcaption>교체된 나무(전체)</figcaption></figure>
+      <figure><img src="img/12-trees-close.jpg" alt="나무 근접"><figcaption>나무 근접</figcaption></figure>
+      <figure><img src="img/13-trim-buildings.jpg" alt="트림시트 건물"><figcaption>트림시트가 들어간 건물</figcaption></figure>
+    </div>
+  </section>
+
+  <section id="s6">
+    <div class="mono">[ 06 ]</div><h2>라이트 모드 캡슐</h2>
+    <ul>
+      <li>푸른 기 도는 우윳빛(<code>#e9f0f7</code>), 위쪽 절반 불투명 → 아래로 투명 + 뒤 흐림.</li>
+      <li>최종: 외곽선 없음, 선택·활성은 밝은 청록(<code>#3f9db4</code>) + 흰 글씨.</li>
+    </ul>
+    <div class="grid">
+      <figure><img src="img/14-light-capsule.jpg" alt="라이트 캡슐"><figcaption>라이트 모드 캡슐(외곽선 제거 전)</figcaption></figure>
+      <figure><img src="img/23-light-tutor-final.jpg" alt="라이트 최종"><figcaption>최종: 외곽선 없음, 청록 활성</figcaption></figure>
+    </div>
+  </section>
+
+  <section id="s7">
+    <div class="mono">[ 07 ]</div><h2>원경 정리와 시연 패널</h2>
+    <ul>
+      <li>바다 건너 실루엣 건물 156개 숨김(반지름 250m 밖).</li>
+      <li>시연 중 오른쪽 패널: 설비 머리 1초 → 지금 단계 하나만, 높이는 내용만큼.</li>
+      <li>공정 메뉴를 왼쪽 위 한 줄 캡슐로. 재생하면 자동 접힘, 누르면 다시 펼침.</li>
+    </ul>
+    <div class="grid">
+      <figure><img src="img/17-far-removed-dark.jpg" alt="원경 정리"><figcaption>먼 건물 제거</figcaption></figure>
+      <figure><img src="img/15-tour-panel.jpg" alt="시연 패널"><figcaption>시연 중 단계 카드 하나</figcaption></figure>
+      <figure><img src="img/16-nav-capsule.jpg" alt="공정 캡슐"><figcaption>왼쪽 위 공정 캡슐</figcaption></figure>
+    </div>
+  </section>
+
+  <section id="s8">
+    <div class="mono">[ 08 ]</div><h2>가로등과 축척</h2>
+    <ul>
+      <li>빛 웅덩이 37곳에 로우폴리 가로등(인스턴스 2개). 빛은 바닥 라이트맵에 굽고 실제 조명 없음.</li>
+      <li>공정 기준 1단위 ≈ 12m. 주변 물체가 2~8배 커서 건물 높이 ×0.5, 나무 ×0.5, 가로등 ×0.3.</li>
+    </ul>
+    <div class="grid">
+      <figure><img src="img/18-lamps.jpg" alt="가로등"><figcaption>로우폴리 가로등</figcaption></figure>
+      <figure><img src="img/19-scale-light.jpg" alt="축척 조정"><figcaption>축척 조정 후(공정이 돋보임)</figcaption></figure>
+    </div>
+  </section>
+
+  <section id="s9">
+    <div class="mono">[ 09 ]</div><h2>밤 조명 굽기</h2>
+    <ul>
+      <li>공정 꼭짓점에 환경광 + 푸른 달빛 키라이트(그림자 포함)를 구움. 켜고 끄며 재서 원래의 약 70% 밝기.</li>
+      <li>빈터 3곳에 달빛 옴니를 바닥 라이트맵·건물 꼭짓점에 구움. 위치는 스크린샷 4점으로 화면→지면 호모그래피를 세워 계산.</li>
+      <li>재질은 그대로라 선택 강조·쇳물 발광은 유지.</li>
+    </ul>
+    <div class="grid">
+      <figure><img src="img/20-night-bake-process.jpg" alt="밤 굽기 공정"><figcaption>구운 키라이트로 명암이 생긴 제선 공정</figcaption></figure>
+      <figure><img src="img/22-dark-final.jpg" alt="다크 최종"><figcaption>다크 최종(투광등 굽고 조명 제거)</figcaption></figure>
+    </div>
+  </section>
+
+  <section id="s10">
+    <div class="mono">[ 10 ]</div><h2>바다와 겹치는 작업 정리</h2>
+    <ul>
+      <li>바다가 두 겹(가까운 셰이더 판 + 먼 링)이라 경계가 보였음 → 같은 셰이더의 원형 먼 바다(반지름 2.8km)로 통일.</li>
+      <li>수평선 글로우 원통·가짜 안개 띠·하늘색 섞기가 겹쳐 '케이크'처럼 층짐 → 모두 삭제. 바다는 에메랄드 → 옅은 에메랄드 그라데이션, 하늘과는 또렷하게.</li>
+      <li>실제 조명: 투광등 4·밤 키라이트·구역 조명 2 제거 → 남은 것 방향광 1, 하늘빛 2.</li>
+    </ul>
+    <div class="grid">
+      <figure><img src="img/21-sea-light-final.jpg" alt="바다 최종"><figcaption>라이트 최종: 바다 그라데이션 + 또렷한 수평선</figcaption></figure>
+    </div>
+  </section>
+
+  <section id="files">
+    <div class="mono">[ FILES ]</div><h2>변경 파일과 조절 값</h2>
+    <table>
+      <tr><th>파일</th><th>내용</th></tr>
+      <tr><td><code>frontend/3d-demo/sleek-overview.js</code></td><td>장면 덧붙임 전부(색감, 카메라 보정, 나무, 트림시트, 가로등, 축척, 밤 굽기, 바다, 조명 정리). 공용 <code>scene_v3.js</code>는 수정하지 않음.</td></tr>
+      <tr><td><code>frontend/3d-demo/Steel Academy v4.dc.html</code></td><td>알약 UI, 메뉴·패널·재생 바·토스트, 라이트 캡슐 CSS, 시연 패널 동작</td></tr>
+    </table>
+    <table>
+      <tr><th>값</th><th>위치</th><th>현재</th></tr>
+      <tr><td>배경 채도</td><td><code>GRADE</code></td><td>0.6</td></tr>
+      <tr><td>건물·나무·가로등 축척</td><td><code>K_BLD</code>, <code>K_TREE</code>, <code>K_LAMP</code></td><td>0.5, 0.5, 0.3</td></tr>
+      <tr><td>트림시트 세기</td><td><code>TRIM_AMT</code></td><td>0.4</td></tr>
+      <tr><td>밤 공정·건물 밝기</td><td><code>PROC_GAIN</code>, <code>BLD_GAIN</code></td><td>0.38, 1.4</td></tr>
+      <tr><td>키라이트</td><td><code>KEY_DIR</code>, <code>KEY_COL</code></td><td>서쪽 위, 푸른 달빛</td></tr>
+      <tr><td>빈터 옴니</td><td><code>NIGHT_OMNI</code></td><td>3곳, 반경 55m</td></tr>
+      <tr><td>라이트 바다색</td><td><code>makeSea().setTheme</code></td><td>#4f8f86 → #a9cfc6</td></tr>
+    </table>
+    <p class="note">백엔드 남은 일은 <code>docs/backend-todo.md</code>, 다음 작업은 <code>docs/next-steps-sleek.md</code>.</p>
+  </section>
+</div>
+</body>
+</html>

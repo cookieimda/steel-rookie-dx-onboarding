@@ -1,0 +1,126 @@
+/* ST-ROOKIE 홈 — "세련/깔끔" 디자인안. 색·폰트 토큰은 login-sleek.css의 :root를 그대로 쓴다.
+   여기에는 홈에만 필요한 값(네비 유리판, 히어로 문구)만 둔다. */
+:root {
+  --nav-bg: rgba(18, 18, 20, 0.72);
+  --nav-line: rgba(255, 255, 255, 0.08);
+  --chip: rgba(255, 255, 255, 0.07);
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+body.home {
+  display: block; padding: 0; overflow: hidden;
+  background: radial-gradient(ellipse at 50% 45%, #232327 0%, var(--bg) 60%);
+}
+#cloud { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* 플로팅 네비 (레퍼런스: 둥근 어두운 판 + 오른쪽 밝은 CTA) */
+.nav {
+  position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+  width: min(1180px, calc(100% - 32px)); height: 64px; padding: 0 12px 0 24px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  /* 위 절반은 진하게, 아래 절반부터 점점 비쳐서 뒤(점 입자)가 보이게 */
+  background: linear-gradient(180deg, rgba(18, 18, 20, .9) 0%, rgba(18, 18, 20, .82) 45%, rgba(18, 18, 20, .3) 100%);
+  border: 1px solid var(--nav-line); border-radius: 18px;
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  z-index: 2;
+}
+.brand { display: flex; align-items: center; gap: 10px; color: #fff; text-decoration: none; font-family: var(--font-en); font-weight: 800; font-size: 18px; letter-spacing: 0.04em; }
+.brand-mark { width: 18px; height: 18px; border-radius: 5px; background: #fff; box-shadow: inset 0 0 0 5px var(--bg); }
+.tabs { display: flex; gap: 4px; }
+.nav button {
+  height: 40px; padding: 0 16px; border-radius: 10px;
+  background: transparent; color: var(--muted);
+  font-family: var(--font-ko); font-size: 14px; font-weight: 500; letter-spacing: 0;
+}
+.nav button:hover { background: var(--chip); color: #fff; }
+.tabs button[aria-selected="true"] { color: #fff; background: var(--chip); }
+.nav button[hidden] { display: none; }
+.nav-actions { display: flex; align-items: center; gap: 6px; }
+.nav .cta { background: #f2f2f2; color: #111; font-weight: 700; padding: 0 20px; }
+.nav .cta:hover { background: #fff; color: #111; }
+
+/* 히어로 문구: 화면 아래쪽, 점 구름 위에 겹친다 */
+.hero {
+  position: fixed; left: 0; right: 0; bottom: 8vh; z-index: 1;
+  text-align: center; padding: 0 16px; pointer-events: none;
+}
+.eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.3em; color: var(--muted); margin-bottom: 14px; }
+.headline { font-family: var(--font-en); font-weight: 800; font-size: clamp(44px, 8vw, 112px); line-height: 0.95; letter-spacing: 0.02em; color: #fff; }
+.lead { margin-top: 18px; font-size: 15px; font-weight: 300; color: var(--muted); }
+.lead strong { font-weight: 700; color: #fff; }
+.steps { margin-top: 18px; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.22em; color: #6f6f74; }
+.steps .on { color: #fff; }
+
+
+/* ---- 라인 UI (레퍼런스: 자동차 부품 지시선) ----
+   순서: 3D가 뜨고 3초 뒤 body.callout-on → 2D 선이 그려짐 → LOGIN 등장. 3D와 실제로 연결되진 않는다. */
+:root { --line: rgba(255, 255, 255, 0.55); --line-soft: rgba(255, 255, 255, 0.22); }
+.leader { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; overflow: visible; }
+.leader path { fill: none; stroke: var(--line); stroke-width: 1; stroke-dasharray: 1; stroke-dashoffset: 1; }
+.callout-on .leader path { animation: draw 1.1s cubic-bezier(.6, 0, .2, 1) forwards; }
+.callout { position: fixed; right: 6vw; bottom: 11vh; z-index: 2; width: 300px; display: flex; flex-direction: column; }
+.callout .callout-title {
+  height: auto; padding: 14px 0 10px; text-align: right; border-radius: 0;
+  background: transparent; color: #fff;
+  font-family: var(--font-en); font-weight: 800; font-size: 34px; letter-spacing: 0.08em;
+  opacity: 0; pointer-events: none;
+}
+.callout-on .callout .callout-title { animation: rise .5s ease 1s forwards; pointer-events: auto; }
+.callout .callout-title:hover { background: transparent; color: var(--muted); }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* 로그인이 열리면 라인 UI·히어로 문구는 물러난다 */
+.leader, .callout, .hero { transition: opacity .4s ease; }
+.login-open .leader, .login-open .callout { opacity: 0; pointer-events: none; }
+.login-open .hero { opacity: 0; }
+
+/* ---- 로그인: 네이버 로그인 참고, 흑백 라인 UI (박스 없음) ---- */
+.overlay { position: fixed; inset: 0; z-index: 5; display: grid; place-items: center; padding: 16px; background: rgba(12, 12, 13, 0.82); }
+.overlay[hidden] { display: none; }
+.panel { position: relative; width: 100%; max-width: 380px; padding: 40px 0 24px; gap: 0; transform-origin: top left; }
+.panel .close { position: absolute; top: 0; right: -8px; width: 32px; height: 32px; padding: 0; background: transparent; color: var(--muted); font-size: 20px; font-family: var(--font-ko); }
+.panel .close:hover { background: transparent; color: #fff; }
+.panel .subtitle { margin-bottom: 28px; }
+/* 줄 왼쪽 끝부터 입력, 줄 오른쪽에 ID / PW */
+.field { display: flex; align-items: center; gap: 12px; height: 60px; border-bottom: 1px solid var(--line-soft); transition: border-color .15s; }
+.field:focus-within { border-color: #fff; }
+.field input { flex: 1; height: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; font-size: 16px; }
+.field input:focus { background: transparent; border: 0; }
+/* 크롬 자동완성은 입력칸을 하얗게(연파랑) 칠한다 → 배경색 바뀜을 아주 길게 미뤄 투명하게 두고, 글자색만 맞춘다 */
+.field input:-webkit-autofill,
+.field input:-webkit-autofill:hover,
+.field input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text); caret-color: var(--text);
+  transition: background-color 600000s 0s, color 600000s 0s;
+}
+.field span { font-family: var(--font-en); font-size: 12px; font-weight: 500; letter-spacing: 0.2em; color: var(--muted); }
+.field:focus-within span { color: #fff; }
+.signup-only { display: none; }
+.is-signup .signup-only { display: flex; }
+.is-signup .login-only { display: none; }
+/* 로그인 상태 유지: 동그란 체크 */
+.keep { display: flex; align-items: center; gap: 8px; margin-top: 36px; font-size: 14px; color: var(--muted); cursor: pointer; user-select: none; }
+.keep input { position: absolute; opacity: 0; pointer-events: none; }
+.keep i { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--muted); display: grid; place-items: center; }
+.keep i::after { content: ""; width: 6px; height: 10px; margin-top: -2px; border: solid var(--muted); border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); }
+.keep input:checked + i { background: #fff; border-color: #fff; }
+.keep input:checked + i::after { border-color: #111; }
+.keep:has(input:checked) { color: #fff; }
+.keep input:focus-visible + i { outline: 2px solid #fff; outline-offset: 2px; }
+.panel .error { margin: 10px 0 6px; }
+.panel #submitBtn { height: 54px; border-radius: 6px; background: #f2f2f2; color: #111; font-size: 15px; }
+.panel #submitBtn:hover { background: #fff; }
+.is-signup #submitBtn { margin-top: 36px; }
+.panel .switch { height: 44px; margin-top: 6px; background: transparent; color: var(--muted); font-family: var(--font-ko); font-size: 13px; font-weight: 400; letter-spacing: 0; }
+.panel .switch:hover { background: transparent; color: #fff; }
+
+@media (max-width: 720px) {
+  .tabs { display: none; }
+  .nav { height: 56px; padding-left: 18px; }
+  .callout { right: 16px; left: 16px; bottom: 24px; width: auto; }
+  .hero { bottom: 160px; }
+  .lead, .steps { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .callout-on .leader path, .callout-on .callout .callout-title { animation-duration: 1ms; animation-delay: 0s; }
+}

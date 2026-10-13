@@ -1,4 +1,4 @@
-// 체크포인트(이해도 확인) 채팅(최종 페이지 Steel Academy v3.dc.html, 이전 페이지 v2도 같이 씀). 설계: docs/checkpoint-integration.md
+// 체크포인트(이해도 확인) 채팅(최종 페이지 Steel Academy v3.dc.html). 설계: docs/checkpoint-integration.md, docs/checkpoint-overlay.md
 // - checkpoint-test.html의 진행 로직(진입 상태, 시작, 답변, 재채점, 새로고침 복원, 결과)을 화면 코드 없이 옮겼다.
 // - learning-chat.js와 같은 방식: 페이지 컴포넌트(c)의 state·setState를 쓰고, 화면 값은 vals()로 돌려준다.
 //   DOM은 쓰지 않는다. 상태 키와 vals() 키는 학습 모드와 겹치지 않게 cp로 시작한다.
@@ -7,12 +7,12 @@
 // - 답하는 중(준비·답변·재확인·채점 오류)에는 학습 입력을 막는다: lockLearning()이 학습 모드 값(learning-chat.js의 vals)에서
 //   보내기·추천 질문을 끄고, runLearning()이 페이지의 ask()(설비 패널 '튜터에게 묻기', 학습 전송)를 막는다. learning-chat.js는 고치지 않는다.
 //   막힌 질문은 "잠깐 멈추고 질문할까요? [멈추고 질문하기]"로 안내하고, 누르면 멈춘(pause) 뒤 그 질문을 보낸다.
-// - 나중에 이어 풀기(paused): 멈춘 동안에는 학습 채팅을 쓸 수 있다. 학습 탭에 "풀던 이해도 확인이 있어요 [이어 풀기]" 안내를 띄운다.
-//   로그인·새로고침으로 시도를 다시 열 때는 이해도 확인 탭으로 옮기지 않는다(docs/checkpoint-api.md '나중에 이어 풀기').
-// - 튜터 패널의 모드 탭(학습 | 이해도 확인)도 여기서 다룬다. 모드는 페이지 state.tutorMode('learning' | 'checkpoint', 없으면 learning).
+// - 나중에 이어 풀기(paused): 멈춘 동안에는 학습 채팅을 쓸 수 있다. 튜터 패널에 "풀던 이해도 확인이 있어요 [이어 풀기]" 안내를 띄운다.
+//   로그인·새로고침으로 시도를 다시 열 때는 오버레이를 열지 않는다(docs/checkpoint-api.md '나중에 이어 풀기').
+// - 튜터 패널은 학습 전용이다(모드 탭 없음). 이해도 확인은 오버레이에서만 한다.
 // - 이해도 확인 오버레이(docs/checkpoint-overlay.md): 공정 목록의 섹션별 [담금질 시작하기](sectionBadge의 cpSection* 값)로 열고,
 //   3D 화면 위에 캐릭터 + 말풍선 + 입력을 보여 준다(vals()의 오버레이 값). 말풍선은 이번 응답의 튜터 발화(cpTurn)를 차례로 보여 주고,
-//   캐릭터 동작은 지금 보이는 발화의 type으로 정한다(motionFor). 모드 탭 값은 v2와 지금 v3가 쓰므로 페이지가 오버레이로 옮길 때까지 둔다.
+//   캐릭터 동작은 지금 보이는 발화의 type으로 정한다(motionFor).
 // - API: docs/checkpoint-api.md. 요청은 api-client.js(로그인 토큰·접속 비밀번호·오류 문장).
 
 import { createApiClient } from './api-client.js';
@@ -68,7 +68,6 @@ const VERDICT_TONE = { correct: 'ok', partial: 'warn', wrong: 'danger' };
 // 페이지(v2·v3)에 --ok 변수가 없어서 기본색을 함께 준다.
 const TONE_COLOR = { ok: 'var(--ok, #2f9e44)', warn: 'var(--warn, #e8590c)', danger: 'var(--danger)' };
 const ACCENT = 'var(--accent)';
-const MODES = ['learning', 'checkpoint'];
 
 const percent = (ratio) => Math.round((ratio ?? 0) * 100);
 const asMessages = (utterances) => utterances.map((u) => ({ role: 'tutor', type: u.type, text: u.text }));
@@ -80,18 +79,15 @@ function lastTurn(messages) {
 
 /**
  * 페이지 컴포넌트에 붙일 체크포인트 채팅을 만든다. componentDidMount에서 한 번 부르고, refreshAll()로 진입 상태를 읽는다.
- * @param c 페이지 컴포넌트: state(processId, tutorMode), setState, data(findProcess). 선택: scrollCheckpoint()(없으면 scrollChat())
- * @param {{ api?: ReturnType<typeof createApiClient>, tabs?: boolean }} [options]
- *   tabs: false면 튜터 패널 모드 탭을 쓰지 않는다(이해도 확인은 오버레이에서만). 모드는 늘 학습이고 [이어 풀기]·setMode로 바뀌지 않는다.
- *   탭 값(cpTabs 등)은 그대로 내고 cpShowTabs만 false다. v2처럼 탭을 쓰는 페이지는 기본값(true).
+ * @param c 페이지 컴포넌트: state(processId), setState, data(findProcess). 선택: scrollCheckpoint()(없으면 scrollChat()), goProcess(id), openTutor()
+ * @param {{ api?: ReturnType<typeof createApiClient> }} [options]
  */
-export function createCheckpointChat(c, { api = createApiClient(), tabs = true } = {}) {
-  // v2 페이지의 state는 이 모듈을 불러오기 전에 만들어지므로 체크포인트 키가 없을 수 있다.
+export function createCheckpointChat(c, { api = createApiClient() } = {}) {
+  // 페이지 state는 이 모듈을 불러오기 전에 만들어지므로 체크포인트 키가 없을 수 있다.
   const withDefaults = (s) => ({ ...CHECKPOINT_STATE, ...s });
   const S = () => withDefaults(c.state);
   const sectionName = (id) => c.data?.findProcess?.(id)?.name ?? id;
   const scroll = () => (c.scrollCheckpoint ?? c.scrollChat)?.call(c);
-  const mode = () => (tabs && MODES.includes(c.state.tutorMode) ? c.state.tutorMode : 'learning');
   // 요청 중복을 막는 표시. setState는 바로 반영되지 않을 수 있어서 state(cpPending)와 따로 둔다.
   let busy = false;
   // 답하는 중이라 막힌 학습 질문. [멈추고 질문하기]로 멈춘 뒤 보낸다.
@@ -137,17 +133,17 @@ export function createCheckpointChat(c, { api = createApiClient(), tabs = true }
 
   /** 진입 화면에 보여 줄 섹션 상태와 시작 버튼. */
   function entryFor(section) {
-    if (!SECTIONS.includes(section)) return { status: TEXT.entry.site, canStart: false, startLabel: '' };
-    if (!api.hasToken()) return { status: TEXT.entry.login, canStart: false, startLabel: '' };
+    if (!SECTIONS.includes(section)) return { status: TEXT.entry.site, canStart: false };
+    if (!api.hasToken()) return { status: TEXT.entry.login, canStart: false };
     const p = S().cpProgress[section];
-    if (!p) return { status: TEXT.entry.checking, canStart: false, startLabel: '' };
-    if (p.unavailable) return { status: p.status === 404 ? TEXT.entry.notReady : TEXT.entry.offline, canStart: false, startLabel: '' };
-    if (!p.open) return { status: TEXT.entry.locked, canStart: false, startLabel: '' };
-    if (p.unlocked) return { status: TEXT.entry.passed(percent(p.understanding)), canStart: false, startLabel: '', passed: true };
-    if (p.in_progress?.state === 'paused') return { status: TEXT.entry.paused(p.in_progress.done, p.in_progress.total), canStart: true, startLabel: TEXT.buttons.resume, kind: 'resume' };
-    if (p.in_progress_attempt_id) return { status: TEXT.entry.inProgress, canStart: true, startLabel: TEXT.buttons.resume, kind: 'resume' };
-    if (p.retry_concept_ids?.length) return { status: TEXT.entry.retry(p.retry_concept_ids.length), canStart: true, startLabel: TEXT.buttons.retryAttempt, kind: 'retry' };
-    return { status: TEXT.entry.notStarted, canStart: true, startLabel: TEXT.buttons.start, kind: 'start' };
+    if (!p) return { status: TEXT.entry.checking, canStart: false };
+    if (p.unavailable) return { status: p.status === 404 ? TEXT.entry.notReady : TEXT.entry.offline, canStart: false };
+    if (!p.open) return { status: TEXT.entry.locked, canStart: false };
+    if (p.unlocked) return { status: TEXT.entry.passed(percent(p.understanding)), canStart: false, passed: true };
+    if (p.in_progress?.state === 'paused') return { status: TEXT.entry.paused(p.in_progress.done, p.in_progress.total), canStart: true, kind: 'resume' };
+    if (p.in_progress_attempt_id) return { status: TEXT.entry.inProgress, canStart: true, kind: 'resume' };
+    if (p.retry_concept_ids?.length) return { status: TEXT.entry.retry(p.retry_concept_ids.length), canStart: true, kind: 'retry' };
+    return { status: TEXT.entry.notStarted, canStart: true, kind: 'start' };
   }
 
   /** 시도 진행(답변, 재채점). 서버가 저장한 뒤에만 사용자 메시지를 붙인다. 실패하면 입력이 남아 다시 보낼 수 있다. */
@@ -339,23 +335,23 @@ export function createCheckpointChat(c, { api = createApiClient(), tabs = true }
     },
 
     /**
-     * [이어 풀기](학습 탭 안내·이해도 확인 탭 버튼·공정 목록 섹션 버튼). 오버레이를 열고(이해도 확인 탭으로도 옮긴다),
+     * [이어 풀기](튜터 패널 안내·공정 목록 섹션 버튼). 오버레이를 열고,
      * 멈춘 시도면 POST /resume으로 새 질문을 받는다. 멈추지 않은 시도(새로고침으로 다시 연 경우)는 요청 없이 열기만 한다.
      */
     async resume() {
       const cp = S().cpView;
       if (!cp || cp.state === 'completed') return;
-      c.setState({ ...(tabs ? { tutorMode: 'checkpoint' } : {}), cpPauseOffer: false, cpOverlayOpen: true, cpShowHistory: false });
+      c.setState({ cpPauseOffer: false, cpOverlayOpen: true, cpShowHistory: false });
       heldLearning = null;
       if (cp.state === 'paused') await call('resume');
       scroll();
     },
 
-    /** [멈추고 질문하기]: 멈춘 뒤(오버레이가 닫힌다) 학습 탭으로 옮기고 튜터 패널을 연 다음(페이지 openTutor), 막혀 있던 학습 질문이 있으면 보낸다. */
+    /** [멈추고 질문하기]: 멈춘 뒤(오버레이가 닫힌다) 튜터 패널을 열고(페이지 openTutor), 막혀 있던 학습 질문이 있으면 보낸다. */
     async pauseForLearning() {
       const view = await chat.pause();
       if (view?.state !== 'paused') return;
-      c.setState({ tutorMode: 'learning', cpPauseOffer: false });
+      c.setState({ cpPauseOffer: false });
       c.openTutor?.();
       const held = heldLearning;
       heldLearning = null;
@@ -371,20 +367,11 @@ export function createCheckpointChat(c, { api = createApiClient(), tabs = true }
       return LOCK_PROCESS_TABS && !!p && !p.unavailable && !p.open;
     },
 
-    /** 튜터 패널 모드 탭을 바꾼다. 이해도 확인 탭을 열면 현재 공정의 진입 상태를 다시 읽는다. */
-    setMode(next) {
-      if (!tabs || !MODES.includes(next)) return;
-      c.setState({ tutorMode: next, ...(next === 'checkpoint' ? { cpPauseOffer: false } : {}) });
-      if (next === 'checkpoint') chat.refresh();
-      scroll();
-    },
-
     /**
-     * 페이지의 학습 질문(ask)을 감싼다. 학습 탭으로 바꾼 뒤 보낸다.
+     * 페이지의 학습 질문(ask)을 감싼다.
      * 답하는 중이면 보내지 않고 질문을 들고 있다가 "잠깐 멈추고 질문할까요? [멈추고 질문하기]"를 보여 준다.
      */
     runLearning(send) {
-      if (mode() !== 'learning') c.setState({ tutorMode: 'learning' });
       if (chat.isActive()) {
         heldLearning = send;
         c.setState({ cpPauseOffer: true });
@@ -454,71 +441,25 @@ export function createCheckpointChat(c, { api = createApiClient(), tabs = true }
       const st = S();
       const cp = st.cpView;
       const state = cp?.state ?? null;
-      const entry = entryFor(st.processId);
       const answering = ANSWERING.includes(state);
       const result = cp && state === 'completed' ? resultVals(cp) : null;
-      const current = mode();
       const progress = doneOf(cp);
       const bubble = st.cpTurn[st.cpBubbleIndex] ?? null;
       const bubbleHasNext = st.cpBubbleIndex < st.cpTurn.length - 1;
       const overlayShown = !!st.cpOverlayOpen && (!!cp || st.cpPending);
       return {
-        // 튜터 패널 모드 탭
-        cpTabLearningLabel: TEXT.tabs.learning,
-        cpTabCheckpointLabel: TEXT.tabs.checkpoint,
-        cpTabs: MODES.map((id) => ({
-          id, label: TEXT.tabs[id], active: id === current, onClick: () => chat.setMode(id),
-          // 선택된 탭 배경: #50 화면의 --chrome3, 없으면 --panel2.
-          bg: id === current ? 'var(--chrome3, var(--panel2))' : 'transparent', color: id === current ? 'var(--text)' : 'var(--muted)',
-          weight: id === current ? '700' : '500',
-        })),
-        cpIsLearningTab: current === 'learning',
-        cpIsCheckpointTab: current === 'checkpoint',
-        cpHeaderMode: TEXT.header[current],
-        cpShowTabs: tabs,
+        // 튜터 패널 머리글('학습 모드')
+        cpHeaderMode: TEXT.header.learning,
 
-        // 공정 탭 배지
-        cpSections: SECTIONS.map((id) => {
-          const p = st.cpProgress[id];
-          const known = !!p && !p.unavailable;
-          return {
-            id, name: sectionName(id), passed: known && !!p.unlocked,
-            badge: !known ? null : p.unlocked ? TEXT.badges.passed : TEXT.badges.notPassed,
-            tabLocked: chat.tabLocked(id),
-          };
-        }),
-
-        // 화면 구분: 진입(시작 전) / 진행 / 결과
-        cpShowEntry: !cp,
-        cpShowRunning: !!cp && state !== 'completed',
+        // 시도 상태
         cpShowResult: !!result,
 
-        // 진입 화면
-        cpNeedsLogin: !api.hasToken(),
-        cpLoginLabel: TEXT.buttons.login,
-        cpLoginUrl: '/login',
-        cpEntrySectionName: SECTIONS.includes(st.processId) ? sectionName(st.processId) : '',
-        cpEntryStatus: entry.status,
-        cpEntryPassed: !!entry.passed,
-        cpCanStart: entry.canStart && !st.cpPending,
-        cpStartLabel: entry.startLabel || TEXT.buttons.start,
-        // 통과한 공정과 로그인 전에는 시작 버튼을 숨긴다. 전체 보기(site) 등 시작할 수 없는 상태는 비활성 버튼으로 보인다.
-        cpShowStartButton: !entry.passed && api.hasToken(),
-        cpStartOpacity: entry.canStart && !st.cpPending ? '1' : '.45',
-        onCpStart: () => chat.start(),
-
-        // 진행 화면
+        // 진행(오버레이 머리글·진행 점·대화 기록)
         cpTitle: cp ? TEXT.title(sectionName(cp.section), cp.kind === 'retry') : '',
         cpSection: cp?.section ?? null,
         cpState: state,
         cpStageLabel: cp ? stageLabel(cp) : '',
-        cpIsRecheck: state === 'awaiting_recheck',
         cpStageColor: state === 'awaiting_recheck' ? TONE_COLOR.warn : state === 'error' ? TONE_COLOR.danger : state === 'completed' ? TONE_COLOR.ok : state === 'paused' ? 'var(--muted)' : ACCENT,
-        cpConceptName: !cp ? ''
-          : state === 'awaiting_ready' ? (cp.kind === 'retry' ? TEXT.readyHint.retry : TEXT.readyHint.first)
-          : state === 'completed' ? TEXT.doneHint : cp.concept?.name ?? '',
-        cpConceptIndex: cp?.concept?.index ?? null,
-        cpConceptTotal: cp?.concept?.total ?? cp?.progress.length ?? null,
         cpDots: (cp?.progress ?? []).map((d, i) => ({ conceptId: d.concept_id, index: i + 1, status: d.status, isDone: d.status === 'done', isCurrent: d.status === 'current', color: d.status === 'done' ? ACCENT : d.status === 'current' ? 'var(--text)' : 'var(--line)' })),
         cpMessages: st.cpMessages.map((m, i) => ({
           key: i, text: m.text, type: m.type,
@@ -529,56 +470,42 @@ export function createCheckpointChat(c, { api = createApiClient(), tabs = true }
           color: m.type === 'recheck_question' ? TONE_COLOR.warn : m.type === 'error' ? TONE_COLOR.danger : ACCENT,
         })),
         cpPending: st.cpPending,
-        cpShowReadyButton: state === 'awaiting_ready' && !st.cpPending,
         cpReadyLabel: TEXT.buttons.ready,
         onCpReady: () => chat.ready(),
         cpShowRetryButton: state === 'error' && !st.cpPending,
         cpRetryLabel: TEXT.buttons.retryEvaluation,
         onCpRetry: () => chat.retry(),
-        // 나중에 이어 풀기(이해도 확인 탭)
-        cpShowPauseButton: LOCKING.includes(state) && !st.cpPending && !st.cpConfirmPause,
-        cpPauseLabel: TEXT.buttons.pause,
-        onCpPause: () => chat.askPause(),
+        // 나중에 이어 풀기: [나가기](onCpExit)가 답하는 중이면 이 확인창을 연다
         cpConfirmPause: LOCKING.includes(state) && !!st.cpConfirmPause,
         cpConfirmPauseText: TEXT.pauseConfirm(state === 'awaiting_recheck', progress.done, progress.total),
         cpConfirmPauseYes: TEXT.buttons.confirmPause,
         cpConfirmPauseNo: TEXT.buttons.keepGoing,
         onCpConfirmPause: () => chat.pause(),
         onCpCancelPause: () => chat.cancelPause(),
-        cpIsPaused: state === 'paused',
-        cpShowResumeButton: state === 'paused' && !st.cpPending,
-        cpResumeLabel: TEXT.buttons.resumeProgress(progress.done, progress.total),
         onCpResume: () => chat.resume(),
         cpShowComposer: !!cp && state !== 'completed' && state !== 'paused',
         cpInput: st.cpInput,
-        cpInputDisabled: st.cpPending || !answering,
-        cpInputOpacity: st.cpPending || !answering ? '.5' : '1',
-        cpPlaceholder: state === 'awaiting_ready' ? TEXT.placeholder.ready : state === 'error' ? TEXT.placeholder.error : state === 'paused' ? TEXT.placeholder.paused : TEXT.placeholder.answer,
         cpSendLabel: TEXT.buttons.send,
         onCpInput: (e) => c.setState({ cpInput: e.target.value }),
         onCpSend: (e) => { e?.preventDefault?.(); return chat.send(S().cpInput); },
 
         // 결과 화면(state=completed)
         cpResult: result,
-        cpCloseLabel: TEXT.buttons.close,
-        onCpClose: () => chat.close(),
 
         // 안내·오류
         cpNotice: st.cpNotice,
         cpHasNotice: !!st.cpNotice,
 
-        // 학습 탭 잠금(답하는 중에만)
+        // 학습 잠금(답하는 중에만)
         cpLearningLocked: chat.isActive(),
-        cpLearningInputOpacity: chat.isActive() ? '.5' : '1',
-        cpLearningLockedText: TEXT.learningLocked,
 
-        // 학습 탭 안내: 풀던 이해도 확인(멈춤·답하는 중)이 있으면 [이어 풀기], 답하는 중 학습 질문을 하려 하면 [멈추고 질문하기]
-        cpShowPauseOffer: current === 'learning' && chat.isActive() && !!st.cpPauseOffer,
+        // 튜터 패널 안내: 풀던 이해도 확인(멈춤·답하는 중)이 있으면 [이어 풀기], 답하는 중 학습 질문을 하려 하면 [멈추고 질문하기]
+        cpShowPauseOffer: chat.isActive() && !!st.cpPauseOffer,
         cpPauseOfferText: TEXT.pauseOffer,
         cpPauseOfferLabel: TEXT.buttons.pauseForLearning,
         onCpPauseForLearning: () => chat.pauseForLearning(),
         // 오버레이에서 풀고 있는 동안은 숨긴다.
-        cpShowResumeBanner: current === 'learning' && !!cp && state !== 'completed' && !(chat.isActive() && st.cpPauseOffer) && !overlayShown,
+        cpShowResumeBanner: !!cp && state !== 'completed' && !(chat.isActive() && st.cpPauseOffer) && !overlayShown,
         cpResumeBannerText: cp ? TEXT.resumeBanner(sectionName(cp.section), progress.done, progress.total) : '',
         cpResumeBannerLabel: TEXT.buttons.resumeShort,
 

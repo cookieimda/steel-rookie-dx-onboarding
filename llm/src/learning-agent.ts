@@ -83,7 +83,38 @@ export interface LearningReply {
 
 /** 라우트가 쓰는 학습 모드 튜터. 테스트는 가짜 구현을 넣는다. */
 export interface LearningAgent {
-  reply(input: LearningInput): Promise<LearningReply>;
+  /** onAnswer: 답(answer)을 받는 대로 지금까지의 글을 넘긴다(스트리밍). 형식 오류로 다시 부르면 처음부터 다시 넘긴다. 최종 답은 돌려주는 값이다. */
+  reply(input: LearningInput, options?: { onAnswer?: (text: string) => void }): Promise<LearningReply>;
+}
+
+/**
+ * 받는 중인 JSON 텍스트에서 answer 값의 지금까지 부분을 꺼낸다. 아직 answer가 시작되지 않았으면 null.
+ * 이스케이프(\n, \", \uXXXX)를 풀고, 끝에 잘린 이스케이프는 뺀다.
+ */
+export function partialAnswer(raw: string): string | null {
+  const start = /"answer"\s*:\s*"/.exec(raw);
+  if (!start) return null;
+  let out = "";
+  for (let i = start.index + start[0].length; i < raw.length; i++) {
+    const ch = raw[i]!;
+    if (ch === '"') break;
+    if (ch !== "\\") {
+      out += ch;
+      continue;
+    }
+    const next = raw[i + 1];
+    if (next === undefined) break;
+    if (next === "u") {
+      const hex = raw.slice(i + 2, i + 6);
+      if (!/^[0-9a-fA-F]{4}$/.test(hex)) break;
+      out += String.fromCharCode(parseInt(hex, 16));
+      i += 5;
+      continue;
+    }
+    out += ({ n: "\n", t: "\t", r: "", b: "", f: "" } as Record<string, string>)[next] ?? next;
+    i++;
+  }
+  return out;
 }
 
 /** 두 번 모두 형식에 맞지 않는 응답을 받았을 때. 라우트는 502로 답한다. */
@@ -302,8 +333,17 @@ export class GeminiLearningAgent implements LearningAgent {
     }
   }
 
-  async reply(input: LearningInput): Promise<LearningReply> {
+  async reply(input: LearningInput, { onAnswer }: { onAnswer?: (text: string) => void } = {}): Promise<LearningReply> {
+    // 스트리밍: 받는 중인 JSON에서 answer만 꺼내 해요체로 바꿔 넘긴다(최종 답은 parseLearningReply 결과).
+    let shown = "";
+    const onText = onAnswer && ((raw: string) => {
+      const text = partialAnswer(raw);
+      if (!text?.trim()) return;
+      const polite = politeText(text);
+      if (polite !== shown) onAnswer((shown = polite));
+    });
     const request = {
+      ...(onText ? { onText } : {}),
       system: learningSystemPrompt(input),
       prompt: learningUserPrompt(input),
       temperature: TEMPERATURE,

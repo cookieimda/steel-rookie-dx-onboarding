@@ -197,6 +197,8 @@ test("namedEquipment: 질문이 이름으로 가리키는 설비가 하나일 �
   assert.equal(namedEquipment("코크스는 왜 넣어?", SCENE), null, "이름 일부(코크스)만으로는 아니다");
   assert.equal(namedEquipment("고로와 전로는 뭐가 달라?", SCENE), null, "둘 이상이면 고르지 않는다");
   assert.equal(namedEquipment("고로는?", undefined), null);
+  const sinter: SceneCatalog = { processes: [{ id: "ironmaking", name: "제선", equipment: [{ id: "sinter_plant", name: "소결기" }] }] };
+  assert.equal(namedEquipment("소결이 뭐야?", sinter), "sinter_plant", "'~기'를 뗀 말도 본다");
 });
 
 test("parseLearningReply: 설비 이름으로 물었는데 화면 조작이 없으면 그 설비를 보여 준다. 이미 보고 있으면 그대로", () => {

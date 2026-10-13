@@ -226,12 +226,14 @@ export function normalizeSceneActions(raw: { type: string; target_id: string }[]
 
 /**
  * 질문이 이름으로 가리키는 설비가 하나면 그 id. 이름은 '·'로 나뉜 부분(괄호 안은 뺌) 중 두 글자 이상이 질문에 그대로 있으면 맞는다.
+ * '~기'로 끝나는 이름은 '기'를 뗀 말도 본다('소결이 뭐야?' → 소결기, '권취는?' → 권취기).
  * 예: '소결기는 무슨 일을 해?' → sinter_plant, '2차 정련은 왜 해?' → secondary_refining. 둘 이상이거나 없으면 null.
  */
 export function namedEquipment(question: string, scene: SceneCatalog | undefined): string | null {
   if (!scene) return null;
-  const hits = scene.processes.flatMap((p) => p.equipment).filter((e) =>
-    e.name.replace(/\([^)]*\)/g, " ").split(/[·,]/).map((part) => part.trim()).some((part) => part.length >= 2 && question.includes(part)));
+  const words = (name: string) => name.replace(/\([^)]*\)/g, " ").split(/[·,]/).map((part) => part.trim())
+    .flatMap((part) => (part.endsWith("기") ? [part, part.slice(0, -1)] : [part]));
+  const hits = scene.processes.flatMap((p) => p.equipment).filter((e) => words(e.name).some((w) => w.length >= 2 && question.includes(w)));
   return hits.length === 1 ? hits[0].id : null;
 }
 

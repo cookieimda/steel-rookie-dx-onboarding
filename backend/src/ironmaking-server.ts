@@ -1,5 +1,3 @@
-import express from "express";
-import { join } from "node:path";
 import { GeminiAdminSummarizer } from "../../llm/src/admin-summary.js";
 import { GeminiEvaluator } from "../../llm/src/evaluator.js";
 import { GeminiClient } from "../../llm/src/gemini.js";
@@ -74,11 +72,6 @@ app.use(createAuthRouter(auth));
 // 관리자 AI 요약도 같은 GeminiClient로 관리자 계정의 하루 호출 수를 센다.
 app.use(createAdminRouter(db, auth, { summarizer: new GeminiAdminSummarizer(gemini) }));
 app.use(createMeRouter(db, auth));
-// 로그인·마이페이지(frontend/login_ui)는 ../3d-demo/를 상대 경로로 읽으므로 두 폴더를 같은 깊이에 둔다.
-const webRoot = join(process.cwd(), "frontend", "3d-demo");
-app.use("/3d-demo", express.static(webRoot));
-app.use("/login_ui", express.static(join(process.cwd(), "frontend", "login_ui")));
-app.get("/login", (_req, res) => res.redirect("/login_ui/My%20Page.dc.html"));
 
 const port = Number(process.env.PORT ?? 3000);
 // 이 컴퓨터에서만 접속을 받는다. 원격 공유는 cloudflared 터널(npm run tunnel)이 localhost로 넘겨준다.

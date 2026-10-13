@@ -10,7 +10,7 @@
 <helmet>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Montserrat:wght@500;700;800&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
-  <script type="module" src="../3d-demo/steel-2d.js"></script>
+  <script type="module" src="../3d-demo/process-2d.js"></script>
   <style>
     /* 홈(home-sleek.html)·관리자 화면과 같은 세련안 토큰. 테마는 저장값(st-rookie-theme) → 시스템 설정 순서로 정한다 */
     html, body { margin: 0; min-height: 100%; }
@@ -73,17 +73,8 @@
     </sc-if>
 
     <div class="learn">
-      <section class="card" style="display:flex;flex-direction:column;gap:14px;padding:22px;min-width:0;">
-        <div style="display:flex;flex-direction:column;gap:6px;">
-          <span class="eyebrow">STEELMAKING · 2D MODULE</span>
-          <h2 class="h2">학습 모듈 · 제강</h2>
-          <span style="font-size:12px;color:var(--dim);">설비 카드나 단계를 누르면 2D 장면이 바뀌고, AI 튜터는 그 설비를 기준으로 답합니다.</span>
-        </div>
-        <!-- 높이를 고정하지 않는다: 2D 모듈(steel-2d)이 내용만큼 늘어나 모듈 안에 스크롤이 생기지 않게 한다. -->
-        <div style="border-radius:14px;overflow:hidden;border:1px solid var(--line);">
-          <x-import component-from-global-scope="steel-2d" process="steelmaking" theme="{{ theme }}" hint-size="100%,100%" style="display:block;width:100%;height:auto;"></x-import>
-        </div>
-      </section>
+      <!-- 2D 학습 모듈(공정 4개·설비 24개). 모듈이 자기 카드 틀을 가지므로 바깥에 카드를 또 두지 않는다 -->
+      <x-import component-from-global-scope="process-2d" process="{{ processId }}" selected="{{ selectedAttr }}" theme="{{ theme }}" hint-size="100%,100%" style="display:block;width:100%;height:auto;min-width:0;"></x-import>
 
       <aside class="card tutor" aria-label="AI 튜터" style="padding:0;overflow:hidden;">
         <div style="display:flex;flex-direction:column;gap:6px;padding:18px 20px 14px;border-bottom:1px solid var(--line);">
@@ -91,12 +82,28 @@
           <h2 class="h2">AI 튜터</h2>
           <span style="font-size:12px;color:var(--dim);">{{ tutorContext }}</span>
         </div>
-        <div id="tutorLog" style="flex:1 1 auto;min-height:220px;overflow-y:auto;padding:14px 20px;display:flex;flex-direction:column;gap:10px;scrollbar-width:thin;scrollbar-color:var(--line) transparent;">
-          <sc-if value="{{ logEmpty }}" hint-placeholder-val="{{ true }}"><span style="font-size:13px;color:var(--muted);line-height:1.6;">궁금한 설비를 고르고 아래에 물어보세요. 공정 순서, 설비 역할, 용어 뜻 모두 괜찮아요.</span></sc-if>
-          <sc-for list="{{ messages }}" as="m" hint-placeholder-count="2">
-            <div style="display:flex;justify-content:{{ m.justify }};">
-              <div style="max-width:90%;padding:10px 13px;border-radius:12px;background:{{ m.bg }};color:{{ m.color }};font-size:13px;line-height:1.6;white-space:pre-wrap;word-break:break-word;">{{ m.text }}<sc-if value="{{ m.hasSources }}" hint-placeholder-val="{{ false }}"><div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px 10px;"><sc-for list="{{ m.sources }}" as="s" hint-placeholder-count="1"><a href="{{ s.url }}" target="_blank" rel="noopener" style="font-size:11px;color:var(--muted);text-decoration:underline;">{{ s.title }}</a></sc-for></div></sc-if><sc-if value="{{ m.hasFollowUp }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ m.askFollowUp }}" style="display:block;margin-top:8px;padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--text);font-size:12px;cursor:pointer;text-align:left;" style-hover="background:var(--chip-on);">{{ m.followUp }} →</button></sc-if></div>
-            </div>
+        <div ref="{{ chatRef }}" style="flex:1 1 auto;min-height:220px;overflow-y:auto;padding:14px 20px;display:flex;flex-direction:column;gap:10px;scrollbar-width:thin;scrollbar-color:var(--line) transparent;">
+          <sc-if value="{{ logEmpty }}" hint-placeholder-val="{{ true }}"><span style="font-size:13px;color:var(--muted);line-height:1.6;">궁금한 설비를 고르고 아래에 물어보세요. 지금은 제선 공정 자료로 답할 수 있어요.</span></sc-if>
+          <sc-for list="{{ messages }}" as="m" hint-placeholder-count="0">
+            <sc-if value="{{ m.isUser }}" hint-placeholder-val="{{ false }}">
+              <div style="align-self:flex-end;max-width:88%;padding:10px 13px;border-radius:12px 12px 4px 12px;background:var(--accent);color:var(--accent-ink);font-size:13px;line-height:1.6;word-break:break-word;">{{ m.text }}</div>
+            </sc-if>
+            <sc-if value="{{ m.isSafety }}" hint-placeholder-val="{{ false }}">
+              <div style="align-self:flex-start;max-width:92%;padding:10px 13px;border-radius:12px;border:1px solid var(--bad);color:var(--bad);font-size:13px;line-height:1.6;">{{ m.text }}</div>
+            </sc-if>
+            <sc-if value="{{ m.isOk }}" hint-placeholder-val="{{ false }}">
+              <div style="align-self:flex-start;max-width:94%;display:flex;flex-direction:column;gap:6px;">
+                <div style="padding:10px 13px;border-radius:12px 12px 12px 4px;background:var(--panel2);color:var(--text);font-size:13px;line-height:1.65;white-space:pre-wrap;word-break:break-word;">{{ m.text }}</div>
+                <sc-if value="{{ m.hasKeywordCard }}" hint-placeholder-val="{{ false }}">
+                  <div style="padding:9px 12px;border-radius:10px;border:1px solid var(--line);display:flex;flex-direction:column;gap:6px;"><span style="font-size:11px;color:var(--muted);">핵심 용어 · {{ m.keywordCard.title }}</span><div style="display:flex;flex-wrap:wrap;gap:4px;"><sc-for list="{{ m.keywordCard.keywords }}" as="k" hint-placeholder-count="0"><span style="font-size:11px;padding:2px 8px;border-radius:6px;background:var(--panel2);">{{ k.text }}</span></sc-for></div></div>
+                </sc-if>
+                <sc-for list="{{ m.citations }}" as="c" hint-placeholder-count="0"><span style="font-size:11px;color:var(--dim);padding-left:4px;">근거 · {{ c.title }}</span></sc-for>
+                <sc-if value="{{ m.hasFollowUp }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ m.askFollowUp }}" style="align-self:flex-start;padding:6px 10px;border-radius:8px;border:1px dashed var(--muted);background:transparent;color:var(--text);font-size:12px;cursor:pointer;text-align:left;" style-hover="background:var(--chip-on);border-style:solid;">{{ m.followUp }} →</button></sc-if>
+              </div>
+            </sc-if>
+            <sc-if value="{{ m.isError }}" hint-placeholder-val="{{ false }}">
+              <div style="align-self:flex-start;max-width:92%;padding:10px 13px;border-radius:12px;border:1px solid var(--line);color:var(--muted);font-size:13px;line-height:1.6;">{{ m.text }}</div>
+            </sc-if>
           </sc-for>
           <sc-if value="{{ pending }}" hint-placeholder-val="{{ false }}"><span style="font-size:12px;color:var(--dim);">튜터가 답을 쓰고 있어요…</span></sc-if>
         </div>
@@ -177,28 +184,25 @@ const THEME_KEY = 'st-rookie-theme';
 const savedTheme = () => { try { const t = localStorage.getItem(THEME_KEY); return t === 'light' || t === 'dark' ? t : null; } catch (e) { return null; } };
 const lightQuery = () => (typeof matchMedia === 'function' ? matchMedia('(prefers-color-scheme: light)') : null);
 const systemTheme = () => (lightQuery()?.matches ? 'light' : 'dark');
-// AI 튜터: 학습 모드 API(POST /api/chat, docs/learning-mode.md). 대화 id는 탭(sessionStorage)에 두고 서버가 이어 준다. 3D 화면의 대화와는 따로 둔다.
-const SESSION_KEY = 'st-rookie:learning-session:mypage';
-const sessionStore = {
-  get() { try { return sessionStorage.getItem(SESSION_KEY) || null; } catch (e) { return null; } },
-  set(id) { try { if (id) sessionStorage.setItem(SESSION_KEY, id); else sessionStorage.removeItem(SESSION_KEY); } catch (e) {} },
-};
-const DEFAULT_CHIPS = ['제강 공정은 어떤 순서로 진행돼?', '전로에서는 무슨 일이 일어나?', '용선과 용강은 뭐가 달라?'];
+// AI 튜터: 3D 화면(v4)과 같은 팀 학습 모드 채팅(frontend/3d-demo/learning-chat.js)을 그대로 붙인다.
+// learning-chat.js가 쓰는 것: state(processId·selectedId·messages·input·pending·lastResults·speed), data(data_v2.js), chatRef, scene(), goProcess(), scrollChat().
+// 여기서 scene()은 2D 모듈(<process-2d>)이고, 튜터의 focus·highlight는 그 설비 선택, play_animation은 자동 재생이 된다.
 
 class Component extends DCLogic {
-  state = { data: null, processes: [], stages: [], error: null, theme: savedTheme() || systemTheme(), loadedAt: null,
-    statsOpen: false, eq: null, messages: [], input: '', pending: false, ai: null };
+  state = { data: null, processes: [], error: null, theme: savedTheme() || systemTheme(), loadedAt: null, statsOpen: false, ai: null,
+    processId: 'ironmaking', selectedId: 'sinter_plant', messages: [], input: '', pending: false, lastReq: null, lastRes: null, lastResults: [], speed: 1 };
+  chatRef = React.createRef();
   componentDidMount() {
     document.body.dataset.theme = this.state.theme;
     lightQuery()?.addEventListener('change', () => { if (!savedTheme()) this.applyTheme(systemTheme(), false); });
-    import('../3d-demo/data_v2.js').then(m => this.setState({ processes: m.PROCESSES }));
-    import('../3d-demo/steel-2d.js').then(m => this.setState({ stages: m.STAGES.steelmaking || [] }));
-    this.sessionId = sessionStore.get();
-    import('../3d-demo/api-client.js').then(m => { this.api = m.createApiClient(); this.restoreChat(); });
+    import('../3d-demo/data_v2.js').then(async m => {
+      this.data = m; this.setState({ processes: m.PROCESSES });
+      const { createLearningChat } = await import('../3d-demo/learning-chat.js');
+      this.chat = await createLearningChat(this); this.forceUpdate();
+    });
     fetch('/api/status').then(r => r.ok ? r.json() : null).then(s => this.setState({ ai: s && s.connected ? 'ok' : 'off' }), () => this.setState({ ai: 'off' }));
-    // 2D 모듈이 고른 설비(steel-select의 id = data_v2.js 설비 id)를 튜터 질문의 화면 정보로 쓴다
-    document.addEventListener('steel-select', e => this.setState({ eq: e.detail?.id || null }));
-    setTimeout(() => { const el = this.module(); if (el?.stage && !this.state.eq) this.setState({ eq: el.stage.eq }); }, 1500);
+    // 2D 모듈에서 공정·설비를 고르면 튜터 질문의 화면 정보(process_id·equipment_id)가 따라간다
+    document.addEventListener('process-select', e => { const d = e.detail || {}; if (d.process) this.setState({ processId: d.process, selectedId: d.id || null }); });
     const auth = token();
     if (!auth) { this.setState({ error: '로그인한 뒤 학습 현황을 볼 수 있습니다.' }); return; }
     fetch('/api/me/dashboard', { headers: { authorization: 'Bearer ' + auth } })
@@ -210,53 +214,11 @@ class Component extends DCLogic {
     if (save) { try { localStorage.setItem(THEME_KEY, theme); } catch (e) {} }
     this.setState({ theme });
   }
-  module() { return document.querySelector('steel-2d'); }
-  scrollLog() { [50, 250].forEach(ms => setTimeout(() => { const el = document.getElementById('tutorLog'); if (el) el.scrollTop = el.scrollHeight; }, ms)); }
-  useSession(id) { this.sessionId = id || null; sessionStore.set(this.sessionId); }
-  toMessage(res) {
-    return { role: 'assistant', text: res.answer, error: false, sources: (res.sources || []).map(s => ({ title: s.title, url: s.url || '#' })), followUp: res.follow_up || null };
-  }
-  // 새로고침 전 대화를 서버에서 다시 불러온다. 서버에 없으면 새 대화로 시작한다.
-  async restoreChat() {
-    const id = this.sessionId; if (!id) return;
-    try {
-      const { turns } = await this.api.request('GET', `/api/chat/sessions/${encodeURIComponent(id)}`);
-      if (this.sessionId !== id || !turns?.length) return;
-      const restored = turns.flatMap(t => [{ role: 'user', text: t.question }, this.toMessage(t)]);
-      this.setState(s => ({ messages: [...restored, ...s.messages] })); this.scrollLog();
-    } catch (e) { if (e.status === 404 && this.sessionId === id) this.useSession(null); }
-  }
-  // 튜터의 화면 조작(scene_actions)을 2D 모듈에 맞춰 실행한다: highlight·focus → 그 설비 선택, play_animation → 자동 재생. goto_process는 제강 모듈뿐이라 무시.
-  runActions(actions) {
-    const el = this.module(); if (!el) return;
-    for (const a of actions || []) {
-      try {
-        if ((a.type === 'highlight' || a.type === 'focus') && a.target_id) { el.removeAttribute('selected'); el.setAttribute('selected', a.target_id); }
-        else if (a.type === 'play_animation') el.startAuto?.();
-      } catch (e) {}
-    }
-  }
-  async ask(text) {
-    text = (text || '').trim(); if (!text || this.state.pending || !this.api) return;
-    const req = { question: text, session_id: this.sessionId || undefined, screen: { process_id: 'steelmaking', equipment_id: this.state.eq || null } };
-    this.setState(s => ({ messages: [...s.messages, { role: 'user', text }], input: '', pending: true })); this.scrollLog();
-    let message;
-    try {
-      let res;
-      try { res = await this.api.request('POST', '/api/chat', req); }
-      catch (e) {
-        // 서버에 없는 대화(예: DB를 지움)면 새 대화로 한 번 다시 묻는다.
-        if (e.status !== 404 || !this.sessionId) throw e;
-        this.useSession(null); res = await this.api.request('POST', '/api/chat', { ...req, session_id: undefined });
-      }
-      this.useSession(res.session_id);
-      message = this.toMessage(res);
-      this.runActions(res.scene_actions);
-    } catch (e) {
-      message = { role: 'assistant', text: e.message, error: true, sources: [], followUp: null };
-    }
-    this.setState(s => ({ pending: false, messages: [...s.messages, message] })); this.scrollLog();
-  }
+  module() { return document.querySelector('process-2d'); }
+  // learning-chat.js가 부르는 화면 조작
+  scene() { const el = this.module(); return el && { focus: id => el.select(id), play: () => { el.play(); return true; } }; }
+  goProcess(id) { this.module()?.setProcess(id); this.setState({ processId: id, selectedId: null }); }
+  scrollChat() { [50, 250].forEach(ms => setTimeout(() => { const el = this.chatRef.current; if (el) el.scrollTop = el.scrollHeight; }, ms)); }
   renderVals() {
     const S = this.state, D = S.data, T = D?.trainee;
     // 섹션 목록과 순서는 서버 응답(/api/me/dashboard의 sections)을 그대로 쓴다.
@@ -272,8 +234,8 @@ class Component extends DCLogic {
       date: r.updated_at.slice(0, 10), verdict: r.recheck_verdict === 'partial' || r.verdict === 'partial' ? '부분 이해' : r.verdict === 'assisted' ? '도움 받음' : '재확인 필요',
       color: r.verdict === 'wrong' || r.recheck_verdict === 'wrong' ? 'var(--bad)' : 'var(--mid)',
     }));
-    const stage = S.stages.find(x => x.eq === S.eq) || null;
-    const chips = (stage ? [`${stage.name} 설비는 무슨 일을 해?`, `${stage.name} 단계에서 가장 중요한 건 뭐야?`, '이 다음 단계는 뭐야?'] : DEFAULT_CHIPS).map(text => ({ text, onClick: () => this.ask(text) }));
+    const P = S.processes.find(x => x.id === S.processId), E = P?.equipment.find(x => x.id === S.selectedId);
+    const chat = this.chat ? this.chat.vals(this.data) : { messages: [], chips: [], input: '', onInput: () => {}, send: e => e.preventDefault(), pending: false };
     return {
       srcLabel: D ? 'DB 데이터' : S.error ? '연결 오류' : '불러오는 중',
       srcColor: D ? 'var(--ok)' : S.error ? 'var(--bad)' : 'var(--muted)',
@@ -286,13 +248,12 @@ class Component extends DCLogic {
       // AI 튜터
       aiDot: S.ai === 'ok' ? 'var(--ok)' : S.ai === 'off' ? 'var(--bad)' : 'var(--dim)',
       aiLabel: S.ai === 'ok' ? 'AI 연결됨' : S.ai === 'off' ? 'AI 연결 안 됨' : '확인 중',
-      tutorContext: stage ? `지금 보는 설비: ${stage.name}` : '설비를 고르면 그 설비 기준으로 답해요',
+      tutorContext: P ? `지금 보는 화면: ${P.name}${E ? ` · ${E.name}` : ''}` : '설비를 고르면 그 설비 기준으로 답해요',
       focusTutor: () => { const el = document.getElementById('tutorInput'); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => el.focus(), 350); } },
-      messages: S.messages.map(m => ({ text: m.text, justify: m.role === 'user' ? 'flex-end' : 'flex-start',
-        bg: m.role === 'user' ? 'var(--accent)' : 'var(--panel2)', color: m.role === 'user' ? 'var(--accent-ink)' : m.error ? 'var(--bad)' : 'var(--text)',
-        hasSources: !!(m.sources && m.sources.length), sources: m.sources || [], hasFollowUp: !!m.followUp, followUp: m.followUp || '', askFollowUp: () => this.ask(m.followUp) })),
-      logEmpty: S.messages.length === 0 && !S.pending, pending: S.pending, chips,
-      input: S.input, onInput: e => this.setState({ input: e.target.value }), send: e => { e.preventDefault(); this.ask(S.input); },
+      processId: S.processId, selectedAttr: S.selectedId || '', chatRef: this.chatRef,
+      messages: chat.messages.map(m => ({ ...m, isOk: m.isAssistant && m.evidence !== 'error', isError: m.isAssistant && m.evidence === 'error', citations: m.citations || [] })),
+      logEmpty: chat.messages.length === 0 && !S.pending, pending: S.pending, chips: chat.chips,
+      input: chat.input, onInput: chat.onInput, send: chat.send,
       // 아래 접힌 통계
       statsOpen: S.statsOpen, toggleStats: () => this.setState(s => ({ statsOpen: !s.statsOpen })), statsLabel: S.statsOpen ? '접기 ▲' : '펼치기 ▼',
       statsSummary: T ? `통과 ${T.passed_sections}/${secs.length} · 평균 이해도 ${avg == null ? '—' : pct(avg)} · 미해결 오개념 ${open}개` : S.error ? '불러오지 못함' : '불러오는 중…',

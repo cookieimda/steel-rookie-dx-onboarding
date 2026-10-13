@@ -28,7 +28,7 @@
   - `goProcess(id)`: 공정을 옮길 때 `this.checkpoint.refresh(id)`로 그 공정의 진입 상태를 다시 읽는다.
   - `renderVals()`: 템플릿 값과 클릭 핸들러(공정 탭, 설비 목록, 재생 제어, 튜터 패널, 개발자 패널). 튜터 패널(학습 전용) 값은 `...this.checkpoint.lockLearning(this.chat.vals(D))`, 공정 목록 배지와 [담금질 시작하기]는 `this.checkpoint.sectionBadge(id)`, 3D 화면 위 이해도 확인 오버레이 값은 `...this.checkpoint.vals()`.
 - `learning-chat.js`(ssoyoum): 학습 모드 채팅. `createLearningChat(c)`가 `ask`(질문 → 학습 모드 API `POST /api/chat` → 화면 조작 → 메시지), `runActions`(`goto_process`, `highlight`, `focus`, `play_animation`), `screenContext`, `vals`(메시지·추천 질문·입력창)를 돌려준다. 상태는 페이지 컴포넌트 state에 그대로 있다. 추천 질문은 `learning-suggestions.js`.
-- `checkpoint-chat.js`(수민): 이해도 확인. `createCheckpointChat(c)`가 진입 상태·시작·답변·재채점·결과, 3D 화면 위 오버레이 값(말풍선, 캐릭터 동작 이름표 `motionFor`), 공정 목록 배지와 섹션 버튼(`sectionBadge`), 학습 잠금(`runLearning`, `lockLearning`)을 맡는다. 튜터 패널은 학습 전용이다(모드 탭과 `tutorMode`는 지웠다). 캐릭터는 `cp-character.js`(`<cp-character motion model>`, 모델 `models/character/tutor.glb`). 상태 키와 `vals()` 키는 `cp`로 시작한다. 요청은 `api-client.js`(로그인 토큰), 문장은 `tutor-text.js`. 설계는 [docs/checkpoint-integration.md](docs/checkpoint-integration.md), [docs/checkpoint-overlay.md](docs/checkpoint-overlay.md).
+- `checkpoint-chat.js`(ssoyoum): 이해도 확인. `createCheckpointChat(c)`가 진입 상태·시작·답변·재채점·결과, 3D 화면 위 오버레이 값(말풍선, 캐릭터 동작 이름표 `motionFor`), 공정 목록 배지와 섹션 버튼(`sectionBadge`), 학습 잠금(`runLearning`, `lockLearning`)을 맡는다. 튜터 패널은 학습 전용이다(모드 탭과 `tutorMode`는 지웠다). 캐릭터는 `cp-character.js`(`<cp-character motion model>`, 모델 `models/character/tutor.glb`). 상태 키와 `vals()` 키는 `cp`로 시작한다. 요청은 `api-client.js`(로그인 토큰), 문장은 `tutor-text.js`. 설계는 [docs/checkpoint-integration.md](docs/checkpoint-integration.md), [docs/checkpoint-overlay.md](docs/checkpoint-overlay.md).
 - `data_v2.js`: `PROCESSES`(공정 4개·설비 24개), `SUGGESTED`, `findProcess`, `findEquipment`. 3D 표시용 값과 교육 내용이 섞여 있다. v3가 쓴다. `tutor_v2.js`(`mockTutor`, 가짜 튜터)는 이제 어느 페이지도 부르지 않는다.
 - `scene_v3.js`: `<steel-scene>` 커스텀 엘리먼트(Three.js). 메서드 `tour`, `jumpTo`, `next`, `stopTour`, `walk`(설비 작동 보기), `layer`(단면 층), `play`, `stop`, `toggle`, `focus`, `overview`, `reset`, `setDrawMode`(2D 뷰), `setLeftLimit`, `setNavWidth`. 이벤트 `steel-select`, `steel-goto`, `steel-overview`, `steel-layer`, `steel-layout`, `steel-model`, `steel-progress`, `steel-tour`, `steel-tour-end`. `step-fx.js`는 작동 보기·단면 보기의 단계별 시각화(`data_v2.js`의 `steps[i]` 기준). 2D 팝업 `steel-2d.js`·`steel-2d-popup.js`는 v3가 쓰지 않는다.
 - `models/`: 공정별 GLB, 앵커 `anchors-v2b.json`(v3가 쓴다, v1은 `anchors.json`). 현재 GLB에는 `EQ_<설비 id>` 노드가 없고 앵커로 설비 위치를 잡는다.
@@ -42,11 +42,11 @@
 
 | 담당 | 파일 |
 |---|---|
-| 수민: 체크포인트·평가자·튜터·질문 은행·eval | `backend/src/checkpoint/`, `backend/src/rubrics.ts`, `backend/src/db/migrations/001_checkpoint.sql`·`007_checkpoint_pause.sql`, `llm/src/evaluator.ts`, `llm/src/tutor.ts`, `llm/src/question-check.ts`, `llm/prompts/evaluator.md`, `llm/prompts/tutor-*.md`, `llm/eval/`, `content/rubrics/`(`schema.json` 제외), `frontend/3d-demo/checkpoint-test.html`, `frontend/3d-demo/checkpoint-chat.js`, `frontend/3d-demo/cp-character.js`(이해도 확인 캐릭터), 원격 테스트 장치(`backend/src/test-access.ts`, `usage.ts`, `request-user.ts`, `db/migrations/002_llm_usage.sql`, `scripts/tunnel.mjs`), 이 파일들의 테스트 |
-| ssoyoum: 학습 모드 | `llm/src/learning-agent.ts`·`llm/src/retrieval.ts`(둘 다 새로 만듦), `llm/prompts/learning*.md`, `backend/src/learning/`(단, `notes.ts`의 `LearnerNotes` 타입과 `buildLearnerNotes` 시그니처는 수민과 합의 후 변경), `frontend/3d-demo/learning-chat.js`, `frontend/3d-demo/tutor_v2.js`, 학습 모드 마이그레이션(`004`부터, `003_users.sql`은 로그인), 이 파일들의 테스트 |
+| ssoyoum: 체크포인트·평가자·튜터·질문 은행·eval | `backend/src/checkpoint/`, `backend/src/rubrics.ts`, `backend/src/db/migrations/001_checkpoint.sql`·`007_checkpoint_pause.sql`, `llm/src/evaluator.ts`, `llm/src/tutor.ts`, `llm/src/question-check.ts`, `llm/prompts/evaluator.md`, `llm/prompts/tutor-*.md`, `llm/eval/`, `content/rubrics/`(`schema.json` 제외), `frontend/3d-demo/checkpoint-test.html`, `frontend/3d-demo/checkpoint-chat.js`, `frontend/3d-demo/cp-character.js`(이해도 확인 캐릭터), 원격 테스트 장치(`backend/src/test-access.ts`, `usage.ts`, `request-user.ts`, `db/migrations/002_llm_usage.sql`, `scripts/tunnel.mjs`), 이 파일들의 테스트 |
+| ssoyoum: 학습 모드 | `llm/src/learning-agent.ts`·`llm/src/retrieval.ts`(둘 다 새로 만듦), `llm/prompts/learning*.md`, `backend/src/learning/`(단, `notes.ts`의 `LearnerNotes` 타입과 `buildLearnerNotes` 시그니처는 체크포인트 엔진도 쓰므로 바꿀 때 엔진 쪽도 함께 고친다), `frontend/3d-demo/learning-chat.js`, `frontend/3d-demo/tutor_v2.js`, 학습 모드 마이그레이션(`004`부터, `003_users.sql`은 로그인), 이 파일들의 테스트 |
 | 공용: 고치면 작은 PR + 팀 공유 | `llm/src/gemini.ts`, `backend/src/scoring.ts`, `content/rubrics/schema.json`, `backend/src/app.ts`(라우트 등록), `backend/src/db/database.ts`, `backend/src/checkpoint/types.ts`, `package.json`, `CLAUDE.md`, 마이그레이션 번호 |
 | 프론트(viiin2) | `Steel Academy v3.dc.html`, `scene_v3.js`, `step-fx.js`, `data_v2.js`, `steel-2d*.js`, `models/`, `frontend/login_ui/`(`Admin Dashboard.dc.html` 제외) |
-| 수민: 관리자 대시보드 | `backend/src/admin/`, `frontend/login_ui/Admin Dashboard.dc.html`, 시연 개념 목록 `content/demo/sections.json`·`backend/src/demo-sections.ts`, 이 파일들의 테스트 |
+| ssoyoum: 관리자 대시보드 | `backend/src/admin/`, `frontend/login_ui/Admin Dashboard.dc.html`, 시연 개념 목록 `content/demo/sections.json`·`backend/src/demo-sections.ts`, 이 파일들의 테스트 |
 
 - 마이그레이션 번호 규칙: `backend/src/db/migrations/NNN_이름.sql`을 파일 이름 순서로 한 번씩 적용하고 `schema_migrations`에 이름을 남긴다. 001~007은 사용 중이다(005: 기록 출처 `origin`, 006: 시연 계정 `users.is_demo`, 007: 이어 풀기 질문 기록 `attempt_questions`). 새 번호는 지금 가장 큰 번호 + 1로 정하고, 같은 번호를 두 사람이 쓰지 않게 PR을 열기 전에 팀에 알린다. 이미 병합된 마이그레이션 파일은 고치지 않고 새 번호로 추가한다.
 - 기존 `/api/chat`(`llm/src/ironmaking-agent.ts`)은 학습 모드로 대체되어 지웠다. 기본 모델 상수 `DEFAULT_GEMINI_MODEL`은 `llm/src/gemini.ts`에 있다. `ironmaking-sources.ts`(공개 자료 메모)는 학습 모드 검색(`retrieval.ts`)과 출처 표시(`learning/routes.ts`)가 쓰므로 남긴다.
@@ -186,7 +186,7 @@ content/
   - 토큰이 만료됐거나 잘못됐으면 헤더로 넘어가지 않고 401(`TOKEN_INVALID`)이다.
   - [임시] 토큰이 없을 때만 `X-User-Id` 헤더(없으면 `demo-user`)로 구분한다. 헤더 방식은 메인 페이지에 체크포인트 UI를 다시 붙일 때 지우기로 했다. 메인 페이지(v3)는 이제 체크포인트 UI가 있고 로그인 토큰만 쓰며, 헤더는 `checkpoint-test.html`만 보낸다.
 - 공용 테이블의 `user_id`는 `users.id`(UUID)가 기준이다. 헤더 이름으로 쌓인 기록은 지우지 않고 그대로 둔다(eval 사람 답변 원천). 관리자 통계·개인 페이지에는 나오지 않아도 된다. 꼭 지워야 하면 `eval:export-human`으로 백업한 뒤 지운다.
-- `misconceptions`는 체크포인트 담당(수민)이 관리한다. 다른 모듈은 정해진 쓰기 함수로만 쓰고, 읽기 SELECT는 각자 둘 수 있다.
+- `misconceptions`는 체크포인트 담당(ssoyoum)이 관리한다. 다른 모듈은 정해진 쓰기 함수로만 쓰고, 읽기 SELECT는 각자 둘 수 있다.
 
 ## 원격 팀원 테스트 (임시 장치, 로그인이 생기면 지운다)
 
@@ -238,7 +238,7 @@ content/
 
 - **학습자 메모**: 연결됨. 서버가 `buildLearnerNotes`를 엔진의 `learnerNotes`로 넘기고(`options.notes`를 주면 그것을 우선), 엔진은 부가 설명(첫 판정이 correct가 아닐 때)에서만 메모를 읽어 `context`를 튜터의 `explanation`에 `learnerNotes`로 넘긴다. 프롬프트(`tutor-explanation.md`, `tutor-correction.md`)에는 `<learner_notes>` 구분자로 넣고, 관련 있는 항목만 짚게 한다. 평가자에게는 넘기지 않는다. 메모는 지금 final 루브릭 개념의 미해결 오개념만 담는다(`ironmaking-server.ts`에서 거름). `conceptOrder`(개념 순서 조정)는 루브릭 순서를 유지하기로 해서 쓰지 않는다.
 - **학습 모드 연결**: 설계와 결정은 `docs/learning-mode.md`. 오개념은 같은 응답에서 단정할 때만 감지하고, 대화는 DB에 저장(보관 기간 없음), 근거는 `retrieve()`로 분리해 공개 자료 메모로 먼저 연결한다. 학습 모드 오개념은 체크포인트 튜터의 context로만 쓰고 평가자에게는 넘기지 않는다. 개인 페이지에서 `source = learning`은 오개념 목록·개수에 섞지 않고 "튜터가 짚은 개념" 참고 목록으로 따로 보여 준다(위 '오개념 기록').
-- **개념 ↔ 설비 연결(수민 담당)**: 루브릭 스키마의 개념에 `equipment_ids`(선택, `data_v2.js`의 설비 id 배열)를 추가한다. 재학습 시 3D 하이라이트(오개념이 있는 개념의 설비 강조)에 쓴다. 스키마는 공용 파일이므로 작은 PR로 내고 공유한다. id 목록은 [docs/equipment-ids.md](docs/equipment-ids.md).
+- **개념 ↔ 설비 연결(ssoyoum 담당)**: 루브릭 스키마의 개념에 `equipment_ids`(선택, `data_v2.js`의 설비 id 배열)를 추가한다. 재학습 시 3D 하이라이트(오개념이 있는 개념의 설비 강조)에 쓴다. 스키마는 공용 파일이므로 작은 PR로 내고 공유한다. id 목록은 [docs/equipment-ids.md](docs/equipment-ids.md).
 - **3D 화면 조작**: 학습 모드의 `scene_actions`와 "재학습 시 3D 하이라이트"(오개념이 있는 개념의 설비를 강조)를 함께 진행한다.
 
 ## 알려진 문제

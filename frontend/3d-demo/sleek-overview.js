@@ -970,70 +970,98 @@ function buildRoads(el) {
 
 // ---- 라이트 모드: 2시 방향 햇빛 그림자를 바닥 그림에 한 번 구워 넣는다(실시간 그림자 계산 없음) ----
 // 실제 그림자처럼: 물체에 붙은 곳은 날카롭고 진하게, 물체에서 멀어질수록(= 해를 가린 부분이 땅에서 높을수록) 넓게 풀리고 옅게.
-// 1) 위에서 내려다보는 직교 카메라로 모든 물체를 '해 반대쪽 바닥에 눕힌 모양'(평면 투영)으로 그리되, 그 칸을 가린 부분의 높이를 함께 기록한다
+// 1) 위에서 내려다보는 직교 카메라로 물체를 '해 반대쪽 바닥에 눕힌 모양'(평면 투영)으로 그리되, 그 칸을 가린 부분의 높이를 함께 기록한다
 //    (여러 부분이 겹치면 가장 낮은 것 = 가장 가까운 가림을 남긴다: 깊이값을 높이로 써서 깊이 테스트로 고름)
 // 2) 칸마다 그 높이에 비례해 흐림 반경을 정하고(여러 단계로 흐린 그림자 중에서 골라 섞음), 높을수록 옅게
 // 3) 물체 바로 밑 접지 그림자(수직 투영)를 좁게 흐려 더한다 → 바닥 색에 곱한다(푸른 회색 그림자)
-// 공정(장면 zones)은 공정 안 화면에서 다른 공정이 숨으므로, 바닥 그림에 같이 구우면 숨은 공정의 그림자만 바닥에 남는다.
-// 그래서 정적인 것(주변 건물·나무·소품)은 바닥 그림에 굽고(onlyZone 없음, 공정은 뺀다), 공정은 하나씩 따로 구워(zoneSunShadows)
-// 보이는 공정 것만 바닥 셰이더가 곱한다(addZoneShade). 공정 안 화면에서 잠깐 숨긴 건물(hideOccluders)도 그림자는 굽는다.
+// 흐림·섞기는 GPU 화면 패스로 한다(예전엔 1024² 배열을 JS로 스무 번 넘게 흐려 라이트 모드 첫 전환이 4초 멈췄다).
+// 그림자를 드리우는 것은 정해 둔 것만 그린다: 정적(static) = 지금 배경 GLB(건물·나무·굴뚝) + 공정 옆 소품,
+// 공정(zones) = 공정 모델 4개. 예전엔 장면 전체에서 빼는 방식이라 기존 배경의 움직이는 것·가로등 기둥 같은 것이 섞여 바닥에 얼룩 점이 남았다.
+// 공정은 공정 안 화면에서 다른 공정이 숨으므로 정적 그림과 따로 굽고, 보이는 공정 것만 바닥 셰이더가 곱한다(addZoneShade).
 // 돌려주는 값: 칸마다 그림자 진하기(0~1), 0행 = 남쪽
 const SUN_RES = 1024;
-function sunShadeBuf(el, onlyZone) {
-  const R = el.renderer, S = el.scene, RES = SUN_RES, PX = 640 / RES; // 한 칸 = 0.625m
+const SHADE_RADII = [0, 1, 2, 4, 7, 11];
+let shadeKit = null; // 화면 패스용 재질·사각형(한 번 만들어 두고 다시 쓴다)
+function shadePasses() {
+  if (shadeKit) return shadeKit;
+  const vs = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0., 1.); }';
+  // 준비: 두 장의 투영 결과에서 (가림 여부, 가린 높이, 접지) 를 뽑아 흐릴 묶음 두 장으로 나눈다
+  const prep = new THREE.ShaderMaterial({ uniforms: { uSun: { value: null }, uAo: { value: null }, uMode: { value: 0 } }, vertexShader: vs,
+    fragmentShader: 'uniform sampler2D uSun, uAo; uniform int uMode; varying vec2 vUv; void main(){ vec4 s = texture2D(uSun, vUv); float m = s.g > .5 ? 1. : 0., f = texture2D(uAo, vUv).g > .5 ? 1. : 0.;'
+      + ' gl_FragColor = uMode == 0 ? vec4(m) : vec4(m, m, m * s.r, f); }' });
+  // 상자 흐림 한 방향: 채널마다 반경이 다르다(0이면 그대로). 가장자리는 끝 칸을 늘여 쓴다(텍스처 경계 고정)
+  const box = new THREE.ShaderMaterial({ uniforms: { uT: { value: null }, uDir: { value: new THREE.Vector2() }, uR: { value: new THREE.Vector4() } }, vertexShader: vs,
+    fragmentShader: 'uniform sampler2D uT; uniform vec2 uDir; uniform vec4 uR; varying vec2 vUv; void main(){ vec4 a = vec4(0.);'
+      + ' for (int i = -8; i <= 8; i++) { float d = float(i); a += texture2D(uT, vUv + uDir * d) * step(abs(d), uR); } gl_FragColor = a / (2. * uR + 1.); }' });
+  // 섞기: 칸마다 흐림 반경을 골라 단계 사이를 섞고, 높이에 따라 옅게 + 접지 그림자. k = 반경이 rp보다 작은 마지막 단계(예전 while(R[k+1] < rp) k++ 와 같다)
+  const comb = new THREE.ShaderMaterial({ uniforms: { uP: { value: null }, uA: { value: null }, uB: { value: null }, uPX: { value: 640 / SUN_RES } }, vertexShader: vs,
+    fragmentShader: `uniform sampler2D uP, uA, uB; uniform float uPX; varying vec2 vUv;
+      void main(){ vec4 P = texture2D(uP, vUv), A = texture2D(uA, vUv), B = texture2D(uB, vUv);
+        float mask = P.r, hgt = P.b, wide = B.g, hAvg = B.b, ao = B.a, s = 0.;
+        float L[6]; L[0] = mask; L[1] = A.r; L[2] = A.g; L[3] = A.b; L[4] = A.a; L[5] = B.r;
+        float R[6]; ${SHADE_RADII.map((r, i) => `R[${i}] = ${r.toFixed(1)};`).join(' ')}
+        if (wide > .002) {
+          float h = mask > .5 ? hgt : hAvg / wide, rp = (.12 + h * .07) / uPX;
+          int k = 0; for (int j = 1; j < 5; j++) { if (R[j] < rp) k = j; }
+          float r0 = R[0], r1 = R[1], l0 = L[0], l1 = L[1];
+          for (int j = 0; j < 5; j++) { if (j == k) { r0 = R[j]; r1 = R[j + 1]; l0 = L[j]; l1 = L[j + 1]; } }
+          float t = clamp((rp - r0) / (r1 - r0), 0., 1.);
+          s = mix(l0, l1, t) * .6 * (1. - .55 * min(1., h / 45.));
+        }
+        float a = ao * .2; gl_FragColor = vec4(1. - (1. - s) * (1. - a), 0., 0., 1.); }` });
+  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), prep); quad.frustumCulled = false;
+  const scene = new THREE.Scene(); scene.add(quad);
+  return (shadeKit = { prep, box, comb, quad, scene, cam: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1) });
+}
+// 그림자 그림 한 장 굽기. mode: 'static'(배경 GLB + 소품) | 'zones'(공정 모델 4개)
+function sunShadeBuf(el, mode) {
+  const R = el.renderer, S = el.scene, RES = SUN_RES;
   const keep = [], setVis = (o, v) => { keep.push([o, o.visible]); o.visible = v; };
-  occluders().forEach(o => setVis(o, true));
-  if (onlyZone) { let top = onlyZone.root; while (top.parent && top.parent !== S) top = top.parent; S.children.forEach(c => setVis(c, c === top)); for (let o = onlyZone.root; o && o !== S; o = o.parent) setVis(o, true); } else Object.values(el.zones || {}).forEach(z => setVis(z.root, false));
-  try {
-  const cam = new THREE.OrthographicCamera(-320, 320, 320, -320, 1, 3000); cam.position.set(0, 1500, 0); cam.up.set(0, 0, -1); cam.lookAt(0, 0, 0); cam.updateMatrixWorld();
-  const mat = new THREE.ShaderMaterial({ side: THREE.DoubleSide, uniforms: { uK: { value: new THREE.Vector2() } },
-    vertexShader: 'uniform vec2 uK; varying float vH; void main(){ vec4 p = vec4(position, 1.);\n#ifdef USE_INSTANCING\n p = instanceMatrix * p;\n#endif\n vec4 w = modelMatrix * p; vH = max(w.y, 0.); w.xz -= uK * vH; w.y = 0.; vec4 c = projectionMatrix * viewMatrix * w; c.z = (vH / 400.) * 2. - 1.; gl_Position = c; }',
-    fragmentShader: 'varying float vH; void main(){ gl_FragColor = vec4(vH, 1., 0., 1.); }' });
+  const ext = S.getObjectByName('SITE_BACKDROP_EXT'), props = S.getObjectByName('PLANT_PROPS');
+  const zoneTops = new Set(Object.values(el.zones || {}).map(z => { let t = z.root; while (t.parent && t.parent !== S) t = t.parent; return t; }));
+  const allow = mode === 'zones' ? zoneTops : new Set([ext, props]);
+  S.children.forEach(c => setVis(c, allow.has(c) && c.visible));
+  if (mode === 'zones') Object.values(el.zones || {}).forEach(z => { for (let o = z.root; o && o !== S; o = o.parent) setVis(o, true); }); // 공정 안 화면에서 숨은 공정도 굽는다
+  else { Object.values(el.zones || {}).forEach(z => setVis(z.root, false)); occluders().forEach(o => setVis(o, true)); ext?.children.slice(1).forEach(o => setVis(o, false)); } // 배경은 지금 GLB 하나만
+  const rts = [];
+  const rt = (float = true) => { const t = new THREE.WebGLRenderTarget(RES, RES, { type: float ? THREE.FloatType : THREE.UnsignedByteType, depthBuffer: false, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter }); rts.push(t); return t; };
+  const bg = S.background, fog = S.fog, cc = R.getClearColor(new THREE.Color()), ca = R.getClearAlpha(), tm = R.toneMapping, ac = R.autoClear;
   const hidden = [], box = new THREE.Box3();
-  treeBake(S, true);
-  S.traverse(o => { if (!o.visible) return;
-    const flat = o.isMesh && !o.isInstancedMesh && (box.setFromObject(o), box.max.y < 0.6);
-    if (o.name === 'SITE_GROUND' || o.name === 'SLEEK_SEA' || o.parent?.name === 'SLEEK_ROADS' || o.isPoints || o.isLine || o.isSprite || flat) { o.visible = false; hidden.push(o); } });
-  const bg = S.background, fog = S.fog, cc = R.getClearColor(new THREE.Color()), ca = R.getClearAlpha(), tm = R.toneMapping;
-  const rt = new THREE.WebGLRenderTarget(RES, RES, { type: THREE.FloatType, depthBuffer: true });
-  const read = (k) => { mat.uniforms.uK.value.copy(k); R.setRenderTarget(rt); R.clear(); R.render(S, cam); const b = new Float32Array(RES * RES * 4); R.readRenderTargetPixels(rt, 0, 0, RES, RES, b); return b; };
-  let sunBuf, aoBuf;
-  try { S.background = null; S.fog = null; S.overrideMaterial = mat; R.toneMapping = THREE.NoToneMapping; R.setClearColor(0x000000, 0);
-    sunBuf = read(new THREE.Vector2(SUN.x / SUN.y, SUN.z / SUN.y)); aoBuf = read(new THREE.Vector2(0, 0)); }
-  finally { R.setRenderTarget(null); S.overrideMaterial = null; S.background = bg; S.fog = fog; R.toneMapping = tm; R.setClearColor(cc, ca); hidden.forEach(o => { o.visible = true; }); rt.dispose(); mat.dispose(); treeBake(S, false); }
-
-  const n = RES * RES, mask = new Float32Array(n), hgt = new Float32Array(n), foot = new Float32Array(n);
-  for (let i = 0; i < n; i++) { const m = sunBuf[i * 4 + 1] > 0.5 ? 1 : 0; mask[i] = m; hgt[i] = m * sunBuf[i * 4]; foot[i] = aoBuf[i * 4 + 1] > 0.5 ? 1 : 0; }
-  // 가로·세로로 나눠 하는 상자 흐림(두 번 하면 가우스에 가깝다)
-  const boxBlur = (src, r) => { if (r < 0.5) return src; r = Math.round(r); const tmp = new Float32Array(n), out = new Float32Array(n), w = 2 * r + 1;
-    for (let y = 0; y < RES; y++) { let acc = 0; const row = y * RES; for (let x = -r; x <= r; x++) acc += src[row + Math.min(RES - 1, Math.max(0, x))]; for (let x = 0; x < RES; x++) { tmp[row + x] = acc / w; acc += src[row + Math.min(RES - 1, x + r + 1)] - src[row + Math.max(0, x - r)]; } }
-    for (let x = 0; x < RES; x++) { let acc = 0; for (let y = -r; y <= r; y++) acc += tmp[Math.min(RES - 1, Math.max(0, y)) * RES + x]; for (let y = 0; y < RES; y++) { out[y * RES + x] = acc / w; acc += tmp[Math.min(RES - 1, y + r + 1) * RES + x] - tmp[Math.max(0, y - r) * RES + x]; } }
-    return out; };
-  const blur2 = (src, r) => boxBlur(boxBlur(src, r / 1.6), r / 1.6);
-  const RADII = [0, 1, 2, 4, 7, 11], levels = RADII.map(r => blur2(mask, r));
-  // 칸 주변(그림자 밖 반영 칸 포함)의 '가린 부분 높이' 평균
-  const wide = blur2(mask, 12), hAvg = blur2(hgt, 12);
-  const ao = blur2(foot, 2.5), shade = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    let s = 0;
-    if (wide[i] > 0.002) {
-      const h = mask[i] ? hgt[i] : hAvg[i] / wide[i];        // 이 칸을 가린 높이(그림자 밖이면 주변 평균)
-      const rp = (0.12 + h * 0.07) / PX;                      // 흐림 반경(칸): 높을수록(= 물체에서 멀수록) 넓게
-      let k = 0; while (k < RADII.length - 2 && RADII[k + 1] < rp) k++;
-      const t = Math.min(1, Math.max(0, (rp - RADII[k]) / (RADII[k + 1] - RADII[k])));
-      const v = levels[k][i] * (1 - t) + levels[k + 1][i] * t;
-      const dens = 0.6 * (1 - 0.55 * Math.min(1, h / 45));    // 진하기: 붙은 곳 0.6 → 멀리 0.27
-      s = v * dens;
-    }
-    const a = ao[i] * 0.2;                                     // 접지 그림자
-    shade[i] = 1 - (1 - s) * (1 - a);
+  try {
+    const cam = new THREE.OrthographicCamera(-320, 320, 320, -320, 1, 3000); cam.position.set(0, 1500, 0); cam.up.set(0, 0, -1); cam.lookAt(0, 0, 0); cam.updateMatrixWorld();
+    const mat = new THREE.ShaderMaterial({ side: THREE.DoubleSide, uniforms: { uK: { value: new THREE.Vector2() } },
+      vertexShader: 'uniform vec2 uK; varying float vH; void main(){ vec4 p = vec4(position, 1.);\n#ifdef USE_INSTANCING\n p = instanceMatrix * p;\n#endif\n vec4 w = modelMatrix * p; vH = max(w.y, 0.); w.xz -= uK * vH; w.y = 0.; vec4 c = projectionMatrix * viewMatrix * w; c.z = (vH / 400.) * 2. - 1.; gl_Position = c; }',
+      fragmentShader: 'varying float vH; void main(){ gl_FragColor = vec4(vH, 1., 0., 1.); }' });
+    treeBake(S, true);
+    // 바닥에 붙은 납작한 것은 그림자를 만들지 않는다. 인스턴스도 인스턴스 전체 상자로 잰다(바닥 매립등 원판이 굽기 순간에 아직 안 숨겨져 길 따라 점 그림자로 남았다)
+    S.traverse(o => { if (!o.visible) return;
+      const flat = o.isMesh && (o.isInstancedMesh ? (o.computeBoundingBox(), box.copy(o.boundingBox).applyMatrix4(o.matrixWorld)) : box.setFromObject(o)).max.y < 0.6;
+      if (o.name === 'SITE_GROUND' || o.name === 'SLEEK_SEA' || o.parent?.name === 'SLEEK_ROADS' || o.isPoints || o.isLine || o.isSprite || flat) { o.visible = false; hidden.push(o); } });
+    S.background = null; S.fog = null; S.overrideMaterial = mat; R.toneMapping = THREE.NoToneMapping; R.setClearColor(0x000000, 0); R.autoClear = true;
+    const cast = (k) => { const t = new THREE.WebGLRenderTarget(RES, RES, { type: THREE.FloatType, depthBuffer: true, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter }); rts.push(t); mat.uniforms.uK.value.copy(k); R.setRenderTarget(t); R.clear(); R.render(S, cam); return t; };
+    const sunT = cast(new THREE.Vector2(SUN.x / SUN.y, SUN.z / SUN.y)), aoT = cast(new THREE.Vector2(0, 0));
+    S.overrideMaterial = null; mat.dispose();
+    // 화면 패스(흐림·섞기)
+    const K = shadePasses(), pass = (m, out) => { K.quad.material = m; R.setRenderTarget(out); R.render(K.scene, K.cam); return out; };
+    K.prep.uniforms.uSun.value = sunT.texture; K.prep.uniforms.uAo.value = aoT.texture;
+    K.prep.uniforms.uMode.value = 0; const P1 = pass(K.prep, rt()); K.prep.uniforms.uMode.value = 1; const P2 = pass(K.prep, rt());
+    // 상자 흐림 두 번(가로·세로 × 2) = 예전 blur2. 반경은 예전처럼 반올림(r / 1.6)
+    const rr = (r) => Math.round(r / 1.6), blur2 = (src, rad) => { let t = src; for (let n = 0; n < 2; n++) for (const d of [[1, 0], [0, 1]]) {
+      K.box.uniforms.uT.value = t.texture; K.box.uniforms.uDir.value.set(d[0] / RES, d[1] / RES); K.box.uniforms.uR.value.copy(rad); t = pass(K.box, rt()); } return t; };
+    const A = blur2(P1, new THREE.Vector4(rr(SHADE_RADII[1]), rr(SHADE_RADII[2]), rr(SHADE_RADII[3]), rr(SHADE_RADII[4])));
+    const B = blur2(P2, new THREE.Vector4(rr(SHADE_RADII[5]), rr(12), rr(12), rr(2.5))); // 단계 5 · 주변 넓게(가림 비율) · 가린 높이 평균 · 접지
+    K.comb.uniforms.uP.value = P2.texture; K.comb.uniforms.uA.value = A.texture; K.comb.uniforms.uB.value = B.texture;
+    const out = pass(K.comb, rt(false)), buf = new Uint8Array(RES * RES * 4); R.readRenderTargetPixels(out, 0, 0, RES, RES, buf); // 결과는 8비트로 쓰므로 8비트로 읽는다(읽어 오는 양 1/4)
+    const shade = new Float32Array(RES * RES); for (let i = 0; i < RES * RES; i++) shade[i] = buf[i * 4] / 255;
+    return shade; // 읽은 픽셀 0행 = 화면 아래 = 남쪽 → 바닥 캔버스와 같은 방향
+  } finally {
+    R.setRenderTarget(null); S.overrideMaterial = null; S.background = bg; S.fog = fog; R.toneMapping = tm; R.setClearColor(cc, ca); R.autoClear = ac;
+    hidden.forEach(o => { o.visible = true; }); treeBake(S, false); rts.forEach(t => t.dispose());
+    keep.reverse().forEach(([o, v]) => { o.visible = v; });
   }
-  // 읽은 픽셀 0행 = 화면 아래 = 남쪽 → 바닥 캔버스와 같은 방향
-    return shade;
-  } finally { keep.reverse().forEach(([o, v]) => { o.visible = v; }); }
 }
 function bakeSunShadow(el, ground, baseTex) {
-  const RES = SUN_RES, n = RES * RES, shade = sunShadeBuf(el, null);
+  const RES = SUN_RES, n = RES * RES, shade = sunShadeBuf(el, 'static');
   const sc = document.createElement('canvas'); sc.width = sc.height = RES; const sx = sc.getContext('2d'), im = sx.createImageData(RES, RES);
   for (let i = 0; i < n; i++) { im.data[i * 4] = 0x2b; im.data[i * 4 + 1] = 0x35; im.data[i * 4 + 2] = 0x50; im.data[i * 4 + 3] = Math.round(Math.min(1, shade[i]) * 255); } // 그림자 색: 푸른 회색
   sx.putImageData(im, 0, 0);
@@ -1044,18 +1072,23 @@ function bakeSunShadow(el, ground, baseTex) {
   baseTex.needsUpdate = true;
 }
 
-// 공정 그림자: 공정마다 RGBA 한 채널(IDS 순서)에 구워 두고, 바닥 셰이더가 지금 보이는 공정(ZON) 것만 곱한다.
-// 모델이 다 실린 공정부터 한 번에 하나씩 굽는다(한꺼번에 굽는 멈칫거림을 나눔). 굽기 결과 0행(남쪽)을 그대로 0행에 넣는다(바닥 UV와 맞춤: 화면에서 확인)
+// 공정 그림자: 공정마다 RGBA 한 채널(IDS 순서). 공정 모델 4개가 다 실리면 한 번에 굽고(공정끼리 30m 넘게 떨어져 그림자가 겹치지 않는다),
+// 칸마다 가장 가까운 공정의 채널에 나눠 넣는다. 바닥 셰이더가 지금 보이는 공정(ZON) 것만 곱한다. 굽기 결과 0행(남쪽)을 그대로 0행에 넣는다(바닥 UV와 맞춤)
 const ZSHADE = { value: Object.assign(new THREE.DataTexture(new Uint8Array(SUN_RES * SUN_RES * 4), SUN_RES, SUN_RES), { magFilter: THREE.LinearFilter, minFilter: THREE.LinearFilter, needsUpdate: true }) };
-const ZON = { value: new THREE.Vector4() }, zoneShadeDone = new Set();
+const ZON = { value: new THREE.Vector4() };
+let zoneShadeDone = false;
 function zoneSunShadows(el) {
-  for (let i = 0; i < IDS.length; i++) {
-    const id = IDS[i], z = el.zones?.[id]; if (zoneShadeDone.has(id) || !z?.root?.getObjectByName('GLB_' + id)) continue;
-    zoneShadeDone.add(id); const sh = sunShadeBuf(el, z), d = ZSHADE.value.image.data, N = SUN_RES;
-    for (let r = 0; r < N; r++) for (let x = 0; x < N; x++) d[(r * N + x) * 4 + i] = Math.round(Math.min(1, sh[r * N + x]) * 255);
-    ZSHADE.value.needsUpdate = true; el._dirty = true; return true;
+  if (zoneShadeDone || !IDS.every(id => el.zones?.[id]?.root?.getObjectByName('GLB_' + id))) return false;
+  zoneShadeDone = true;
+  const sh = sunShadeBuf(el, 'zones'), d = ZSHADE.value.image.data, N = SUN_RES, PX = 640 / N;
+  const C = IDS.map(id => new THREE.Box3().setFromObject(el.zones[id].root).getCenter(new THREE.Vector3()));
+  for (let r = 0; r < N; r++) for (let x = 0; x < N; x++) {
+    const v = sh[r * N + x]; if (v < 0.002) continue;
+    const wx = -320 + (x + 0.5) * PX, wz = 320 - (r + 0.5) * PX; let best = 0, bd = Infinity; // 0행 = 남쪽(+z)
+    C.forEach((c, i) => { const q = (wx - c.x) ** 2 + (wz - c.z) ** 2; if (q < bd) { bd = q; best = i; } });
+    d[(r * N + x) * 4 + best] = Math.round(Math.min(1, v) * 255);
   }
-  return false;
+  ZSHADE.value.needsUpdate = true; el._dirty = true; return true;
 }
 function addZoneShade(sh) { // 라이트 모드 바닥: 보이는 공정의 그림자를 바닥 그림처럼 푸른 회색으로 곱한다(canvas 곱하기와 같게 sRGB에서 섞고 선형으로)
   sh.uniforms.uSleekZS = ZSHADE; sh.uniforms.uSleekZOn = ZON; sh.uniforms.uSleekBakeOn = BAKE_ON;

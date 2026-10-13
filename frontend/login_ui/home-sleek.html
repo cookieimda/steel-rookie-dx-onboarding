@@ -235,7 +235,8 @@
     import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js/+esm';
     import { MeshSurfaceSampler } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/math/MeshSurfaceSampler.js/+esm';
 
-    const COUNT = 16000;
+    const COUNT = 8000;      // 모든 공정이 같은 개수여야 모양끼리 바뀐다. 바닥을 외곽선만 남겨 16000 → 8000으로 줄여도 설비 쪽 점 수는 그대로(약 7300)
+    const EDGE_COUNT = 700;  // 바닥판 윗면 테두리에 줄지어 두는 점
     const MODEL_URL = (id) => `/3d-demo/models/${id}.glb`;
 
     const canvas = document.getElementById('cloud');
@@ -286,6 +287,19 @@
     const cloud = new THREE.Points(geom, mat);
     scene.add(cloud);
 
+    // 바닥판(Floor_Slab*)은 면적이 커서 면적 비율대로 뽑으면 점의 절반(42~56%)을 가져가 바닥이 뿌옇게 보였다 → 윗면 테두리 변만 돌려준다
+    function floorEdges(g) {
+      const p = g.attributes.position, a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3(), t = new THREE.Vector3();
+      g.computeBoundingBox(); const top = g.boundingBox.max.y;
+      const key = (v) => `${v.x.toFixed(3)},${v.z.toFixed(3)}`, edges = new Map();
+      for (let i = 0; i < p.count; i += 3) {
+        a.fromBufferAttribute(p, i); b.fromBufferAttribute(p, i + 1); c.fromBufferAttribute(p, i + 2);
+        n.subVectors(b, a).cross(t.subVectors(c, a)); if (n.y <= 0 || n.y / n.length() < 0.95 || Math.min(a.y, b.y, c.y) < top - 0.01) continue; // 맨 윗면 삼각형만
+        for (const [u, w] of [[a, b], [b, c], [c, a]]) { const k1 = key(u), k2 = key(w), k = k1 < k2 ? k1 + '|' + k2 : k2 + '|' + k1; const e = edges.get(k); if (e) e.n++; else edges.set(k, { u: u.clone(), w: w.clone(), n: 1 }); }
+      }
+      return [...edges.values()].filter((e) => e.n === 1); // 삼각형 하나에만 속한 변 = 테두리
+    }
+
     // 모델 표면을 면적 비율대로 샘플링하고, 크기 1.6 정도로 맞춰 가운데 둔다.
     const loader = new GLTFLoader();
     const cache = {};
@@ -309,17 +323,26 @@
           a.fromBufferAttribute(p, i); b.fromBufferAttribute(p, i + 1); c.fromBufferAttribute(p, i + 2);
           area += b.sub(a).cross(c.sub(a)).length() / 2;
         }
-        if (area > 0) meshes.push({ g, area });
+        if (area > 0) meshes.push({ g, area, floor: /^Floor_Slab/.test(o.name) });
       });
-      const total = meshes.reduce((s, m) => s + m.area, 0);
+      const edges = meshes.filter((m) => m.floor).flatMap((m) => floorEdges(m.g));
+      const elen = edges.map((e) => e.u.distanceTo(e.w)), L = elen.reduce((s, x) => s + x, 0);
+      const nEdge = L > 0 ? EDGE_COUNT : 0;
+      const surf = nEdge ? meshes.filter((m) => !m.floor) : meshes; // 테두리를 못 찾으면 예전처럼 바닥도 면으로 뽑는다
+      const total = surf.reduce((s, m) => s + m.area, 0), SURF = COUNT - nEdge;
       const out = new Float32Array(COUNT * 3);
       const v = new THREE.Vector3();
       let k = 0;
-      meshes.forEach((m, mi) => {
-        const n = mi === meshes.length - 1 ? COUNT - k : Math.round((m.area / total) * COUNT);
+      surf.forEach((m, mi) => {
+        const n = mi === surf.length - 1 ? SURF - k : Math.round((m.area / total) * SURF);
         const sampler = new MeshSurfaceSampler(new THREE.Mesh(m.g)).build();
-        for (let j = 0; j < n && k < COUNT; j++, k++) { sampler.sample(v); out.set([v.x, v.y, v.z], k * 3); }
+        for (let j = 0; j < n && k < SURF; j++, k++) { sampler.sample(v); out.set([v.x, v.y, v.z], k * 3); }
       });
+      for (let j = 0; j < nEdge; j++, k++) { // 테두리 전체 길이를 따라 고르게(조금씩 흔들어) 둔다
+        let d = ((j + Math.random()) / nEdge) * L, e = 0;
+        while (e < edges.length - 1 && d > elen[e]) d -= elen[e++];
+        v.lerpVectors(edges[e].u, edges[e].w, Math.min(1, d / elen[e])); out.set([v.x, v.y, v.z], k * 3);
+      }
       const box = new THREE.Box3().setFromArray(out);
       const center = box.getCenter(new THREE.Vector3());
       const size = box.getSize(new THREE.Vector3());

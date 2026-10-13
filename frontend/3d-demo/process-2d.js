@@ -38,7 +38,7 @@ const KEYFRAMES = "\n.fire{fill:url(#fireG);animation:flame .5s ease-in-out infi
 
 const SCENE_CSS = `
 /* 장면 색: 다크·라이트 변수. SVG 속성으로 박힌 회색도 아래 속성 선택자로 같은 변수에 묶는다(CSS가 속성보다 우선) */
-:host{--p-bg:#141416;--p-lbl:#9a9aa2;--p-st:#4f535a;--p-st-l:#2a2c30;--p-st2:#2e3035;--p-st2-l:#1e1f22;--p-pipe:#75787f;--p-flow:#cfd2d6;--p-gas:#b4b7bc;--p-metal:#8e9198;--p-grid:#34363b;--p-dark1:#3a3d42;--p-dark2:#1c1d20;--p-dark3:#2e3033;--p-line1:#9a9da3;--p-line2:#e0e0e0}
+:host{--p-bg:#161618;--p-lbl:#b4b4bb;--p-st:#4f535a;--p-st-l:#2a2c30;--p-st2:#2e3035;--p-st2-l:#1e1f22;--p-pipe:#75787f;--p-flow:#cfd2d6;--p-gas:#b4b7bc;--p-metal:#8e9198;--p-grid:#34363b;--p-dark1:#3a3d42;--p-dark2:#1c1d20;--p-dark3:#2e3033;--p-line1:#9a9da3;--p-line2:#e0e0e0}
 :host([theme=light]){--p-bg:#fafafa;--p-lbl:#5f5f66;--p-st:#c9ccd2;--p-st-l:#8b8f97;--p-st2:#dfe1e5;--p-st2-l:#a2a6ad;--p-pipe:#9a9ea6;--p-flow:#6f737b;--p-gas:#8a8e96;--p-metal:#b8bcc3;--p-grid:#d2d5da;--p-dark1:#d3d6db;--p-dark2:#e9ebee;--p-dark3:#dadde1;--p-line1:#7c8089;--p-line2:#6f737b}
 .svg{background:var(--p-bg)}
 .lbl{fill:var(--p-lbl);font-size:11px;text-anchor:middle;font-family:inherit}.lbl.s{font-size:10px}
@@ -57,7 +57,7 @@ const SCENE_CSS = `
 // 바깥 틀: 학습 기록 화면(세련안)과 같은 무채색 토큰
 const CSS = `
 :host{display:block;font-family:"Pretendard",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;font-size:14px;line-height:1.5;letter-spacing:-.01em;
-  --bg:#1f1f22;--panel:#18181a;--chip:rgba(255,255,255,.07);--chip-on:rgba(255,255,255,.14);--line:rgba(255,255,255,.08);--text:#f2f2f2;--muted:#a8a8ad;--dim:#6f6f74;--accent:#f2f2f2;--accent-ink:#111;--lit:#ffb020;--lit-bg:rgba(255,176,32,.12)}
+  --bg:#222225;--panel:#18181a;--chip:rgba(255,255,255,.1);--chip-on:rgba(255,255,255,.18);--line:rgba(255,255,255,.13);--text:#f5f5f5;--muted:#c4c4c9;--dim:#9a9aa0;--accent:#f2f2f2;--accent-ink:#111;--lit:#ffb020;--lit-bg:rgba(255,176,32,.12)}
 :host([theme=light]){--bg:#ffffff;--panel:#f4f4f5;--chip:rgba(0,0,0,.05);--chip-on:rgba(0,0,0,.1);--line:rgba(0,0,0,.08);--text:#161617;--muted:#5f5f66;--dim:#8a8a90;--accent:#161617;--accent-ink:#fff;--lit:#d48806;--lit-bg:rgba(212,136,6,.1)}
 *{box-sizing:border-box}button{font:inherit;letter-spacing:inherit;cursor:pointer}
 .root{background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:14px;outline:none;container-type:inline-size}
@@ -65,8 +65,13 @@ const CSS = `
 .tabs{display:flex;gap:4px;padding:4px;border-radius:12px;background:var(--chip)}
 .tabs button{height:34px;padding:0 16px;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:14px;font-weight:600}
 .tabs button[aria-pressed=true]{background:var(--chip-on);color:var(--text)}
-.ctl{display:flex;gap:6px}.ctl button{height:34px;padding:0 12px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--text);font-size:12px;white-space:nowrap}
-.ctl button:hover{background:var(--chip)}.ctl .play.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+/* 그림 양옆 화살표(이전·다음 단계)와 단계 번호 줄 옆의 자동 재생 */
+.stage{position:relative}
+.arrow{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:color-mix(in srgb,var(--bg) 82%,transparent);color:var(--text);font-size:20px;line-height:1;display:grid;place-items:center;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);transition:background .2s,border-color .2s}
+.arrow:hover{background:var(--chip-on);border-color:var(--muted)}.arrow.prev{left:10px}.arrow.next{right:10px}
+.steprow{display:flex;align-items:center;gap:10px}.steprow .stepnav{flex:1;min-width:0}
+.play{flex:none;width:32px;height:32px;padding:0;display:grid;place-items:center;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--text);font-size:12px;white-space:nowrap}
+.play:hover{background:var(--chip)}.play.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .eqs{display:flex;gap:6px;flex-wrap:wrap}
 .eqs button{display:flex;align-items:center;gap:7px;height:32px;padding:0 12px 0 6px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:12px}
 .eqs button:hover{color:var(--text)}.eqs .n{width:20px;height:20px;border-radius:50%;background:var(--chip);display:grid;place-items:center;font-size:11px}
@@ -98,11 +103,11 @@ class Process2D extends HTMLElement {
     this.attachShadow({ mode: 'open' });
     this.shadowRoot.innerHTML = `<style>${CSS}${KEYFRAMES}</style>${DEFS}<div class="root" tabindex="0">
       <div class="bar"><div class="tabs" id="tabs" role="group" aria-label="공정"></div>
-        <div class="ctl"><button class="prev">← 이전</button><button class="next">다음 →</button><button class="play">▶ 자동</button></div></div>
+</div>
       <div class="eqs" id="eqs" role="group" aria-label="설비"></div>
       <div class="body"><div class="head"><h3 id="title"></h3><span class="en" id="en"></span><span class="hint">← → 단계 · ↑ ↓ 설비</span></div>
-        <div id="svgwrap"></div>
-        <div class="stepnav" id="stepnav" role="group" aria-label="단계"></div>
+        <div class="stage"><div id="svgwrap"></div><button class="arrow prev" aria-label="이전 단계">‹</button><button class="arrow next" aria-label="다음 단계">›</button></div>
+        <div class="steprow"><div class="stepnav" id="stepnav" role="group" aria-label="단계"></div><button class="play" aria-label="자동 재생" title="자동 재생">▶</button></div>
         <div id="stepcard"></div></div></div>`;
     this.$ = id => this.shadowRoot.getElementById(id);
     this.pi = 0; this.ei = 0; this.sub = 0; this.timer = null;
@@ -188,11 +193,11 @@ class Process2D extends HTMLElement {
   play() {
     if (this.timer) clearInterval(this.timer);
     this.timer = setInterval(() => this.step(1), AUTO_MS);
-    const b = this.shadowRoot.querySelector('.play'); b.textContent = '⏸ 자동'; b.classList.add('on');
+    const b = this.shadowRoot.querySelector('.play'); b.textContent = '⏸'; b.setAttribute('aria-label', '자동 재생 멈춤'); b.classList.add('on');
   }
   stop() {
     if (this.timer) clearInterval(this.timer); this.timer = null;
-    const b = this.shadowRoot.querySelector('.play'); if (b) { b.textContent = '▶ 자동'; b.classList.remove('on'); }
+    const b = this.shadowRoot.querySelector('.play'); if (b) { b.textContent = '▶'; b.setAttribute('aria-label', '자동 재생'); b.classList.remove('on'); }
   }
 }
 if (!customElements.get('process-2d')) customElements.define('process-2d', Process2D);

@@ -5,8 +5,8 @@ import { SECTION_ORDER } from "../src/checkpoint/types.js";
 import { seedDemoAccounts } from "../src/auth/demo-accounts.js";
 import { UserRepository } from "../src/auth/users.js";
 import { openDatabase } from "../src/db/database.js";
-import { seedDemoRecords, type SectionConcepts } from "../src/db/demo-records.js";
-import type { Rubric, RubricConcept } from "../src/rubrics.js";
+import { SEED_MISCONCEPTIONS, seedDemoRecords, seedMisconception, type SectionConcepts } from "../src/db/demo-records.js";
+import { loadFinalRubrics, type Rubric, type RubricConcept } from "../src/rubrics.js";
 
 const concepts: SectionConcepts = Object.fromEntries(
   SECTION_ORDER.map((s) => [s, Array.from({ length: 6 }, (_, i) => ({ id: `${s}_${i}`, name: `${s} 설비 ${i}` }))]),
@@ -86,4 +86,12 @@ test("시연 기록은 trainee02~20에만 origin = 'seed'로 넣고, 다시 만�
   const ids = (table: string) => db.prepare(`SELECT id FROM ${table} WHERE user_id = ? ORDER BY id`).all(trainee01).map((r) => String(r.id));
   assert.deepEqual(ids("attempts"), ["live1"]);
   assert.deepEqual(ids("misconceptions"), ["live-mis"]);
+});
+
+test("seedMisconception: 제선 개념은 개념마다 정해 둔 오해, 다른 개념은 일반 문장. 요약은 모두 다르다", () => {
+  const ironmaking = loadFinalRubrics().find((r) => r.section === "ironmaking")!;
+  for (const c of ironmaking.concepts) assert.ok(SEED_MISCONCEPTIONS[c.concept_id], `${c.concept_id}: 정해 둔 오해 없음`);
+  assert.equal(new Set(Object.values(SEED_MISCONCEPTIONS).map((m) => m.summary)).size, Object.keys(SEED_MISCONCEPTIONS).length);
+  assert.equal(seedMisconception("converter_role", "전로의 역할").summary, "'전로의 역할'을 다른 공정의 일과 헷갈림");
+  assert.equal(seedMisconception("tundish", "턴디시").summary, "'턴디시'를 다른 공정의 일과 헷갈림");
 });

@@ -6,6 +6,7 @@
 // 모든 기록은 origin = 'seed'(005_record_origin.sql). 실제 기록(live)은 지우지 않는다.
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
+import { withObject } from "../../../llm/src/polite.js";
 import { SECTION_ORDER } from "../checkpoint/types.js";
 import { DEMO_ACCOUNTS, DEMO_RECORD_TRAINEES } from "../auth/demo-accounts.js";
 import {
@@ -106,6 +107,21 @@ function profileOf(username: string): Profile {
   return PROFILES[username] ?? { skill: 0.75, reach: 3, stopMidway: false, retries: 1 };
 }
 
+/**
+ * 시연 오개념의 학습자 말과 요약. 개념 이름이 설비 이름이 아니라 '소결의 목적'처럼 개념이라, 개념마다 자주 나오는 오해를 적어 둔다.
+ * 목록에 없는 개념(새 루브릭·시연 목록)은 seedMisconception의 일반 문장을 쓴다.
+ */
+export const SEED_MISCONCEPTIONS: Record<string, { answer: string; summary: string }> = {
+  sinter_purpose: { answer: "소결 공정에서 쇳물을 바로 만드는 거죠?", summary: "소결을 쇳물(용선)을 만드는 단계로 이해함" },
+  coke_reduction: { answer: "코크스는 쇳물의 불순물을 없애려고 넣는 거죠?", summary: "코크스를 용선의 불순물을 없애는 재료로 이해함" },
+  blast_furnace_hot_metal: { answer: "고로에서 바로 강판이 나오는 거죠?", summary: "고로에서 바로 용강이나 제품이 나온다고 이해함" },
+};
+
+/** 시연 오개념 한 개(학습자 말·요약). */
+export function seedMisconception(conceptId: string, name: string): { answer: string; summary: string } {
+  return SEED_MISCONCEPTIONS[conceptId] ?? { answer: `${name}은(는) 다음 공정에서 하는 일 아닌가요?`, summary: `${withObject(`'${name}'`)} 다른 공정의 일과 헷갈림` };
+}
+
 const WRONG_ANSWERS = ["잘 모르겠어요.", "온도를 높이는 설비 같아요.", "쇳물을 식히는 곳이요.", "불순물을 넣는 단계예요."];
 const PARTIAL_ANSWERS = ["대략 재료를 가공하는 곳이에요.", "다음 공정으로 보내는 설비예요.", "열을 쓰는 곳인데 정확히는 모르겠어요."];
 
@@ -204,7 +220,7 @@ export function seedDemoRecords(db: DatabaseSync, concepts: SectionConcepts, see
               const misId = randomUUID();
               db.prepare(`INSERT INTO misconceptions (id, user_id, section, concept_id, source, phase, attempt_id, answer_text, summary, resolved, resolved_at, created_at, origin)
                           VALUES (?, ?, ?, ?, 'checkpoint', 'initial', ?, ?, ?, 0, NULL, ?, 'seed')`)
-                .run(misId, userId, section, conceptId, attemptId, String(rows.at(-1)![3]), `${name}의 역할을 다른 설비와 헷갈림`, at);
+                .run(misId, userId, section, conceptId, attemptId, String(rows.at(-1)![3]), seedMisconception(conceptId, name).summary, at);
               openMis.set(conceptId, misId);
               counts.misconceptions++;
             }
@@ -242,7 +258,7 @@ export function seedDemoRecords(db: DatabaseSync, concepts: SectionConcepts, see
       if (learned) {
         db.prepare(`INSERT INTO misconceptions (id, user_id, section, concept_id, source, phase, attempt_id, answer_text, summary, resolved, resolved_at, created_at, origin)
                     VALUES (?, ?, ?, ?, 'learning', NULL, NULL, ?, ?, 0, NULL, ?, 'seed')`)
-          .run(randomUUID(), userId, SECTION_ORDER[0], learned.id, `${learned.name}은(는) 쇳물을 직접 만드는 곳이죠?`, `${learned.name}의 역할을 고로와 헷갈림`, tick(0.5, 3));
+          .run(randomUUID(), userId, SECTION_ORDER[0], learned.id, seedMisconception(learned.id, learned.name).answer, seedMisconception(learned.id, learned.name).summary, tick(0.5, 3));
         counts.misconceptions++;
       }
     }

@@ -113,6 +113,13 @@
           "maxItems": 2,
           "items": { "type": "string", "minLength": 1 }
         },
+        "equipment_ids": {
+          "description": "이 개념과 관련된 3D 설비 id(선택, frontend/3d-demo/data_v2.js 기준). 보충학습에서 설명할 때 이 설비를 화면에 보여 준다. 같은 공정의 설비만 쓴다(테스트로 확인).",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$" }
+        },
         "fallback_question": {
           "description": "질문 은행이 비어 LLM이 만든 질문이 유출 검사에 두 번 걸리면 쓰는 고정 질문(선택). 정답 용어와 근거 문장 표현이 없어야 한다.",
           "type": "string",

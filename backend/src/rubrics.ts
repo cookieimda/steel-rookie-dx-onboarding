@@ -19,6 +19,8 @@ export interface RubricConcept {
   recheck_questions?: string[];
   /** LLM이 만든 질문이 유출 검사에 두 번 걸리면 쓰는 고정 질문(선택). */
   fallback_question?: string;
+  /** 관련 3D 설비 id(선택, data_v2.js 기준). 보충학습 설명 때 화면에 보여 준다. */
+  equipment_ids?: string[];
 }
 
 export interface GlossaryEntry {

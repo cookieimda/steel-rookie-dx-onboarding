@@ -15,7 +15,7 @@ const CSS = `
 .head .k{font-size:10px;letter-spacing:1.4px;color:var(--accent);font-weight:700}.head .t{font-weight:800;font-size:16px;line-height:1.3}.head .m{font-size:11px;color:var(--muted)}
 .close{margin-left:auto;flex:none;width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:transparent;color:inherit;font-size:16px;display:grid;place-items:center}.close:hover{background:var(--soft)}
 .tabs{display:flex;gap:6px;padding:4px 14px 8px;flex-wrap:wrap}.tab{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:999px;padding:3px 10px;font-size:11px}.tab.on{border-color:var(--warn);color:var(--warn);background:rgba(255,200,87,.08)}.tab i{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--miss);margin-left:6px;vertical-align:middle}.tab i.ok{background:var(--ok)}
-.svgbox{margin:0 10px;background:linear-gradient(180deg,#0b1118,#0a0f15);border:1px solid #1f2b37;border-radius:11px;overflow:hidden}.svgbox svg{width:100%;height:auto;display:block}
+.svgbox{margin:0 10px;border:1px solid;border-radius:11px;overflow:hidden}.svgbox svg{width:100%;height:auto;display:block}
 .cap{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 14px 0;font-size:12px;color:var(--muted)}.cap b{color:var(--warn)}.cap .time{font-size:10px;white-space:nowrap}
 .ctrl{display:flex;gap:6px;align-items:center;padding:8px 14px 10px}
 .btn{border:1px solid var(--line);background:var(--soft);color:inherit;border-radius:8px;padding:6px 10px;font-size:11px}.btn.play.on{border-color:var(--accent);color:var(--accent)}

@@ -168,6 +168,10 @@ function tidyScene(el) {
   nightLights(el, dark);
   if (!dark) placeSunDisc(el);
   if (settled && !dark) { const ext = el.scene.getObjectByName('SITE_BACKDROP_EXT'); if (ext && isShown(ext) && ground && !ground.userData.chiaro) { ground.userData.chiaro = true; /* 낮·밤 배경 GLB마다 바닥이 따로라 거기에 표시 */ try { bakeChiaroscuro(el, ext); } catch (e) { console.warn('명암 굽기 실패', e); } changed = true; } }
+  // 테마별 굽기가 끝난 배경 GLB는 재질 종류별로 합친다(mergeBackdrop)
+  const root0 = el.scene.getObjectByName('SITE_BACKDROP_EXT')?.children[0];
+  if (settled && root0 && !root0.userData.merged && ground && (dark ? el.__nightBaked : ground.userData.chiaro && ground.material.userData.myBase?.userData.sunBaked)) {
+    root0.userData.merged = true; try { if (mergeBackdrop(el, root0, dark)) changed = true; } catch (e) { console.warn('배경 합치기 실패', e); } }
   if (!el.__sleekRoads && el._traffic) el.__sleekRoads = buildRoads(el) || 'none';
   if (el.__sleekRoads?.setTheme) el.__sleekRoads.setTheme(dark);
   if (gradeScene(el, dark)) changed = true;
@@ -1242,6 +1246,66 @@ function bakeLampLight(ground, pool) {
   ground.material.lightMap = lm; ground.material.lightMapIntensity = 12; ground.material.needsUpdate = true; // 바닥이 어두운 색이라 세게 줘야 보인다
 }
 
+// ---- 배경 건물 합치기(그리기 호출 줄이기) ----
+// 배경 GLB의 일반 메시(건물·굴뚝·지붕 부품 등 200개 남짓)는 테마별 굽기(낮 명암·밤 빛)가 끝나면 더 바뀌지 않는다.
+// 그래서 굽기가 끝난 뒤 재질 종류별로 한 메시로 합친다(라이트 모드 그리기 호출 약 200번 → 몇 번). 메시마다 다른 색은 꼭짓점 색으로 옮긴다.
+// 공정 안 화면에서 앞을 가리는 건물을 하나씩 숨기는 기능(hideOccluders)은 원래 메시 번호(aSleekId)로 숨김표(텍스처)를 보고 셰이더가 그 건물만 화면 밖으로 보낸다.
+// 원래 메시는 장면에서 떼고, 숨기기용으로 visible만 흉내 내는 대리 객체를 남긴다(hideOccluders·그림자 굽기가 그대로 쓴다)
+function mergeBackdrop(el, root, dark) {
+  root.updateMatrixWorld(true);
+  const groups = new Map(), all = [], toRoot = new THREE.Matrix4().copy(root.matrixWorld).invert(), M = new THREE.Matrix4(), NM = new THREE.Matrix3();
+  root.traverse(o => {
+    if (!o.isMesh || o.isInstancedMesh || o.name === 'SITE_GROUND' || o.userData.sleekOff || o.userData.lamp || Array.isArray(o.material)) return;
+    const m = o.material, g = o.geometry; let hasKids = false; o.traverse(c => { if (c !== o && c.isMesh) hasKids = true; }); if (hasKids) return;
+    let key;
+    if (dark) { if (!g.attributes.sleekBake || !m.isMeshStandardMaterial || m.map || m.transparent) return; key = 'n|' + (m.userData.sleekTrim ? 't' : '') + '|' + m.metalness.toFixed(2) + '|' + m.emissive.getHexString() + '|' + m.side; }
+    else { if (!g.attributes.color || !m.isMeshBasicMaterial || !m.vertexColors || m.map || m.transparent) return; key = 'd|' + (m.userData.sleekTrim ? 't' : '') + '|' + m.side; }
+    if (!groups.has(key)) groups.set(key, []); groups.get(key).push(o); all.push(o);
+  });
+  if (all.length < 2) return false;
+  // 숨김표: 원래 메시 하나당 한 칸(0 = 보임, 255 = 숨김)
+  const N = all.length, flags = new Uint8Array(N * 4), hideTex = new THREE.DataTexture(flags, N, 1); hideTex.needsUpdate = true;
+  const proxy = (o, id) => { const p = { name: o.name, userData: o.userData, get visible() { return flags[id * 4] === 0; }, set visible(v) { flags[id * 4] = v ? 0 : 255; hideTex.needsUpdate = true; el._dirty = true; } }; return p; };
+  const boxes = []; // hideOccluders가 쓰는 [대상, 경계 상자] 목록(합치기 전 메시 위치로 잰다)
+  root.traverse(o => { if (!o.isMesh || o.isInstancedMesh || o.name === 'SITE_GROUND' || o.userData.lamp || o.userData.sleekOff) return; const b = new THREE.Box3().setFromObject(o), sz = b.getSize(new THREE.Vector3()); if (Math.max(sz.x, sz.z) > 150) return; boxes.push([o, b]); });
+  const ids = new Map(all.map((o, i) => [o, i])), proxies = new Map(all.map((o, i) => [o, proxy(o, i)]));
+  groups.forEach((list, key) => {
+    const parts = list.map(o => {
+      const g = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone()); M.multiplyMatrices(toRoot, o.matrixWorld); g.applyMatrix4(M);
+      const n = g.attributes.position.count, id = new Float32Array(n).fill(ids.get(o)), out = new THREE.BufferGeometry(), c = o.material.color;
+      out.setAttribute('position', g.attributes.position); if (g.attributes.normal) out.setAttribute('normal', g.attributes.normal);
+      const col = new Float32Array(n * 3), src = g.attributes.color; // 꼭짓점 색 = (낮: 구운 명암 색 ×) 재질 색
+      for (let i = 0; i < n; i++) { col[i * 3] = c.r * (src ? src.getX(i) : 1); col[i * 3 + 1] = c.g * (src ? src.getY(i) : 1); col[i * 3 + 2] = c.b * (src ? src.getZ(i) : 1); }
+      out.setAttribute('color', new THREE.BufferAttribute(col, 3)); out.setAttribute('aSleekId', new THREE.BufferAttribute(id, 1));
+      if (dark) out.setAttribute('sleekBake', g.attributes.sleekBake);
+      return out;
+    });
+    const geo = concatGeos(parts), src = list[0].material, m = src.clone();
+    m.color.set(0xffffff); m.vertexColors = true; m.userData = { ...src.userData };
+    m.onBeforeCompile = (sh) => { sh.uniforms.uSleekHide = { value: hideTex };
+      sh.vertexShader = 'attribute float aSleekId;\nuniform sampler2D uSleekHide;\n' + sh.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>
+  if (texture2D(uSleekHide, vec2((aSleekId + .5) / ${N}.0, .5)).r > .5) gl_Position = vec4(2., 2., 2., 1.);`); };
+    m.customProgramCacheKey = () => 'sleekMerged' + N;
+    const mesh = new THREE.Mesh(geo, m); mesh.name = 'SLEEK_MERGED_' + key; mesh.raycast = () => {};
+    Object.assign(mesh.userData, { scaledY: true, bld: !!src.userData.sleekTrim, merged: true, nightBaked: dark });
+    root.add(mesh);
+  });
+  all.forEach(o => o.parent?.remove(o));
+  root.userData.boxes = boxes.map(([o, b]) => [proxies.get(o) || o, b]);
+  root.userData.merged = true; el._dirty = true;
+  return true;
+}
+
+// 비인덱스 지오메트리 여러 개를 하나로(모두 가진 속성만)
+function concatGeos(list) {
+  const names = Object.keys(list[0].attributes).filter(n => list.every(g => g.attributes[n])), out = new THREE.BufferGeometry();
+  names.forEach(n => { const s = list[0].attributes[n].itemSize, arr = new Float32Array(list.reduce((t, g) => t + g.attributes[n].count * s, 0)); let o = 0;
+    list.forEach(g => { const at = g.attributes[n]; for (let i = 0; i < at.count; i++) for (let q = 0; q < s; q++) arr[o++] = at.getComponent(i, q); });
+    out.setAttribute(n, new THREE.BufferAttribute(arr, s)); });
+  if (!out.attributes.normal) out.computeVertexNormals();
+  out.computeBoundingSphere(); return out;
+}
+
 // ---- 4) 공정을 볼 때(소개 중 포함) 카메라와 공정 사이를 가리는 주변 모델 숨기기 ----
 // 대상 공정: 소개 중이면 그 공정(el.__sleekFocus), 아니면 들어가 있는 공정. 대상이 바뀌면 숨긴 것을 되돌리고 다시 잰다.
 const hidden = new Set();
@@ -1259,11 +1323,13 @@ function hideOccluders(el) {
   for (const fx of [.1, .37, .63, .9]) for (const fz of [.15, .5, .85]) for (const fy of [.15, .5])
     pts.push(new THREE.Vector3(box.min.x + s.x * fx, box.min.y + s.y * fy, box.min.z + s.z * fz));
   // 주변 건물 GLB는 site-backdrop.js가 메시 레이캐스트를 꺼 두어(클릭 통과), 각 메시의 경계 상자와 광선으로 판정한다
-  if (!ext.userData.boxes) { const B = []; ext.updateMatrixWorld(true); ext.traverse(o => { if (!o.isMesh || o.isInstancedMesh || o.name === 'SITE_GROUND' || o.userData.lamp) return; const b = new THREE.Box3().setFromObject(o), sz = b.getSize(new THREE.Vector3()); if (Math.max(sz.x, sz.z) > 150) return; B.push([o, b]); }); ext.userData.boxes = B; } // 바닥처럼 넓은 판은 빼 둔다
+  // 상자 목록은 배경 GLB마다(테마를 바꾸면 GLB가 바뀐다. 합친 배경은 mergeBackdrop이 숨김용 대리 객체로 채워 둔다)
+  const root = ext.children[0]; if (!root) return;
+  if (!root.userData.boxes) { const B = []; root.updateMatrixWorld(true); root.traverse(o => { if (!o.isMesh || o.isInstancedMesh || o.name === 'SITE_GROUND' || o.userData.lamp) return; const b = new THREE.Box3().setFromObject(o), sz = b.getSize(new THREE.Vector3()); if (Math.max(sz.x, sz.z) > 150) return; B.push([o, b]); }); root.userData.boxes = B; } // 바닥처럼 넓은 판은 빼 둔다
   const hit = new THREE.Vector3();
   pts.forEach(p => {
     const dir = p.clone().sub(cam), len = dir.length(); ray.set(cam, dir.normalize());
-    ext.userData.boxes.forEach(([o, b]) => { if (hidden.has(o) || b.containsPoint(p)) return; if (ray.ray.intersectBox(b, hit) && hit.distanceTo(cam) < len) { o.visible = false; hidden.add(o); el._dirty = true; } });
+    root.userData.boxes.forEach(([o, b]) => { if (hidden.has(o) || b.containsPoint(p)) return; if (ray.ray.intersectBox(b, hit) && hit.distanceTo(cam) < len) { o.visible = false; hidden.add(o); el._dirty = true; } });
   });
 }
 

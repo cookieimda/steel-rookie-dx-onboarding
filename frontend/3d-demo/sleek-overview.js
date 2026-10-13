@@ -8,7 +8,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/+esm';
 import { PROCESSES } from './data_v2.js';
 
 const IDS = ['ironmaking', 'steelmaking', 'continuous_casting', 'rolling'];
-const LIGHT_MS = 3200;
+const LIGHT_MS = 1200; // 인트로가 밝아지는 시간(3.2초는 로그인 뒤 기다림이 길었다)
 
 export function attachSleek() {
   const tryAttach = () => {
@@ -36,7 +36,7 @@ export function attachSleek() {
       setupFraming(el);
       // 조작(드래그·휠) 처리는 지금 바로 붙이고, 공정 소개는 인트로가 끝난 뒤 시작한다(인트로 중 휠이 원래 거리 줌으로 새던 문제)
       const showcase = startShowcase(el);
-      playIntro(el, showcase);
+      if (introSeen()) skipIntro(el, showcase); else playIntro(el, showcase);
     });
   };
   tryAttach();
@@ -1118,6 +1118,28 @@ async function warmOtherTheme(el, tidy) {
   for (let i = 0; i < 3; i++) { tidy(); await frame(); }
   R.toneMappingExposure = exp; el._dirty = true;
 }
+// 첫 화면에서 셰이더 컴파일·텍스처·버퍼 올리기가 한꺼번에 몰려 1초 넘게 멈추고 인트로 카메라가 건너뛰던 것을, 검은 덮개가 덮인 동안 미리 끝낸다.
+// 인트로 첫 장면 그대로 노출 0으로 한 번 그린다(화면 밖 물체까지 그리면 오히려 첫 렌더보다 오래 걸렸다)
+function warmUp(el) {
+  const R = el.renderer, e = R.toneMappingExposure;
+  el._applyView?.(); R.toneMappingExposure = 0;
+  try { R.render(el.scene, el.camera); } finally { R.toneMappingExposure = e; }
+}
+// 인트로는 브라우저 탭마다 처음 한 번만(새로고침하거나 다시 들어오면 바로 전체 보기). ?intro=1이면 항상, 저장소가 막히면 매번 보여 준다
+function introSeen() {
+  if (new URLSearchParams(location.search).get('intro') === '1') return false;
+  try { if (sessionStorage.getItem('sleekIntroSeen')) return true; sessionStorage.setItem('sleekIntroSeen', '1'); } catch (e) { /* 저장소 막힘 */ }
+  return false;
+}
+// 인트로 없이 인트로가 끝난 상태로: 덮개를 걷고 드론 시점에 바로 두고 공정 소개를 시작한다
+function skipIntro(el, showcase) {
+  const to = el._overviewPose();
+  Object.assign(el.orbit, { yaw: to.yaw, pitch: to.pitch, dist: to.dist }); el.orbit.target.copy(to.target);
+  warmUp(el); el._dirty = true; document.body.classList.add('sleek-ready');
+  tidyScene(el);
+  showcase.begin();
+  document.dispatchEvent(new CustomEvent('sleek-intro-done'));
+}
 
 // ---- 2) 인트로: 어두운 화면에서 조명이 서서히 켜지며 드론 시점으로 다가간다 ----
 function playIntro(el, showcase) {
@@ -1132,6 +1154,7 @@ function playIntro(el, showcase) {
   // 카메라: 조금 더 높고 먼 곳에서 드론 시점으로 천천히 다가간다
   const to = el._overviewPose();
   Object.assign(el.orbit, { yaw: to.yaw - 0.25, pitch: to.pitch + 0.12, dist: to.dist * 1.35 }); el.orbit.target.copy(to.target);
+  warmUp(el); // 이 첫 장면으로 미리 그려 둔다(덮개는 아직 덮여 있다)
   el._animateTo?.(to);
   setTimeout(() => el._animateTo?.(to), 50);
 

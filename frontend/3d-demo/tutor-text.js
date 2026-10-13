@@ -32,7 +32,7 @@ export const TEXT = {
     site: '공정을 고르면 그 공정의 이해도 확인을 시작할 수 있어요.',
     login: '로그인하면 이해도 확인을 할 수 있어요.',
     checking: '확인 중',
-    notReady: '준비 중',
+    noCheckpoint: '이해도 확인 없음', // 루브릭이 없는 공정(제선만 이해도 확인이 있다)
     offline: '연결 안 됨',
     locked: '잠김 · 앞 공정의 이해도 확인을 통과해야 열려요',
     passed: (percent) => `통과 · ${percent}%`,
@@ -86,7 +86,7 @@ export const TEXT = {
     failed: (percent) => `${percent}% 미달 · 공정을 다시 살펴본 뒤 재도전해요`,
     allDone: '통과 · 모든 공정을 마쳤어요',
     nextOpened: (name) => `통과 · ${name} 이해도 확인이 열렸어요`,
-    nextNotReady: '통과 · 다음 공정은 준비 중이에요',
+    nextNoCheckpoint: '통과 · 이해도 확인을 마쳤어요', // 다음 공정에 이해도 확인이 없을 때
   },
   // 나중에 이어 풀기. 확인창(recheck: 재확인 대기 중), 튜터 패널 안내.
   pauseConfirm: (recheck, done, total) => recheck

@@ -75,7 +75,7 @@ const chatV = this.checkpoint.lockLearning(this.chat.vals(D));   // 학습 값 �
 | `cpInput` | 입력창 값 |
 | `cpPending` | 요청 중 |
 | `cpNotice` | 오류·안내 문장 |
-| `cpProgress` | 섹션 → `SectionProgressView` 또는 `{ unavailable: true, status }`(404면 루브릭 없음) |
+| `cpProgress` | 섹션 → `SectionProgressView` 또는 `{ unavailable: true, status }`(404면 루브릭 없음. `GET /api/sections`에서 루브릭이 없다고 나온 섹션은 요청하지 않고 404로 둔다) |
 | `cpConfirmPause` | [나중에 이어 풀기] 확인창이 열려 있음 |
 | `cpPauseOffer` | 답하는 중 학습 질문을 하려 해서 [멈추고 질문하기] 안내를 띄움 |
 | `cpOverlayOpen` | 이해도 확인 오버레이 표시. 로그인·새로고침 복원 때는 열지 않는다 |
@@ -245,8 +245,6 @@ const chatV = this.checkpoint.lockLearning(this.chat.vals(D));   // 학습 값 �
 
 ## 알려진 문제
 
-- 결과 메시지 불일치(⑤에서 고침): 통과하면 엔진의 결과 문장(`result` 메시지)은 "제강 섹션이 열렸어요"라고 하지만, 제강 루브릭이 없으면 결과 카드는 "다음 공정은 준비 중이에요"라고 한다. 엔진 문장(`backend/src/checkpoint/engine.ts`)은 그대로 두었다. `checkpoint-test.html`도 같다.
-- 루브릭이 없는 공정의 404(⑤에서 고침): 제강·연주·압연의 진입 상태 요청은 404가 정상인데, 브라우저가 콘솔에 'Failed to load resource'로 남긴다. 페이지를 열 때 3개, 공정을 옮길 때 1개씩 나온다.
 - 템플릿의 아이콘 주소(`<img src="{{ ic.logo }}">` 등)를 `support.js`가 채우기 전에 브라우저가 한 번 요청해 페이지를 열 때마다 404가 여러 개 난다. 아이콘은 정상으로 보인다.
 
 ## PR 순서
@@ -261,7 +259,7 @@ const chatV = this.checkpoint.lockLearning(this.chat.vals(D));   // 학습 값 �
 | ② | `learning-chat.js`가 `api-client.js`를 쓰게 수정 | ssoyoum님 확인 후 |
 | ③ | v2에 모드 탭 + 체크포인트 템플릿 연결 + 머리글 '가짜 튜터(mockTutor)' 문구 수정. 리뷰어 viiin2님 | ① 병합 후 |
 | ④ | `?user=` 방식 제거(`request-user.ts`의 헤더 경로 등), 로그인 요청 외 모든 `/api` 로그인 필수, `TEST_PASSCODE` 제거, 로그인 시도 지연 또는 횟수 제한, `checkpoint-test.html` 정리, `tutor_v2.js` 삭제, CLAUDE.md 갱신 | ③ 병합 후 |
-| ⑤ | 작은 수정 PR. 엔진 결과 문장이 다음 섹션의 루브릭 유무를 확인하게 수정(없으면 "다음 공정은 준비 중"). 섹션 목록 API에 루브릭 유무를 넣고(지금은 섹션별 `/api/sections/:section/progress`뿐이라 목록 API를 새로 둔다), 프론트는 루브릭이 있는 공정만 진입 상태를 요청 | ③ 병합 후 |
+| ⑤ | 완료. 루브릭은 제선만 만들기로 해서 나머지 공정은 '이해도 확인 없음'으로 보인다. 엔진 결과 문장은 다음 섹션에 루브릭이 있을 때만 "섹션이 열렸어요"(없으면 "이해도 확인을 통과했어요"), 섹션 목록 API `GET /api/sections`(루브릭 유무), `checkpoint-chat.js`·`checkpoint-test.html`은 루브릭이 있는 공정만 진입 상태를 요청(콘솔 404 없음) | 완료 |
 
 `tutor_v2.js`(가짜 튜터 `mockTutor`)는 viiin2님이 삭제해도 된다고 했다. 지금 불러오는 곳이 없다(옛 v1 `tutor.js`에도 같은 이름의 `mockTutor`가 있지만 별개 파일이다). ④에서 지울 때 참조하는 곳이 없는지 다시 확인하고(`grep -rn "tutor_v2\|mockTutor"`), 삭제만 별도 커밋으로 한다.
 

@@ -8,7 +8,9 @@ import {
   LearningFormatError,
   learningUserPrompt,
   MAX_SCENE_ACTIONS,
+  namedEquipment,
   normalizeSceneActions,
+  parseLearningReply,
   OVERLOAD_RETRY_DELAYS_MS,
   UNVERIFIED_ANSWER,
   type LearningInput,
@@ -171,6 +173,43 @@ test("normalizeSceneActions: 없는 id·조작은 버리고, 다른 공정이면
   ]);
   assert.equal(many.length, MAX_SCENE_ACTIONS);
   assert.equal(normalizeSceneActions([{ type: "focus", target_id: "coke_oven" }], undefined, "ironmaking").length, 0);
+});
+
+test("normalizeSceneActions: 한 답에서는 한 공정으로만 옮긴다(갔다가 돌아오지 않는다)", () => {
+  // "쇳물은 다음에 어디로 가?"에 모델이 제강 이동 → 제선 이동 → 토페도카를 낸 경우: 처음 옮긴 제강만 남긴다.
+  assert.deepEqual(normalizeSceneActions([
+    { type: "goto_process", target_id: "steelmaking" },
+    { type: "goto_process", target_id: "ironmaking" },
+    { type: "focus", target_id: "coke_oven" },
+  ], SCENE, "ironmaking"), [{ type: "goto_process", target_id: "steelmaking" }]);
+  // 옮긴 공정 안의 설비 조작은 그대로 둔다.
+  assert.deepEqual(normalizeSceneActions([{ type: "goto_process", target_id: "steelmaking" }, { type: "focus", target_id: "bof_converter" }], SCENE, "ironmaking"), [
+    { type: "goto_process", target_id: "steelmaking" },
+    { type: "focus", target_id: "bof_converter" },
+    { type: "highlight", target_id: "bof_converter" },
+  ]);
+});
+
+test("namedEquipment: 질문이 이름으로 가리키는 설비가 하나일 때만", () => {
+  assert.equal(namedEquipment("코크스 오븐은 왜 필요해?", SCENE), "coke_oven");
+  assert.equal(namedEquipment("고로는 무슨 일을 해?", SCENE), "blast_furnace", "'·'로 나뉜 이름 부분");
+  assert.equal(namedEquipment("전로가 뭐예요?", SCENE), "bof_converter", "괄호 안은 뺀다");
+  assert.equal(namedEquipment("코크스는 왜 넣어?", SCENE), null, "이름 일부(코크스)만으로는 아니다");
+  assert.equal(namedEquipment("고로와 전로는 뭐가 달라?", SCENE), null, "둘 이상이면 고르지 않는다");
+  assert.equal(namedEquipment("고로는?", undefined), null);
+  const sinter: SceneCatalog = { processes: [{ id: "ironmaking", name: "제선", equipment: [{ id: "sinter_plant", name: "소결기" }] }] };
+  assert.equal(namedEquipment("소결이 뭐야?", sinter), "sinter_plant", "'~기'를 뗀 말도 본다");
+});
+
+test("parseLearningReply: 설비 이름으로 물었는데 화면 조작이 없으면 그 설비를 보여 준다. 이미 보고 있으면 그대로", () => {
+  const reply = JSON.stringify({ answer: "코크스 오븐은 코크스를 만들어요.", status: "grounded", source_ids: ["c1"], follow_up: null, scene_actions: [], detected_misconception: null, keyword_card: null });
+  const base = { chunks: [{ id: "c1", section: "ironmaking" as const, title: "", text: "", source_ids: [], tags: [], score: 1 }], concepts: [], scene: SCENE, question: "코크스 오븐은 왜 필요해?" };
+  const r = parseLearningReply(reply, { ...base, screen: { process_id: "ironmaking", equipment_id: null } });
+  assert.ok(typeof r !== "string");
+  assert.deepEqual(r.scene_actions, [{ type: "focus", target_id: "coke_oven" }, { type: "highlight", target_id: "coke_oven" }]);
+  const same = parseLearningReply(reply, { ...base, screen: { process_id: "ironmaking", equipment_id: "coke_oven" } });
+  assert.ok(typeof same !== "string");
+  assert.deepEqual(same.scene_actions, []);
 });
 
 test("전체 공정 화면(process_id 없음)은 프롬프트에 그렇게 적는다", () => {

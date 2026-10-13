@@ -10,6 +10,7 @@ import {
   parseSectionMarkdown,
   publicSourceChunks,
   Retriever,
+  withScreenEquipment,
   type Chunk,
   EQUIPMENT_WORDS,
 } from "../../llm/src/retrieval.js";
@@ -53,6 +54,24 @@ test("공정 4개·설비 24개 모두 공개 자료 메모가 있고, 설비 �
       assert.ok(top?.tags.includes(e.id), `${p.id}/${e.id}: 맨 위 조각 ${top?.id}`);
     }
   }
+});
+
+test("설비 패널의 '이 설비의 역할은?': 화면 설비 이름을 붙여 찾아서, 제선 설비 6개 모두 그 설비 메모가 맨 위에 온다", async () => {
+  const r = new Retriever();
+  const { processes } = await loadSceneCatalog();
+  const ironmaking = processes.find((p) => p.id === "ironmaking")!;
+  for (const e of ironmaking.equipment) {
+    const top = r.retrieve("ironmaking", withScreenEquipment("이 설비의 역할은?", e.name), { process_id: "ironmaking", equipment_id: e.id })[0];
+    assert.ok(top?.tags.includes(e.id), `${e.id}: 맨 위 조각 ${top?.id}`);
+  }
+});
+
+test("withScreenEquipment: 화면 설비를 가리키는 질문에만 설비 이름을 붙인다", () => {
+  assert.equal(withScreenEquipment("이 설비의 역할은?", "토페도카"), "이 설비의 역할은? 토페도카");
+  assert.equal(withScreenEquipment("이건 뭐야?", "토페도카"), "이건 뭐야? 토페도카");
+  assert.equal(withScreenEquipment("여기서 뭘 해?", "토페도카"), "여기서 뭘 해? 토페도카");
+  assert.equal(withScreenEquipment("코크스는 왜 넣어?", "토페도카"), "코크스는 왜 넣어?", "다른 대상을 물으면 그대로");
+  assert.equal(withScreenEquipment("이 설비의 역할은?", null), "이 설비의 역할은?", "설비를 고르지 않았으면 그대로");
 });
 
 test("retrieve: 실제 공개 자료에서 질문과 맞는 메모를 찾는다", () => {

@@ -20,6 +20,35 @@ const tokenStore = {
   clear() { try { localStorage.removeItem(TOKEN_KEY); sessionStorage.removeItem(TOKEN_KEY); } catch (e) {} },
 };
 
+/**
+ * 튜터가 보낸 화면 조작(scene_actions)을 차례로 실행하고 결과를 돌려준다. c는 페이지 컴포넌트(state, data, goProcess, setState, scene).
+ * - 공정을 옮기면 3D(steel-scene)가 그 공정을 띄울 때까지 기다린다. 전체 화면에서 바로 설비로 가면 아직 설비를 못 찾아 실패했다.
+ *   3D 장면(<steel-scene>)만 기다린다. 2D 화면(마이페이지의 2D 공정도)은 기다리지 않는다.
+ * - focus는 설비를 찾을 때까지 잠깐 다시 시도한다.
+ */
+export async function runSceneActions(c, actions, { wait = (ms) => new Promise(r => setTimeout(r, ms)), timeoutMs = 4000, stepMs = 100 } = {}) {
+  const until = async (ok) => { for (let t = 0; ; t += stepMs) { if (ok()) return true; if (t >= timeoutMs) return false; await wait(stepMs); } };
+  const results = [];
+  for (const a of actions || []) {
+    let ok = false;
+    try {
+      if (a.type === 'goto_process') {
+        ok = !!c.data.findProcess(a.target_id);
+        if (ok) {
+          c.goProcess(a.target_id);
+          await wait(150);
+          await until(() => { const sc = c.scene?.(); return sc?.localName !== 'steel-scene' || sc.process?.id === a.target_id; });
+        }
+      }
+      else if (a.type === 'highlight') { ok = !!c.data.findEquipment(c.state.processId, a.target_id); if (ok) c.setState({ selectedId: a.target_id }); }
+      else if (a.type === 'focus') { ok = await until(() => !!c.scene?.()?.focus(a.target_id)); }
+      else if (a.type === 'play_animation') { ok = !!c.scene?.()?.play(c.state.speed); }
+    } catch (e) { ok = false; }
+    results.push({ type: a.type, target_id: a.target_id, status: ok ? 'succeeded' : 'failed' });
+  }
+  return results;
+}
+
 /** 401 응답을 학습자가 할 일로 바꿔 말한다. */
 function unauthorizedMessage(data) {
   if (data.code === 'PASSCODE_REQUIRED') return '접속 비밀번호가 필요해요. 체크포인트 테스트 페이지(/checkpoint-test.html)에서 비밀번호를 입력한 뒤 다시 질문해 주세요.';
@@ -93,7 +122,6 @@ const NO_CARD = { title: '', keywords: [], hasSource: false, sourceTitle: '' };
 
 /** 페이지 컴포넌트에 붙일 학습 채팅을 만든다. componentDidMount에서 한 번 부른다. */
 export async function createLearningChat(c) {
-  const wait = (ms) => new Promise(r => setTimeout(r, ms));
   // 이어지는 대화. 서버가 대화를 DB에 저장하고 이 id로 이어 준다. 새로고침해도 탭에 남은 id로 이어 간다.
   let sessionId = sessionStore.get();
   const useSession = (id) => { sessionId = id || null; sessionStore.set(sessionId); };
@@ -103,20 +131,7 @@ export async function createLearningChat(c) {
     screenContext() { return { process_id: c.state.processId, equipment_id: c.state.selectedId, learning_mode: 'free_question', learning_step: null, last_scene_action_results: c.state.lastResults }; },
 
     // 튜터가 보낸 화면 조작(scene_actions)을 실행하고 결과를 돌려준다.
-    async runActions(actions) {
-      const results = [];
-      for (const a of actions || []) {
-        let ok = false;
-        try {
-          if (a.type === 'goto_process') { ok = !!c.data.findProcess(a.target_id); if (ok) { c.goProcess(a.target_id); await wait(150); } }
-          else if (a.type === 'highlight') { ok = !!c.data.findEquipment(c.state.processId, a.target_id); if (ok) c.setState({ selectedId: a.target_id }); }
-          else if (a.type === 'focus') { ok = !!c.scene()?.focus(a.target_id); }
-          else if (a.type === 'play_animation') { ok = !!c.scene()?.play(c.state.speed); }
-        } catch (e) { ok = false; }
-        results.push({ type: a.type, target_id: a.target_id, status: ok ? 'succeeded' : 'failed' });
-      }
-      return results;
-    },
+    runActions(actions) { return runSceneActions(c, actions); },
 
     // 질문 → 학습 모드 API → (화면 조작) → 답변 메시지 추가.
     async ask(text) {
@@ -167,7 +182,7 @@ export async function createLearningChat(c) {
       const S = c.state;
       return {
         messages: S.messages.map(m => ({ ...m, isUser: m.role === 'user', isSafety: m.role === 'assistant' && m.mode === 'safety_redirect', isAssistant: m.role === 'assistant' && m.mode !== 'safety_redirect', hasFollowUp: !!m.followUp, askFollowUp: () => chat.ask(m.followUp), hasKeywordCard: !!m.keywordCard, keywordCard: m.keywordCard || NO_CARD })),
-        chatRef: c.chatRef, pending: S.pending, chips: (suggestionsFor(S.processId, S.selectedId) || D.SUGGESTED).map(text => ({ text, onClick: () => chat.ask(text) })),
+        chatRef: c.chatRef, pending: S.pending, chips: (suggestionsFor(S.processId, S.selectedId) || D.SUGGESTED.filter(t => S.selectedId || !t.startsWith('이 설비'))).map(text => ({ text, onClick: () => chat.ask(text) })),
         input: S.input, onInput: e => c.setState({ input: e.target.value }), send: e => { e.preventDefault(); chat.ask(S.input); },
       };
     },

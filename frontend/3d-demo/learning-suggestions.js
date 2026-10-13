@@ -17,9 +17,12 @@ export const SUGGESTIONS = {
   },
 };
 
-/** 화면(공정·설비)에 맞는 추천 질문. 정해 둔 것이 없으면 null(호출하는 쪽이 기본 질문을 쓴다). */
+/**
+ * 화면(공정·설비)에 맞는 추천 질문. 정해 둔 것이 없으면 null(호출하는 쪽이 기본 질문을 쓴다).
+ * 전체 공정 화면('site')은 서버가 제선 기준으로 답하므로 제선 공정 질문을 쓴다(설비가 없는데 '이 설비의 역할은?'이 나오지 않게).
+ */
 export function suggestionsFor(processId, equipmentId) {
-  const p = SUGGESTIONS[processId];
+  const p = SUGGESTIONS[processId === 'site' ? 'ironmaking' : processId];
   if (!p) return null;
   return (equipmentId && p.equipment[equipmentId]) || p.process;
 }

@@ -8,6 +8,7 @@
 import { LlmUnavailableError, type AskedQuestion, type Tutor } from "../../backend/src/checkpoint/types.js";
 import type { Rubric, RubricConcept } from "../../backend/src/rubrics.js";
 import { escapeDelimited, GeminiCallError, renderPrompt, type GeminiClient } from "./gemini.js";
+import { politeText } from "./polite.js";
 import { answerTerms, findLeaks, hasLeak, type LeakResult } from "./question-check.js";
 
 const MAX_QUESTION_ATTEMPTS = 2;
@@ -63,8 +64,9 @@ export class GeminiTutor implements Tutor {
     const text = (await this.gemini.generate({ system: renderPrompt("tutor-system", {}), prompt, temperature, maxOutputTokens }))
       .trim()
       .replace(/^["“](.*)["”]$/s, "$1");
-    if (!text) throw new LlmUnavailableError("튜터 응답이 비어 있습니다.");
-    return text;
+    if (!text) throw new LlmUnavailableError("튜터 응답이 비어 있어요.");
+    // 해요체 규칙을 넣어도 모델이 '~답니다'·'~입니다'를 섞어서 문장 끝 어미를 맞춘다(polite.ts).
+    return politeText(text);
   }
 
   private pick(candidates: string[]): string {

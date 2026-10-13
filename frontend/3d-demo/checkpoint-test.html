@@ -286,11 +286,25 @@ async function showSections() {
   if (open && !S.cp) resume(open.in_progress_attempt_id);
 }
 
+// 이해도 확인(루브릭)이 있는 섹션. 루브릭이 없는 섹션은 진입 상태를 요청하지 않는다(콘솔 404 없음). 목록을 못 읽으면 모두 요청한다.
+let checkpointSections = null;
+function loadCheckpointSections() {
+  checkpointSections ??= api('GET', '/api/sections')
+    .then((r) => new Set(r.sections.filter((s) => s.checkpoint).map((s) => s.section)))
+    .catch(() => { checkpointSections = null; return null; });
+  return checkpointSections;
+}
+
 async function refreshProgress(section) {
-  try {
-    S.progress[section] = await api('GET', `/api/sections/${section}/progress`);
-  } catch (e) {
-    S.progress[section] = { unavailable: true, status: e.status ?? 0 };
+  const available = await loadCheckpointSections();
+  if (available && !available.has(section)) {
+    S.progress[section] = { unavailable: true, status: 404 };
+  } else {
+    try {
+      S.progress[section] = await api('GET', `/api/sections/${section}/progress`);
+    } catch (e) {
+      S.progress[section] = { unavailable: true, status: e.status ?? 0 };
+    }
   }
   renderSections();
   if (S.cp?.state === 'completed') renderCheckpoint();
@@ -299,7 +313,7 @@ async function refreshProgress(section) {
 function entryFor(id) {
   const p = S.progress[id];
   if (!p) return { state: '확인 중', enabled: false };
-  if (p.unavailable) return { state: p.status === 404 ? '준비 중' : '연결 안 됨', enabled: false };
+  if (p.unavailable) return { state: p.status === 404 ? '이해도 확인 없음' : '연결 안 됨', enabled: false };
   if (!p.open) return { state: '잠김(앞 섹션 통과 필요)', enabled: false };
   if (p.unlocked) return { state: `통과 · ${Math.round((p.understanding ?? 0) * 100)}%`, enabled: false, pass: true };
   if (p.in_progress_attempt_id) return { state: '진행 중', enabled: true, label: '이어서 하기' };
@@ -450,7 +464,7 @@ function renderResult(r) {
   const nextReady = next && !(S.progress[next.id]?.unavailable && S.progress[next.id].status === 404);
   pass.textContent = !r.unlocked ? `${threshold}% 미달 · 섹션을 다시 살펴본 뒤 재도전해요`
     : !next ? '통과 · 모든 섹션을 마쳤어요'
-    : nextReady ? `통과 · ${next.name} 섹션이 열렸어요` : '통과 · 다음 섹션은 준비 중이에요';
+    : nextReady ? `통과 · ${next.name} 섹션이 열렸어요` : '통과 · 이해도 확인을 마쳤어요';
   pass.style.background = r.unlocked ? 'var(--ok-bg)' : 'var(--warn-bg)';
   pass.style.color = r.unlocked ? 'var(--ok)' : 'var(--warn)';
   $('bars').replaceChildren(...r.concepts.map((c) => {

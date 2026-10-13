@@ -145,6 +145,17 @@ export function expandQuery(query: string, glossary: GlossaryEntry[] = []): stri
   return [query, ...extra].join(" ");
 }
 
+// '이 설비', '이거', '여기'처럼 화면의 설비를 가리키는 말.
+const POINTING = /(?:이|그|저)\s?(?:설비|장치|기계|거|것|건|게)|여기|거기/;
+
+/**
+ * 질문이 화면의 설비를 가리키기만 하면(예: 설비 패널의 '이 설비의 역할은?') 검색어에 그 설비 이름을 붙인다.
+ * 질문 글자만으로 찾으면 설비 이름이 없어서, '이'·'설비'가 겹치는 엉뚱한 조각이 위로 온다.
+ */
+export function withScreenEquipment(query: string, equipmentName?: string | null): string {
+  return equipmentName && POINTING.test(query) ? `${query} ${equipmentName}` : query;
+}
+
 // 섹션과 상관없는 질문 말 → 메모 말. 메모는 온도를 "1,300℃의 고온"처럼 적어 "몇 도"와 겹치는 글자가 없다.
 const QUESTION_WORDS: GlossaryEntry[] = [{ term: "온도", aliases: ["몇 도", "몇도", "고온"] }];
 

@@ -44,7 +44,7 @@ class FakeAgent implements LearningAgent {
   }
 }
 
-async function setup(scene?: SceneCatalog, checkpointProgress?: LearningDeps["checkpointProgress"]) {
+async function setup(scene?: SceneCatalog, checkpointProgress?: LearningDeps["checkpointProgress"], screenSteps?: LearningDeps["screenSteps"]) {
   const db = openDatabase(":memory:");
   const repo = new LearningRepository(db);
   const agent = new FakeAgent();
@@ -58,6 +58,7 @@ async function setup(scene?: SceneCatalog, checkpointProgress?: LearningDeps["ch
     retriever: new Retriever({ chunksFor: (s) => CHUNKS.filter((c) => c.section === s) }),
     rubrics: loadFinalRubrics(),
     scene,
+    screenSteps,
     checkpointProgress,
     now: () => new Date(Date.UTC(2026, 9, 2, 0, 0, clock++)).toISOString(),
   }));

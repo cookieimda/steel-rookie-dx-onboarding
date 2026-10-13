@@ -25,6 +25,15 @@ export function attachSleek() {
       if (dark) this.renderer.toneMappingExposure = NIGHT_EXPOSURE; return r; }; // 다크 모드 화면 밝기(원래 코드는 0.95로 칠한다)
     if ((el.getAttribute('theme') || 'dark') === 'dark') el.renderer.toneMappingExposure = NIGHT_EXPOSURE; // 인트로가 이 값까지 밝힌다
     const tidy = () => tidyScene(el);
+    // 테마를 바꿔 site-backdrop.js가 배경 GLB를 끼우는 순간 바로 손질한다(다음 0.5초 주기까지 손질 전 GLB가 그대로 보였다).
+    // 끼운 GLB에 그때 테마를 적어 두어, 굽기는 이 GLB가 지금 테마 것일 때만 한다(backdropSettled)
+    const ext = el.scene.getObjectByName('SITE_BACKDROP_EXT'), addTo = ext.add.bind(ext), themeOf = () => el.getAttribute('theme') || 'dark';
+    ext.children.forEach(o => { o.userData.sleekTheme ??= themeOf(); });
+    ext.add = function (...objs) { const r = addTo(...objs); objs.forEach(o => { o.userData.sleekTheme = themeOf(); }); try { tidy(); } catch (e) { console.warn('배경 손질 실패', e); } return r; };
+    // 테마를 처음 바꾸면 장면이 기존 배경 묶음(el.backdrop)을 새로 만든다 → 그리기 직전에 바로 숨긴다(site-backdrop.js가 숨기기 전 몇 프레임 예전 건물이 비쳤다)
+    let bk = null, bdSeen = el.backdrop; window.__siteBackdrop?.then(b => { bk = b; });
+    const prevBR = el.scene.onBeforeRender;
+    el.scene.onBeforeRender = function (...a) { prevBR?.apply(this, a); if (el.backdrop !== bdSeen) { bdSeen = el.backdrop; bk?.hideNear?.(); } };
     tidy(); setInterval(tidy, 500); // 새로 생기는 것도 잡는다
     // 처음 시작할 때 검은 덮개 아래에서 반대 테마를 한 번 미리 켜 둔다(배경 만들기·셰이더 컴파일·명암 굽기).
     // 그러지 않으면 처음 라이트/다크를 바꿀 때 이 일이 한꺼번에 몰려 1~2초 멈춘다. 두 번째부터는 캐시를 쓴다
@@ -554,14 +563,11 @@ function scaleInstances(o, k) {
 const isTrunk = (o) => { if (!o.isInstancedMesh || o.userData.scaledK) return false; o.geometry.computeBoundingBox(); const s = o.geometry.boundingBox.getSize(new THREE.Vector3()); return Math.abs(s.y - 1.6) < 0.2 && s.x < 0.5 && s.z < 0.5 && o.material?.color && o.material.color.r >= o.material.color.b; };
 
 // 테마를 바꾸면 site-backdrop.js가 낮·밤 배경 GLB를 비동기로 바꿔 끼운다. 바뀌기 전(옛 GLB가 아직 붙어 있는 동안)에 새 테마용 굽기를 하면
-// 엉뚱한 GLB에 구워진다(밤 건물이 낮 명암 재질로 바뀌고, 밤 바닥에 낮 그림자가 남음). 배경이 실제로 바뀌었거나 6초가 지난 뒤에만 굽는다
+// 엉뚱한 GLB에 구워진다(밤 건물이 낮 명암 재질로 바뀌고, 밤 바닥에 낮 그림자가 남음). 지금 붙은 GLB가 지금 테마 것일 때만 굽는다(끼울 때 테마를 적어 둔다).
+// 예전엔 '배경이 바뀌었거나 6초 뒤'로 판단해서, 미리 받아 둔 GLB로 곧바로 바뀌면 6초 동안 굽지 않은 배경이 보였다
 function backdropSettled(el) {
-  const ext = el.scene.getObjectByName('SITE_BACKDROP_EXT'), dark = (el.getAttribute('theme') || 'dark') === 'dark';
-  if (el.__sDark === undefined) { el.__sDark = dark; return true; }
-  if (dark !== el.__sDark) { el.__sDark = dark; el.__sRoot = ext?.children[0]; el.__sT = performance.now(); }
-  if (!el.__sRoot) return true;
-  if (ext?.children[0] !== el.__sRoot || performance.now() - el.__sT > 6000) { el.__sRoot = null; return true; }
-  return false;
+  const root = el.scene.getObjectByName('SITE_BACKDROP_EXT')?.children[0];
+  return !!root && root.userData.sleekTheme === (el.getAttribute('theme') || 'dark');
 }
 
 // ---- 구워 둔 빛과 겹치는 실제 조명 빼기 ----

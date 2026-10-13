@@ -433,8 +433,9 @@ function keyShadow(el, box) {
   const dmat = new THREE.ShaderMaterial({ side: THREE.DoubleSide,
     vertexShader: 'varying float vD; void main(){ vec4 p = vec4(position, 1.);\n#ifdef USE_INSTANCING\n p = instanceMatrix * p;\n#endif\n vec4 mv = viewMatrix * modelMatrix * p; vD = -mv.z; gl_Position = projectionMatrix * mv; }',
     fragmentShader: 'varying float vD; void main(){ gl_FragColor = vec4(vD, 0., 0., 1.); }' });
+  // 바닥에 붙은 납작한 물체(높이 0.6 미만: 옛 바닥 el.ground·바닥 장식 등)는 뺀다. 바닥 바로 위·아래에 겹친 면이 바닥 자신을 가려 밤 바닥 전체에 물결 무늬(자기 그림자)가 찍혔다
   const hidden = []; treeBake(S, true);
-  S.traverse(o => { if (!o.visible) return; if (o.name === 'SITE_GROUND' || o.name === 'SLEEK_SEA' || o.name === 'SLEEK_ROADS' || o.isPoints || o.isLine || o.isSprite) { o.visible = false; hidden.push(o); } });
+  const fb = new THREE.Box3(); S.traverse(o => { if (!o.visible) return; const flat = o.isMesh && !o.isInstancedMesh && (fb.setFromObject(o), fb.max.y < 0.6); if (flat || o.name === 'SITE_GROUND' || o.name === 'SLEEK_SEA' || o.name === 'SLEEK_ROADS' || o.isPoints || o.isLine || o.isSprite) { o.visible = false; hidden.push(o); } });
   const bg = S.background, fog = S.fog, cc = R.getClearColor(new THREE.Color()), ca = R.getClearAlpha(), tm = R.toneMapping;
   const rt = new THREE.WebGLRenderTarget(RES, RES, { type: THREE.FloatType }), depth = new Float32Array(RES * RES * 4);
   try { S.background = null; S.fog = null; S.overrideMaterial = dmat; R.toneMapping = THREE.NoToneMapping; R.setClearColor(0x000000, 1); R.setRenderTarget(rt); R.clear(); R.render(S, cam); R.readRenderTargetPixels(rt, 0, 0, RES, RES, depth); }
@@ -808,7 +809,7 @@ function bakeChiaroscuro(el, ext) {
     fragmentShader: 'varying float vD; void main(){ gl_FragColor = vec4(vD, 0., 0., 1.); }' });
   const hidden = [];
   treeBake(S, true);
-  S.traverse(o => { if (!o.visible) return; if (o.name === 'SITE_GROUND' || o.name === 'SLEEK_SEA' || o.name === 'SLEEK_ROADS' || o.isPoints || o.isLine || o.isSprite) { o.visible = false; hidden.push(o); } });
+  const fb = new THREE.Box3(); S.traverse(o => { if (!o.visible) return; const flat = o.isMesh && !o.isInstancedMesh && (fb.setFromObject(o), fb.max.y < 0.6); if (flat || o.name === 'SITE_GROUND' || o.name === 'SLEEK_SEA' || o.name === 'SLEEK_ROADS' || o.isPoints || o.isLine || o.isSprite) { o.visible = false; hidden.push(o); } });
   const bg = S.background, fog = S.fog, cc = R.getClearColor(new THREE.Color()), ca = R.getClearAlpha(), tm = R.toneMapping;
   const rt = new THREE.WebGLRenderTarget(RES, RES, { type: THREE.FloatType }), depth = new Float32Array(RES * RES * 4);
   try { S.background = null; S.fog = null; S.overrideMaterial = dmat; R.toneMapping = THREE.NoToneMapping; R.setClearColor(0x000000, 1); R.setRenderTarget(rt); R.clear(); R.render(S, cam); R.readRenderTargetPixels(rt, 0, 0, RES, RES, depth); }

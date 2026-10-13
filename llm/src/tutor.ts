@@ -8,7 +8,7 @@
 import { LlmUnavailableError, type AskedQuestion, type Tutor } from "../../backend/src/checkpoint/types.js";
 import type { Rubric, RubricConcept } from "../../backend/src/rubrics.js";
 import { escapeDelimited, GeminiCallError, renderPrompt, type GeminiClient } from "./gemini.js";
-import { politeText } from "./polite.js";
+import { politeText, withObject } from "./polite.js";
 import { answerTerms, findLeaks, hasLeak, type LeakResult } from "./question-check.js";
 
 const MAX_QUESTION_ATTEMPTS = 2;
@@ -46,6 +46,20 @@ export interface DetailedQuestion {
 
 export function genericQuestion(concept: RubricConcept): string {
   return `처음 배우는 동료에게 '${concept.name}'을 설명한다고 생각하고, 자기 말로 설명해 주세요.`;
+}
+
+/** 보충학습 확인 문제. attempts는 LLM이 만든 문장과 유출 검사에 걸린 표현(실행 기록용)이다. */
+export interface PracticeQuestion {
+  text: string;
+  /** 두 번 모두 유출 검사에 걸렸거나 은행 문장과 같아 고정 문장을 썼는지. */
+  usedFallback: boolean;
+  attempts: { text: string; leaked: string[] }[];
+}
+
+/** 보충학습 확인 문제가 유출 검사에 두 번 걸렸을 때 쓰는 고정 문장. 직전 문제와 같은 문장은 다시 쓰지 않는다. */
+export function practiceFallback(concept: RubricConcept, previousQuestion: string | null = null): string {
+  const first = genericQuestion(concept);
+  return previousQuestion === first ? `${withObject(`'${concept.name}'`)} 실제로 일어나는 순서대로 다시 한번 자기 말로 설명해 주세요.` : first;
 }
 
 export interface TutorOptions {
@@ -157,6 +171,28 @@ export class GeminiTutor implements Tutor {
       ? concept.fallback_question
       : genericQuestion(concept);
     return this.generated(rubric, concept, prompt, 0.7, fallback);
+  }
+
+  /**
+   * 보충학습 확인 문제(docs/supplementary-learning.md). 체크포인트 질문 은행(questions·recheck_questions·fallback_question)은 쓰지 않는다:
+   * 연습에서 시험 문제를 미리 보면 체크포인트가 이해도를 재지 못한다. 그래서 늘 LLM이 만들고 같은 유출 검사를 거친다.
+   * previousQuestion이 있으면 다른 각도로 묻는다(tutor-recheck). 두 번 걸리면 고정 문장을 쓴다.
+   */
+  async practiceQuestion({ rubric, concept, previousQuestion = null }: { rubric: Rubric; concept: RubricConcept; previousQuestion?: string | null }): Promise<PracticeQuestion> {
+    const values = { name: concept.name, key_points: keyPointsOnly(concept.key_points), answer_terms: answerTerms(rubric, concept).join(", ") || "(없음)" };
+    const prompt = previousQuestion
+      ? renderPrompt("tutor-recheck", { ...values, previous_question: previousQuestion })
+      : renderPrompt("tutor-question", values);
+    const fallback = practiceFallback(concept, previousQuestion);
+    const q = await this.generated(rubric, concept, prompt, previousQuestion ? 0.7 : 0.4, fallback);
+    // 만든 문장이 우연히 은행 문장과 같으면 고정 문장으로 바꾼다.
+    const bank = [...(concept.questions ?? []), ...(concept.recheck_questions ?? []), ...(concept.fallback_question ? [concept.fallback_question] : [])];
+    const sameAsBank = bank.includes(q.text);
+    return {
+      text: sameAsBank ? fallback : q.text,
+      usedFallback: q.usedFallback || sameAsBank,
+      attempts: q.attempts.map((a) => ({ text: a.text, leaked: [...a.leaks.terms, ...a.leaks.phrases] })),
+    };
   }
 
   async question(input: Parameters<Tutor["question"]>[0]): Promise<AskedQuestion> {

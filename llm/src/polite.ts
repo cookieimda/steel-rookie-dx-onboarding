@@ -113,3 +113,12 @@ export function politeText(text: string): string {
 export function toPolite(sentence: string): string {
   return politeText(sentence);
 }
+
+/**
+ * 낱말 뒤에 목적격 조사 '을/를'을 붙인다(마지막 글자에 받침이 있으면 '을'). 따옴표·괄호로 끝나면 그 안의 마지막 글자를 본다.
+ * 한글로 끝나지 않으면(영문·숫자) '를'로 둔다.
+ */
+export function withObject(word: string): string {
+  const last = [...word.replace(/['"’”)\]]+$/, "")].at(-1) ?? "";
+  return `${word}${isSyllable(last) && parts(last).final !== 0 ? "을" : "를"}`;
+}

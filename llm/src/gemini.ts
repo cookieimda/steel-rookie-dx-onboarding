@@ -6,6 +6,12 @@ import { LlmUnavailableError } from "../../backend/src/checkpoint/types.js";
 /** GEMINI_MODEL이 비어 있을 때 쓰는 모델. */
 export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite";
 
+/** 호출 하나의 시간 제한(ms): GEMINI_TIMEOUT_MS(양의 정수)가 있으면 그 값, 없거나 잘못됐으면 60초. */
+export function geminiTimeoutMs(): number {
+  const value = Number(process.env.GEMINI_TIMEOUT_MS);
+  return Number.isInteger(value) && value > 0 ? value : 60_000;
+}
+
 export interface GenerateRequest {
   system: string;
   prompt: string;
@@ -24,6 +30,7 @@ export interface GeminiOptions {
   apiKey?: string;
   model?: string;
   fetch?: typeof fetch;
+  /** 호출 하나의 시간 제한(ms). 없으면 GEMINI_TIMEOUT_MS, 그것도 없으면 60초. Gemini가 몰려 느릴 때(짧은 호출도 70초 넘음) 늘린다. */
   timeoutMs?: number;
   /** 실제 호출 직전에 부른다(예: 사용자별 호출 수 제한). 예외를 던지면 호출하지 않는다. */
   beforeCall?: () => void;
@@ -81,7 +88,7 @@ export class GeminiClient {
                 : { responseMimeType: "text/plain" }),
             },
           }),
-          signal: AbortSignal.timeout(this.options.timeoutMs ?? 60_000),
+          signal: AbortSignal.timeout(this.options.timeoutMs ?? geminiTimeoutMs()),
         },
       );
     } catch (error) {

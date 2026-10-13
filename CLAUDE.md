@@ -48,7 +48,7 @@
 | 프론트(viiin2) | `Steel Academy v3.dc.html`, `scene_v3.js`, `step-fx.js`, `data_v2.js`, `steel-2d*.js`, `models/`, `frontend/login_ui/`(`Admin Dashboard.dc.html` 제외) |
 | ssoyoum: 관리자 대시보드 | `backend/src/admin/`, `frontend/login_ui/Admin Dashboard.dc.html`, 시연 개념 목록 `content/demo/sections.json`·`backend/src/demo-sections.ts`, 이 파일들의 테스트 |
 
-- 마이그레이션 번호 규칙: `backend/src/db/migrations/NNN_이름.sql`을 파일 이름 순서로 한 번씩 적용하고 `schema_migrations`에 이름을 남긴다. 001~008은 사용 중이다(005: 기록 출처 `origin`, 006: 시연 계정 `users.is_demo`, 007: 이어 풀기 질문 기록 `attempt_questions`, 008: 마이페이지 설계도 필기 `learner_sketches`). 새 번호는 지금 가장 큰 번호 + 1로 정하고, 같은 번호를 두 사람이 쓰지 않게 PR을 열기 전에 팀에 알린다. 이미 병합된 마이그레이션 파일은 고치지 않고 새 번호로 추가한다.
+- 마이그레이션 번호 규칙: `backend/src/db/migrations/NNN_이름.sql`을 파일 이름 순서로 한 번씩 적용하고 `schema_migrations`에 이름을 남긴다. 001~009는 사용 중이다(005: 기록 출처 `origin`, 006: 시연 계정 `users.is_demo`, 007: 이어 풀기 질문 기록 `attempt_questions`, 008: 마이페이지 설계도 필기 `learner_sketches`, 009: 보충학습 `learning_supplements`·실행 기록). 새 번호는 지금 가장 큰 번호 + 1로 정하고, 같은 번호를 두 사람이 쓰지 않게 PR을 열기 전에 팀에 알린다. 이미 병합된 마이그레이션 파일은 고치지 않고 새 번호로 추가한다.
 - 기존 `/api/chat`(`llm/src/ironmaking-agent.ts`)은 학습 모드로 대체되어 지웠다. 기본 모델 상수 `DEFAULT_GEMINI_MODEL`은 `llm/src/gemini.ts`에 있다. `ironmaking-sources.ts`(공개 자료 메모)는 학습 모드 검색(`retrieval.ts`)과 출처 표시(`learning/routes.ts`)가 쓰므로 남긴다.
 - 학습 모드 시작 안내: [docs/onboarding-learning-mode.md](docs/onboarding-learning-mode.md).
 
@@ -66,6 +66,7 @@
 - 자유 질문에 RAG로 답한다. 근거는 해당 섹션의 `section.md`.
 - 점수를 매기지 않는다.
 - 답변 중 오개념이 감지되면 기록만 하고 점수에는 반영하지 않는다.
+- **보충학습**(설계: [docs/supplementary-learning.md](docs/supplementary-learning.md)): 오개념이 있는 개념을 튜터 패널 칩(`보충학습 · 개념`)으로 권하고, 근거 검색 → 관련 설비 3D 표시 → 설명 → 확인 문제 → 채점 → 해결 또는 다른 각도로 1번 더 묻는다. 도구 순서는 서버가 정하고(`backend/src/learning/supplement.ts`, 도구 `agent-tools.ts`), 확인 문제는 체크포인트 질문 은행을 쓰지 않는다. 맞히면 그 개념의 학습 메모 오개념(`source = learning`)만 해결하고 점수에는 반영하지 않는다.
 
 ### 체크포인트 모드
 1. 튜터가 "제선 질문 시작할게요, 준비됐나요?"처럼 시작한다.
@@ -240,7 +241,7 @@ content/
 
 - **학습자 메모**: 연결됨. 서버가 `buildLearnerNotes`를 엔진의 `learnerNotes`로 넘기고(`options.notes`를 주면 그것을 우선), 엔진은 부가 설명(첫 판정이 correct가 아닐 때)에서만 메모를 읽어 `context`를 튜터의 `explanation`에 `learnerNotes`로 넘긴다. 프롬프트(`tutor-explanation.md`, `tutor-correction.md`)에는 `<learner_notes>` 구분자로 넣고, 관련 있는 항목만 짚게 한다. 평가자에게는 넘기지 않는다. 메모는 지금 final 루브릭 개념의 미해결 오개념만 담는다(`ironmaking-server.ts`에서 거름). `conceptOrder`(개념 순서 조정)는 루브릭 순서를 유지하기로 해서 쓰지 않는다.
 - **학습 모드 연결**: 설계와 결정은 `docs/learning-mode.md`. 오개념은 같은 응답에서 단정할 때만 감지하고, 대화는 DB에 저장(보관 기간 없음), 근거는 `retrieve()`로 분리해 공개 자료 메모로 먼저 연결한다. 학습 모드 오개념은 체크포인트 튜터의 context로만 쓰고 평가자에게는 넘기지 않는다. 개인 페이지에서 `source = learning`은 오개념 목록·개수에 섞지 않고 "튜터가 짚은 개념" 참고 목록으로 따로 보여 준다(위 '오개념 기록').
-- **개념 ↔ 설비 연결(ssoyoum 담당)**: 루브릭 스키마의 개념에 `equipment_ids`(선택, `data_v2.js`의 설비 id 배열)를 추가한다. 재학습 시 3D 하이라이트(오개념이 있는 개념의 설비 강조)에 쓴다. 스키마는 공용 파일이므로 작은 PR로 내고 공유한다. id 목록은 [docs/equipment-ids.md](docs/equipment-ids.md).
+- **개념 ↔ 설비 연결**: 연결됨. 루브릭 개념의 `equipment_ids`(선택, `data_v2.js`의 같은 공정 설비 id, 테스트로 확인)를 보충학습 설명 때 3D로 보여 준다. 제선 3개 개념에 넣었다. id 목록은 [docs/equipment-ids.md](docs/equipment-ids.md).
 - **3D 화면 조작**: 학습 모드의 `scene_actions`와 "재학습 시 3D 하이라이트"(오개념이 있는 개념의 설비를 강조)를 함께 진행한다.
 
 ## 알려진 문제

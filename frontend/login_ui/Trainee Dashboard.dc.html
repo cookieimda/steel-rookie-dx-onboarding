@@ -8,104 +8,163 @@
 <body>
 <x-dc>
 <helmet>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Montserrat:wght@500;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
   <script type="module" src="../3d-demo/steel-2d.js"></script>
   <style>
-    html, body { margin: 0; min-height: 100%; font-family: "IBM Plex Sans KR", sans-serif; }
-    body { --bg: oklch(0.14 0.02 245); --panel: oklch(0.18 0.018 245); --panel2: oklch(0.24 0.022 245); --line: oklch(1 0 0 / .12); --text: oklch(0.96 0.006 240); --muted: oklch(0.7 0.02 240); --accent: #1a9bd7; --ok: oklch(0.74 0.15 155); --mid: oklch(0.82 0.14 80); --bad: oklch(0.68 0.18 25); background: var(--bg); color: var(--text); }
-    body[data-theme="light"] { --bg: oklch(0.95 0.008 245); --panel: oklch(0.995 0.002 245); --panel2: oklch(0.93 0.01 245); --line: oklch(0 0 0 / .09); --text: oklch(0.22 0.02 245); --muted: oklch(0.5 0.02 245); --ok: oklch(0.55 0.15 155); --mid: oklch(0.62 0.14 70); --bad: oklch(0.55 0.19 25); }
+    /* 홈(home-sleek.html)·관리자 화면과 같은 세련안 토큰. 테마는 저장값(st-rookie-theme) → 시스템 설정 순서로 정한다 */
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      --font-ko: "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+      --font-en: "Montserrat", "Pretendard", sans-serif;
+      --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+      --bg: #1c1c1c; --bg-hi: #232327; --nav: rgba(18, 18, 20, .86);
+      --panel: rgba(255, 255, 255, .035); --panel2: rgba(255, 255, 255, .07); --chip-on: rgba(255, 255, 255, .14);
+      --line: rgba(255, 255, 255, .08); --text: #f2f2f2; --muted: #a8a8ad; --dim: #6f6f74;
+      --accent: #f2f2f2; --accent-ink: #111; --ok: #6fcf97; --mid: #e8c25a; --bad: #ff6b6b;
+      background: radial-gradient(ellipse at 50% 0%, var(--bg-hi) 0%, var(--bg) 55%) fixed, var(--bg);
+      color: var(--text); font-family: var(--font-ko); letter-spacing: -0.01em; -webkit-font-smoothing: antialiased;
+    }
+    body[data-theme="light"] {
+      --bg: #f4f4f5; --bg-hi: #ffffff; --nav: rgba(255, 255, 255, .86);
+      --panel: #ffffff; --panel2: rgba(0, 0, 0, .05); --chip-on: rgba(0, 0, 0, .1);
+      --line: rgba(0, 0, 0, .08); --text: #161617; --muted: #5f5f66; --dim: #8a8a90;
+      --accent: #161617; --accent-ink: #fff; --ok: #1f9d55; --mid: #b7791f; --bad: #d64545;
+    }
     * { box-sizing: border-box; }
-    button, input { font-family: inherit; }
-    a { color: var(--accent); text-decoration: none; }
-    a:hover { color: var(--text); }
+    a { color: inherit; text-decoration: none; }
+    button, input { font-family: inherit; letter-spacing: inherit; }
     .card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; }
-    .section-title { margin: 0; font-family: "Noto Sans KR",sans-serif; font-size: 18px; font-weight: 700; }
+    .eyebrow { font-family: var(--mono); font-size: 10px; letter-spacing: 0.26em; color: var(--muted); }
+    .h2 { margin: 0; font-size: 18px; font-weight: 700; }
+    /* 학습 모듈(왼쪽) + AI 튜터(오른쪽). 좁은 화면에서는 세로로 쌓는다 */
+    .learn { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 20px; align-items: start; }
+    .tutor { position: sticky; top: 96px; display: flex; flex-direction: column; max-height: calc(100vh - 112px); }
+    @media (max-width: 1100px) { .learn { grid-template-columns: 1fr; } .tutor { position: static; max-height: none; } }
   </style>
 </helmet>
-<div style="min-height:100vh;background:var(--bg);color:var(--text);">
-  <header style="position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px 20px;flex-wrap:wrap;padding:14px clamp(16px,3vw,36px);background:color-mix(in srgb, var(--bg) 88%, transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line);">
-    <div style="display:flex;align-items:center;gap:10px;">
-      <span style="width:34px;height:34px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:#fff;">S</span>
-      <div style="display:flex;flex-direction:column;gap:1px;"><span style="font-family:'Noto Sans KR',sans-serif;font-weight:700;font-size:14px;letter-spacing:0.05em;white-space:nowrap;">STEEL ACADEMY</span><span style="font-size:11px;color:var(--muted);">신입사원 · 내 학습 현황</span></div>
-    </div>
-    <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;padding:3px 8px;border-radius:999px;border:1px dashed {{ srcColor }};color:{{ srcColor }};white-space:nowrap;">{{ srcLabel }}</span>
+<div style="min-height:100vh;color:var(--text);">
+  <header style="position:sticky;top:16px;z-index:5;width:min(1400px, calc(100% - 32px));margin:16px auto 0;min-height:64px;padding:10px 12px 10px 22px;display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap;background:var(--nav);border:1px solid var(--line);border-radius:18px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);">
+    <a href="/" target="_top" style="display:flex;align-items:center;gap:10px;color:var(--text);font-family:var(--font-en);font-weight:800;font-size:18px;letter-spacing:0.04em;white-space:nowrap;">
+      <span style="width:18px;height:18px;border-radius:5px;background:var(--text);box-shadow:inset 0 0 0 5px var(--bg);flex:none;"></span>ST-ROOKIE
+    </a>
+    <span style="font-family:var(--mono);font-size:10px;letter-spacing:0.22em;color:var(--muted);white-space:nowrap;">TRAINEE</span>
+    <span style="font-family:var(--mono);font-size:10px;letter-spacing:0.08em;padding:3px 8px;border-radius:6px;border:1px solid var(--line);color:{{ srcColor }};white-space:nowrap;">● {{ srcLabel }}</span>
     <div style="flex:1;"></div>
     <nav style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-      <a href="../3d-demo/Steel%20Academy%20v3.dc.html" target="_top" style="padding:7px 12px;border-radius:999px;border:1px solid var(--line);font-size:13px;color:var(--muted);">학습 화면</a>
-      <button type="button" onClick="{{ toggleTheme }}" aria-label="테마 전환" style="width:34px;height:34px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--text);font-size:14px;cursor:pointer;">{{ themeIcon }}</button>
-      <button type="button" onClick="{{ logout }}" style="padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:13px;cursor:pointer;">로그아웃</button>
+      <button type="button" onClick="{{ focusTutor }}" style="height:40px;padding:0 16px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--text);font-size:14px;font-weight:600;cursor:pointer;" style-hover="background:var(--panel2);">AI 튜터</button>
+      <button type="button" onClick="{{ toggleTheme }}" aria-label="테마 전환" style="width:40px;height:40px;border-radius:10px;border:none;background:transparent;color:var(--muted);font-size:15px;cursor:pointer;" style-hover="background:var(--panel2);color:var(--text);">{{ themeIcon }}</button>
+      <button type="button" onClick="{{ logout }}" style="height:40px;padding:0 16px;border-radius:10px;border:none;background:transparent;color:var(--muted);font-size:14px;font-weight:500;cursor:pointer;" style-hover="background:var(--panel2);color:var(--text);">로그아웃</button>
+      <a href="/3d-demo/Steel%20Academy%20v4.dc.html" target="_top" style="display:flex;align-items:center;height:40px;padding:0 20px;border-radius:10px;background:var(--accent);color:var(--accent-ink);font-size:14px;font-weight:700;white-space:nowrap;" style-hover="opacity:.88;">학습 화면</a>
     </nav>
   </header>
 
-  <main style="max-width:1280px;margin:0 auto;padding:28px clamp(16px,3vw,36px) 64px;display:flex;flex-direction:column;gap:28px;">
-    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:10px 24px;flex-wrap:wrap;">
-      <div style="display:flex;flex-direction:column;gap:6px;">
-        <h1 style="margin:0;font-family:'Noto Sans KR',sans-serif;font-size:28px;font-weight:900;letter-spacing:-0.02em;">내 학습 현황</h1>
-        <span style="font-size:13px;color:var(--muted);">{{ profile }} · 기준 이해도 80% 이상이면 섹션 통과</span>
+  <main style="max-width:1400px;margin:0 auto;padding:44px clamp(16px,3vw,36px) 72px;display:flex;flex-direction:column;gap:28px;">
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px 24px;flex-wrap:wrap;">
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <span style="font-family:var(--mono);font-size:11px;letter-spacing:0.3em;color:var(--muted);">[ TRAINEE ]</span>
+        <h1 style="margin:0;font-family:var(--font-en);font-weight:800;font-size:clamp(36px,5.4vw,64px);line-height:0.95;letter-spacing:0.02em;">LEARN &amp; ASK.</h1>
+        <span style="font-size:14px;font-weight:300;color:var(--muted);">{{ profile }} · 2D 학습 모듈로 공정을 따라가고, 모르는 것은 옆의 AI 튜터에게 바로 물어보세요.</span>
       </div>
-      <span style="font-size:12px;color:var(--muted);">{{ updatedLabel }}</span>
+      <span style="font-family:var(--mono);font-size:11px;letter-spacing:0.08em;color:var(--dim);">{{ updatedLabel }}</span>
     </div>
     <sc-if value="{{ loadError }}" hint-placeholder-val="{{ false }}">
       <div role="alert" class="card" style="padding:14px 18px;border-color:var(--bad);color:var(--bad);font-size:13px;">{{ loadError }}</div>
     </sc-if>
 
-    <section style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:18px;overflow:hidden;">
-      <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
-        <div style="display:flex;flex-direction:column;gap:8px;padding:18px 20px;background:var(--panel);">
-          <span style="font-size:12px;color:var(--muted);">{{ k.label }}</span>
-          <span style="display:flex;align-items:baseline;gap:6px;"><span style="font-family:'IBM Plex Mono',monospace;font-size:30px;font-weight:600;color:{{ k.color }};">{{ k.value }}</span><span style="font-size:13px;color:var(--muted);">{{ k.unit }}</span></span>
-          <span style="font-size:12px;color:var(--muted);">{{ k.sub }}</span>
+    <div class="learn">
+      <section class="card" style="display:flex;flex-direction:column;gap:14px;padding:22px;min-width:0;">
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <span class="eyebrow">STEELMAKING · 2D MODULE</span>
+          <h2 class="h2">학습 모듈 · 제강</h2>
+          <span style="font-size:12px;color:var(--dim);">설비 카드나 단계를 누르면 2D 장면이 바뀌고, AI 튜터는 그 설비를 기준으로 답합니다.</span>
         </div>
-      </sc-for>
-    </section>
+        <!-- 높이를 고정하지 않는다: 2D 모듈(steel-2d)이 내용만큼 늘어나 모듈 안에 스크롤이 생기지 않게 한다. -->
+        <div style="border-radius:14px;overflow:hidden;border:1px solid var(--line);">
+          <x-import component-from-global-scope="steel-2d" process="steelmaking" theme="{{ theme }}" hint-size="100%,100%" style="display:block;width:100%;height:auto;"></x-import>
+        </div>
+      </section>
 
-    <section style="display:flex;flex-direction:column;gap:14px;">
-      <h2 class="section-title">섹션별 진행</h2>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;">
-        <sc-for list="{{ secCards }}" as="s" hint-placeholder-count="4">
-          <div class="card" style="display:flex;flex-direction:column;gap:14px;padding:18px 20px;">
-            <div style="display:flex;align-items:center;gap:10px;"><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;color:var(--accent);">{{ s.num }}</span><span style="font-size:16px;font-weight:700;">{{ s.name }}</span></div>
-            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><span style="font-family:'IBM Plex Mono',monospace;font-size:24px;font-weight:600;color:{{ s.color }};">{{ s.score }}</span><span style="font-size:12px;color:var(--muted);">{{ s.status }}</span></div>
-            <div style="height:8px;border-radius:999px;background:var(--panel2);overflow:hidden;"><span style="display:block;width:{{ s.width }};height:100%;background:{{ s.color }};"></span></div>
-            <span style="font-size:12px;color:var(--muted);">{{ s.attempts }}</span>
-          </div>
-        </sc-for>
-      </div>
-    </section>
-
-    <section class="card" style="display:flex;flex-direction:column;gap:14px;padding:22px;">
-      <h2 class="section-title">학습 모듈 · 제강</h2>
-      <span style="font-size:13px;color:var(--muted);">설비별 2D 공정 동작을 단계별로 따라갑니다.</span>
-      <!-- 높이를 고정하지 않는다: 2D 모듈(steel-2d)이 내용만큼 늘어나 모듈 안에 스크롤이 생기지 않게 한다. -->
-      <div style="border-radius:14px;overflow:hidden;border:1px solid var(--line);">
-        <x-import component-from-global-scope="steel-2d" process="steelmaking" theme="{{ theme }}" hint-size="100%,100%" style="display:block;width:100%;height:auto;"></x-import>
-      </div>
-    </section>
+      <aside class="card tutor" aria-label="AI 튜터" style="padding:0;overflow:hidden;">
+        <div style="display:flex;flex-direction:column;gap:6px;padding:18px 20px 14px;border-bottom:1px solid var(--line);">
+          <div style="display:flex;align-items:center;gap:8px;"><span class="eyebrow">AI TUTOR</span><span style="flex:1;"></span><span style="width:7px;height:7px;border-radius:50%;background:{{ aiDot }};"></span><span style="font-size:11px;color:var(--dim);">{{ aiLabel }}</span></div>
+          <h2 class="h2">AI 튜터</h2>
+          <span style="font-size:12px;color:var(--dim);">{{ tutorContext }}</span>
+        </div>
+        <div id="tutorLog" style="flex:1 1 auto;min-height:220px;overflow-y:auto;padding:14px 20px;display:flex;flex-direction:column;gap:10px;scrollbar-width:thin;scrollbar-color:var(--line) transparent;">
+          <sc-if value="{{ logEmpty }}" hint-placeholder-val="{{ true }}"><span style="font-size:13px;color:var(--muted);line-height:1.6;">궁금한 설비를 고르고 아래에 물어보세요. 공정 순서, 설비 역할, 용어 뜻 모두 괜찮아요.</span></sc-if>
+          <sc-for list="{{ messages }}" as="m" hint-placeholder-count="2">
+            <div style="display:flex;justify-content:{{ m.justify }};">
+              <div style="max-width:90%;padding:10px 13px;border-radius:12px;background:{{ m.bg }};color:{{ m.color }};font-size:13px;line-height:1.6;white-space:pre-wrap;word-break:break-word;">{{ m.text }}<sc-if value="{{ m.hasSources }}" hint-placeholder-val="{{ false }}"><div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px 10px;"><sc-for list="{{ m.sources }}" as="s" hint-placeholder-count="1"><a href="{{ s.url }}" target="_blank" rel="noopener" style="font-size:11px;color:var(--muted);text-decoration:underline;">{{ s.title }}</a></sc-for></div></sc-if><sc-if value="{{ m.hasFollowUp }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ m.askFollowUp }}" style="display:block;margin-top:8px;padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--text);font-size:12px;cursor:pointer;text-align:left;" style-hover="background:var(--chip-on);">{{ m.followUp }} →</button></sc-if></div>
+            </div>
+          </sc-for>
+          <sc-if value="{{ pending }}" hint-placeholder-val="{{ false }}"><span style="font-size:12px;color:var(--dim);">튜터가 답을 쓰고 있어요…</span></sc-if>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;padding:0 20px 12px;">
+          <sc-for list="{{ chips }}" as="c" hint-placeholder-count="3">
+            <button type="button" onClick="{{ c.onClick }}" style="padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:12px;cursor:pointer;text-align:left;" style-hover="background:var(--chip-on);color:var(--text);">{{ c.text }}</button>
+          </sc-for>
+        </div>
+        <form onSubmit="{{ send }}" style="display:flex;gap:8px;padding:12px 20px 18px;border-top:1px solid var(--line);">
+          <input id="tutorInput" value="{{ input }}" onChange="{{ onInput }}" placeholder="이 설비는 무슨 일을 해?" aria-label="질문" style="flex:1;min-width:0;height:42px;padding:0 14px;border-radius:10px;border:1px solid transparent;background:var(--panel2);color:var(--text);font-size:13px;outline:none;" style-focus="border-color:var(--muted);">
+          <button type="submit" disabled="{{ pending }}" style="height:42px;padding:0 16px;border-radius:10px;border:none;background:var(--accent);color:var(--accent-ink);font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">보내기</button>
+        </form>
+      </aside>
+    </div>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:20px;align-items:start;">
       <section class="card" style="display:flex;flex-direction:column;gap:14px;padding:22px;">
-        <h2 class="section-title">다시 볼 개념</h2>
-        <span style="font-size:12px;color:var(--muted);">내 체크포인트의 최근 판정 기준</span>
+        <div style="display:flex;flex-direction:column;gap:6px;"><span class="eyebrow">REVIEW</span><h2 class="h2">다시 볼 개념</h2><span style="font-size:12px;color:var(--dim);">내 체크포인트의 최근 판정 기준</span></div>
         <sc-if value="{{ reviewEmpty }}" hint-placeholder-val="{{ false }}"><span style="font-size:13px;color:var(--muted);padding:12px 0;">복습할 개념이 없습니다.</span></sc-if>
         <sc-for list="{{ reviews }}" as="r" hint-placeholder-count="3">
           <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line);">
-            <span style="flex:1;display:flex;flex-direction:column;gap:3px;"><strong style="font-size:14px;">{{ r.name }}</strong><span style="font-size:11px;color:var(--muted);">{{ r.section }} · {{ r.date }}</span></span>
-            <span style="font-size:12px;font-weight:600;color:{{ r.color }};">{{ r.verdict }}</span>
+            <span style="flex:1;display:flex;flex-direction:column;gap:3px;"><strong style="font-size:14px;">{{ r.name }}</strong><span style="font-size:11px;color:var(--dim);">{{ r.section }} · {{ r.date }}</span></span>
+            <span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:6px;background:color-mix(in srgb, {{ r.color }} 16%, transparent);color:{{ r.color }};white-space:nowrap;">{{ r.verdict }}</span>
           </div>
         </sc-for>
       </section>
       <section class="card" style="display:flex;flex-direction:column;gap:14px;padding:22px;">
-        <h2 class="section-title">내 오개념</h2>
-        <span style="font-size:12px;color:var(--muted);">내용과 답변은 본인에게만 표시됩니다</span>
+        <div style="display:flex;flex-direction:column;gap:6px;"><span class="eyebrow">MISCONCEPTIONS</span><h2 class="h2">내 오개념</h2><span style="font-size:12px;color:var(--dim);">내용과 답변은 본인에게만 표시됩니다</span></div>
         <sc-if value="{{ misEmpty }}" hint-placeholder-val="{{ false }}"><span style="font-size:13px;color:var(--muted);padding:12px 0;">기록된 오개념이 없습니다.</span></sc-if>
         <sc-for list="{{ misconceptions }}" as="m" hint-placeholder-count="3">
           <div style="display:flex;flex-direction:column;gap:6px;padding:12px 0;border-top:1px solid var(--line);">
-            <span style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><strong style="font-size:14px;">{{ m.name }}</strong><span style="font-size:11px;color:{{ m.color }};">{{ m.status }}</span></span>
+            <span style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><strong style="font-size:14px;">{{ m.name }}</strong><span style="font-size:11px;font-weight:600;color:{{ m.color }};white-space:nowrap;">{{ m.status }}</span></span>
             <span style="font-size:12px;color:var(--muted);line-height:1.6;">{{ m.summary }}</span>
           </div>
         </sc-for>
       </section>
     </div>
+
+    <!-- 통계는 맨 아래에 접어 둔다. 접힌 상태에서도 한 줄 요약은 보인다 -->
+    <section class="card" style="display:flex;flex-direction:column;overflow:hidden;">
+      <button type="button" onClick="{{ toggleStats }}" aria-expanded="{{ statsOpen }}" style="display:flex;align-items:center;gap:12px;width:100%;padding:18px 22px;border:none;background:transparent;color:var(--text);cursor:pointer;text-align:left;" style-hover="background:var(--panel2);">
+        <span style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:0;"><span class="eyebrow">PROGRESS</span><span style="font-size:16px;font-weight:700;">내 학습 현황</span><span style="font-size:12px;color:var(--dim);">{{ statsSummary }}</span></span>
+        <span style="font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap;">{{ statsLabel }}</span>
+      </button>
+      <sc-if value="{{ statsOpen }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:20px;padding:0 22px 22px;">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:14px;overflow:hidden;">
+            <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
+              <div style="display:flex;flex-direction:column;gap:8px;padding:18px 20px;background:var(--bg);">
+                <span style="font-size:12px;color:var(--muted);">{{ k.label }}</span>
+                <span style="display:flex;align-items:baseline;gap:6px;"><span style="font-family:var(--font-en);font-size:30px;font-weight:800;line-height:1;color:{{ k.color }};">{{ k.value }}</span><span style="font-size:13px;color:var(--muted);">{{ k.unit }}</span></span>
+                <span style="font-size:12px;color:var(--dim);">{{ k.sub }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;">
+            <sc-for list="{{ secCards }}" as="s" hint-placeholder-count="4">
+              <div style="display:flex;flex-direction:column;gap:12px;padding:18px 20px;background:var(--panel2);border-radius:14px;">
+                <div style="display:flex;align-items:center;gap:10px;"><span style="font-family:var(--font-en);font-size:18px;font-weight:800;color:var(--dim);">{{ s.num }}</span><span style="font-size:15px;font-weight:700;">{{ s.name }}</span></div>
+                <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><span style="font-family:var(--font-en);font-size:24px;font-weight:800;color:{{ s.color }};">{{ s.score }}</span><span style="font-size:12px;color:var(--muted);">{{ s.status }}</span></div>
+                <div style="height:6px;border-radius:999px;background:var(--line);overflow:hidden;"><span style="display:block;width:{{ s.width }};height:100%;background:{{ s.color }};"></span></div>
+                <span style="font-size:12px;color:var(--dim);">{{ s.attempts }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+    </section>
   </main>
 </div>
 </x-dc>
@@ -113,17 +172,90 @@
 const pct = value => Math.round(value * 100) + '%';
 const scoreColor = value => value >= 0.8 ? 'var(--ok)' : value >= 0.6 ? 'var(--mid)' : 'var(--bad)';
 const token = () => { try { return localStorage.getItem('st-rookie-token') || sessionStorage.getItem('st-rookie-token'); } catch (e) { return null; } };
+// 테마: 사용자가 고른 값(localStorage) → 시스템 설정. 시스템 설정이 바뀌면 고른 값이 없을 때만 따라간다.
+const THEME_KEY = 'st-rookie-theme';
+const savedTheme = () => { try { const t = localStorage.getItem(THEME_KEY); return t === 'light' || t === 'dark' ? t : null; } catch (e) { return null; } };
+const lightQuery = () => (typeof matchMedia === 'function' ? matchMedia('(prefers-color-scheme: light)') : null);
+const systemTheme = () => (lightQuery()?.matches ? 'light' : 'dark');
+// AI 튜터: 학습 모드 API(POST /api/chat, docs/learning-mode.md). 대화 id는 탭(sessionStorage)에 두고 서버가 이어 준다. 3D 화면의 대화와는 따로 둔다.
+const SESSION_KEY = 'st-rookie:learning-session:mypage';
+const sessionStore = {
+  get() { try { return sessionStorage.getItem(SESSION_KEY) || null; } catch (e) { return null; } },
+  set(id) { try { if (id) sessionStorage.setItem(SESSION_KEY, id); else sessionStorage.removeItem(SESSION_KEY); } catch (e) {} },
+};
+const DEFAULT_CHIPS = ['제강 공정은 어떤 순서로 진행돼?', '전로에서는 무슨 일이 일어나?', '용선과 용강은 뭐가 달라?'];
 
 class Component extends DCLogic {
-  state = { data: null, processes: [], error: null, theme: this.props.theme ?? 'dark', loadedAt: null };
+  state = { data: null, processes: [], stages: [], error: null, theme: savedTheme() || systemTheme(), loadedAt: null,
+    statsOpen: false, eq: null, messages: [], input: '', pending: false, ai: null };
   componentDidMount() {
     document.body.dataset.theme = this.state.theme;
+    lightQuery()?.addEventListener('change', () => { if (!savedTheme()) this.applyTheme(systemTheme(), false); });
     import('../3d-demo/data_v2.js').then(m => this.setState({ processes: m.PROCESSES }));
+    import('../3d-demo/steel-2d.js').then(m => this.setState({ stages: m.STAGES.steelmaking || [] }));
+    this.sessionId = sessionStore.get();
+    import('../3d-demo/api-client.js').then(m => { this.api = m.createApiClient(); this.restoreChat(); });
+    fetch('/api/status').then(r => r.ok ? r.json() : null).then(s => this.setState({ ai: s && s.connected ? 'ok' : 'off' }), () => this.setState({ ai: 'off' }));
+    // 2D 모듈이 고른 설비(steel-select의 id = data_v2.js 설비 id)를 튜터 질문의 화면 정보로 쓴다
+    document.addEventListener('steel-select', e => this.setState({ eq: e.detail?.id || null }));
+    setTimeout(() => { const el = this.module(); if (el?.stage && !this.state.eq) this.setState({ eq: el.stage.eq }); }, 1500);
     const auth = token();
     if (!auth) { this.setState({ error: '로그인한 뒤 학습 현황을 볼 수 있습니다.' }); return; }
     fetch('/api/me/dashboard', { headers: { authorization: 'Bearer ' + auth } })
       .then(async response => { if (!response.ok) throw new Error('학습 현황을 DB에서 불러오지 못했습니다.'); return response.json(); })
       .then(data => this.setState({ data, loadedAt: new Date() }), error => this.setState({ error: error.message }));
+  }
+  applyTheme(theme, save) {
+    document.body.dataset.theme = theme;
+    if (save) { try { localStorage.setItem(THEME_KEY, theme); } catch (e) {} }
+    this.setState({ theme });
+  }
+  module() { return document.querySelector('steel-2d'); }
+  scrollLog() { [50, 250].forEach(ms => setTimeout(() => { const el = document.getElementById('tutorLog'); if (el) el.scrollTop = el.scrollHeight; }, ms)); }
+  useSession(id) { this.sessionId = id || null; sessionStore.set(this.sessionId); }
+  toMessage(res) {
+    return { role: 'assistant', text: res.answer, error: false, sources: (res.sources || []).map(s => ({ title: s.title, url: s.url || '#' })), followUp: res.follow_up || null };
+  }
+  // 새로고침 전 대화를 서버에서 다시 불러온다. 서버에 없으면 새 대화로 시작한다.
+  async restoreChat() {
+    const id = this.sessionId; if (!id) return;
+    try {
+      const { turns } = await this.api.request('GET', `/api/chat/sessions/${encodeURIComponent(id)}`);
+      if (this.sessionId !== id || !turns?.length) return;
+      const restored = turns.flatMap(t => [{ role: 'user', text: t.question }, this.toMessage(t)]);
+      this.setState(s => ({ messages: [...restored, ...s.messages] })); this.scrollLog();
+    } catch (e) { if (e.status === 404 && this.sessionId === id) this.useSession(null); }
+  }
+  // 튜터의 화면 조작(scene_actions)을 2D 모듈에 맞춰 실행한다: highlight·focus → 그 설비 선택, play_animation → 자동 재생. goto_process는 제강 모듈뿐이라 무시.
+  runActions(actions) {
+    const el = this.module(); if (!el) return;
+    for (const a of actions || []) {
+      try {
+        if ((a.type === 'highlight' || a.type === 'focus') && a.target_id) { el.removeAttribute('selected'); el.setAttribute('selected', a.target_id); }
+        else if (a.type === 'play_animation') el.startAuto?.();
+      } catch (e) {}
+    }
+  }
+  async ask(text) {
+    text = (text || '').trim(); if (!text || this.state.pending || !this.api) return;
+    const req = { question: text, session_id: this.sessionId || undefined, screen: { process_id: 'steelmaking', equipment_id: this.state.eq || null } };
+    this.setState(s => ({ messages: [...s.messages, { role: 'user', text }], input: '', pending: true })); this.scrollLog();
+    let message;
+    try {
+      let res;
+      try { res = await this.api.request('POST', '/api/chat', req); }
+      catch (e) {
+        // 서버에 없는 대화(예: DB를 지움)면 새 대화로 한 번 다시 묻는다.
+        if (e.status !== 404 || !this.sessionId) throw e;
+        this.useSession(null); res = await this.api.request('POST', '/api/chat', { ...req, session_id: undefined });
+      }
+      this.useSession(res.session_id);
+      message = this.toMessage(res);
+      this.runActions(res.scene_actions);
+    } catch (e) {
+      message = { role: 'assistant', text: e.message, error: true, sources: [], followUp: null };
+    }
+    this.setState(s => ({ pending: false, messages: [...s.messages, message] })); this.scrollLog();
   }
   renderVals() {
     const S = this.state, D = S.data, T = D?.trainee;
@@ -140,6 +272,8 @@ class Component extends DCLogic {
       date: r.updated_at.slice(0, 10), verdict: r.recheck_verdict === 'partial' || r.verdict === 'partial' ? '부분 이해' : r.verdict === 'assisted' ? '도움 받음' : '재확인 필요',
       color: r.verdict === 'wrong' || r.recheck_verdict === 'wrong' ? 'var(--bad)' : 'var(--mid)',
     }));
+    const stage = S.stages.find(x => x.eq === S.eq) || null;
+    const chips = (stage ? [`${stage.name} 설비는 무슨 일을 해?`, `${stage.name} 단계에서 가장 중요한 건 뭐야?`, '이 다음 단계는 뭐야?'] : DEFAULT_CHIPS).map(text => ({ text, onClick: () => this.ask(text) }));
     return {
       srcLabel: D ? 'DB 데이터' : S.error ? '연결 오류' : '불러오는 중',
       srcColor: D ? 'var(--ok)' : S.error ? 'var(--bad)' : 'var(--muted)',
@@ -147,8 +281,21 @@ class Component extends DCLogic {
       profile: T ? `${T.name} · ${T.employee_no}` : '내 학습 기록',
       updatedLabel: S.loadedAt ? `불러온 시각 ${S.loadedAt.getHours()}:${String(S.loadedAt.getMinutes()).padStart(2, '0')}` : S.error ? '불러오기 실패' : '불러오는 중…',
       theme: S.theme, themeIcon: S.theme === 'dark' ? '☀' : '☾',
-      toggleTheme: () => { const theme = S.theme === 'dark' ? 'light' : 'dark'; document.body.dataset.theme = theme; this.setState({ theme }); },
+      toggleTheme: () => this.applyTheme(S.theme === 'dark' ? 'light' : 'dark', true),
       logout: () => { try { localStorage.removeItem('st-rookie-token'); sessionStorage.removeItem('st-rookie-token'); } catch (e) {} window.top.location.href = '/login_ui/home-sleek.html'; },
+      // AI 튜터
+      aiDot: S.ai === 'ok' ? 'var(--ok)' : S.ai === 'off' ? 'var(--bad)' : 'var(--dim)',
+      aiLabel: S.ai === 'ok' ? 'AI 연결됨' : S.ai === 'off' ? 'AI 연결 안 됨' : '확인 중',
+      tutorContext: stage ? `지금 보는 설비: ${stage.name}` : '설비를 고르면 그 설비 기준으로 답해요',
+      focusTutor: () => { const el = document.getElementById('tutorInput'); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => el.focus(), 350); } },
+      messages: S.messages.map(m => ({ text: m.text, justify: m.role === 'user' ? 'flex-end' : 'flex-start',
+        bg: m.role === 'user' ? 'var(--accent)' : 'var(--panel2)', color: m.role === 'user' ? 'var(--accent-ink)' : m.error ? 'var(--bad)' : 'var(--text)',
+        hasSources: !!(m.sources && m.sources.length), sources: m.sources || [], hasFollowUp: !!m.followUp, followUp: m.followUp || '', askFollowUp: () => this.ask(m.followUp) })),
+      logEmpty: S.messages.length === 0 && !S.pending, pending: S.pending, chips,
+      input: S.input, onInput: e => this.setState({ input: e.target.value }), send: e => { e.preventDefault(); this.ask(S.input); },
+      // 아래 접힌 통계
+      statsOpen: S.statsOpen, toggleStats: () => this.setState(s => ({ statsOpen: !s.statsOpen })), statsLabel: S.statsOpen ? '접기 ▲' : '펼치기 ▼',
+      statsSummary: T ? `통과 ${T.passed_sections}/${secs.length} · 평균 이해도 ${avg == null ? '—' : pct(avg)} · 미해결 오개념 ${open}개` : S.error ? '불러오지 못함' : '불러오는 중…',
       kpis: [
         { label: '통과한 섹션', value: T ? String(T.passed_sections) : '—', unit: `/ ${secs.length || '—'}`, sub: '이해도 80% 이상', color: 'var(--ok)' },
         { label: '평균 이해도', value: avg == null ? '—' : pct(avg), unit: '', sub: '응시한 섹션의 마지막 결과', color: avg == null ? 'var(--text)' : scoreColor(avg) },

@@ -11,6 +11,10 @@
     body.sleek-ready::after { opacity: 0; }
   </style>
   <script>addEventListener('DOMContentLoaded', () => setTimeout(() => document.body.classList.add('sleek-ready'), 15000));</script>
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/+esm">
+  <link rel="modulepreload" href="./scene_v3.js"><link rel="modulepreload" href="./data_v2.js"><link rel="modulepreload" href="./sleek-overview.js"><link rel="modulepreload" href="./plant-props.js">
+  <link rel="preload" as="fetch" crossorigin href="./models/ironmaking.glb"><link rel="preload" as="fetch" crossorigin href="./models/steelmaking.glb"><link rel="preload" as="fetch" crossorigin href="./models/continuous_casting.glb"><link rel="preload" as="fetch" crossorigin href="./models/rolling.glb">
+  <link rel="preload" as="fetch" crossorigin href="./models/anchors-v2b.json">
 </head>
 <body>
 <x-dc>
@@ -34,6 +38,8 @@
   <script type="module">import { attachSleek } from './sleek-overview.js'; attachSleek();</script>
   <!-- [세련안] 제철소 주변 소품(야적장·리클레이머·소화탑·슬래브 야드·냉각탑·펌프장). 배치는 plant-site.js, 모델은 plant-props.js -->
   <script type="module">import { attachPlantSite } from './plant-site.js'; attachPlantSite();</script>
+  <!-- [세련안] 밤 불빛: 창문 띠·투광등·장애등·출선구 붉은빛·가로등 바닥 번짐 (스프라이트만, 실제 Light 없음) -->
+  <script type="module">import { attachNightLights } from './night-lights.js'; attachNightLights();</script>
   <style>
     /* [UI 시안] 화면 틀(상단바·좌측 메뉴·우측 패널·하단 바)은 항상 어두운 남색, 3D 영역만 밝은 스튜디오 톤 */
     html, body { margin: 0; height: 100%; overflow: hidden; font-family: "IBM Plex Sans KR", sans-serif; }

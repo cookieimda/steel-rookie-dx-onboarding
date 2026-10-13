@@ -683,7 +683,7 @@ class SteelScene extends HTMLElement {
     this.zones[p.id] = z; this.zoneLabels.push(z); if (this._modelsHidden) { z.root.visible = false; zl.style.display = 'none'; } if (this._zoneLabelsHidden) zl.style.display = 'none';
     // 지금 보는 공정 먼저, 나머지는 순서대로 조금씩 늦게 불러온다
     const cur = this.getAttribute('process'), first = !cur || cur === 'site' ? zi === 0 : cur === p.id;
-    if (first) this._loadGLB(p, z); else setTimeout(() => this._loadGLB(p, z), 400 + zi * 500);
+    if (first) this._loadGLB(p, z); else setTimeout(() => this._loadGLB(p, z), 0);
   }
   _styleZoneLabels() { const ov = this.orbit.dist > 120; (this.zoneLabels || []).forEach(z => { Object.assign(z.label.style, { borderColor: 'rgba(255,255,255,.1)', background: 'rgba(38,46,58,.94)', color: '#ffffff', borderRadius: '8px', padding: '9px 16px 9px 14px', alignItems: 'center', gap: '12px', boxShadow: '0 8px 20px rgba(15,20,30,.25)', opacity: ov ? '1' : '0', pointerEvents: ov ? 'auto' : 'none' }); }); (this.zoneArrows || []).forEach(a => { a.el.style.opacity = ov ? '1' : '0'; }); }
   // 공정 활성화: 해당 구역을 현재 작업 대상으로 바꾸고 카메라를 그 구역으로 이동

@@ -24,15 +24,20 @@ export function attachSleek() {
     if ((el.getAttribute('theme') || 'dark') === 'dark') el.renderer.toneMappingExposure = NIGHT_EXPOSURE; // 인트로가 이 값까지 밝힌다
     const tidy = () => tidyScene(el);
     tidy(); setInterval(tidy, 500); // 새로 생기는 것도 잡는다
-    let burstUntil = 0;
-    const burst = () => { if (performance.now() < burstUntil) { tidy(); setTimeout(burst, 16); } }; // 그리기(rAF)와 상관없이 약 60번/초
-    new MutationObserver(() => { const go = performance.now() >= burstUntil; burstUntil = performance.now() + 3000; tidy(); if (go) setTimeout(burst, 16); })
-      .observe(el, { attributes: true, attributeFilter: ['theme', 'time-of-day', 'timeofday'] });
-    setInterval(() => hideOccluders(el), 400);
-    setupFraming(el);
-    // 조작(드래그·휠) 처리는 지금 바로 붙이고, 공정 소개는 인트로가 끝난 뒤 시작한다(인트로 중 휠이 원래 거리 줌으로 새던 문제)
-    const showcase = startShowcase(el);
-    playIntro(el, showcase);
+    // 처음 시작할 때 검은 덮개 아래에서 반대 테마를 한 번 미리 켜 둔다(배경 만들기·셰이더 컴파일·명암 굽기).
+    // 그러지 않으면 처음 라이트/다크를 바꿀 때 이 일이 한꺼번에 몰려 1~2초 멈춘다. 두 번째부터는 캐시를 쓴다
+    Promise.resolve().then(() => {
+      let burstUntil = 0;
+      // 테마를 바꾼 직후 원래 코드가 다시 켜는 것을 잡는다. 예전엔 3초 동안 60번/초 돌려 전환 뒤가 버벅였다 → 0.8초, 20번/초
+      const burst = () => { if (performance.now() < burstUntil) { tidy(); setTimeout(burst, 50); } };
+      new MutationObserver(() => { const go = performance.now() >= burstUntil; burstUntil = performance.now() + 800; tidy(); if (go) setTimeout(burst, 50); })
+        .observe(el, { attributes: true, attributeFilter: ['theme', 'time-of-day', 'timeofday'] });
+      setInterval(() => hideOccluders(el), 400);
+      setupFraming(el);
+      // 조작(드래그·휠) 처리는 지금 바로 붙이고, 공정 소개는 인트로가 끝난 뒤 시작한다(인트로 중 휠이 원래 거리 줌으로 새던 문제)
+      const showcase = startShowcase(el);
+      playIntro(el, showcase);
+    });
   };
   tryAttach();
 }
@@ -101,21 +106,12 @@ function setupDroneView(el) {
 }
 
 // ---- 3) 잡다한 것 끄기 ----
-function isOldNearStatic(o) { // site-backdrop.js의 isNearStatic과 같은 기준(부지 안, 반경 300 안의 정적 메시)
-  if (!o.isMesh || o.isPoints || o.userData.keep || !o.material || o.material.isShaderMaterial || o.material.blending === THREE.AdditiveBlending) return false;
-  o.updateMatrixWorld(true);
-  const s = o.isInstancedMesh ? (o.computeBoundingSphere(), o.boundingSphere.clone()) : (o.geometry.computeBoundingSphere(), o.geometry.boundingSphere.clone().applyMatrix4(o.matrixWorld));
-  return s.center.length() < 300 && s.radius < 300;
-}
 function tidyScene(el) {
   let changed = false;
   const settled = backdropSettled(el); // 테마를 바꾼 직후 배경 GLB가 바뀌기 전에는 테마별 굽기를 미룬다
   // 원래 장면 코드(scene_v3.js·site-backdrop.js)가 테마를 바꿀 때 네온·빛기둥 등을 다시 켜서, 잠깐씩 예전 모습이 비쳤다.
   // 그래서 숨길 것은 visible 속성을 잠가 버린다(켜려 해도 무시)
   const off = (o) => { if (!o || o.userData.sleekOff) return; Object.defineProperty(o, 'visible', { configurable: true, get: () => false, set: () => {} }); o.userData.sleekOff = true; changed = true; };
-  // 옛 배경(scene_v3.js의 backdrop) 중 부지 안 정적 메시는 site-backdrop.js가 새 배경 GLB와 겹친다고 숨기지만, 공정 화면의 가림 처리(scene_v3.js _occTick)가
-  // visible = true로 되돌려 옛 건물·컨테이너·공 모양 나무가 새 배경 위에 겹쳐 보였다 → 잠근다. 고르는 기준은 site-backdrop.js의 isNearStatic과 같다
-  if (el.scene.getObjectByName('SITE_BACKDROP_EXT')) el.backdrop?.children.forEach(o => { if (!o.userData.sleekOff && (o.userData.oldNear ??= isOldNearStatic(o))) off(o); });
   removeBlockers(el, off); // 그림자를 굽기 전에 먼저 지운다(지운 건물 그림자가 바닥에 남지 않게)
   if (scaleBackdrop(el)) changed = true; // 주변 건물·나무를 공정 축척에 맞게 줄임(그림자 굽기 전에)
   if (replaceTrees(el)) changed = true; // 공 모양 나무 → 잎 그림 평면을 엇갈려 세운 나무
@@ -538,7 +534,7 @@ function backdropSettled(el) {
 // - 밤 키라이트(site-backdrop.js, 카메라를 따라가는 방향광): 공정·건물은 구운 키라이트(bakeNight)를 쓰므로 뺀다
 // - 구역 조명(scene_v3.js ZONE_LIGHT, 공정 비추는 스포트·포인트): 공정 빛을 구웠으므로 빼면 공정 주변 바닥이 하얗게 뜨지 않는다
 // 원래 코드가 세기를 바꿔도 장면에 없으니 그려지지 않는다
-const FLOODS = [];
+const FLOODS = [{ x: 62, z: -58, r: 14, color: 0xcfd8e6 }, { x: 84, z: -58, r: 14, color: 0xcfd8e6 }, { x: 66, z: -50.5, r: 14, color: 0xcfd8e6 }, { x: 96, z: -50.5, r: 14, color: 0xcfd8e6 }, { x: 30, z: -46, r: 12, color: 0xcfd8e6 }, { x: 44, z: -46, r: 12, color: 0xcfd8e6 }, { x: 58, z: -46, r: 12, color: 0xcfd8e6 }, ];
 function removeLights(el) {
   const S = el.scene, rm = []; let ch = false;
   S.children.forEach(o => {
@@ -1106,6 +1102,23 @@ function hideOccluders(el) {
   });
 }
 
+// 반대 테마 미리 켜기: 테마 속성을 바꿔 원래 코드가 배경을 만들고(캐시), tidy가 굽기를 하고, 셰이더를 컴파일한 뒤 되돌린다.
+// 화면은 검은 덮개(body::after)가 가리고 있다. 오래 걸려도 3.5초에서 끊고 넘어간다(남은 건 첫 전환 때 마저 한다)
+async function warmOtherTheme(el, tidy) {
+  const cur = el.getAttribute('theme') || 'dark', other = cur === 'dark' ? 'light' : 'dark', R = el.renderer, exp = R.toneMappingExposure;
+  const frame = () => new Promise(r => requestAnimationFrame(() => r()));
+  const t0 = performance.now(), left = () => 1200 - (performance.now() - t0);
+  try {
+    el.setAttribute('theme', other);
+    for (let i = 0; i < 8 && left() > 0; i++) { tidy(); await frame(); }
+    if (left() > 0) { if (R.compileAsync) await Promise.race([R.compileAsync(el.scene, el.camera), new Promise(r => setTimeout(r, Math.max(0, left())))]); else R.compile(el.scene, el.camera); }
+    R.render(el.scene, el.camera); // 남은 셰이더를 덮개 아래에서 컴파일
+  } catch (e) { console.warn('테마 미리 켜기 실패', e); }
+  el.setAttribute('theme', cur);
+  for (let i = 0; i < 3; i++) { tidy(); await frame(); }
+  R.toneMappingExposure = exp; el._dirty = true;
+}
+
 // ---- 2) 인트로: 어두운 화면에서 조명이 서서히 켜지며 드론 시점으로 다가간다 ----
 function playIntro(el, showcase) {
   const R = el.renderer, exposure = R.toneMappingExposure;
@@ -1192,7 +1205,7 @@ function startShowcase(el) {
     el._animateTo({ yaw: YAW, pitch: 0.4, dist: DIST, target: tgt });
     document.dispatchEvent(new CustomEvent('sleek-showcase', { detail: { id } }));
   };
-  const next = () => { show(IDS[(IDS.indexOf(cur) + 1) % IDS.length]); schedule(SHOW_MS); }; // 처음(cur=null)이면 01부터
+  const next = () => { const i = IDS.indexOf(cur) + 1; if (i >= IDS.length) { goFree(); return; } show(IDS[i]); schedule(SHOW_MS); }; // 처음(cur=null)이면 01부터, 04 다음은 끝(한 바퀴만)
   const schedule = (ms) => { clearTimeout(timer); if (running) timer = setTimeout(next, ms); };
   const start = (delay) => { running = true; schedule(delay); };
   const stop = () => { running = false; clearTimeout(timer); hideAll(); fovTo = inSite() ? HOME_FOV : BASE_FOV; el.__sleekFocus = null; };
@@ -1203,7 +1216,7 @@ function startShowcase(el) {
   el.overview = function (...a) { if (running) goFree(); fovTo = HOME_FOV; return overview(...a); }; // 홈 버튼(goSite)이 부른다: 기본 홈 화면으로
   document.addEventListener('sleek-showcase-next', () => { if (running) next(); });
   // 공정에 들어가는 길은 여러 개(카드 버튼·이름표·왼쪽 메뉴)라, 장면의 process 속성을 직접 지켜본다
-  new MutationObserver(() => { if (!inSite()) { stop(); fovTo = BASE_FOV; return; } if (free) { fovTo = HOME_FOV; showAll(); } else if (!running) start(2500); }).observe(el, { attributes: true, attributeFilter: ['process'] });
+  new MutationObserver(() => { if (!inSite()) { if (running) free = true; /* 소개 중 들어갔다 나와도 다시 돌리지 않는다 */ stop(); fovTo = BASE_FOV; return; } if (free) { fovTo = HOME_FOV; showAll(); } else if (!running) start(2500); }).observe(el, { attributes: true, attributeFilter: ['process'] });
   // 드래그·휠을 시작하면: 소개 중이면 끝내고, 진행 중인 카메라 이동(_animateTo)은 끊어서 손으로 돌리는 것이 바로 먹게 한다
   let started = false; // 인트로가 끝나 소개를 시작했는지
   const takeOver = () => { if (!started) free = true; /* 인트로 중 직접 만지면 소개 없이 자유 시점으로 */ if (running) goFree(); if (inSite()) { el.anim = null; if (free) setHover(null); } };

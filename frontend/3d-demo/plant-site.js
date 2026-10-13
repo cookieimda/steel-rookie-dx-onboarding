@@ -3,7 +3,7 @@
 // 기준으로 빈 땅에 잡았다(열연은 z 34로 옮김)(위에서 내려다본 배치도로 도로·건물·해안선을 피함).
 // 소품 자리에 겹치는 나무·가로등 인스턴스는 숨긴다.
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/+esm';
-import { makeSlabYard, makeCoolingTower, makeCoolingPlant, makeCoilYard, trimReady } from './plant-props.js';
+import { makeReclaimer, makeStockpile, makeQuenchTower, makeSlabYard, makeCoolingTower, makeCoolingPlant, makePipeRack, makeCoilYard, trimReady } from './plant-props.js';
 
 // 공정 GLB는 실제보다 크게 표현되어 있어(고로·열풍로가 실제 축척의 약 1.5배) 실축척(1/12)으로 두면 소품이 바닥 무늬처럼 납작해진다.
 // 공정 모델과 나란히 봤을 때 어울리는 1/7로 둔다.
@@ -12,13 +12,20 @@ const NIGHT = 0.32;  // 밤 테마에서 소품 색에 곱하는 값(주변 건�
 
 // x, z: 장면 단위. ry: Y축 회전(라디안). 소품 자리(경계 상자)에 겹치는 나무·가로등은 숨긴다
 const PLACES = [
-  // 제선·제강 근처(야적더미·리클레이머·소화탑·배관 랙)에는 소품을 두지 않기로 했다. 모델(plant-props.js)과 prop-lab.html에는 남아 있다
+  // 제선 북쪽 해안 띠: 철광석·석탄 야적더미 두 줄과 그 사이 레일 위 리클레이머(레일은 X 방향)
+  { name: 'pile_ore', make: () => makeStockpile({ L: 130, W: 30, H: 14, kind: 'ore', seed: 3 }), x: 12, z: -93.3 },
+  { name: 'pile_coal', make: () => makeStockpile({ L: 110, W: 28, H: 12, kind: 'coal', seed: 8 }), x: 12, z: -85.5 },
+  { name: 'reclaimer', make: () => makeReclaimer({ rails: 130, slew: 0.5, tripper: false }), x: 12, z: -89.4, ry: Math.PI / 2 },
+  // 코크스 오븐(12.6, -69.3) 남쪽: 소화탑(레일은 X 방향으로 오븐 줄과 나란히)
+  { name: 'quench_tower', make: () => makeQuenchTower(), x: 12.5, z: -60 },
   // 연주(z 0) → 열연(z 65) 사이, 도로 서쪽: 슬래브 야드 두 곳
   { name: 'slab_yard_a', make: () => makeSlabYard({ rows: 4, cols: 9, seed: 3 }), x: -47, z: 17 },
   { name: 'slab_yard_b', make: () => makeSlabYard({ rows: 3, cols: 9, seed: 9 }), x: -41, z: 25 },
   // 연주(x -66 ~ -21, z 0) 남서쪽 바로 옆: 냉각탑과 냉각수 펌프장(연주 냉각수)
   { name: 'cooling_tower', make: () => makeCoolingTower(), x: -62, z: 19 },
   { name: 'cooling_plant', make: () => makeCoolingPlant(), x: -62, z: 26 },
+  // 제강(z -44 ~ -20)과 연주(z -12.5 ~ 12.5) 사이 빈 띠: 두 공정을 잇는 배관 랙(길이 X 방향)
+  { name: 'pipe_rack', make: () => makePipeRack({ L: 168 }), x: -38, z: -16 },
   // 열연 권취기(x≈11, z 34) 동쪽 끝: 감은 코일을 쌓는 코일 야드. 코일 하나가 삼각형 약 650개라 1단·70개 정도로 둔다(2단 8줄이면 12만 개)
   { name: 'coil_yard', make: () => makeCoilYard({ rows: 6, perRow: 12, tiers: 1, seed: 5 }), x: 18, z: 34 },
 ];

@@ -20,6 +20,14 @@ const tokenStore = {
   clear() { try { localStorage.removeItem(TOKEN_KEY); sessionStorage.removeItem(TOKEN_KEY); } catch (e) {} },
 };
 
+/** 답을 기다리는 동안 보여 줄 문구. 경과 시간을 초로 보여 주고, 오래 걸리면 기다려 달라고 덧붙인다. */
+export function pendingText(since, now = Date.now()) {
+  const sec = since ? Math.max(0, Math.floor((now - since) / 1000)) : 0;
+  if (sec < 3) return '튜터가 답을 쓰고 있어요…';
+  if (sec < 20) return `튜터가 답을 쓰고 있어요… ${sec}초`;
+  return `튜터가 답을 쓰고 있어요… ${sec}초 · 자료를 살펴보는 중이라 조금 더 걸려요`;
+}
+
 /**
  * 튜터가 보낸 화면 조작(scene_actions)을 차례로 실행하고 결과를 돌려준다. c는 페이지 컴포넌트(state, data, goProcess, setState, scene).
  * - 공정을 옮기면 3D(steel-scene)가 그 공정을 띄울 때까지 기다린다. 전체 화면에서 바로 설비로 가면 아직 설비를 못 찾아 실패했다.
@@ -182,7 +190,9 @@ export async function createLearningChat(c) {
       const section = SECTIONS.includes(c.state.processId) ? c.state.processId : null; // 전체 보기('site')면 서버 기본(제선)
       const screen = { process_id: section, equipment_id: section ? c.state.selectedId : null };
       const req = { question: text, session_id: sessionId || undefined, screen };
-      c.setState(s => ({ messages: [...s.messages, { role: 'user', text }], input: '', pending: true, partial: '', lastReq: req, tutorOpen: true, devOpen: false })); c.scrollChat();
+      c.setState(s => ({ messages: [...s.messages, { role: 'user', text }], input: '', pending: true, pendingSince: Date.now(), partial: '', lastReq: req, tutorOpen: true, devOpen: false })); c.scrollChat();
+      // 답을 기다리는 동안 1초마다 다시 그려 경과 시간을 보여 준다(Gemini가 느리거나 로컬 모델이면 30초 넘게 걸릴 수 있다).
+      const tick = setInterval(() => c.setState({ pendingTick: Date.now() }), 1000);
       // 답을 받는 대로 말풍선에 보여 준다(스트리밍). 끝나면 최종 답으로 바꾼다.
       const onPartial = (text) => { c.setState({ partial: text }); c.scrollChat(); };
       let message, res;
@@ -203,7 +213,8 @@ export async function createLearningChat(c) {
       }
       // 학습 모드 API는 아직 화면 조작(scene_actions)을 보내지 않는다(다음 단계).
       const results = await chat.runActions(res.scene_actions);
-      c.setState(s => ({ pending: false, partial: '', lastRes: res, lastResults: results, messages: [...s.messages, message] })); c.scrollChat();
+      clearInterval(tick);
+      c.setState(s => ({ pending: false, pendingSince: null, partial: '', lastRes: res, lastResults: results, messages: [...s.messages, message] })); c.scrollChat();
     },
 
     // 새로고침 전 대화를 서버에서 다시 불러와 메시지 앞에 붙인다. 화면 조작은 다시 하지 않는다.
@@ -230,7 +241,7 @@ export async function createLearningChat(c) {
       const shown = streaming ? [...S.messages, { role: 'assistant', text: S.partial, mode: 'free_question', evidence: 'streaming', citations: [], followUp: null }] : S.messages;
       return {
         messages: shown.map(m => ({ ...m, isUser: m.role === 'user', isSafety: m.role === 'assistant' && m.mode === 'safety_redirect', isAssistant: m.role === 'assistant' && m.mode !== 'safety_redirect', hasFollowUp: !!m.followUp, askFollowUp: () => chat.ask(m.followUp), hasKeywordCard: !!m.keywordCard, keywordCard: m.keywordCard || NO_CARD })),
-        chatRef: c.chatRef, pending: S.pending && !streaming, chips: (suggestionsFor(S.processId, S.selectedId) || D.SUGGESTED.filter(t => S.selectedId || !t.startsWith('이 설비'))).map(text => ({ text, onClick: () => chat.ask(text) })),
+        chatRef: c.chatRef, pending: S.pending && !streaming, pendingText: pendingText(S.pendingSince), chips: (suggestionsFor(S.processId, S.selectedId) || D.SUGGESTED.filter(t => S.selectedId || !t.startsWith('이 설비'))).map(text => ({ text, onClick: () => chat.ask(text) })),
         input: S.input, onInput: e => c.setState({ input: e.target.value }), send: e => { e.preventDefault(); chat.ask(S.input); },
       };
     },

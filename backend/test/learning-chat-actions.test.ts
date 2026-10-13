@@ -56,3 +56,12 @@ test("suggestionsFor: 전체 공정 화면은 제선 질문(설비 없이 '이 �
   assert.ok(!suggestionsFor("site", null).some((q: string) => q.startsWith("이 설비")));
   assert.equal(suggestionsFor("rolling", null), null);
 });
+
+test("pendingText: 기다리는 동안 경과 시간을 보여 주고, 20초가 넘으면 조금 더 걸린다고 알린다", async () => {
+  const { pendingText } = await load("learning-chat.js");
+  const t0 = 1_000_000;
+  assert.equal(pendingText(t0, t0 + 1000), "튜터가 답을 쓰고 있어요…");
+  assert.equal(pendingText(t0, t0 + 7400), "튜터가 답을 쓰고 있어요… 7초");
+  assert.match(pendingText(t0, t0 + 45_000), /45초 · .*조금 더 걸려요/);
+  assert.equal(pendingText(null), "튜터가 답을 쓰고 있어요…");
+});

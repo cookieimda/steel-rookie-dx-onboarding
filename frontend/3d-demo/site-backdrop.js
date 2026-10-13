@@ -41,15 +41,18 @@ async function attach(target, { base = 'models/site/' } = {}) {
     return s.center.length() < 300 && s.radius < 300;
   };
   let applied = null;
+  const hideNear = () => { el.backdrop.updateMatrixWorld(true); el.backdrop.children.forEach(o => { if (isNearStatic(o)) o.visible = false; }); };
   const apply = async () => {
+    hideNear(); // 테마를 바꾸면 장면이 기존 배경을 새로 만든다 → 새 GLB를 기다리지 않고 바로 숨긴다(기다리는 동안 예전 건물이 보였다)
     const dark = (el.getAttribute('theme') || 'dark') === 'dark', root = await load(dark);
     if (applied !== root) { holder.clear(); holder.add(root); if (beams) holder.add(beams); applied = root; }
     if (beams) beams.visible = dark;
-    el.backdrop.updateMatrixWorld(true); el.backdrop.children.forEach(o => { if (isNearStatic(o)) o.visible = false; });
+    hideNear();
     key.intensity = dark ? (cfg.night.key?.intensity ?? 0) : 0; fills.forEach(l => { l.intensity = dark ? l.userData.k : 0; });
     el._dirty = true;
   };
   await apply();
+  load(true); load(false); // 반대 테마 GLB도 미리 받아 둔다(처음 테마를 바꿀 때 받는 동안 10초 넘게 옛 배경이 보였다)
   new MutationObserver(() => setTimeout(apply, 0)).observe(el, { attributes: true, attributeFilter: ['theme', 'time-of-day', 'timeofday'] });
 
   // 매 프레임: 바닥 교체 유지, 2D·도면 보기에서 기존 배경이 숨으면 같이 숨김, 키라이트 위치
@@ -60,5 +63,5 @@ async function attach(target, { base = 'models/site/' } = {}) {
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
-  return { holder, key, fills, apply };
+  return { holder, key, fills, apply, hideNear };
 }

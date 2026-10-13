@@ -19,5 +19,5 @@
 
 - 공통: 프로필, 주요 수치, 섹션별 진행 카드와 DB 연결 상태.
 - 관리자: 전체 신입사원 명단, 섹션 통계, 오답률 높은 개념. 기록이 없거나 API가 실패하면 샘플 수치 대신 빈 상태 또는 오류를 표시한다.
-- 신입사원(`Trainee Dashboard.dc.html`): 제강 2D 학습 모듈 + 옆의 AI 튜터(학습 모드 `POST /api/chat`, 2D 모듈에서 고른 설비를 화면 정보로 보냄, 대화 id는 `st-rookie:learning-session:mypage`)가 위, 복습할 개념·오개념이 가운데, 통과 수·평균 이해도·섹션별 진행은 맨 아래에 접어 둔다. 테마는 `st-rookie-theme`(localStorage) → 시스템 설정 순서로 정하고 2D 모듈에도 넘긴다.
+- 신입사원(`Trainee Dashboard.dc.html`): 위에 2D 학습 모듈 `<process-2d>`(`../3d-demo/process-2d.js`, 제선·제강·연주·열간압연 설비 24개)와 옆의 AI 튜터, 가운데 복습할 개념·오개념, 맨 아래 접힌 학습 현황. 튜터는 3D 화면과 같은 `learning-chat.js`를 그대로 쓰고, 모듈에서 고른 공정·설비(`process-select`)를 화면 정보로 보낸다. 테마는 `st-rookie-theme`(localStorage) → 시스템 설정 순서로 정하고 모듈에도 넘긴다.
 - 시연 계정 생성 코드는 `dev`에 머지된 #29에서 가져왔다. `npm run db:seed-demo -- 58`은 `trainee01`~`20`의 기존 시연 체크포인트 기록을 다시 만든다.

@@ -205,30 +205,7 @@
       </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:20px;align-items:start;">
-      <section class="card" style="display:flex;flex-direction:column;gap:14px;padding:22px;">
-        <div style="display:flex;flex-direction:column;gap:6px;"><span class="eyebrow">REVIEW</span><h2 class="h2">다시 볼 개념</h2><span style="font-size:12px;color:var(--dim);">내 체크포인트의 최근 판정 기준</span></div>
-        <sc-if value="{{ reviewEmpty }}" hint-placeholder-val="{{ false }}"><span style="font-size:13px;color:var(--muted);padding:12px 0;">복습할 개념이 없습니다.</span></sc-if>
-        <sc-for list="{{ reviews }}" as="r" hint-placeholder-count="3">
-          <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line);">
-            <span style="flex:1;display:flex;flex-direction:column;gap:3px;"><strong style="font-size:14px;">{{ r.name }}</strong><span style="font-size:11px;color:var(--dim);">{{ r.section }} · {{ r.date }}</span></span>
-            <span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:6px;background:color-mix(in srgb, {{ r.color }} 16%, transparent);color:{{ r.color }};white-space:nowrap;">{{ r.verdict }}</span>
-          </div>
-        </sc-for>
-      </section>
-      <section class="card" style="display:flex;flex-direction:column;gap:14px;padding:22px;">
-        <div style="display:flex;flex-direction:column;gap:6px;"><span class="eyebrow">MISCONCEPTIONS</span><h2 class="h2">내 오개념</h2><span style="font-size:12px;color:var(--dim);">내용과 답변은 본인에게만 표시됩니다</span></div>
-        <sc-if value="{{ misEmpty }}" hint-placeholder-val="{{ false }}"><span style="font-size:13px;color:var(--muted);padding:12px 0;">기록된 오개념이 없습니다.</span></sc-if>
-        <sc-for list="{{ misconceptions }}" as="m" hint-placeholder-count="3">
-          <div style="display:flex;flex-direction:column;gap:6px;padding:12px 0;border-top:1px solid var(--line);">
-            <span style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><strong style="font-size:14px;">{{ m.name }}</strong><span style="font-size:11px;font-weight:600;color:{{ m.color }};white-space:nowrap;">{{ m.status }}</span></span>
-            <span style="font-size:12px;color:var(--muted);line-height:1.6;">{{ m.summary }}</span>
-          </div>
-        </sc-for>
-      </section>
-    </div>
-
-    <!-- 통계는 맨 아래에 접어 둔다. 접힌 상태에서도 한 줄 요약은 보인다 -->
+    <!-- 내 학습 현황: 다시 볼 개념·오개념보다 위에 둔다. 접어 둘 수 있고, 접힌 상태에서도 한 줄 요약은 보인다 -->
     <section class="card" style="display:flex;flex-direction:column;overflow:hidden;">
       <button type="button" onClick="{{ toggleStats }}" aria-expanded="{{ statsOpen }}" style="display:flex;align-items:center;gap:12px;width:100%;padding:18px 22px;border:none;background:transparent;color:var(--text);cursor:pointer;text-align:left;" style-hover="background:var(--panel2);">
         <span style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:0;"><span class="eyebrow">PROGRESS</span><span style="font-size:16px;font-weight:700;">내 학습 현황</span><span style="font-size:12px;color:var(--dim);">{{ statsSummary }}</span></span>
@@ -258,6 +235,29 @@
         </div>
       </sc-if>
     </section>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:20px;align-items:start;">
+      <section class="card" style="display:flex;flex-direction:column;gap:14px;padding:22px;">
+        <div style="display:flex;flex-direction:column;gap:6px;"><span class="eyebrow">REVIEW</span><h2 class="h2">다시 볼 개념</h2><span style="font-size:12px;color:var(--dim);">내 체크포인트의 최근 판정 기준</span></div>
+        <sc-if value="{{ reviewEmpty }}" hint-placeholder-val="{{ false }}"><span style="font-size:13px;color:var(--muted);padding:12px 0;">복습할 개념이 없습니다.</span></sc-if>
+        <sc-for list="{{ reviews }}" as="r" hint-placeholder-count="3">
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line);">
+            <span style="flex:1;display:flex;flex-direction:column;gap:3px;"><strong style="font-size:14px;">{{ r.name }}</strong><span style="font-size:11px;color:var(--dim);">{{ r.section }} · {{ r.date }}</span></span>
+            <span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:6px;background:color-mix(in srgb, {{ r.color }} 16%, transparent);color:{{ r.color }};white-space:nowrap;">{{ r.verdict }}</span>
+          </div>
+        </sc-for>
+      </section>
+      <section class="card" style="display:flex;flex-direction:column;gap:14px;padding:22px;">
+        <div style="display:flex;flex-direction:column;gap:6px;"><span class="eyebrow">MISCONCEPTIONS</span><h2 class="h2">내 오개념</h2><span style="font-size:12px;color:var(--dim);">내용과 답변은 본인에게만 표시됩니다</span></div>
+        <sc-if value="{{ misEmpty }}" hint-placeholder-val="{{ false }}"><span style="font-size:13px;color:var(--muted);padding:12px 0;">기록된 오개념이 없습니다.</span></sc-if>
+        <sc-for list="{{ misconceptions }}" as="m" hint-placeholder-count="3">
+          <div style="display:flex;flex-direction:column;gap:6px;padding:12px 0;border-top:1px solid var(--line);">
+            <span style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><strong style="font-size:14px;">{{ m.name }}</strong><span style="font-size:11px;font-weight:600;color:{{ m.color }};white-space:nowrap;">{{ m.status }}</span></span>
+            <span style="font-size:12px;color:var(--muted);line-height:1.6;">{{ m.summary }}</span>
+          </div>
+        </sc-for>
+      </section>
+    </div>
   </main>
 </div>
 </x-dc>

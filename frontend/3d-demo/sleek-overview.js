@@ -119,14 +119,15 @@ function tidyScene(el) {
   if (cullOutsideSite(el, off)) changed = true;     // 부지(공장 섬) 밖 건물·나무·가로등(굽기 전에 지워 그림자가 남지 않게)
   siteFog(el);                                      // 부지 경계의 안개 판(바깥을 흐리게 가림)
   if (removeLights(el)) changed = true;             // 구워 둔 조명과 겹치는 실제 조명 빼기(투광등·밤 키라이트·구역 조명)
-  if (settled && (el.getAttribute('theme') || 'dark') === 'dark' && !el.__nightBaked && el.zones && Object.values(el.zones).every(z => z.root?.children.length)) {
-    el.__nightBaked = true; try { bakeNight(el); } catch (e) { console.warn('밤 조명 굽기 실패', e); } changed = true; }
+  // 아래 숨김은 굽기보다 먼저 한다(굽기 뒤에 숨겼더니 공정 사이 연결선 그림자가 밤 바닥에 줄로 남았다)
   off(el._links?.g);                                   // 공정 사이 하늘색 연결선
   (el.zoneArrows || []).forEach(a => { if (a.el && a.el.style.display !== 'none') { a.el.style.display = 'none'; changed = true; } off(a.mesh); off(a.glow); });
   (el._bokehPts || []).forEach(off);                  // 보케(먼 도시 불빛 점)
   off(el.embers);                                      // 불씨
   if (el._fw) { off(el._fw.pts); off(el._fw.glow); }   // 불꽃놀이
   Object.values(el.zones || {}).forEach(z => off(z.neon)); // 구역 네온 테두리
+  if (settled && (el.getAttribute('theme') || 'dark') === 'dark' && !el.__nightBaked && el.zones && Object.values(el.zones).every(z => z.root?.children.length)) {
+    el.__nightBaked = true; try { bakeNight(el); } catch (e) { console.warn('밤 조명 굽기 실패', e); } changed = true; }
   // 원래 상자 이름표(01 제선 …)는 쓰지 않는다. 대신 동그라미 콜아웃(makeCallout). display는 장면이 만지므로 visibility로 숨긴다
   Object.values(el.zones || {}).forEach(z => { if (z.label && z.label.style.visibility !== 'hidden') { z.label.style.visibility = 'hidden'; z.label.style.pointerEvents = 'none'; } });
   const beams = el.scene.getObjectByName('SITE_FLOOR_BEAMS'); off(beams); // 바닥 빛기둥
@@ -362,7 +363,7 @@ const BAKE_ON = { value: 1 };
 const KEY_DIR = new THREE.Vector3(-0.85, 0.95, 0.25).normalize();       // 서쪽 위에서 비추는 달빛(드론 시점에서 왼쪽 위)
 // 다크 모드 전체 빛 세기: 구운 빛(공정·건물·고정 빛)에 모두 곱한다(1 = 원래). 가로등 빛 웅덩이는 LAMP_GAIN을 한 번 더 곱한다.
 // 다크 모드엔 실시간 조명이 없다(nightLights). 화면 전체 밝기(바다·하늘 포함)는 노출 NIGHT_EXPOSURE(원래 0.95)
-const NIGHT_LIGHT = 1.8, LAMP_GAIN = 1.3, NIGHT_EXPOSURE = 1.2;
+const NIGHT_LIGHT = 1.8, LAMP_GAIN = 1.3, NIGHT_EXPOSURE = 3; // 노출 3: 임시 조절 바로 화면을 보며 정한 값(1.2는 너무 어두웠다)
 // 빛 색은 더 푸르게(명도는 그대로: 휘도 0.69 / 0.25 유지)
 const KEY_COL = new THREE.Color(0.54, 0.70, 0.98), AMB_COL = new THREE.Color(0.20, 0.25, 0.38);
 const PROC_GAIN = 0.38 * NIGHT_LIGHT, BLD_GAIN = 1.4 * NIGHT_LIGHT; // 0.38: 켜고 끄며 잰 공정 화면 밝기가 원래의 약 70%(30% 어둡게)가 되는 값
@@ -1157,16 +1158,7 @@ function bakeLampLight(ground, pool) {
   const gb = new THREE.Box3().setFromObject(ground), W = gb.max.x - gb.min.x, D = gb.max.z - gb.min.z; // 바닥 판은 회전돼 있어 월드 좌표로 잰다
   const M = new THREE.Matrix4(), p = new THREE.Vector3(), H = 7 * K_LAMP, R = 16 * 0.56; // 줄인 가로등 높이에 맞춰 빛 웅덩이도 작게 // 등 높이 7m, 빛이 닿는 반경 16m
   x.globalCompositeOperation = 'lighter'; // 가까운 가로등끼리 빛이 더해진다
-  // 투광등 4개: 원뿔이 닿는 자리를 부드럽게(가운데가 하얗게 날지 않게 낮게)
-  FLOODS.forEach(o => { const cx = (o.x - gb.min.x) / W * N, cy = (o.z - gb.min.z) / D * N, r = o.r / W * N, g = x.createRadialGradient(cx, cy, 0, cx, cy, r), c = new THREE.Color(o.color);
-    const rgb = [c.r, c.g, c.b].map(v => Math.round(v * 255)).join(',');
-    for (let k = 0; k <= 8; k++) { const u = k / 8, f = Math.pow(1 - u * u, 2) * 0.22; g.addColorStop(u, `rgba(${rgb},${f.toFixed(3)})`); }
-    x.fillStyle = g; x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fill(); });
-  // 빈터를 은은하게 밝히는 큰 옴니(달빛): 명도·채도 낮은 푸른 회색, 넓고 부드럽게
-  NIGHT_OMNI.forEach(o => { const cx = (o.p[0] - gb.min.x) / W * N, cy = (o.p[1] - gb.min.z) / D * N, r = o.r / W * N, g = x.createRadialGradient(cx, cy, 0, cx, cy, r);
-    // 가운데가 뾰족하지 않게 넓고 완만하게(점광원 감쇠를 그대로 쓰니 가운데가 하얗게 날아갔다)
-    for (let k = 0; k <= 8; k++) { const u = k / 8, f = Math.pow(1 - u * u, 2) * o.ground * 0.3; g.addColorStop(u, `rgba(170,185,210,${f.toFixed(3)})`); }
-    x.fillStyle = g; x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fill(); });
+  // 투광등·빈터 옴니의 푸른 빛은 바닥에 굽지 않는다(노출을 3으로 올린 만큼 바닥 푸른 빛을 빼 대비를 살림). 가로등 빛 웅덩이만 굽는다
   for (let i = 0; i < pool.count; i++) {
     pool.getMatrixAt(i, M); p.setFromMatrixPosition(M).applyMatrix4(pool.matrixWorld);
     // 바닥 UV: u = (x - minX)/W, v = (maxZ - z)/D → 캔버스(flipY) 세로는 (z - minZ)/D

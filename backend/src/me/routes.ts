@@ -12,6 +12,29 @@ import { MeRepository } from "./repository.js";
 
 const Query = z.object({ section: z.enum(SECTION_ORDER as [Section, ...Section[]]).optional() });
 
+/** '설계도·필기'에서 도면(탑뷰·평면도·정면도)과 펜 획. 좌표는 도면 영역 크기에 대한 비율(0~1). */
+export const DRAW_MODES = ["top", "plan", "front"] as const;
+export const MAX_SKETCH_BYTES = 300_000;
+const Point = z.tuple([z.number().min(0).max(1), z.number().min(0).max(1)]);
+const Color = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+const LineStroke = z.object({
+  tool: z.enum(["pen", "marker"]),
+  color: Color,
+  width: z.number().positive().max(0.05),
+  points: z.array(Point).min(1).max(2000),
+});
+/** 텍스트 메모: 누른 자리(점 하나)에 한 줄. width는 글자 크기(영역 너비 비율). */
+const TextStroke = z.object({
+  tool: z.literal("text"),
+  color: Color,
+  width: z.number().positive().max(0.08),
+  text: z.string().trim().min(1).max(200),
+  points: z.array(Point).length(1),
+});
+const Stroke = z.union([LineStroke, TextStroke]);
+const SketchBody = z.object({ strokes: z.array(Stroke).max(500) });
+const SketchParams = z.object({ process: z.enum(SECTION_ORDER as [Section, ...Section[]]), mode: z.enum(DRAW_MODES).optional() });
+
 export function createMeRouter(db: DatabaseSync, auth: AuthDeps): express.Router {
   const router = express.Router();
   const repo = new MeRepository(db);
@@ -52,6 +75,34 @@ export function createMeRouter(db: DatabaseSync, auth: AuthDeps): express.Router
     }).slice(0, 8);
     res.json({ checkpoint_data: stats.checkpoint_data, sections: stats.sections,
       trainee, review_concepts, misconceptions: repo.listMisconceptions(user.id) });
+  });
+
+  // 마이페이지 '설계도·필기'의 펜 필기. 본인 것만 읽고 쓴다(사용자는 토큰으로만 정한다).
+  router.get("/api/me/sketches/:process", requireUser(auth), (req, res) => {
+    const params = SketchParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: "알 수 없는 공정이에요.", code: "INVALID_PROCESS" });
+      return;
+    }
+    const user = res.locals.user as User;
+    const saved = repo.sketches(user.id, params.data.process);
+    res.json({ process: params.data.process, sketches: Object.fromEntries(DRAW_MODES.map((m) => [m, saved[m] ? JSON.parse(saved[m]) : []])) });
+  });
+  router.put("/api/me/sketches/:process/:mode", requireUser(auth), express.json({ limit: "400kb" }), (req, res) => {
+    const params = SketchParams.safeParse(req.params);
+    const body = SketchBody.safeParse(req.body);
+    if (!params.success || !params.data.mode || !body.success) {
+      res.status(400).json({ error: "필기 형식이 올바르지 않아요.", code: "INVALID_SKETCH" });
+      return;
+    }
+    const json = JSON.stringify(body.data.strokes);
+    if (json.length > MAX_SKETCH_BYTES) {
+      res.status(413).json({ error: "필기가 너무 많아요. 일부를 지운 뒤 다시 저장해 주세요.", code: "SKETCH_TOO_LARGE" });
+      return;
+    }
+    const user = res.locals.user as User;
+    repo.saveSketch(user.id, params.data.process, params.data.mode, body.data.strokes.length ? json : null, new Date().toISOString());
+    res.json({ ok: true, strokes: body.data.strokes.length });
   });
   return router;
 }

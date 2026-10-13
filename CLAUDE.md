@@ -48,7 +48,7 @@
 | 프론트(viiin2) | `Steel Academy v3.dc.html`, `scene_v3.js`, `step-fx.js`, `data_v2.js`, `steel-2d*.js`, `models/`, `frontend/login_ui/`(`Admin Dashboard.dc.html` 제외) |
 | ssoyoum: 관리자 대시보드 | `backend/src/admin/`, `frontend/login_ui/Admin Dashboard.dc.html`, 시연 개념 목록 `content/demo/sections.json`·`backend/src/demo-sections.ts`, 이 파일들의 테스트 |
 
-- 마이그레이션 번호 규칙: `backend/src/db/migrations/NNN_이름.sql`을 파일 이름 순서로 한 번씩 적용하고 `schema_migrations`에 이름을 남긴다. 001~007은 사용 중이다(005: 기록 출처 `origin`, 006: 시연 계정 `users.is_demo`, 007: 이어 풀기 질문 기록 `attempt_questions`). 새 번호는 지금 가장 큰 번호 + 1로 정하고, 같은 번호를 두 사람이 쓰지 않게 PR을 열기 전에 팀에 알린다. 이미 병합된 마이그레이션 파일은 고치지 않고 새 번호로 추가한다.
+- 마이그레이션 번호 규칙: `backend/src/db/migrations/NNN_이름.sql`을 파일 이름 순서로 한 번씩 적용하고 `schema_migrations`에 이름을 남긴다. 001~008은 사용 중이다(005: 기록 출처 `origin`, 006: 시연 계정 `users.is_demo`, 007: 이어 풀기 질문 기록 `attempt_questions`, 008: 마이페이지 설계도 필기 `learner_sketches`). 새 번호는 지금 가장 큰 번호 + 1로 정하고, 같은 번호를 두 사람이 쓰지 않게 PR을 열기 전에 팀에 알린다. 이미 병합된 마이그레이션 파일은 고치지 않고 새 번호로 추가한다.
 - 기존 `/api/chat`(`llm/src/ironmaking-agent.ts`)은 학습 모드로 대체되어 지웠다. 기본 모델 상수 `DEFAULT_GEMINI_MODEL`은 `llm/src/gemini.ts`에 있다. `ironmaking-sources.ts`(공개 자료 메모)는 학습 모드 검색(`retrieval.ts`)과 출처 표시(`learning/routes.ts`)가 쓰므로 남긴다.
 - 학습 모드 시작 안내: [docs/onboarding-learning-mode.md](docs/onboarding-learning-mode.md).
 

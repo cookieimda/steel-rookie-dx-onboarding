@@ -20,7 +20,9 @@ export interface AppDeps {
 export function createApp({ engine, usage, webRoot = join(process.cwd(), "frontend", "3d-demo"), learning }: AppDeps): express.Express {
   const app = express();
   app.disable("x-powered-by");
-  app.use(express.json({ limit: "16kb" }));
+  // 요청 본문은 16kb까지. 마이페이지 펜 필기 저장(PUT /api/me/sketches)만 획이 많아 자기 라우트에서 400kb로 따로 읽는다(me/routes.ts).
+  const json16 = express.json({ limit: "16kb" });
+  app.use((req, res, next) => (req.method === "PUT" && req.path.startsWith("/api/me/sketches/") ? next() : json16(req, res, next)));
 
   // 비밀번호 없이 열리는 유일한 API: 프론트가 첫 화면에서 비밀번호 입력창을 띄울지 정한다.
   app.get("/api/access", (_req, res) => {

@@ -65,8 +65,13 @@ const CSS = `
 .tabs{display:flex;gap:4px;padding:4px;border-radius:12px;background:var(--chip)}
 .tabs button{height:34px;padding:0 16px;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:14px;font-weight:600}
 .tabs button[aria-pressed=true]{background:var(--chip-on);color:var(--text)}
-.ctl{display:flex;gap:6px}.ctl button{height:34px;padding:0 12px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--text);font-size:12px;white-space:nowrap}
-.ctl button:hover{background:var(--chip)}.ctl .play.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+/* 그림 양옆 화살표(이전·다음 단계)와 단계 번호 줄 옆의 자동 재생 */
+.stage{position:relative}
+.arrow{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:color-mix(in srgb,var(--bg) 82%,transparent);color:var(--text);font-size:20px;line-height:1;display:grid;place-items:center;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);transition:background .2s,border-color .2s}
+.arrow:hover{background:var(--chip-on);border-color:var(--muted)}.arrow.prev{left:10px}.arrow.next{right:10px}
+.steprow{display:flex;align-items:center;gap:10px}.steprow .stepnav{flex:1;min-width:0}
+.play{flex:none;height:32px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--text);font-size:12px;white-space:nowrap}
+.play:hover{background:var(--chip)}.play.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .eqs{display:flex;gap:6px;flex-wrap:wrap}
 .eqs button{display:flex;align-items:center;gap:7px;height:32px;padding:0 12px 0 6px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:12px}
 .eqs button:hover{color:var(--text)}.eqs .n{width:20px;height:20px;border-radius:50%;background:var(--chip);display:grid;place-items:center;font-size:11px}
@@ -98,11 +103,11 @@ class Process2D extends HTMLElement {
     this.attachShadow({ mode: 'open' });
     this.shadowRoot.innerHTML = `<style>${CSS}${KEYFRAMES}</style>${DEFS}<div class="root" tabindex="0">
       <div class="bar"><div class="tabs" id="tabs" role="group" aria-label="공정"></div>
-        <div class="ctl"><button class="prev">← 이전</button><button class="next">다음 →</button><button class="play">▶ 자동</button></div></div>
+</div>
       <div class="eqs" id="eqs" role="group" aria-label="설비"></div>
       <div class="body"><div class="head"><h3 id="title"></h3><span class="en" id="en"></span><span class="hint">← → 단계 · ↑ ↓ 설비</span></div>
-        <div id="svgwrap"></div>
-        <div class="stepnav" id="stepnav" role="group" aria-label="단계"></div>
+        <div class="stage"><div id="svgwrap"></div><button class="arrow prev" aria-label="이전 단계">‹</button><button class="arrow next" aria-label="다음 단계">›</button></div>
+        <div class="steprow"><div class="stepnav" id="stepnav" role="group" aria-label="단계"></div><button class="play">▶ 자동</button></div>
         <div id="stepcard"></div></div></div>`;
     this.$ = id => this.shadowRoot.getElementById(id);
     this.pi = 0; this.ei = 0; this.sub = 0; this.timer = null;

@@ -33,7 +33,16 @@ export interface SceneCatalog {
 
 /** 근거 없이 grounded라고 답했을 때 대신 보여 줄 답. */
 export const UNVERIFIED_ANSWER =
-  "수집한 포스코 공개 자료에서 이 질문의 답을 확인할 수 없습니다. 실제 운전 조건이나 작업 절차는 해당 자료와 현장 지침에서 별도로 확인해 주세요.";
+  "수집한 공개 자료에서는 이 질문의 답을 확인하지 못했어요. 실제 운전 조건이나 작업 절차는 현장 지침에서 따로 확인해 주세요.";
+
+/** 학습 화면의 설비 작동 단계 설명(backend/src/learning/screen-material.ts). 근거가 아니라 화면 안내에만 쓴다. */
+export interface ScreenMaterial {
+  equipment_id: string;
+  equipment_name: string;
+  /** 작동 단계 번호(1부터). */
+  step: number;
+  text: string;
+}
 
 export interface LearningInput {
   section: Section;
@@ -55,6 +64,8 @@ export interface LearningInput {
   keywordConcepts?: { concept_id: string; name: string }[];
   /** 체크포인트에서 아직 만점이 아닌 개념 id(섹션 진행의 retry_concept_ids). */
   retryConcepts?: string[];
+  /** 질문 단어가 나오는 학습 화면 단계 설명. 근거로 답하지 못할 때 화면 위치를 안내하는 데 쓴다. */
+  screenMaterial?: ScreenMaterial[];
 }
 
 export interface LearningReply {
@@ -148,11 +159,15 @@ export function learningUserPrompt(input: LearningInput): string {
   const notes = input.openMisconceptions.length ? input.openMisconceptions.map((m) => `- ${m.concept_id}: ${m.summary}`).join("\n") : "(없음)";
   const nameOf = new Map(input.concepts.map((c) => [c.concept_id, c.name]));
   const retry = input.retryConcepts?.length ? input.retryConcepts.map((id) => `- ${id}${nameOf.has(id) ? `: ${nameOf.get(id)}` : ""}`).join("\n") : "(없음)";
+  const material = input.screenMaterial?.length
+    ? input.screenMaterial.map((m) => `- ${m.equipment_name} (${m.equipment_id}) 작동 단계 ${m.step}: ${m.text}`).join("\n")
+    : "(없음)";
   return [
     `<screen>${screen}</screen>`,
     `<learner_notes>\n${notes}\n</learner_notes>`,
     `<checkpoint_retry>\n${retry}\n</checkpoint_retry>`,
     `<sources>\n${sources}\n</sources>`,
+    `<screen_material>\n${material}\n</screen_material>`,
     `<history>\n${history}\n</history>`,
     `<question>${escapeDelimited(input.question)}</question>`,
   ].join("\n\n");
@@ -181,22 +196,26 @@ export function normalizeSceneActions(raw: { type: string; target_id: string }[]
   const processOf = new Map(scene.processes.flatMap((p) => p.equipment.map((e) => [e.id, p.id] as const)));
   const out: SceneAction[] = [];
   let at = current;
+  // 한 답에서는 한 공정으로만 옮긴다. 제강으로 갔다가 제선으로 돌아오는 식이면 화면이 흔들리므로 처음 옮긴 공정 밖의 조작은 버린다.
+  let moved = false;
   const push = (action: SceneAction) => {
     if (!out.some((a) => a.type === action.type && a.target_id === action.target_id)) out.push(action);
   };
-  const moveTo = (process: string) => {
-    if (process !== at) push({ type: "goto_process", target_id: process });
+  const moveTo = (process: string): boolean => {
+    if (process === at) return true;
+    if (moved) return false;
+    push({ type: "goto_process", target_id: process });
     at = process;
+    moved = true;
+    return true;
   };
   for (const a of raw) {
     if (a.type === "goto_process" || a.type === "play_animation") {
-      if (!processes.has(a.target_id)) continue;
-      moveTo(a.target_id);
+      if (!processes.has(a.target_id) || !moveTo(a.target_id)) continue;
       if (a.type === "play_animation") push({ type: "play_animation", target_id: a.target_id });
     } else if (a.type === "highlight" || a.type === "focus") {
       const process = processOf.get(a.target_id);
-      if (!process) continue;
-      moveTo(process);
+      if (!process || !moveTo(process)) continue;
       push({ type: a.type, target_id: a.target_id });
       // 카메라만 옮기면 설비 정보가 안 보이므로 focus에는 highlight를 함께 붙인다(모델이 하나만 낼 때가 있다).
       if (a.type === "focus") push({ type: "highlight", target_id: a.target_id });
@@ -205,8 +224,22 @@ export function normalizeSceneActions(raw: { type: string; target_id: string }[]
   return out.slice(0, MAX_SCENE_ACTIONS);
 }
 
+/**
+ * 질문이 이름으로 가리키는 설비가 하나면 그 id. 이름은 '·'로 나뉜 부분(괄호 안은 뺌) 중 두 글자 이상이 질문에 그대로 있으면 맞는다.
+ * 예: '소결기는 무슨 일을 해?' → sinter_plant, '2차 정련은 왜 해?' → secondary_refining. 둘 이상이거나 없으면 null.
+ */
+export function namedEquipment(question: string, scene: SceneCatalog | undefined): string | null {
+  if (!scene) return null;
+  const hits = scene.processes.flatMap((p) => p.equipment).filter((e) =>
+    e.name.replace(/\([^)]*\)/g, " ").split(/[·,]/).map((part) => part.trim()).some((part) => part.length >= 2 && question.includes(part)));
+  return hits.length === 1 ? hits[0].id : null;
+}
+
 /** 형식을 검사하고 허용된 id만 남긴다. 형식이 틀리면 이유 문자열. */
-export function parseLearningReply(raw: string, input: Pick<LearningInput, "chunks" | "concepts" | "scene" | "screen" | "keywordConcepts">): LearningReply | string {
+export function parseLearningReply(
+  raw: string,
+  input: Pick<LearningInput, "chunks" | "concepts" | "scene" | "screen" | "keywordConcepts"> & { question?: string },
+): LearningReply | string {
   let json: unknown;
   try {
     json = JSON.parse(raw);
@@ -228,7 +261,12 @@ export function parseLearningReply(raw: string, input: Pick<LearningInput, "chun
   if (r.status === "grounded" && source_ids.length === 0) {
     return { answer: UNVERIFIED_ANSWER, status: "unverified", source_ids: [], follow_up, detected_misconception, scene_actions: [], keyword_card: null };
   }
-  const scene_actions = normalizeSceneActions(r.scene_actions, input.scene, input.screen.process_id ?? null);
+  let scene_actions = normalizeSceneActions(r.scene_actions, input.scene, input.screen.process_id ?? null);
+  // 질문이 설비 하나를 이름으로 물었는데 화면 조작을 내지 않았으면 그 설비를 보여 준다(모델이 자주 빠뜨린다). 이미 보고 있으면 그대로 둔다.
+  const named = scene_actions.length === 0 && input.question ? namedEquipment(input.question, input.scene) : null;
+  if (named && named !== input.screen.equipment_id) {
+    scene_actions = normalizeSceneActions([{ type: "focus", target_id: named }], input.scene, input.screen.process_id ?? null);
+  }
   // 카드는 근거로 설명한 답을 정리하는 것이라 grounded 답변에만 붙인다.
   const allowedCards = new Set((input.keywordConcepts ?? []).map((c) => c.concept_id));
   const keyword_card = r.status === "grounded" && r.keyword_card && allowedCards.has(r.keyword_card.concept_id) ? { concept_id: r.keyword_card.concept_id } : null;

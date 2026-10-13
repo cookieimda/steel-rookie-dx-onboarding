@@ -18,6 +18,7 @@ import { buildLearnerNotes, useLearnerNotesSource } from "./learning/notes.js";
 import { LearningRepository } from "./learning/repository.js";
 import { createLearningRouter } from "./learning/routes.js";
 import { loadSceneCatalog } from "./learning/scene-catalog.js";
+import { loadScreenSteps } from "./learning/screen-material.js";
 import { currentUserId } from "./request-user.js";
 import { loadFinalRubrics } from "./rubrics.js";
 import { passcodeRequired } from "./test-access.js";
@@ -57,6 +58,8 @@ const learning = createLearningRouter({
   rubrics,
   // 튜터의 3D 화면 조작(scene_actions)에 쓸 공정·설비 목록. data_v2.js 형식이 틀리면 서버가 시작되지 않는다.
   scene: await loadSceneCatalog(),
+  // 학습 화면의 설비 작동 단계 설명(3D·2D). 근거로 답하지 못할 때 화면 위치를 안내하는 데에만 쓴다. 못 읽으면 경고만 남긴다.
+  screenSteps: await loadScreenSteps(),
   // 체크포인트에서 아직 만점이 아닌 개념(튜터에 넘김)과 진행 중 여부(진행 중이면 키워드 카드를 붙이지 않음). 이해도 계산은 엔진(summarizeSection)이 한다.
   checkpointProgress: (userId, section) => {
     if (!rubrics.some((r) => r.section === section)) return null;

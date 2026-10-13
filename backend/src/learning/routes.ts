@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { getPublicSources } from "../../../llm/src/ironmaking-sources.js";
 import { LearningFormatError, type LearningAgent, type SceneCatalog } from "../../../llm/src/learning-agent.js";
-import type { Retriever } from "../../../llm/src/retrieval.js";
+import { withScreenEquipment, type Retriever } from "../../../llm/src/retrieval.js";
 import { LlmUnavailableError, SECTION_ORDER, type Section } from "../checkpoint/types.js";
 import { currentUserId } from "../request-user.js";
 import type { Rubric } from "../rubrics.js";
@@ -16,13 +16,14 @@ import { UsageLimitError } from "../usage.js";
 import { keywordCard, keywordCardConcepts } from "./keywords.js";
 import { latestPerConcept, type LearningRepository } from "./repository.js";
 import { isSafetyQuestion, SAFETY_ANSWER } from "./safety.js";
+import { findScreenMaterial, type ScreenStep } from "./screen-material.js";
 
 /** 모델에 넘기는 같은 세션의 최근 대화 수. */
 export const HISTORY_TURNS = 6;
 /** 새로고침 때 다시 보여 주는 최근 대화 수. */
 export const RESTORE_TURNS = 50;
 
-const NOT_FOUND = { error: "대화를 찾을 수 없습니다. 새로 질문해 주세요." };
+const NOT_FOUND = { error: "대화를 찾지 못했어요. 새로 질문해 주세요." };
 
 /** 자료 id → 화면에 보여 줄 출처. */
 function toSources(sourceIds: string[]) {
@@ -47,6 +48,8 @@ export interface LearningDeps {
   rubrics: Rubric[];
   /** 화면 조작에 쓸 공정·설비 목록(scene-catalog.ts). 없으면 scene_actions는 항상 빈 배열이다. */
   scene?: SceneCatalog;
+  /** 학습 화면의 설비 작동 단계 설명(screen-material.ts). 없으면 화면 안내를 하지 않는다. */
+  screenSteps?: ScreenStep[];
   /**
    * 학습자의 체크포인트 상태(체크포인트 엔진의 sectionProgress, 실제 기록만). 루브릭이 없는 섹션이면 null.
    * 아직 만점이 아닌 개념은 튜터에 넘기고, 진행 중인 시도가 있으면 키워드 카드를 붙이지 않는다(정답 용어가 모여 있어서).
@@ -55,7 +58,7 @@ export interface LearningDeps {
   now?: () => string;
 }
 
-export function createLearningRouter({ repo, retriever, agent, rubrics, scene, checkpointProgress, now = () => new Date().toISOString() }: LearningDeps): express.Router {
+export function createLearningRouter({ repo, retriever, agent, rubrics, scene, screenSteps = [], checkpointProgress, now = () => new Date().toISOString() }: LearningDeps): express.Router {
   const router = express.Router();
   // 같은 세션에서 답변 중에 또 질문하면 막는다(대화 순서가 꼬이지 않게).
   const busy = new Set<string>();
@@ -80,7 +83,7 @@ export function createLearningRouter({ repo, retriever, agent, rubrics, scene, c
       }
     }
     if (busy.has(sessionId)) {
-      res.status(409).json({ error: "이전 질문에 답변하는 중입니다." });
+      res.status(409).json({ error: "이전 질문에 답하는 중이에요." });
       return;
     }
     busy.add(sessionId);
@@ -98,10 +101,12 @@ export function createLearningRouter({ repo, retriever, agent, rubrics, scene, c
       const screen = { process_id: section, equipment_id: equipmentId };
       const equipmentName = scene?.processes.flatMap((p) => p.equipment).find((e) => e.id === equipmentId)?.name ?? null;
       const history = repo.recentTurns(sessionId, HISTORY_TURNS).map((t) => ({ question: t.question, answer: t.answer }));
+      // '이 설비의 역할은?'처럼 화면의 설비를 가리키면 검색어에 설비 이름을 붙인다(withScreenEquipment).
       // "그럼 그건요?"처럼 가리키는 말만 있는 후속 질문은 검색어가 없으므로, 질문만으로 못 찾으면 직전 대화를 붙여 다시 찾는다.
-      let chunks = retriever.retrieve(section, question, screen);
+      const query = withScreenEquipment(question, equipmentName);
+      let chunks = retriever.retrieve(section, query, screen);
       const last = history.at(-1);
-      if (chunks.length === 0 && last) chunks = retriever.retrieve(section, `${question} ${last.question} ${last.answer}`, screen);
+      if (chunks.length === 0 && last) chunks = retriever.retrieve(section, `${query} ${last.question} ${last.answer}`, screen);
       const reply = await agent.reply({
         section,
         question,
@@ -117,6 +122,7 @@ export function createLearningRouter({ repo, retriever, agent, rubrics, scene, c
         // 체크포인트 진행 중에는 카드를 고를 수 없게 목록을 비운다.
         keywordConcepts: progress?.in_progress ? [] : keywordCardConcepts(rubric),
         retryConcepts: progress?.retry_concept_ids ?? [],
+        screenMaterial: findScreenMaterial(question, screenSteps, section),
       });
 
       const at = now();
@@ -138,15 +144,15 @@ export function createLearningRouter({ repo, retriever, agent, rubrics, scene, c
         console.error(`학습 모드 Gemini 오류: ${error.message}`);
         res.status(error.status).json(
           error.status === 503
-            ? { error: "Gemini가 연결되지 않았습니다. 서버에 GEMINI_API_KEY를 설정해 주세요.", code: "LLM_NOT_CONFIGURED" }
-            : { error: "Gemini 연결 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요." },
+            ? { error: "Gemini가 연결되지 않았어요. 서버에 GEMINI_API_KEY를 설정해 주세요.", code: "LLM_NOT_CONFIGURED" }
+            : { error: "Gemini 연결 중 오류가 생겼어요. 잠시 후 다시 시도해 주세요." },
         );
       } else if (error instanceof LearningFormatError) {
         console.error(error.message);
-        res.status(502).json({ error: "답변을 처리하지 못했습니다. 다시 시도해 주세요." });
+        res.status(502).json({ error: "답변을 처리하지 못했어요. 다시 시도해 주세요." });
       } else {
         console.error(error);
-        res.status(500).json({ error: "답변을 처리하지 못했습니다. 다시 시도해 주세요." });
+        res.status(500).json({ error: "답변을 처리하지 못했어요. 다시 시도해 주세요." });
       }
     } finally {
       busy.delete(sessionId);

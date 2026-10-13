@@ -35,10 +35,30 @@ interface Profile {
   stopMidway: boolean;
   /** 80% 미달일 때 재도전하는 최대 횟수. 다 쓰면 '재도전 필요' 상태로 남는다. */
   retries: number;
+  /**
+   * 정해 둔 판정(시연용 계정). 섹션 → 시도(첫 시도, 재도전…) → 그 시도에서 묻는 개념 순서대로 [첫 판정, 재확인 판정].
+   * 있는 섹션은 무작위 판정 대신 이것을 쓰고, 시도 수도 이 길이만큼이다. seed와 상관없이 같은 기록이 나온다.
+   */
+  script?: Partial<Record<string, [Verdict, RecheckVerdict | null][][]>>;
 }
 
 // trainee11~14는 처음 정한 그대로, 나머지는 아래 유형을 돌려 쓰며 실력을 조금씩 다르게 한다.
 const PROFILES: Record<string, Profile> = {
+  // 시연용 신입사원 2(홈 [시작하기]의 '시연용'): 틀림·부분·힌트 요청, 재도전 뒤 통과, 재도전 필요, 해결·미해결 오개념이 모두 보이게 판정을 정해 둔다.
+  trainee02: {
+    skill: 0.5, reach: 2, stopMidway: false, retries: 1,
+    script: {
+      // 제선: 첫 시도 50%(미달) → 재도전에서 모두 맞혀 통과. 틀렸던 두 개념의 오개념은 해결됨으로 바뀐다.
+      ironmaking: [
+        [["correct", null], ["wrong", "partial"], ["assisted", "wrong"]],
+        [["partial", "correct"], ["wrong", "correct"]],
+      ],
+      // 제강: 67%(미달), 재도전 전. 끝내 틀린 개념의 오개념이 미해결로 남는다.
+      steelmaking: [
+        [["partial", "correct"], ["wrong", "wrong"], ["correct", null]],
+      ],
+    },
+  },
   trainee11: { skill: 0.8, reach: 4, stopMidway: false, retries: 2 }, // 잘하는 편, 끝까지 감
   trainee12: { skill: 0.6, reach: 3, stopMidway: true, retries: 2 }, // 세 번째 섹션을 하다 멈춤
   trainee13: { skill: 0.4, reach: 2, stopMidway: false, retries: 1 }, // 재도전해도 잘 안 됨
@@ -134,7 +154,8 @@ export function seedDemoRecords(db: DatabaseSync, concepts: SectionConcepts, see
         // 아직 해결되지 않은 오개념: concept_id → misconception id
         const openMis = new Map<string, string>();
 
-        for (let retry = 0; retry <= profile.retries; retry++) {
+        const plan = profile.script?.[section];
+        for (let retry = 0; retry <= (plan ? plan.length - 1 : profile.retries); retry++) {
           const asked = retry === 0 ? ids : conceptsToRetry(ids, results);
           const stopHere = lastSection && profile.stopMidway && retry === 0;
           const answered = stopHere ? asked.slice(0, Math.max(1, Math.floor(asked.length / 2))) : asked;
@@ -143,9 +164,10 @@ export function seedDemoRecords(db: DatabaseSync, concepts: SectionConcepts, see
           const retried = new Map<string, ConceptResult>();
           const rows: unknown[][] = [];
 
-          for (const conceptId of answered) {
-            const verdict = firstVerdict(profile.skill);
-            const recheck = verdict === "correct" ? null : recheckVerdict(profile.skill);
+          for (const [i, conceptId] of answered.entries()) {
+            const planned = plan?.[retry]?.[i];
+            const verdict = planned ? planned[0] : firstVerdict(profile.skill);
+            const recheck = planned ? planned[1] : verdict === "correct" ? null : recheckVerdict(profile.skill);
             retried.set(conceptId, conceptResult(conceptId, verdict, recheck));
             const at = tick(0.02, 0.1);
             const name = nameOf.get(conceptId) ?? conceptId;

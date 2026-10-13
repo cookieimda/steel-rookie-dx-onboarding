@@ -200,3 +200,19 @@ test("신입사원 상세(GET /api/admin/trainees/:id): 목록과 같은 섹션 
     server.close();
   }
 });
+
+test("시연용 신입사원 2(trainee02): seed와 상관없이 제선 재도전 뒤 통과, 제강 재도전 필요, 해결·미해결 오개념이 함께 보인다", async () => {
+  for (const seed of [1, 42, 99]) {
+    const { db, idOf } = await seededDb(seed);
+    const d = traineeDetail(db, idOf("trainee02"), finalRubrics)!;
+    const iron = d.sections.find((s) => s.section === "ironmaking")!;
+    const steel = d.sections.find((s) => s.section === "steelmaking")!;
+    assert.deepEqual(iron.attempts.map((a) => [a.kind, a.unlocked]), [["first", false], ["retry", true]], `${seed}: 제선 첫 시도 미달 → 재도전 통과`);
+    assert.equal(iron.attempts[0].understanding, 0.5);
+    assert.equal(iron.stat!.understanding, 1);
+    assert.deepEqual([steel.stat!.passed, Math.round(steel.stat!.understanding * 100)], [false, 67], `${seed}: 제강 재도전 필요`);
+    assert.deepEqual(steel.concepts.map((c) => c.final_verdict), ["correct", "wrong", "correct"]);
+    assert.deepEqual(d.trainee.misconceptions, { open: 1, resolved: 3 }, `${seed}: 오개념`);
+    assert.equal(d.sections.find((s) => s.section === "continuous_casting")!.stat, null, "제강을 통과하지 못해 연주는 미응시");
+  }
+});

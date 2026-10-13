@@ -67,7 +67,7 @@ function setup(routes: Record<string, Reply | Reply[]>, { processId = "ironmakin
 const progress = (section: string, extra: Json = {}) => ({
   body: { section, open: true, unlocked: false, understanding: null, retry_concept_ids: [], unconfirmed_concept_ids: [], in_progress_attempt_id: null, ...extra },
 });
-const notFound = { status: 404, body: { error: "루브릭이 없는 섹션입니다" } };
+const notFound = { status: 404, body: { error: "이해도 확인이 없는 공정이에요" } };
 const otherSections = {
   "GET /api/sections/steelmaking/progress": notFound,
   "GET /api/sections/continuous_casting/progress": notFound,
@@ -142,7 +142,7 @@ test("시작 → 답변 → 재확인 → 결과: 섹션 버튼, 단계 표시, 
   assert.equal(v.cpResult.percent, 100);
   assert.equal(v.cpResult.thresholdPercent, 80);
   assert.equal(v.cpResult.passed, true);
-  assert.equal(v.cpResult.passLabel, TEXT.result.nextNotReady, "제강 루브릭이 없으면(404) 준비 중");
+  assert.equal(v.cpResult.passLabel, TEXT.result.nextNoCheckpoint, "제강 루브릭이 없으면 이해도 확인을 마쳤다고 한다");
   assert.deepEqual(v.cpResult.bars.map((x: Json) => [x.verdictLabel, x.widthPercent, x.tone]), [["맞음", 100, "ok"], ["부분", 50, "warn"], ["틀림", 3, "danger"]]);
   b = chat.sectionBadge("ironmaking");
   assert.equal(b.cpBadge, TEXT.badges.passed, "끝나면 진입 상태를 다시 읽어 배지를 바꾼다");
@@ -267,13 +267,13 @@ test("전체 보기(site)와 로그인 전에는 시작하지 않고 요청도 �
   assert.deepEqual(guest.net.keys(), []);
 });
 
-test("진입 상태: 준비 중(404), 잠김, 재도전, 연결 안 됨, 409는 서버 문장", async () => {
+test("진입 상태: 이해도 확인 없음(404), 잠김, 재도전, 연결 안 됨, 409는 서버 문장", async () => {
   const s = setup({
     "GET /api/sections/ironmaking/progress": [progress("ironmaking", { retry_concept_ids: ["c2", "c3"] }), progress("ironmaking", { unlocked: true, understanding: 0.83 })],
     "GET /api/sections/steelmaking/progress": progress("steelmaking", { open: false }),
     "GET /api/sections/continuous_casting/progress": notFound,
     "GET /api/sections/rolling/progress": { status: 500, body: {} },
-    "POST /api/checkpoints": { status: 409, body: { error: "이미 통과한 섹션입니다." } },
+    "POST /api/checkpoints": { status: 409, body: { error: "이미 통과한 공정이에요." } },
   });
   await s.chat.refreshAll();
   assert.equal(s.chat.sectionBadge("ironmaking").cpSectionStatus, TEXT.entry.retry(2));
@@ -282,13 +282,38 @@ test("진입 상태: 준비 중(404), 잠김, 재도전, 연결 안 됨, 409는 
   assert.deepEqual(SECTION_IDS.map((id: string) => s.chat.sectionBadge(id).cpBadge), [TEXT.badges.notPassed, TEXT.badges.notPassed, "", ""]);
   assert.equal(s.chat.sectionBadge("steelmaking").cpSectionStatus, TEXT.sectionLocked);
   assert.equal(s.chat.sectionBadge("steelmaking").cpSectionCanStart, false);
-  assert.equal(s.chat.sectionBadge("continuous_casting").cpSectionStatus, TEXT.entry.notReady);
+  assert.equal(s.chat.sectionBadge("continuous_casting").cpSectionStatus, TEXT.entry.noCheckpoint);
   assert.equal(s.chat.sectionBadge("rolling").cpSectionStatus, TEXT.entry.offline);
 
   await s.chat.start();
-  assert.equal(s.vals().cpNotice, "이미 통과한 섹션입니다.");
+  assert.equal(s.vals().cpNotice, "이미 통과한 공정이에요.");
   assert.equal(s.vals().cpShowOverlay, false, "시작에 실패하면 오버레이를 닫는다");
   assert.equal(s.chat.sectionBadge("ironmaking").cpSectionStatus, TEXT.entry.passed(83), "실패하면 진입 상태를 다시 읽는다");
+});
+
+test("섹션 목록에서 루브릭이 없는 공정은 진입 상태를 요청하지 않는다(콘솔 404 없음)", async () => {
+  const sections = { body: { sections: SECTION_IDS.map((section: string) => ({ section, checkpoint: section === "ironmaking" })) } };
+  const s = setup({
+    "GET /api/sections": sections,
+    "GET /api/sections/ironmaking/progress": [progress("ironmaking"), progress("ironmaking")],
+  });
+  await s.chat.refreshAll();
+  await s.chat.refresh("ironmaking");
+  await s.chat.refresh("steelmaking");
+  assert.deepEqual(s.net.keys(), ["GET /api/sections", "GET /api/sections/ironmaking/progress", "GET /api/sections/ironmaking/progress"], "섹션 목록은 한 번만 읽는다");
+  assert.equal(s.chat.sectionBadge("ironmaking").cpSectionStatus, TEXT.entry.notStarted);
+  for (const id of ["steelmaking", "continuous_casting", "rolling"]) {
+    assert.equal(s.chat.sectionBadge(id).cpSectionStatus, TEXT.entry.noCheckpoint);
+    assert.equal(s.chat.sectionBadge(id).cpSectionShowStart, false);
+  }
+});
+
+test("섹션 목록을 못 읽으면 모든 공정의 진입 상태를 요청한다", async () => {
+  const s = setup({ "GET /api/sections": { status: 500, body: {} }, "GET /api/sections/ironmaking/progress": progress("ironmaking"), ...otherSections });
+  await s.chat.refreshAll();
+  assert.equal(s.chat.sectionBadge("ironmaking").cpSectionStatus, TEXT.entry.notStarted);
+  assert.equal(s.chat.sectionBadge("rolling").cpSectionStatus, TEXT.entry.noCheckpoint);
+  assert.ok(s.net.keys().includes("GET /api/sections/rolling/progress"));
 });
 
 test("튜터 패널은 학습 전용: 머리글은 늘 학습 모드, 새로고침 복원은 오버레이를 열지 않는다", async () => {
@@ -478,7 +503,7 @@ test("이어 풀기: 멈추지 않은 시도를 다시 열면 [이어 풀기]는
   await s.chat.refresh();
   await s.vals().onCpResume();
   assert.equal(s.vals().cpShowOverlay, true);
-  assert.deepEqual(s.net.keys(), ["GET /api/sections/ironmaking/progress", "GET /api/checkpoints/a1"]);
+  assert.deepEqual(s.net.keys(), ["GET /api/sections", "GET /api/sections/ironmaking/progress", "GET /api/checkpoints/a1"]);
 });
 
 test("멈추고 질문하기: 답하는 중 학습 질문은 들고 있다가, 누르면 멈춘 뒤 그 질문을 보낸다", async () => {
@@ -486,7 +511,7 @@ test("멈추고 질문하기: 답하는 중 학습 질문은 들고 있다가, �
     "GET /api/sections/ironmaking/progress": progress("ironmaking", { in_progress_attempt_id: "a1" }),
     "GET /api/checkpoints/a1": { body: answering({ history: [] }) },
     "POST /api/checkpoints/a1/pause": [
-      { status: 409, body: { error: "이전 요청을 처리하는 중입니다." } },
+      { status: 409, body: { error: "이전 요청을 처리하는 중이에요." } },
       { body: pausedView({ tutor: [{ type: "intro", text: "여기서 멈출게요." }] }) },
     ],
   });
@@ -499,7 +524,7 @@ test("멈추고 질문하기: 답하는 중 학습 질문은 들고 있다가, �
   await s.vals().onCpPauseForLearning(); // 멈추기 실패(409): 질문을 보내지 않고 안내를 남긴다
   assert.deepEqual(sent, []);
   assert.equal(s.vals().cpShowPauseOffer, true);
-  assert.equal(s.vals().cpNotice, "이전 요청을 처리하는 중입니다.");
+  assert.equal(s.vals().cpNotice, "이전 요청을 처리하는 중이에요.");
 
   await s.vals().onCpPauseForLearning();
   const v = s.vals();
@@ -582,8 +607,8 @@ test("오버레이: 섹션 버튼으로 시작 → 말풍선이 이번 응답의
   assert.equal(b.cpSectionStartLabel, TEXT.buttons.startQuench);
   assert.equal(b.cpSectionHasResume, false);
   const steel = s.chat.sectionBadge("steelmaking");
-  assert.equal(steel.cpSectionStatus, TEXT.entry.notReady);
-  assert.equal(steel.cpSectionShowStart, false, "준비 중인 공정은 버튼 없이 상태 문구만");
+  assert.equal(steel.cpSectionStatus, TEXT.entry.noCheckpoint);
+  assert.equal(steel.cpSectionShowStart, false, "이해도 확인이 없는 공정은 버튼 없이 상태 문구만");
   assert.equal(s.vals().cpShowOverlay, false);
 
   await b.onCpSectionStart();
@@ -728,12 +753,12 @@ test("오버레이: 시작했더니 멈춘 시도를 받으면 이어 풀고, �
   const failed = setup({
     "GET /api/sections/ironmaking/progress": progress("ironmaking"),
     ...otherSections,
-    "POST /api/checkpoints": { status: 403, body: { error: "앞 섹션을 먼저 통과해야 합니다." } },
+    "POST /api/checkpoints": { status: 403, body: { error: "앞 공정의 이해도 확인을 먼저 통과해야 해요." } },
   });
   await failed.chat.refreshAll();
   await failed.chat.sectionBadge("ironmaking").onCpSectionStart();
   assert.equal(failed.vals().cpShowOverlay, false);
-  assert.equal(failed.vals().cpNotice, "앞 섹션을 먼저 통과해야 합니다.");
+  assert.equal(failed.vals().cpNotice, "앞 공정의 이해도 확인을 먼저 통과해야 해요.");
 
   const blocked = setup({
     "GET /api/sections/ironmaking/progress": progress("ironmaking", { in_progress_attempt_id: "a1" }),
@@ -789,7 +814,7 @@ test("v3 오버레이: 잠긴 공정은 비활성 버튼과 '이전 공정 통�
   const open = s.chat.sectionBadge("ironmaking");
   assert.equal(open.cpSectionLocked, false);
   assert.equal(open.cpSectionCursor, "pointer");
-  assert.equal(s.chat.sectionBadge("rolling").cpSectionLocked, false, "준비 중(404)은 잠김이 아니다");
+  assert.equal(s.chat.sectionBadge("rolling").cpSectionLocked, false, "이해도 확인이 없는 공정(404)은 잠김이 아니다");
 
   s = setup({
     "GET /api/sections/ironmaking/progress": [progress("ironmaking"), progress("ironmaking", { unlocked: true, understanding: 1 })],
@@ -838,4 +863,24 @@ test("오버레이 잠금 값: 오버레이가 떠 있는 동안만 공정 메�
   assert.deepEqual([v.cpOverlayLockPointer, v.cpOverlayLockOpacity, v.cpOverlayLockFilter], ["none", ".4", "grayscale(1)"]);
   assert.equal(v.cpOverlayLockNotice, TEXT.overlayLocked);
   assert.equal(v.cpShowResumeBanner, false, "오버레이에서 풀고 있으면 튜터 패널의 [이어 풀기] 배너를 숨긴다");
+});
+
+test("로그인이 만료되면(401 TOKEN_INVALID) 풀던 화면을 닫고 로그인 안내만 남긴다. 토큰 없이 답을 보내지 않는다", async () => {
+  const s = setup({
+    "GET /api/sections/ironmaking/progress": progress("ironmaking", { in_progress_attempt_id: "a1" }),
+    ...otherSections,
+    "GET /api/checkpoints/a1": { body: view("awaiting_answer", { concept: concept(1), history: [{ role: "tutor", type: "question", text: "Q1" }] }) },
+    "POST /api/checkpoints/a1/messages": { status: 401, body: { error: "만료", code: "TOKEN_INVALID" } },
+  });
+  await s.chat.refreshAll();
+  assert.equal((s.page.state as Json).cpView && ((s.page.state as Json).cpView as Json).attempt_id, "a1");
+  await s.chat.send("답");
+  const st = s.page.state as Json;
+  assert.equal(st.cpView, null, "풀던 화면을 닫는다");
+  assert.equal(st.cpOverlayOpen, false);
+  assert.equal(st.cpNotice, TEXT.errors.tokenInvalid);
+  assert.equal(s.local.has("st-rookie-token"), false, "토큰을 지운다");
+  const sent = s.net.keys().length;
+  await s.chat.send("다시");
+  assert.equal(s.net.keys().length, sent, "토큰 없이 다시 보내지 않는다");
 });

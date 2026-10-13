@@ -15,7 +15,7 @@
 //   캐릭터 동작은 지금 보이는 발화의 type으로 정한다(motionFor).
 // - API: docs/checkpoint-api.md. 요청은 api-client.js(로그인 토큰·접속 비밀번호·오류 문장).
 
-import { createApiClient } from './api-client.js';
+import { ApiError, createApiClient } from './api-client.js';
 import { TEXT } from './tutor-text.js';
 
 /** 섹션 순서(backend/src/checkpoint/types.ts의 SECTION_ORDER와 같다). */
@@ -62,6 +62,8 @@ export function motionFor(type, { unlocked = false } = {}) {
 }
 
 const ANSWERING = ['awaiting_ready', 'awaiting_answer', 'awaiting_recheck'];
+/** 로그인이 만료됐을 때 지우는 상태(풀던 화면·진입 상태). 서버의 시도는 그대로이고, 입력한 답은 다시 로그인해 보낼 수 있게 남긴다. */
+const LOGGED_OUT = { cpView: null, cpMessages: [], cpTurn: [], cpBubbleIndex: 0, cpProgress: {}, cpOverlayOpen: false, cpConfirmPause: false, cpPauseOffer: false, cpShowHistory: false };
 /** 학습 채팅을 잠그는 상태(답하는 중). paused·completed는 잠그지 않는다. */
 const LOCKING = [...ANSWERING, 'error'];
 const VERDICT_TONE = { correct: 'ok', partial: 'warn', wrong: 'danger' };
@@ -93,13 +95,30 @@ export function createCheckpointChat(c, { api = createApiClient() } = {}) {
   // 답하는 중이라 막힌 학습 질문. [멈추고 질문하기]로 멈춘 뒤 보낸다.
   let heldLearning = null;
 
-  /** 섹션 진입 상태. 루브릭이 없는 섹션은 404(unavailable)다. */
+  // 이해도 확인(루브릭)이 있는 섹션. GET /api/sections를 한 번만 읽는다. 실패하면 null이라 모든 섹션을 요청한다.
+  let checkpointSections = null;
+  function loadCheckpointSections() {
+    checkpointSections ??= api.request('GET', '/api/sections')
+      .then((r) => new Set(r.sections.filter((s) => s.checkpoint).map((s) => s.section)))
+      .catch(() => { checkpointSections = null; return null; });
+    return checkpointSections;
+  }
+
+  /**
+   * 섹션 진입 상태. 루브릭이 없는 섹션은 404(unavailable)다.
+   * 섹션 목록에서 루브릭이 없다고 나온 섹션은 요청하지 않고 404로 둔다(브라우저 콘솔에 404가 남지 않게).
+   */
   async function loadProgress(section) {
     let p;
-    try {
-      p = await api.request('GET', `/api/sections/${section}/progress`);
-    } catch (e) {
-      p = { unavailable: true, status: e.status ?? 0 };
+    const available = await loadCheckpointSections();
+    if (available && !available.has(section)) {
+      p = { unavailable: true, status: 404 };
+    } else {
+      try {
+        p = await api.request('GET', `/api/sections/${section}/progress`);
+      } catch (e) {
+        p = { unavailable: true, status: e.status ?? 0 };
+      }
     }
     c.setState((s) => ({ cpProgress: { ...withDefaults(s).cpProgress, [section]: p } }));
     return p;
@@ -118,11 +137,23 @@ export function createCheckpointChat(c, { api = createApiClient() } = {}) {
       const view = await api.request('GET', `/api/checkpoints/${open.in_progress_attempt_id}`);
       enter(view, view.history || []);
     } catch (e) {
-      c.setState({ cpNotice: e.message });
+      failed(e);
     } finally {
       busy = false;
       c.setState({ cpPending: false });
     }
+  }
+
+  /**
+   * 요청 실패. 로그인이 만료돼 토큰이 지워졌으면 풀던 화면을 닫고 로그인 안내만 남긴다.
+   * 토큰 없이 계속 보내면 서버가 다른 사용자로 보고 "찾지 못했어요"가 나기 때문이다. 시도는 서버에 남아 다시 로그인하면 이어 풀 수 있다.
+   */
+  function failed(e, extra = {}) {
+    if (e.status === 401 && !api.hasToken()) {
+      c.setState({ ...LOGGED_OUT, cpNotice: e.message });
+      return;
+    }
+    c.setState({ cpNotice: e.message, ...extra });
   }
 
   function enter(view, history) {
@@ -137,7 +168,7 @@ export function createCheckpointChat(c, { api = createApiClient() } = {}) {
     if (!api.hasToken()) return { status: TEXT.entry.login, canStart: false };
     const p = S().cpProgress[section];
     if (!p) return { status: TEXT.entry.checking, canStart: false };
-    if (p.unavailable) return { status: p.status === 404 ? TEXT.entry.notReady : TEXT.entry.offline, canStart: false };
+    if (p.unavailable) return { status: p.status === 404 ? TEXT.entry.noCheckpoint : TEXT.entry.offline, canStart: false };
     if (!p.open) return { status: TEXT.entry.locked, canStart: false };
     if (p.unlocked) return { status: TEXT.entry.passed(percent(p.understanding)), canStart: false, passed: true };
     if (p.in_progress?.state === 'paused') return { status: TEXT.entry.paused(p.in_progress.done, p.in_progress.total), canStart: true, kind: 'resume' };
@@ -150,6 +181,10 @@ export function createCheckpointChat(c, { api = createApiClient() } = {}) {
   async function call(action, text) {
     const cp = S().cpView;
     if (!cp || busy) return;
+    if (!api.hasToken()) {
+      failed(new ApiError(TEXT.errors.tokenInvalid, 401, 'TOKEN_INVALID'));
+      return null;
+    }
     busy = true;
     c.setState({ cpPending: true, cpNotice: '' });
     try {
@@ -173,7 +208,7 @@ export function createCheckpointChat(c, { api = createApiClient() } = {}) {
       }
       return view;
     } catch (e) {
-      c.setState({ cpNotice: e.message });
+      failed(e);
       return null;
     } finally {
       busy = false;
@@ -215,7 +250,7 @@ export function createCheckpointChat(c, { api = createApiClient() } = {}) {
       color: TONE_COLOR[r.unlocked ? 'ok' : 'warn'],
       passLabel: !r.unlocked ? TEXT.result.failed(threshold)
         : !next ? TEXT.result.allDone
-        : nextReady ? TEXT.result.nextOpened(sectionName(next)) : TEXT.result.nextNotReady,
+        : nextReady ? TEXT.result.nextOpened(sectionName(next)) : TEXT.result.nextNoCheckpoint,
       bars: r.concepts.map((k) => {
         const verdict = k.final_verdict ?? 'wrong';
         const tone = VERDICT_TONE[verdict] ?? 'danger';
@@ -264,8 +299,8 @@ export function createCheckpointChat(c, { api = createApiClient() } = {}) {
         const view = await api.request('POST', '/api/checkpoints', { section });
         enter(view, view.history || asMessages(view.tutor));
       } catch (e) {
-        c.setState({ cpNotice: e.message, cpOverlayOpen: false });
-        await loadProgress(section);
+        failed(e, { cpOverlayOpen: false });
+        if (api.hasToken()) await loadProgress(section);
       } finally {
         busy = false;
         c.setState({ cpPending: false });
@@ -420,7 +455,7 @@ export function createCheckpointChat(c, { api = createApiClient() } = {}) {
         cpSectionLocked: locked,
         cpSectionStatusColor: passed ? TONE_COLOR.ok : locked ? TONE_COLOR.warn : 'var(--muted)',
         cpSectionPassed: !!entry.passed,
-        // 통과한 공정, 로그인 전, 준비 중·확인 중에는 버튼을 숨기고 상태 문구만 보인다. 잠긴 공정은 비활성 버튼으로 보인다.
+        // 통과한 공정, 로그인 전, 이해도 확인이 없는 공정·확인 중에는 버튼을 숨기고 상태 문구만 보인다. 잠긴 공정은 비활성 버튼으로 보인다.
         cpSectionShowStart: (entry.canStart || locked) && api.hasToken(),
         cpSectionCanStart: canStart,
         cpSectionStartOpacity: canStart ? '1' : '.45',

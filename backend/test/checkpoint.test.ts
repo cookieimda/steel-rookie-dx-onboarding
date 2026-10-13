@@ -72,6 +72,27 @@ test("정답 흐름: 모든 개념이 correct면 완료되고 다음 섹션이 �
   await assert.rejects(engine.start(USER, "ironmaking"), (e) => e instanceof CheckpointError && e.status === 409);
 });
 
+test("다음 섹션에 루브릭이 없으면 통과 문장은 섹션이 열렸다고 하지 않는다, GET /api/sections는 루브릭 유무를 준다", async (t) => {
+  const engine = new CheckpointEngine({ repo: new CheckpointRepository(openDatabase(":memory:")), evaluator: new FakeEvaluator(), tutor: new FakeTutor(), rubrics: [IRONMAKING] });
+  const done = await runCheckpoint(engine, ["correct", "correct", "correct"]);
+  assert.equal(done.result?.unlocked, true);
+  assert.equal(done.tutor.at(-1)!.text, "이해도 100%예요. 기준(80%)을 넘어서 이해도 확인을 통과했어요.");
+
+  const app = express();
+  app.use(createCheckpointRouter(engine));
+  const server = app.listen(0);
+  t.after(() => server.close());
+  const res = await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/api/sections`);
+  assert.deepEqual(await res.json(), {
+    sections: [
+      { section: "ironmaking", checkpoint: true },
+      { section: "steelmaking", checkpoint: false },
+      { section: "continuous_casting", checkpoint: false },
+      { section: "rolling", checkpoint: false },
+    ],
+  });
+});
+
 test("partial → 부가 설명과 다른 각도 재확인 → 재확인 판정이 최종 점수", async () => {
   const { engine, evaluator, tutor } = setup();
   const { view } = await engine.start(USER, "ironmaking");

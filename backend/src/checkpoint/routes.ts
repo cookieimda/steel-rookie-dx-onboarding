@@ -15,10 +15,10 @@ function sendError(res: Response, error: unknown): void {
   } else if (error instanceof UsageLimitError) {
     res.status(429).json({ error: `오늘 쓸 수 있는 튜터 호출(${error.limit}회)을 다 썼어요. 내일 다시 하거나 진행자에게 알려 주세요.`, code: "USAGE_LIMIT" });
   } else if (error instanceof LlmUnavailableError) {
-    res.status(error.status).json({ error: "튜터에 연결하지 못했습니다. 잠시 후 같은 내용을 다시 보내 주세요.", code: "LLM_UNAVAILABLE" });
+    res.status(error.status).json({ error: "튜터에 연결하지 못했어요. 잠시 후 같은 내용을 다시 보내 주세요.", code: "LLM_UNAVAILABLE" });
   } else {
     console.error(error);
-    res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    res.status(500).json({ error: "서버 오류가 생겼어요." });
   }
 }
 
@@ -40,7 +40,7 @@ export function createCheckpointRouter(engine: CheckpointEngine): Router {
   const router = Router();
 
   router.post("/api/checkpoints", handle(async (req, res) => {
-    const { section } = parse(StartRequest, req.body, "section이 올바르지 않습니다.");
+    const { section } = parse(StartRequest, req.body, "section이 올바르지 않아요.");
     const { created, view } = await engine.start(userIdOf(req), section);
     res.status(created ? 201 : 200).json(view);
   }));
@@ -67,8 +67,12 @@ export function createCheckpointRouter(engine: CheckpointEngine): Router {
     res.json(await engine.resume(userIdOf(req), String(req.params.id)));
   }));
 
+  router.get("/api/sections", handle((_req, res) => {
+    res.json(engine.sections());
+  }));
+
   router.get("/api/sections/:section/progress", handle((req, res) => {
-    const section = parse(SectionParam, req.params.section, "section이 올바르지 않습니다.");
+    const section = parse(SectionParam, req.params.section, "section이 올바르지 않아요.");
     res.json(engine.sectionProgress(userIdOf(req), section));
   }));
 

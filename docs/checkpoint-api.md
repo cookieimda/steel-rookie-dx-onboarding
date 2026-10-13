@@ -26,6 +26,7 @@
 | `POST` | `/api/checkpoints/:id/retry-evaluation` | `error` 상태에서 저장해 둔 마지막 답변을 다시 채점 |
 | `POST` | `/api/checkpoints/:id/pause` | 나중에 이어 풀기: `paused`로 멈춤(LLM 호출 없음). 이미 `paused`면 그대로 200 |
 | `POST` | `/api/checkpoints/:id/resume` | 멈춘 시도를 이어서: 풀던 개념을 안 쓴 질문으로 다시 물음(아래 '나중에 이어 풀기') |
+| `GET` | `/api/sections` | 섹션 목록(`SECTION_ORDER` 순서)과 이해도 확인 유무: `{ sections: [{ section, checkpoint }] }`. `checkpoint`는 final 루브릭이 있는지다. 화면은 `checkpoint: true`인 섹션만 진입 상태를 요청한다 |
 | `GET` | `/api/sections/:section/progress` | 섹션 열림·해금 여부, 이해도, 재도전 대상, 미확인 개념(`unconfirmed_concept_ids`), 진행 중인 시도(`in_progress_attempt_id`, `in_progress: { attempt_id, state, done, total }`) |
 
 요청

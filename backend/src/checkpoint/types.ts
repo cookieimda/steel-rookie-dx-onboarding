@@ -149,6 +149,11 @@ export interface CheckpointView {
   history?: HistoryMessage[];
 }
 
+/** 섹션 목록과 이해도 확인 유무. final 루브릭이 있는 섹션만 checkpoint가 true이고, 화면은 이 섹션만 진입 상태를 요청한다. */
+export interface SectionListView {
+  sections: { section: Section; checkpoint: boolean }[];
+}
+
 export interface SectionProgressView {
   section: Section;
   open: boolean;

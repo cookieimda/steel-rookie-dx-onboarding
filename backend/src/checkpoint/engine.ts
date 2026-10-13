@@ -14,6 +14,7 @@ import {
 } from "../scoring.js";
 import type { LearnerNotes } from "../learning/notes.js";
 import type { AttemptPatch, AttemptRow, CheckpointRepository, ConceptResultRow } from "./repository.js";
+import { toPolite } from "./polite.js";
 import { isSectionPassed, mergeAttemptResults, summarizeSection } from "./section-summary.js";
 import {
   CheckpointError,
@@ -29,6 +30,7 @@ import {
   type Phase,
   type ResultView,
   type Section,
+  type SectionListView,
   type SectionProgressView,
   type Tutor,
   type Utterance,
@@ -86,12 +88,12 @@ export class CheckpointEngine {
     return this.exclusive(`${userId}:${section}`, async () => {
       const open = this.repo.findOpenAttempt(userId, section);
       if (open) return { created: false, view: this.view(open, [], { history: true }) };
-      if (!this.isSectionOpen(userId, section)) throw new CheckpointError(403, "앞 섹션의 체크포인트를 먼저 통과해야 합니다.");
+      if (!this.isSectionOpen(userId, section)) throw new CheckpointError(403, "앞 공정의 이해도 확인을 먼저 통과해야 해요.");
 
       const ids = conceptIds(rubric);
       const completed = this.repo.listCompletedAttempts(userId, section);
       const merged = this.mergedResults(userId, rubric);
-      if (isSectionPassed(rubric, completed, merged)) throw new CheckpointError(409, "이미 통과한 섹션입니다.");
+      if (isSectionPassed(rubric, completed, merged)) throw new CheckpointError(409, "이미 통과한 공정이에요.");
 
       const kind = completed.length ? "retry" : "first";
       const asked = this.orderConcepts(kind === "first" ? ids : conceptsToRetry(ids, merged), options.notes);
@@ -132,11 +134,11 @@ export class CheckpointEngine {
         case "awaiting_recheck":
           return this.onAnswer(attempt, rubric, text, "recheck", true, options);
         case "completed":
-          throw new CheckpointError(409, "이미 끝난 체크포인트입니다.");
+          throw new CheckpointError(409, "이미 끝난 이해도 확인이에요.");
         case "paused":
-          throw new CheckpointError(409, "멈춘 이해도 확인입니다. resume으로 이어서 풀어 주세요.");
+          throw new CheckpointError(409, "멈춘 이해도 확인이에요. [이어 풀기]로 이어서 풀어 주세요.");
         case "error":
-          throw new CheckpointError(409, "채점 오류 상태입니다. retry-evaluation으로 다시 채점해 주세요.");
+          throw new CheckpointError(409, "채점 오류 상태예요. [다시 채점하기]를 눌러 주세요.");
       }
     });
   }
@@ -146,7 +148,7 @@ export class CheckpointEngine {
     return this.exclusive(attemptId, async () => {
       const attempt = this.ownedAttempt(userId, attemptId);
       if (attempt.state !== "error" || !attempt.resume_state || attempt.pending_answer === null) {
-        throw new CheckpointError(409, "다시 채점할 답변이 없습니다.");
+        throw new CheckpointError(409, "다시 채점할 답변이 없어요.");
       }
       const phase: Phase = attempt.resume_state === "awaiting_recheck" ? "recheck" : "initial";
       const resumed = { ...attempt, state: attempt.resume_state };
@@ -163,7 +165,7 @@ export class CheckpointEngine {
   async pause(userId: string, attemptId: string): Promise<CheckpointView> {
     return this.exclusive(attemptId, async () => {
       const attempt = this.ownedAttempt(userId, attemptId);
-      if (attempt.state === "completed") throw new CheckpointError(409, "이미 끝난 체크포인트입니다.");
+      if (attempt.state === "completed") throw new CheckpointError(409, "이미 끝난 이해도 확인이에요.");
       if (attempt.state === "paused") return this.view(attempt, []);
       const before = attempt.state === "error" ? (attempt.resume_state ?? "awaiting_answer") : attempt.state;
       const tutor: Utterance[] = [{ type: "intro", text: PAUSE_TEXT }];
@@ -177,7 +179,7 @@ export class CheckpointEngine {
   async resume(userId: string, attemptId: string): Promise<CheckpointView> {
     return this.exclusive(attemptId, async () => {
       const attempt = this.ownedAttempt(userId, attemptId);
-      if (attempt.state !== "paused") throw new CheckpointError(409, "멈춘 이해도 확인이 아닙니다.");
+      if (attempt.state !== "paused") throw new CheckpointError(409, "멈춘 이해도 확인이 아니에요.");
       const rubric = this.rubric(attempt.section);
       const concept = findConcept(rubric, attempt.concept_ids[attempt.current_index]!);
       const intro: Utterance = {
@@ -207,6 +209,11 @@ export class CheckpointEngine {
 
   get(userId: string, attemptId: string): CheckpointView {
     return this.view(this.ownedAttempt(userId, attemptId), [], { history: true });
+  }
+
+  /** 섹션 목록(SECTION_ORDER 순서)과 이해도 확인 유무. 루브릭이 없는 섹션의 진입 상태를 요청하지 않게 화면이 먼저 읽는다. */
+  sections(): SectionListView {
+    return { sections: SECTION_ORDER.map((section) => ({ section, checkpoint: this.rubrics.has(section) })) };
   }
 
   sectionProgress(userId: string, section: Section): SectionProgressView {
@@ -312,7 +319,7 @@ export class CheckpointEngine {
       final = conceptResult(concept.concept_id, first.verdict, recheckVerdict);
       feedback = recheckVerdict === "correct"
         ? { type: "feedback", text: "맞아요, 이번에는 정확해요." }
-        : { type: "key_points", text: ["핵심만 정리할게요.", ...concept.key_points.map((k) => `- ${k.point}`)].join("\n") };
+        : { type: "key_points", text: ["핵심만 정리할게요.", ...concept.key_points.map((k) => `- ${toPolite(k.point)}`)].join("\n") };
       write = () => this.repo.updateRecheck(attempt.id, concept.concept_id, {
         recheck_answer: answer, recheck_verdict: recheckVerdict, recheck_evidence: evaluation.evidence,
       }, now);
@@ -342,7 +349,7 @@ export class CheckpointEngine {
     thisAttempt.set(concept.concept_id, final);
     const merged = applyRetry(ids, this.mergedResults(attempt.user_id, rubric), thisAttempt);
     const status = sectionStatus(ids, merged);
-    const resultText = resultMessage(attempt.section, rubric, status.understanding, status.unlocked, status.retryConceptIds);
+    const resultText = resultMessage(attempt.section, rubric, status.understanding, status.unlocked, status.retryConceptIds, (s) => this.rubrics.has(s));
     const tutor: Utterance[] = [feedback, { type: "result", text: resultText }];
     return this.commit(attempt, {
       state: "completed", current_question: null, resume_state: null, pending_answer: null,
@@ -439,18 +446,18 @@ export class CheckpointEngine {
 
   private rubric(section: Section): Rubric {
     const rubric = this.rubrics.get(section);
-    if (!rubric) throw new CheckpointError(404, `루브릭이 없는 섹션입니다: ${section}`);
+    if (!rubric) throw new CheckpointError(404, `이해도 확인이 없는 공정이에요: ${section}`);
     return rubric;
   }
 
   private ownedAttempt(userId: string, attemptId: string): AttemptRow {
     const attempt = this.repo.getAttempt(attemptId);
-    if (!attempt || attempt.user_id !== userId) throw new CheckpointError(404, "체크포인트를 찾을 수 없습니다.");
+    if (!attempt || attempt.user_id !== userId) throw new CheckpointError(404, "이해도 확인을 찾지 못했어요.");
     return attempt;
   }
 
   private async exclusive<T>(key: string, fn: () => Promise<T>): Promise<T> {
-    if (this.busy.has(key)) throw new CheckpointError(409, "이전 요청을 처리하는 중입니다.");
+    if (this.busy.has(key)) throw new CheckpointError(409, "이전 요청을 처리하는 중이에요.");
     this.busy.add(key);
     try {
       return await fn();
@@ -505,13 +512,17 @@ function resultView(rubric: Rubric, merged: Results): ResultView {
   };
 }
 
-function resultMessage(section: Section, rubric: Rubric, understanding: number, unlocked: boolean, retryIds: string[]): string {
+/** 통과 문장은 다음 섹션에 이해도 확인(루브릭)이 있을 때만 "열렸어요"라고 한다. 지금은 제선만 루브릭이 있다. */
+function resultMessage(
+  section: Section, rubric: Rubric, understanding: number, unlocked: boolean, retryIds: string[], hasCheckpoint: (s: Section) => boolean,
+): string {
   const pct = Math.round(understanding * 100);
   if (unlocked) {
     const next = SECTION_ORDER[SECTION_ORDER.indexOf(section) + 1];
-    return next
+    if (!next) return `이해도 ${pct}%예요. 기준(80%)을 넘어서 모든 섹션을 마쳤어요.`;
+    return hasCheckpoint(next)
       ? `이해도 ${pct}%예요. 기준(80%)을 넘어서 ${SECTION_NAMES[next]} 섹션이 열렸어요.`
-      : `이해도 ${pct}%예요. 기준(80%)을 넘어서 모든 섹션을 마쳤어요.`;
+      : `이해도 ${pct}%예요. 기준(80%)을 넘어서 이해도 확인을 통과했어요.`;
   }
   const names = retryIds.map((id) => findConcept(rubric, id).name).join(", ");
   return `이해도 ${pct}%예요. 기준(80%)에 못 미쳐서 섹션 처음으로 돌아갈게요. 다시 살펴본 뒤 체크포인트를 다시 시작하면 이 개념만 물어볼게요: ${names}.`;

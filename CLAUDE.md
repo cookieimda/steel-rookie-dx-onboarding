@@ -154,6 +154,7 @@ content/
 - 루브릭 형식은 `content/rubrics/schema.json`. 최상위 `reviewed`는 팀 검수 여부이고, `false`인 루브릭을 로드하면 경고 로그를 남긴다(`backend/src/rubrics.ts`의 `loadRubric`). 스키마 검증은 서버 실행 중에도 `ajv`로 한다.
 - 개념의 선택 필드 `questions`·`recheck_questions`는 튜터 질문 은행이다(위 '튜터' 절).
 - 루브릭 최상위의 선택 필드 `glossary: [{term, aliases}]`는 섹션 단위 용어집이다(예: 용선 = 쇳물). 평가자 프롬프트에 들어가 동의어를 같은 말로 본다.
+- 루브릭(이해도 확인)은 제선만 만든다. 제강·연주·압연은 학습만 하고 화면에 '이해도 확인 없음'으로 보인다(`GET /api/sections`의 `checkpoint: false`).
 - 현재 `final/01_제선.json`은 `reviewed: false`인 임시 루브릭이다. `section.md`가 생기면 그 문서를 근거로 다시 만든다. 질문 은행도 검수 전 초안이다.
 - 소결 개념 재설계 초안(정의 → 이유: 가루 원료의 통기성 문제와 덩어리화): `draft/sinter_purpose.v2.json`. 통기성 근거 문장이 현재 자료에 없어 출처 확보 전에는 final로 옮기지 않는다. 옮기면 smoke·hard의 소결 케이스 기대 판정도 새 핵심 요소에 맞게 다시 쓴다.
 
@@ -218,6 +219,7 @@ content/
 - 재확인에도 맞히지 못하면 핵심 요소 요약(템플릿)을 보여 주고 다음 개념으로 넘어간다.
 - "준비됐나요?"에는 어떤 응답이든 시작으로 본다.
 - 이미 통과한 섹션은 다시 응시할 수 없다(409).
+- 루브릭(이해도 확인)은 제선만 만든다(2026-10-13).
 - 같은 시도 안에서 재확인으로 맞혀도 그 개념의 오개념은 해결됨으로 바꾼다.
 - 재확인에서 나온 오개념도 기록한다.
 - 이해도 확인 중간에 '나중에 이어 풀기'로 멈출 수 있다(새 상태 `paused`, `POST /api/checkpoints/:id/pause`·`resume`). 확정한 개념은 그대로 둔다. 상세는 [docs/checkpoint-api.md](docs/checkpoint-api.md) '나중에 이어 풀기'.

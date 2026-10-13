@@ -46,6 +46,23 @@
 - 자료 형식(출처 id, 조각 id, 태그, 루브릭 개념·검색 힌트와의 연결)은 `npm test`의 `learning-materials.test.ts`가 검사한다.
 - 검색 결과만 보는 평가다. 답이 맞는지는 `eval:learning`과 사람 검수로 따로 본다.
 
+## 보충학습 시나리오
+
+`npm run eval:supplement [-- --dry-run] [--resume] [--only id] [--records 파일]`
+
+- 세트는 `supplement/ironmaking.jsonl`이다. 필드:
+  - `concept_id`
+  - `memo`: 시작 전 학습 메모 오개념, 없으면 null
+  - `retry`: 체크포인트 재도전 개념
+  - `answers`: 확인 문제에 낼 답 1~2개
+  - `expect`: `outcome` resolved|not_resolved, `quizzes` 1|2
+  - `dry_verdicts`: --dry-run 판정
+- 판정 항목(실행 기록 기준):
+  - 결과, 확인 문제 수, 도구 거절·실패 없음
+  - 설비 보여 주기, 근거 있는 설명, 은행 문장 아님, 학습 메모 처리
+- 보고서에는 확인 문제의 고정 문장 비율·유출과 걸린 시간을 함께 적는다. 설계는 `docs/supplementary-learning.md`에 있다.
+- 기본은 실제 Gemini(유료)다. `--dry-run`은 가짜 모델로 엔진 흐름만 확인한다(비용 없음, `backend/test/supplement-eval.test.ts`가 npm test에서 돌린다).
+
 ## 긴 실행: 결과 기록, 이어 하기, 연결 재시도
 
 두 스크립트(`eval:evaluator`, `eval:questions`) 공통.

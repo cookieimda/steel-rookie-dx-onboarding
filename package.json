@@ -15,6 +15,7 @@
     "eval:questions": "npm run build && node --env-file-if-exists=.env .build/llm/eval/sample-questions.js",
     "eval:learning": "npm run build && node --env-file-if-exists=.env .build/llm/eval/run-learning.js",
     "eval:retrieval": "npm run build && node .build/llm/eval/run-retrieval.js",
+    "eval:supplement": "npm run build && node --env-file-if-exists=.env .build/llm/eval/run-supplement.js",
     "tunnel": "node --env-file-if-exists=.env scripts/tunnel.mjs",
     "db:reset-user": "npm run build && node --env-file-if-exists=.env .build/backend/src/db/reset-user.js",
     "db:seed-demo": "npm run build && node --env-file-if-exists=.env .build/backend/src/db/seed-demo-records.js"

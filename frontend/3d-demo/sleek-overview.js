@@ -152,7 +152,18 @@ function tidyScene(el) {
   if (!el.__sleekRoads && el._traffic) el.__sleekRoads = buildRoads(el) || 'none';
   if (el.__sleekRoads?.setTheme) el.__sleekRoads.setTheme(dark);
   if (gradeScene(el, dark)) changed = true;
+  if (purgeHidden(el)) changed = true;
   if (changed) el._dirty = true;
+}
+// 잠가서 숨긴 것(sleekOff)을 장면 그래프에서 떼고, 다른 곳에서 안 쓰는 지오메트리·재질은 dispose. 가로등(lamp)은 빛 굽기·기둥 배치가 다시 읽으므로 남긴다
+function purgeHidden(el) {
+  const S = el.scene, dead = [];
+  S.traverse(o => { if (o.userData.sleekOff && !o.userData.lamp && o.parent && !o.userData.purged) dead.push(o); });
+  if (!dead.length) return false;
+  dead.forEach(o => { o.userData.purged = true; o.parent.remove(o); });
+  const used = new Set(); S.traverse(o => { if (o.geometry) used.add(o.geometry); if (o.material) [].concat(o.material).forEach(m => used.add(m)); });
+  dead.forEach(o => o.traverse(c => { if (c.geometry && !used.has(c.geometry)) c.geometry.dispose(); if (c.material) [].concat(c.material).forEach(m => { if (!used.has(m)) m.dispose(); }); }));
+  return true;
 }
 
 // ---- 색감 누그러뜨리기: 원래 색(남색 밤하늘·파란 바다·초록 나무)은 살리고 채도만 낮춘다 ----
@@ -658,7 +669,7 @@ function treeBake(S, on) {
 // 공정을 가리는 주변 모델 지우기(사용자 표시): 위치 범위로 고른다(낮·밤 배경 GLB 모두 같은 배치)
 // - 열간압연 바로 앞(카메라 쪽) 긴 건물 묶음, 연주 앞 흰 탑 무리
 // - 공장 안쪽(공정 사이)에 놓인 컨테이너·트럭(인스턴스): 부두·배 위 것은 남기고 안쪽 것만 크기 0으로
-const BLOCKER_AREAS = [{ x0: -30, x1: 2, z0: 72, z1: 100 }, { x0: -76, x1: -50, z0: 14, z1: 33 }];
+const BLOCKER_AREAS = [{ x0: -22, x1: 14, z0: 28, z1: 40 }, { x0: -76, x1: -50, z0: 14, z1: 33 }];
 function removeBlockers(el, off) {
   const ext = el.scene.getObjectByName('SITE_BACKDROP_EXT'); if (!ext) return;
   ext.traverse(o => {

@@ -1,6 +1,6 @@
 // [세련안] v4 장면에 제철소 주변 소품(plant-props.js)을 배치한다. scene_v3.js·sleek-overview.js는 고치지 않고 바깥에서 붙는다.
 // 소품은 미터 단위로 만들어져 있어 공정 축척(1단위 ≈ 12m)에 맞춰 줄인다. 자리는 공정 위치(제선 z≈-69, 제강 -32, 연주 0, 열연 65)를
-// 기준으로 빈 땅에 잡았다(위에서 내려다본 배치도로 도로·건물·해안선을 피함).
+// 기준으로 빈 땅에 잡았다(열연은 z 34로 옮김)(위에서 내려다본 배치도로 도로·건물·해안선을 피함).
 // 소품 자리에 겹치는 나무·가로등 인스턴스는 숨긴다.
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/+esm';
 import { makeReclaimer, makeStockpile, makeQuenchTower, makeSlabYard, makeCoolingTower, makeCoolingPlant, makePipeRack, makeCoilYard, trimReady } from './plant-props.js';
@@ -26,8 +26,8 @@ const PLACES = [
   { name: 'cooling_plant', make: () => makeCoolingPlant(), x: -62, z: 26 },
   // 제강(z -44 ~ -20)과 연주(z -12.5 ~ 12.5) 사이 빈 띠: 두 공정을 잇는 배관 랙(길이 X 방향)
   { name: 'pipe_rack', make: () => makePipeRack({ L: 168 }), x: -38, z: -16 },
-  // 열연 권취기(-3, 64.8) 남쪽: 감은 코일을 쌓는 코일 야드. 코일 하나가 삼각형 약 650개라 1단·70개 정도로 둔다(2단 8줄이면 12만 개)
-  { name: 'coil_yard', make: () => makeCoilYard({ rows: 6, perRow: 12, tiers: 1, seed: 5 }), x: -9, z: 78 },
+  // 열연 권취기(x≈11, z 34) 동쪽 끝: 감은 코일을 쌓는 코일 야드. 코일 하나가 삼각형 약 650개라 1단·70개 정도로 둔다(2단 8줄이면 12만 개)
+  { name: 'coil_yard', make: () => makeCoilYard({ rows: 6, perRow: 12, tiers: 1, seed: 5 }), x: 18, z: 34 },
 ];
 
 export function attachPlantSite() {

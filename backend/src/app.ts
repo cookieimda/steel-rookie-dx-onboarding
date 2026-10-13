@@ -36,7 +36,17 @@ export function createApp({ engine, usage, webRoot = join(process.cwd(), "fronte
     res.json({ connected: Boolean(process.env.GEMINI_API_KEY), provider: "Gemini", model: process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL });
   });
 
-  // 첫 화면은 최종 페이지(v3).
-  app.get("/", (_req, res) => res.sendFile(join(webRoot, "Steel Academy v4.dc.html")));
+  // 로그인·마이페이지(frontend/login_ui)는 ../3d-demo/를 상대 경로로 읽으므로 두 폴더를 같은 깊이에 둔다.
+  const loginRoot = join(webRoot, "..", "login_ui");
+  app.use("/3d-demo", express.static(webRoot));
+  app.use("/login_ui", express.static(loginRoot));
+  app.get("/login", (_req, res) => res.redirect("/login_ui/My%20Page.dc.html"));
+
+  // 첫 화면은 홈(로그인). 3D 학습 화면(v4)은 무거워서 로그인한 뒤에 연다.
+  // 쿼리가 있는 주소(예: /?p=ironmaking&tutor=1)는 3D 화면으로 바로 들어가는 링크라 v4를 그대로 준다.
+  app.get("/", (req, res) => {
+    if (Object.keys(req.query).length) res.sendFile(join(webRoot, "Steel Academy v4.dc.html"));
+    else res.redirect("/login_ui/home-sleek.html");
+  });
   return app;
 }

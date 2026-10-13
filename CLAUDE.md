@@ -20,7 +20,7 @@
 
 ## 프론트 구조 (`frontend/3d-demo`)
 
-**최종 페이지는 `Steel Academy v4.dc.html`(v4)이고, 서버 `/`가 이 페이지를 연다.** v4는 v3에 sleek 디자인(상단 알약 UI, 라이트 모드 캡슐)을 얹은 페이지이고, 3D는 `scene_v3.js`를 그대로 쓰면서 바깥에서 붙는 `sleek-overview.js`가 장면(축척·나무·트림시트·밤 조명 굽기·바다)을 덧붙인다. 로그인 후 이동도 v4(`login_ui/home-sleek.html`, `login-sleek.html`). v3는 v2를 개편해 따로 만든 페이지다(3D는 `scene_v3.js`). v2 페이지(`Steel Academy v2.dc.html`, `scene_v2.js`)는 이해도 확인을 v3 오버레이로 옮긴 뒤 지웠다. v1 페이지(`Steel Academy.dc.html`)는 지웠고, 남은 `data.js`·`tutor.js`·`scene.js`는 옛 버전이라 고치지 않는다.
+**최종 페이지는 `Steel Academy v4.dc.html`(v4, 주소 `/3d-demo/Steel%20Academy%20v4.dc.html`)이다. 서버 `/`는 홈(`login_ui/home-sleek.html`)으로 보내고, 쿼리가 있는 `/?p=…`만 v4를 바로 연다(`backend/src/app.ts`).** v4는 v3에 sleek 디자인(상단 알약 UI, 라이트 모드 캡슐)을 얹은 페이지이고, 3D는 `scene_v3.js`를 그대로 쓰면서 바깥에서 붙는 `sleek-overview.js`가 장면(축척·나무·트림시트·밤 조명 굽기·바다)을 덧붙인다. 로그인 후 이동도 v4(`login_ui/home-sleek.html`, `login-sleek.html`). v3는 v2를 개편해 따로 만든 페이지다(3D는 `scene_v3.js`). v2 페이지(`Steel Academy v2.dc.html`, `scene_v2.js`)는 이해도 확인을 v3 오버레이로 옮긴 뒤 지웠다. v1 페이지(`Steel Academy.dc.html`)는 지웠고, 남은 `data.js`·`tutor.js`·`scene.js`는 옛 버전이라 고치지 않는다.
 
 - `Steel Academy v3.dc.html`: 화면 템플릿과 로직. 로직은 `<script type="text/x-dc">` 안의 `class Component extends DCLogic`에 있고, `support.js`가 읽어서 실행한다(에디터에서 문법 강조가 안 됨). 주소는 `/Steel%20Academy%20v3.dc.html`.
   - `componentDidMount`: `data_v2.js`, `learning-chat.js`, `checkpoint-chat.js`를 불러와 `this.chat`(학습)과 `this.checkpoint`(이해도 확인)를 만들고 3D 이벤트를 구독한다.

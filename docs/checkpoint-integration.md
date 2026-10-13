@@ -233,7 +233,7 @@ const chatV = this.checkpoint.lockLearning(this.chat.vals(D));   // 학습 값 �
 ## 실제 Gemini로 확인하기
 
 1. `.env`에 `GEMINI_API_KEY`를 넣고 `npm start`(접속 비밀번호를 쓰지 않으려면 `TEST_PASSCODE`를 비운다). 시연 DB를 건드리지 않으려면 DB 복사본과 다른 포트로 띄운다(`PORT=3100 DB_PATH=data/복사본.sqlite`).
-2. `/login`에서 `trainee01`~`10` 중 하나로 로그인한 뒤 `/`를 연다. 체크포인트 기록이 남으므로 끝나면 `npm run db:reset-user -- trainee0N --origin live`로 지울 수 있다.
+2. `/`(홈)에서 `trainee01`~`10` 중 하나로 로그인하면 3D 화면(v4)으로 넘어간다. 체크포인트 기록이 남으므로 끝나면 `npm run db:reset-user -- trainee0N --origin live`로 지울 수 있다.
 3. 확인할 것:
    - 오른쪽 위 'AI 튜터' → 머리글이 '학습 모드'이고 모드 탭이 없다. 질문하면 Gemini 답변과 근거가 나온다.
    - 제선으로 들어가면 공정 목록의 제선 끝에 '시작 전'과 [담금질 시작하기], 제강·연주·압연에는 배지와 버튼이 없다(루브릭 없음).

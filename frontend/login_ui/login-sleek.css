@@ -1,0 +1,59 @@
+/* ST-ROOKIE 로그인 — "세련/깔끔" 디자인안 (design/sleek-local 브랜치)
+   색·폰트 같은 디자인 값은 :root 토큰에만 모아 둔다. 다른 디자인안(귀여움)과 비교할 때 여기만 바꾸면 된다. */
+:root {
+  --bg: #1c1c1c;
+  --field: #3a3a3a;
+  --field-focus: #444;
+  --text: #f2f2f2;
+  --muted: #b5b5b5;
+  --placeholder: #a8a8a8;
+  --primary: #2b50b8;
+  --primary-hover: #3360d6;
+  --error: #ff6b6b;
+  --font-ko: "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-en: "Montserrat", "Pretendard", sans-serif;
+}
+* { box-sizing: border-box; margin: 0; }
+body {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ko);
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+  padding: 16px;
+}
+.login { width: 100%; max-width: 300px; display: flex; flex-direction: column; gap: 10px; }
+.title {
+  font-family: var(--font-en);
+  font-weight: 800;
+  font-size: 44px;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+  color: #fff;
+}
+.subtitle { font-size: 13px; font-weight: 300; color: var(--muted); margin-bottom: 22px; }
+.subtitle strong { font-weight: 700; color: #fff; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+input {
+  width: 100%; height: 36px; padding: 0 14px;
+  border: 1px solid transparent; border-radius: 4px;
+  background: var(--field); color: var(--text);
+  font-family: inherit; font-size: 14px; outline: none;
+  transition: background .15s, border-color .15s;
+}
+input::placeholder { color: var(--placeholder); }
+input:focus { background: var(--field-focus); border-color: var(--primary); }
+.error { min-height: 16px; font-size: 12px; color: var(--error); }
+button {
+  height: 40px; border: 0; border-radius: 4px;
+  background: var(--primary); color: #fff;
+  font-family: var(--font-en); font-size: 13px; font-weight: 700; letter-spacing: 0.12em;
+  cursor: pointer; transition: background .15s;
+}
+button:hover { background: var(--primary-hover); }
+button:disabled { opacity: .6; cursor: default; }

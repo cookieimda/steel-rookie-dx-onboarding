@@ -37,6 +37,6 @@ export function createApp({ engine, usage, webRoot = join(process.cwd(), "fronte
   });
 
   // 첫 화면은 최종 페이지(v3).
-  app.get("/", (_req, res) => res.sendFile(join(webRoot, "Steel Academy v3.dc.html")));
+  app.get("/", (_req, res) => res.sendFile(join(webRoot, "Steel Academy v4.dc.html")));
   return app;
 }

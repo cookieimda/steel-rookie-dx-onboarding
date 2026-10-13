@@ -163,7 +163,6 @@ button{font:inherit;cursor:pointer;touch-action:manipulation}
 .header{padding:14px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5}
 .brand{display:flex;gap:12px;align-items:center}.mark{display:grid;place-items:center;width:38px;height:38px;background:var(--ink);color:var(--surface);border-radius:11px;font-size:17px;font-weight:700}
 .brand strong{display:block;font-size:16px}.subtitle{display:block;font-size:10px;letter-spacing:1.5px;color:var(--muted);margin-top:2px}
-.model{font-size:11px;padding:5px 9px;border-radius:6px;background:var(--soft);color:var(--muted);white-space:nowrap;font-family:ui-monospace,Consolas,monospace}.model.ok{color:var(--ok)}.model.miss{color:var(--miss)}
 .workspace{display:grid;grid-template-columns:176px minmax(0,1fr);min-height:calc(100% - 67px)}
 .sidebar{background:var(--surface);padding:22px 12px;border-right:1px solid var(--border)}
 .navtitle{font-size:11px;color:var(--muted);padding:0 10px;margin-bottom:14px}
@@ -236,7 +235,7 @@ class Steel2D extends HTMLElement {
     super();
     this.attachShadow({ mode: 'open' });
     this.shadowRoot.innerHTML = `<style>${CSS}</style><div class="root" tabindex="0">
-      <header class="header"><div class="brand"><span class="mark">St</span><div><strong id="title">제강 공정</strong><span class="subtitle">2D PROCESS EXPLORER · GLB 기준</span></div></div><span class="model" id="model">MODEL · 읽는 중</span></header>
+      <header class="header"><div class="brand"><span class="mark">St</span><div><strong id="title">제강 공정</strong><span class="subtitle">2D PROCESS EXPLORER · GLB 기준</span></div></div></header>
       <div class="workspace">
         <aside class="sidebar"><div class="navtitle">공정 단계</div><nav class="nav" id="nav"></nav><div class="note" id="note"></div></aside>
         <main class="main">
@@ -281,7 +280,6 @@ class Steel2D extends HTMLElement {
     this.stopAuto();
     this.stages = (STAGES[pid] || []).map(s => ({ ...s, groups: [] }));
     const url = this.getAttribute('glb') || `models/${pid}.glb`;
-    this.$('model').textContent = `MODEL · ${url} · 읽는 중`; this.$('model').className = 'model';
     let names = null;
     try { names = await readGlbGroups(new URL(url, document.baseURI).href); } catch (e) { names = null; }
     if (this._token !== token) return;
@@ -290,10 +288,6 @@ class Steel2D extends HTMLElement {
       if (stage) stage.groups.push(name);
       return { name, stage };
     }) : null;
-    const matched = this.stages.filter(s => s.groups.length).length;
-    const m = this.$('model');
-    if (names) { m.textContent = `MODEL · ${url} · 그룹 ${this.groups.length}개 · 단계 ${matched}/${this.stages.length} 연결`; m.className = 'model ok'; }
-    else { m.textContent = `MODEL · ${url} 없음 · 기본 구성`; m.className = 'model miss'; }
     this.$('eyebrow').textContent = `${pid.replace(/_/g, ' ').toUpperCase()} / OVERVIEW`;
     this.$('note').innerHTML = names ? `GLB 그룹 ${this.groups.length}개를 읽어 구성했습니다.<br>GLB를 바꾸면 카드가 따라갑니다.` : `GLB를 읽지 못해 기본 단계만 표시합니다.`;
     this.renderNav(); this.renderGrid();

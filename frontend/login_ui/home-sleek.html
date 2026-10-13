@@ -20,7 +20,7 @@
     <a class="brand" href="#"><span class="brand-mark"></span>ST-ROOKIE</a>
     <div class="nav-actions">
       <button class="link" id="logoutBtn" hidden>로그아웃</button>
-      <button class="cta" data-open-login>시작하기</button>
+      <button class="cta" data-open-pick>시작하기</button>
     </div>
   </nav>
 
@@ -44,7 +44,12 @@
       <h2 class="title" id="formTitle">LOGIN</h2>
       <p class="subtitle" id="formSub">3D 공정 학습을 <strong>시작</strong>하세요.</p>
 
-      <!-- data-modes: 이 칸을 보여 줄 모드(login 로그인, signup 회원가입, find 아이디 찾기, reset 비밀번호 찾기) -->
+      <!-- data-modes: 이 칸을 보여 줄 모드(pick 시연 계정 고르기, login 로그인, signup 회원가입, find 아이디 찾기, reset 비밀번호 찾기) -->
+      <!-- 시연 계정 고르기: [시작하기]로 열면 먼저 보인다. 고르면 ID·PW를 채운 로그인 화면이 된다 -->
+      <div class="accounts" data-modes="pick" role="list">
+        <button type="button" role="listitem" data-account="trainee"><span>신입사원</span><code>trainee01</code></button>
+        <button type="button" role="listitem" data-account="admin"><span>관리자</span><code>admin01</code></button>
+      </div>
       <label class="field" data-modes="login signup reset"><input id="userId" name="userId" type="text" autocomplete="username" /><span>ID</span></label>
       <label class="field" data-modes="signup find reset"><input id="name" name="name" type="text" autocomplete="name" /><span>이름</span></label>
       <label class="field" data-modes="signup find reset"><input id="employeeNo" name="employeeNo" type="text" /><span>사번</span></label>
@@ -54,8 +59,9 @@
 
       <p class="error" id="error" role="alert"></p>
 
-      <button type="submit" id="submitBtn">LOGIN</button>
+      <button type="submit" id="submitBtn" data-modes="login signup find reset">LOGIN</button>
       <nav class="links" aria-label="계정 도움">
+        <button type="button" data-modes="pick" data-go="login">다른 계정으로 로그인</button>
         <button type="button" data-modes="login" data-go="find">아이디 찾기</button>
         <button type="button" data-modes="login" data-go="reset">비밀번호 찾기</button>
         <button type="button" data-modes="login" data-go="signup">회원가입</button>
@@ -68,6 +74,11 @@
     // ---- 로그인 (login-sleek.html과 같은 계약: docs/auth-api.md) ----
     const TOKEN_KEY = 'st-rookie-token';
     const NEXT_URL = '/3d-demo/Steel%20Academy%20v4.dc.html'; // v4(세련안) 3D 화면
+    const ADMIN_URL = '/login'; // 관리자는 My Page(관리자 통계)로 간다
+    const nextUrl = (user) => (user?.role === 'admin' ? ADMIN_URL : NEXT_URL);
+    // 시연 계정(서버 시작 때 만드는 계정, backend/src/auth/demo-accounts.ts). 비밀번호는 DEMO_PASSWORD 기본값이다.
+    const DEMO_PASSWORD = 'steel-2026-demo';
+    const DEMO_ACCOUNTS = { trainee: 'trainee01', admin: 'admin01' };
 
     const tokenStore = {
       get() { try { return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY); } catch { return null; } },
@@ -90,14 +101,14 @@
       return data;
     }
 
-    // 이미 로그인돼 있으면 "시작하기"가 바로 3D 화면으로 간다.
+    // 이미 로그인돼 있으면 "시작하기"가 바로 3D 화면(관리자는 관리자 통계)으로 간다.
     // 로그아웃 API는 없다(JWT). 이 브라우저에 저장된 토큰을 지우는 것으로 로그아웃한다.
-    let loggedIn = false;
+    let loggedIn = null; // 로그인한 사용자({ role, ... }) 또는 null
     const logoutBtn = document.getElementById('logoutBtn');
-    const setLoggedIn = (on) => { loggedIn = on; logoutBtn.hidden = !on; };
-    logoutBtn.addEventListener('click', () => { tokenStore.clear(); setLoggedIn(false); });
+    const setLoggedIn = (user) => { loggedIn = user; logoutBtn.hidden = !user; };
+    logoutBtn.addEventListener('click', () => { tokenStore.clear(); setLoggedIn(null); });
     const saved = tokenStore.get();
-    if (saved) api('/api/auth/me', null, saved).then(() => setLoggedIn(true), () => tokenStore.clear());
+    if (saved) api('/api/auth/me', null, saved).then(({ user }) => setLoggedIn(user), () => tokenStore.clear());
 
     const overlay = document.getElementById('overlay');
     const form = document.getElementById('loginForm');
@@ -134,6 +145,7 @@
     // find    POST /api/auth/find-id { name, employee_no } → { username }
     // reset   POST /api/auth/reset-password { username, name, employee_no, password }
     const MODES = {
+      pick: { title: 'START', sub: '시연 <strong>계정</strong>을 골라 주세요.' },
       login: { title: 'LOGIN', sub: '3D 공정 학습을 <strong>시작</strong>하세요.', submit: 'LOGIN', pw: 'PW' },
       signup: { title: 'SIGN UP', sub: '신입사원 계정을 <strong>만들어</strong> 주세요.', submit: 'SIGN UP', pw: 'PW' },
       find: { title: 'FIND ID', sub: '이름과 사번으로 <strong>아이디</strong>를 찾아요.', submit: 'FIND ID' },
@@ -148,7 +160,7 @@
       document.getElementById('formSub').innerHTML = M.sub;
       document.getElementById('pwLabel').textContent = M.pw || 'PW';
       form.password.autocomplete = m === 'login' ? 'current-password' : 'new-password';
-      btn.textContent = M.submit;
+      btn.textContent = M.submit || '';
       const id = form.userId.value;
       form.reset();
       if (keepId) form.userId.value = id;
@@ -156,6 +168,13 @@
       errorEl.classList.toggle('ok', !!note);
     };
     form.querySelectorAll('[data-go]').forEach((el) => el.addEventListener('click', () => setMode(el.dataset.go, { keepId: true })));
+    // 시연 계정을 고르면 ID·PW를 채운 로그인 화면으로 바꾼다. 로그인은 사용자가 LOGIN을 눌러서 한다.
+    form.querySelectorAll('[data-account]').forEach((el) => el.addEventListener('click', () => {
+      setMode('login', { note: '시연 계정을 입력했어요. LOGIN을 누르세요.' });
+      form.userId.value = DEMO_ACCOUNTS[el.dataset.account];
+      form.password.value = DEMO_PASSWORD;
+      btn.focus({ preventScroll: true });
+    }));
     setMode('login');
 
     // 목록이 가운데로 이동하며 커져 로그인 박스가 된다 (목록 위치 → 박스 위치로 transform 애니메이션).
@@ -166,13 +185,13 @@
     };
     const EASE = 'cubic-bezier(.2,.8,.2,1)';
     const openLogin = (m = 'login') => {
-      if (loggedIn) { location.href = NEXT_URL; return; }
+      if (loggedIn) { location.href = nextUrl(loggedIn); return; }
       if (!overlay.hidden) return setMode(m);
       setMode(m);
       overlay.hidden = false;
       document.body.classList.add('login-open');
       panel.animate([{ transform: flyFrom(), opacity: 0.2 }, { transform: 'none', opacity: 1 }], { duration: 700, easing: EASE });
-      form.userId.focus({ preventScroll: true });
+      (m === 'pick' ? form.querySelector('[data-account]') : form.userId).focus({ preventScroll: true });
     };
     const closeLogin = () => {
       if (overlay.hidden) return;
@@ -181,6 +200,7 @@
         .finished.then(() => { overlay.hidden = true; setMode('login'); });
     };
     document.querySelectorAll('[data-open-login]').forEach((el) => el.addEventListener('click', () => openLogin('login')));
+    document.querySelectorAll('[data-open-pick]').forEach((el) => el.addEventListener('click', () => openLogin('pick')));
     document.querySelectorAll('[data-open-signup]').forEach((el) => el.addEventListener('click', () => openLogin('signup')));
     document.getElementById('closeBtn').addEventListener('click', closeLogin);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) closeLogin(); });
@@ -214,11 +234,11 @@
           setMode('login', { keepId: true, note: '비밀번호를 바꿨어요. 새 비밀번호로 로그인하세요.' });
           form.password.focus();
         } else {
-          const { token } = mode === 'signup'
+          const { token, user } = mode === 'signup'
             ? await api('/api/auth/signup', { username, password, name, employee_no })
             : await api('/api/auth/login', { username, password, remember });
           tokenStore.set(token, remember);
-          location.href = NEXT_URL;
+          location.href = nextUrl(user);
           return;
         }
       } catch (err) {

@@ -21,7 +21,7 @@ export const TEXT = {
     resumeShort: '이어 풀기',
     pauseForLearning: '멈추고 질문하기',
     // 이해도 확인 오버레이(공정 목록 섹션 버튼, 말풍선, 나가기)
-    startQuench: '담금질 시작하기',
+    startLearning: '학습하기', // 공정 목록 섹션 버튼: 그 공정의 이해도 확인을 시작한다(처음 이름은 '담금질 시작하기')
     next: '다음',
     history: '대화 기록',
     hideHistory: '기록 닫기',
@@ -44,7 +44,7 @@ export const TEXT = {
   // 공정 목록 섹션 버튼: 앞 공정을 통과하지 못해 잠긴 섹션.
   sectionLocked: '이전 공정 통과 필요',
   // 이해도 확인 오버레이가 떠 있는 동안 공정 메뉴에 보이는 안내.
-  overlayLocked: '담금질 중에는 공정 이동과 재생을 쓸 수 없어요',
+  overlayLocked: '이해도 확인 중에는 공정 이동과 재생을 쓸 수 없어요',
   // 진행 중 화면.
   title: (sectionName, isRetry) => `이해도 확인 · ${sectionName}${isRetry ? ' (재도전)' : ''}`,
   stage: {

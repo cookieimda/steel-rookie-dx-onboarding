@@ -19,7 +19,9 @@ export function attachSleek() {
     setupDroneView(el);
     // 원래 코드가 테마를 칠한 직후 바로 톤을 다시 맞춘다(500ms 주기를 기다리면 남색 하늘이 잠깐 비친다)
     const applyTheme = el._applyTheme.bind(el);
-    el._applyTheme = function () { const r = applyTheme(); try { gradeScene(this, (this.getAttribute('theme') || 'dark') === 'dark'); } catch (e) { console.warn('톤 맞추기 실패', e); } return r; };
+    el._applyTheme = function () { const r = applyTheme(), dark = (this.getAttribute('theme') || 'dark') === 'dark'; try { gradeScene(this, dark); } catch (e) { console.warn('톤 맞추기 실패', e); }
+      if (dark) this.renderer.toneMappingExposure = NIGHT_EXPOSURE; return r; }; // 다크 모드 화면 밝기(원래 코드는 0.95로 칠한다)
+    if ((el.getAttribute('theme') || 'dark') === 'dark') el.renderer.toneMappingExposure = NIGHT_EXPOSURE; // 인트로가 이 값까지 밝힌다
     const tidy = () => tidyScene(el);
     tidy(); setInterval(tidy, 500); // 새로 생기는 것도 잡는다
     let burstUntil = 0;
@@ -101,6 +103,7 @@ function setupDroneView(el) {
 // ---- 3) 잡다한 것 끄기 ----
 function tidyScene(el) {
   let changed = false;
+  const settled = backdropSettled(el); // 테마를 바꾼 직후 배경 GLB가 바뀌기 전에는 테마별 굽기를 미룬다
   // 원래 장면 코드(scene_v3.js·site-backdrop.js)가 테마를 바꿀 때 네온·빛기둥 등을 다시 켜서, 잠깐씩 예전 모습이 비쳤다.
   // 그래서 숨길 것은 visible 속성을 잠가 버린다(켜려 해도 무시)
   const off = (o) => { if (!o || o.userData.sleekOff) return; Object.defineProperty(o, 'visible', { configurable: true, get: () => false, set: () => {} }); o.userData.sleekOff = true; changed = true; };
@@ -109,7 +112,7 @@ function tidyScene(el) {
   if (replaceTrees(el)) changed = true; // 공 모양 나무 → 잎 그림 평면을 엇갈려 세운 나무
   if (removeFarBuildings(el, off)) changed = true; // 바다 건너 먼 건물 실루엣
   if (removeLights(el)) changed = true;             // 구워 둔 조명과 겹치는 실제 조명 빼기(투광등·밤 키라이트·구역 조명)
-  if ((el.getAttribute('theme') || 'dark') === 'dark' && !el.__nightBaked && el.zones && Object.values(el.zones).every(z => z.root?.children.length)) {
+  if (settled && (el.getAttribute('theme') || 'dark') === 'dark' && !el.__nightBaked && el.zones && Object.values(el.zones).every(z => z.root?.children.length)) {
     el.__nightBaked = true; try { bakeNight(el); } catch (e) { console.warn('밤 조명 굽기 실패', e); } changed = true; }
   off(el._links?.g);                                   // 공정 사이 하늘색 연결선
   (el.zoneArrows || []).forEach(a => { if (a.el && a.el.style.display !== 'none') { a.el.style.display = 'none'; changed = true; } off(a.mesh); off(a.glow); });
@@ -133,17 +136,19 @@ function tidyScene(el) {
     const m = ground.material;
     // scene_v3.js의 _applyTheme이 테마를 바꿀 때·60초마다 바닥 지도를 다시 칠하므로, 바뀌면 다시 입힌다
     if (m.map !== m.userData.myBase) { asphaltGround(el, m, dark); changed = true; }
-    if (!dark && !m.userData.myBase?.userData.sunBaked && m.userData.myBase) { try { bakeSunShadow(el, ground, m.userData.myBase); } catch (e) { console.warn('그림자 굽기 실패', e); } m.userData.myBase.userData.sunBaked = true; changed = true; }
+    if (!m.userData.sleekZS) { m.userData.sleekZS = true; m.needsUpdate = true; changed = true; }
+    if (!dark && zoneSunShadows(el)) changed = true;
+    if (settled && !dark && !m.userData.myBase?.userData.sunBaked && m.userData.myBase) { try { bakeSunShadow(el, ground, m.userData.myBase); } catch (e) { console.warn('그림자 굽기 실패', e); } m.userData.myBase.userData.sunBaked = true; changed = true; }
     if (lampPool && !m.userData.lampBaked) { m.userData.lampBaked = true; try { bakeLampLight(ground, lampPool); } catch (e) { console.warn('가로등 빛 굽기 실패', e); } changed = true; }
-    const lmi = dark ? 13.8 * 1.2 : 0; if (m.lightMap && m.lightMapIntensity !== lmi) { m.lightMapIntensity = lmi; changed = true; } // 낮에는 가로등이 꺼져 있다. 밤 밝기는 원래보다 20% 밝게
+    const lmi = dark ? 13.8 * 1.2 * NIGHT_LIGHT * LAMP_GAIN : 0; if (m.lightMap && m.lightMapIntensity !== lmi) { m.lightMapIntensity = lmi; changed = true; } // 낮에는 가로등이 꺼져 있다. 밤 밝기는 원래보다 20% 밝게
     if (lampPool && lampPosts(el, lampPool, dark)) changed = true; // 빛 웅덩이 가운데에 로우폴리 가로등
     if (!ground.userData.sea) { try { ground.userData.sea = makeSea(el, ground); } catch (e) { console.warn('바다 만들기 실패', e); ground.userData.sea = 'fail'; } changed = true; }
     if (ground.userData.sea?.setTheme) ground.userData.sea.setTheme(dark);
   }
   if (!dark) lightContrast(el);
-  moonlight(el, dark);
+  nightLights(el, dark);
   if (!dark) placeSunDisc(el);
-  if (!dark) { const ext = el.scene.getObjectByName('SITE_BACKDROP_EXT'); if (ext && isShown(ext) && ground && !ground.userData.chiaro) { ground.userData.chiaro = true; /* 낮·밤 배경 GLB마다 바닥이 따로라 거기에 표시 */ try { bakeChiaroscuro(el, ext); } catch (e) { console.warn('명암 굽기 실패', e); } changed = true; } }
+  if (settled && !dark) { const ext = el.scene.getObjectByName('SITE_BACKDROP_EXT'); if (ext && isShown(ext) && ground && !ground.userData.chiaro) { ground.userData.chiaro = true; /* 낮·밤 배경 GLB마다 바닥이 따로라 거기에 표시 */ try { bakeChiaroscuro(el, ext); } catch (e) { console.warn('명암 굽기 실패', e); } changed = true; } }
   if (!el.__sleekRoads && el._traffic) el.__sleekRoads = buildRoads(el) || 'none';
   if (el.__sleekRoads?.setTheme) el.__sleekRoads.setTheme(dark);
   if (gradeScene(el, dark)) changed = true;
@@ -177,9 +182,11 @@ function desaturate(m) {
         '#include <opaque_fragment>\n gl_FragColor.rgb = mix(vec3(dot(gl_FragColor.rgb, vec3(.2126, .7152, .0722))), gl_FragColor.rgb, uSleekSat);'); }
     if (this.userData.sleekTrim && TRIM.value) addTrim(sh); // 건물: 트림시트 결
     if (this.userData.sleekBake) addBake(sh);              // 밤: 구운 빛(키라이트·옴니)
+    else if (this.userData.sleekFlat) addFlat(sh, this.userData.sleekFlat === 'g'); // 밤: 고정 빛(인스턴스·소품·바닥)
+    if (this.userData.sleekZS) addZoneShade(sh);           // 낮 바닥: 보이는 공정의 그림자
   };
   m.onBeforeCompile.sleek = true;
-  m.customProgramCacheKey = function () { const u = this.userData; return key.call(this) + (u.noSat ? '|nosat' : '|sleekSat') + (u.sleekTrim ? '|trim' : '') + (u.sleekBake ? '|bake' : ''); };
+  m.customProgramCacheKey = function () { const u = this.userData; return key.call(this) + (u.noSat ? '|nosat' : '|sleekSat') + (u.sleekTrim ? '|trim' : '') + (u.sleekBake ? '|bake' : '') + (u.sleekFlat ? '|flat' + u.sleekFlat : '') + (u.sleekZS ? '|zs' : ''); };
   m.needsUpdate = true; return true;
 }
 
@@ -335,18 +342,70 @@ function asphaltGround(el, m, dark) {
 // 빈터 옴니(NIGHT_OMNI): 명도·채도 낮은 푸른 회색 큰 점광원 3개를 바닥 라이트맵과 주변 건물 꼭짓점에 굽는다. 실제 조명 객체는 만들지 않는다.
 const BAKE_ON = { value: 1 };
 const KEY_DIR = new THREE.Vector3(-0.85, 0.95, 0.25).normalize();       // 서쪽 위에서 비추는 달빛(드론 시점에서 왼쪽 위)
-const KEY_COL = new THREE.Color(0.62, 0.70, 0.88), AMB_COL = new THREE.Color(0.22, 0.25, 0.32);
-const PROC_GAIN = 0.38, BLD_GAIN = 1.4; // 공정: 켜고 끄며 잰 공정 화면 밝기가 원래의 약 70%(30% 어둡게)가 되는 값
+// 다크 모드 전체 빛 세기: 구운 빛(공정·건물·고정 빛)에 모두 곱한다(1 = 원래). 가로등 빛 웅덩이는 LAMP_GAIN을 한 번 더 곱한다.
+// 다크 모드엔 실시간 조명이 없다(nightLights). 화면 전체 밝기(바다·하늘 포함)는 노출 NIGHT_EXPOSURE(원래 0.95)
+const NIGHT_LIGHT = 1.8, LAMP_GAIN = 1.3, NIGHT_EXPOSURE = 1.2;
+// 빛 색은 더 푸르게(명도는 그대로: 휘도 0.69 / 0.25 유지)
+const KEY_COL = new THREE.Color(0.54, 0.70, 0.98), AMB_COL = new THREE.Color(0.20, 0.25, 0.38);
+const PROC_GAIN = 0.38 * NIGHT_LIGHT, BLD_GAIN = 1.4 * NIGHT_LIGHT; // 0.38: 켜고 끄며 잰 공정 화면 밝기가 원래의 약 70%(30% 어둡게)가 되는 값
 // 위치는 사용자가 표시한 빈터(제강 서쪽 / 오른쪽 긴 건물 쪽 / 왼쪽 아래 높은 건물 쪽). h = 빛 높이, r = 닿는 반경, ground = 바닥 세기, wall = 건물 세기
 const NIGHT_OMNI = [{ p: [-52, -26], h: 28, r: 55, ground: 1.0, wall: 1.0 }, { p: [22, 32], h: 28, r: 55, ground: 1.0, wall: 1.0 }, { p: [-55, 40], h: 28, r: 55, ground: 1.0, wall: 1.0 }]; // 사용자 스크린샷의 공정 4곳으로 화면→지면 투영 변환을 세워 구한 좌표
-const OMNI_COL = new THREE.Color(0.45, 0.50, 0.58);
+const OMNI_COL = new THREE.Color(0.40, 0.50, 0.70);
 function addBake(sh) {
   sh.uniforms.uSleekBakeOn = BAKE_ON;
   sh.vertexShader = 'attribute vec3 sleekBake;\nvarying vec3 vSleekBake;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vSleekBake = sleekBake;');
-  sh.fragmentShader = 'uniform float uSleekBakeOn;\nvarying vec3 vSleekBake;\n' + sh.fragmentShader.replace('#include <opaque_fragment>', `#ifdef STANDARD
+  sh.fragmentShader = 'varying vec3 vSleekBake;\n' + declBakeOn(sh.fragmentShader).replace('#include <opaque_fragment>', `#ifdef STANDARD
   outgoingLight = mix(outgoingLight, diffuseColor.rgb * mix(1.0, 0.55, metalnessFactor) * vSleekBake + totalEmissiveRadiance, uSleekBakeOn);
 #endif
 #include <opaque_fragment>`);
+}
+// 고정 빛: 꼭짓점마다 구울 수 없는 것(인스턴스 소품·나무·가로등, 나중에 붙는 제철소 소품, 바닥)은 bakeNight와 같은 빛 식(환경광 + 키라이트)을
+// 꼭짓점 셰이더에서 상수로 계산한다. 조명 객체는 쓰지 않는다. 바닥은 키라이트에 구운 그림자 텍스처(GSHADOW)를 곱하고 라이트맵(가로등)은 그대로 더한다.
+// FLAT_GAIN 0.75: 원래 실시간 조명(달빛·하늘빛·방향광)으로 위를 보는 면이 받던 밝기와 같게 맞춘 값
+const FLAT_GAIN = 0.75 * NIGHT_LIGHT, GSHADOW = { value: Object.assign(new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1), { needsUpdate: true }) }; // 굽기 전엔 그림자 없음(흰색)
+const GBOX = { value: new THREE.Vector4(-320, -320, 640, 640) }; // 바닥 판 x·z -320~320
+function addFlat(sh, ground) {
+  const v3 = (a, b, c) => `vec3(${a.toFixed(3)}, ${b.toFixed(3)}, ${c.toFixed(3)})`, A = AMB_COL, K = KEY_COL, d = KEY_DIR;
+  sh.uniforms.uSleekBakeOn = BAKE_ON;
+  sh.vertexShader = 'varying vec3 vSleekAmb;\nvarying vec3 vSleekKey;\nvarying vec2 vSleekXZ;\n' + sh.vertexShader
+    .replace('#include <defaultnormal_vertex>', `#include <defaultnormal_vertex>
+  { vec3 wn = normalize((vec4(transformedNormal, 0.) * viewMatrix).xyz);
+    vSleekAmb = ${v3(A.r, A.g, A.b)} * (0.75 + 0.25 * max(0., wn.y)) * ${FLAT_GAIN.toFixed(3)};
+    vSleekKey = ${v3(K.r, K.g, K.b)} * max(0., dot(wn, ${v3(d.x, d.y, d.z)})) * ${FLAT_GAIN.toFixed(3)}; }`)
+    .replace('#include <project_vertex>', `#include <project_vertex>
+  { vec4 sw = vec4(transformed, 1.);
+  #ifdef USE_INSTANCING
+    sw = instanceMatrix * sw;
+  #endif
+    vSleekXZ = (modelMatrix * sw).xz; }`);
+  sh.fragmentShader = 'varying vec3 vSleekAmb;\nvarying vec3 vSleekKey;\nvarying vec2 vSleekXZ;\n'
+    + (ground ? (sh.uniforms.uSleekGShadow = GSHADOW, sh.uniforms.uSleekGBox = GBOX, 'uniform sampler2D uSleekGShadow;\nuniform vec4 uSleekGBox;\n') : '')
+    + declBakeOn(sh.fragmentShader).replace('#include <opaque_fragment>', `#ifdef STANDARD
+  { float ks = ${ground ? 'texture2D(uSleekGShadow, (vSleekXZ - uSleekGBox.xy) / uSleekGBox.zw).r' : '1.0'};
+    outgoingLight = mix(outgoingLight, diffuseColor.rgb * mix(1.0, 0.55, metalnessFactor) * (vSleekAmb + vSleekKey * ks) + reflectedLight.indirectDiffuse + totalEmissiveRadiance, uSleekBakeOn); }
+#endif
+#include <opaque_fragment>`);
+}
+// 다크 모드: 구운 빛이 없는 표준 재질에 고정 빛을 단다(새로 생기는 것도 tidyScene이 0.5초마다 잡는다). 새로 훅을 다는 재질은 채도를 그대로 둔다
+function flatBake(el) {
+  let ch = false;
+  el.scene.traverse(o => { if (!o.isMesh) return; [].concat(o.material).forEach(m => {
+    if (!m?.isMeshStandardMaterial || m.userData.sleekFlat) return;
+    // 장면이 재질을 clone하면 sleekBake 표시는 복사되지만 훅(onBeforeCompile)은 빠진다 → 구운 빛 훅을 다시 단다(꼭짓점 빛이 없으면 고정 빛으로)
+    if (m.userData.sleekBake) { if (m.onBeforeCompile.sleek) return; if (!o.geometry.attributes.sleekBake) m.userData.sleekBake = false; else { desaturate(m); ch = true; return; } }
+    m.userData.sleekFlat = o.name === 'SITE_GROUND' ? 'g' : 1;
+    if (!m.onBeforeCompile.sleek && m.userData.noSat === undefined) m.userData.noSat = true;
+    desaturate(m); m.needsUpdate = true; ch = true; }); });
+  return ch;
+}
+// 바닥 그림자: 키라이트 방향 깊이 지도로 바닥(높이 0.05) 1024×1024 칸마다 가려지는지 구워 둔다
+function groundShadow(el) {
+  const { x: x0, y: z0, z: W, w: D } = GBOX.value, keep = [], setVis = (o, v) => { keep.push([o, o.visible]); o.visible = v; };
+  occluders().forEach(o => setVis(o, true)); Object.values(el.zones || {}).forEach(z => setVis(z.root, false)); // 공정 그림자는 바닥에 굳히지 않는다(공정 안 화면에서 숨으므로)
+  let lit; try { lit = keyShadow(el, new THREE.Box3(new THREE.Vector3(x0, 0, z0), new THREE.Vector3(x0 + W, 40, z0 + D))); } finally { keep.reverse().forEach(([o, v]) => { o.visible = v; }); }
+  const N = 1024, px = new Uint8Array(N * N * 4), w = new THREE.Vector3();
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { w.set(x0 + (i + 0.5) / N * W, 0.05, z0 + (j + 0.5) / N * D); const v = Math.round(lit(w) * 255), k = (j * N + i) * 4; px[k] = px[k + 1] = px[k + 2] = v; px[k + 3] = 255; }
+  const t = new THREE.DataTexture(px, N, N); t.magFilter = t.minFilter = THREE.LinearFilter; t.needsUpdate = true; return t;
 }
 // 키라이트 방향에서 본 깊이 지도(직교) → 꼭짓점이 가려지는지(그림자)
 function keyShadow(el, box) {
@@ -406,6 +465,7 @@ function bakeNight(el) {
       c.setRGB(AMB_COL.r * sky + KEY_COL.r * ndl * 0.6, AMB_COL.g * sky + KEY_COL.g * ndl * 0.6, AMB_COL.b * sky + KEY_COL.b * ndl * 0.6);
       omniAt(w, n, c, 'wall'); c.multiplyScalar(BLD_GAIN);
     }, { noSat: false }); });
+  try { GSHADOW.value = groundShadow(el); } catch (e) { console.warn('바닥 그림자 굽기 실패', e); }
   el._dirty = true; console.info('밤 조명 굽기: 꼭짓점', nv);
 }
 
@@ -441,6 +501,17 @@ function scaleInstances(o, k) {
   o.instanceMatrix.needsUpdate = true; o.computeBoundingSphere?.();
 }
 const isTrunk = (o) => { if (!o.isInstancedMesh || o.userData.scaledK) return false; o.geometry.computeBoundingBox(); const s = o.geometry.boundingBox.getSize(new THREE.Vector3()); return Math.abs(s.y - 1.6) < 0.2 && s.x < 0.5 && s.z < 0.5 && o.material?.color && o.material.color.r >= o.material.color.b; };
+
+// 테마를 바꾸면 site-backdrop.js가 낮·밤 배경 GLB를 비동기로 바꿔 끼운다. 바뀌기 전(옛 GLB가 아직 붙어 있는 동안)에 새 테마용 굽기를 하면
+// 엉뚱한 GLB에 구워진다(밤 건물이 낮 명암 재질로 바뀌고, 밤 바닥에 낮 그림자가 남음). 배경이 실제로 바뀌었거나 6초가 지난 뒤에만 굽는다
+function backdropSettled(el) {
+  const ext = el.scene.getObjectByName('SITE_BACKDROP_EXT'), dark = (el.getAttribute('theme') || 'dark') === 'dark';
+  if (el.__sDark === undefined) { el.__sDark = dark; return true; }
+  if (dark !== el.__sDark) { el.__sDark = dark; el.__sRoot = ext?.children[0]; el.__sT = performance.now(); }
+  if (!el.__sRoot) return true;
+  if (ext?.children[0] !== el.__sRoot || performance.now() - el.__sT > 6000) { el.__sRoot = null; return true; }
+  return false;
+}
 
 // ---- 구워 둔 빛과 겹치는 실제 조명 빼기 ----
 // - 투광등(site-backdrop.js의 구역 보조광 SpotLight 4개): 원뿔이 바닥에 닿는 자리를 바닥 라이트맵에 굽고(FLOODS → bakeLampLight) 장면에서 뺀다
@@ -675,15 +746,21 @@ function placeSunDisc(el) {
   });
 }
 
-// 다크 모드 달빛: 은은한 푸른 하늘빛(달빛 반사)을 한 겹 더 깔아 그늘까지 푸르스름하게 살짝 밝히고,
-// 주 방향광은 차가운 달빛 색으로. 공정만 밝게 떠 보이지 않게 주변(건물·바닥·나무)에도 빛이 깔린다. 라이트 모드에선 끈다
-function moonlight(el, dark) {
-  let m = el.scene.getObjectByName('SLEEK_MOONLIGHT');
-  if (!m) { m = new THREE.HemisphereLight(0x8fa8e0, 0x18202e, 0); m.name = 'SLEEK_MOONLIGHT'; el.scene.add(m); }
-  const want = dark ? 0.75 : 0; let ch = false;
-  if (Math.abs(m.intensity - want) > 1e-3) { m.intensity = want; ch = true; }
-  const sun = el.sunLight;
-  if (dark && sun && (Math.abs(sun.intensity - 1.55) > 1e-3 || sun.color.getHex() !== 0xbcd0ff)) { sun.intensity = 1.55; sun.color.set(0xbcd0ff); ch = true; }
+// 다크 모드 실시간 조명 끄기: 밤 빛은 모두 구워 두었다(공정·건물 = bakeNight, 나머지 = addFlat, 바닥 가로등 = 라이트맵).
+// 그래서 장면의 조명을 모두 끄고(빛 계산·그림자 지도 그리기 없음), 라이트 모드에선 내가 끈 것만 다시 켠다.
+// 장면이 나중에 붙이는 빛(쇳물 이동 빛 = scene_v3.js의 this.material, 설비 작동 효과 빛 = 장면에 새로 붙는 그룹)은 그리기 직전에 꺼서
+// 빛 개수가 바뀌어 셰이더를 다시 만드는 일이 없게 한다(새로 붙은 장면 자식만 훑는다)
+function nightLights(el, dark) {
+  let ch = false; el.__nightOff = dark;
+  const hide = (o) => { if (o.isLight && o.visible) { o.visible = false; o.userData.sleekNightOff = true; return true; } return false; };
+  if (!el.__nightHook) { el.__nightHook = true; const prev = el.scene.onBeforeRender, known = new WeakSet();
+    el.scene.onBeforeRender = function (...a) { prev?.apply(this, a);
+      ZON.value.set(...IDS.map(id => (el.zones?.[id] && isShown(el.zones[id].root) ? 1 : 0))); // 낮 바닥의 공정 그림자: 지금 보이는 공정만
+      if (!el.__nightOff) return;
+      el.material?.traverse?.(hide); for (const c of el.scene.children) if (!known.has(c)) { known.add(c); c.traverse(hide); } }; }
+  el.scene.traverse(o => { if (!o.isLight) return;
+    if (dark) { if (hide(o)) ch = true; } else if (o.userData.sleekNightOff) { o.visible = true; o.userData.sleekNightOff = false; ch = true; } });
+  if (dark && flatBake(el)) ch = true;
   if (ch) el._dirty = true;
 }
 
@@ -740,8 +817,17 @@ function buildRoads(el) {
 //    (여러 부분이 겹치면 가장 낮은 것 = 가장 가까운 가림을 남긴다: 깊이값을 높이로 써서 깊이 테스트로 고름)
 // 2) 칸마다 그 높이에 비례해 흐림 반경을 정하고(여러 단계로 흐린 그림자 중에서 골라 섞음), 높을수록 옅게
 // 3) 물체 바로 밑 접지 그림자(수직 투영)를 좁게 흐려 더한다 → 바닥 색에 곱한다(푸른 회색 그림자)
-function bakeSunShadow(el, ground, baseTex) {
-  const R = el.renderer, S = el.scene, RES = 1024, PX = 640 / RES; // 한 칸 = 0.625m
+// 공정(장면 zones)은 공정 안 화면에서 다른 공정이 숨으므로, 바닥 그림에 같이 구우면 숨은 공정의 그림자만 바닥에 남는다.
+// 그래서 정적인 것(주변 건물·나무·소품)은 바닥 그림에 굽고(onlyZone 없음, 공정은 뺀다), 공정은 하나씩 따로 구워(zoneSunShadows)
+// 보이는 공정 것만 바닥 셰이더가 곱한다(addZoneShade). 공정 안 화면에서 잠깐 숨긴 건물(hideOccluders)도 그림자는 굽는다.
+// 돌려주는 값: 칸마다 그림자 진하기(0~1), 0행 = 남쪽
+const SUN_RES = 1024;
+function sunShadeBuf(el, onlyZone) {
+  const R = el.renderer, S = el.scene, RES = SUN_RES, PX = 640 / RES; // 한 칸 = 0.625m
+  const keep = [], setVis = (o, v) => { keep.push([o, o.visible]); o.visible = v; };
+  occluders().forEach(o => setVis(o, true));
+  if (onlyZone) { let top = onlyZone.root; while (top.parent && top.parent !== S) top = top.parent; S.children.forEach(c => setVis(c, c === top)); for (let o = onlyZone.root; o && o !== S; o = o.parent) setVis(o, true); } else Object.values(el.zones || {}).forEach(z => setVis(z.root, false));
+  try {
   const cam = new THREE.OrthographicCamera(-320, 320, 320, -320, 1, 3000); cam.position.set(0, 1500, 0); cam.up.set(0, 0, -1); cam.lookAt(0, 0, 0); cam.updateMatrixWorld();
   const mat = new THREE.ShaderMaterial({ side: THREE.DoubleSide, uniforms: { uK: { value: new THREE.Vector2() } },
     vertexShader: 'uniform vec2 uK; varying float vH; void main(){ vec4 p = vec4(position, 1.);\n#ifdef USE_INSTANCING\n p = instanceMatrix * p;\n#endif\n vec4 w = modelMatrix * p; vH = max(w.y, 0.); w.xz -= uK * vH; w.y = 0.; vec4 c = projectionMatrix * viewMatrix * w; c.z = (vH / 400.) * 2. - 1.; gl_Position = c; }',
@@ -786,6 +872,11 @@ function bakeSunShadow(el, ground, baseTex) {
     shade[i] = 1 - (1 - s) * (1 - a);
   }
   // 읽은 픽셀 0행 = 화면 아래 = 남쪽 → 바닥 캔버스와 같은 방향
+    return shade;
+  } finally { keep.reverse().forEach(([o, v]) => { o.visible = v; }); }
+}
+function bakeSunShadow(el, ground, baseTex) {
+  const RES = SUN_RES, n = RES * RES, shade = sunShadeBuf(el, null);
   const sc = document.createElement('canvas'); sc.width = sc.height = RES; const sx = sc.getContext('2d'), im = sx.createImageData(RES, RES);
   for (let i = 0; i < n; i++) { im.data[i * 4] = 0x2b; im.data[i * 4 + 1] = 0x35; im.data[i * 4 + 2] = 0x50; im.data[i * 4 + 3] = Math.round(Math.min(1, shade[i]) * 255); } // 그림자 색: 푸른 회색
   sx.putImageData(im, 0, 0);
@@ -795,6 +886,29 @@ function bakeSunShadow(el, ground, baseTex) {
   x.save(); x.globalCompositeOperation = 'multiply'; x.drawImage(m, 0, 0); x.restore();
   baseTex.needsUpdate = true;
 }
+
+// 공정 그림자: 공정마다 RGBA 한 채널(IDS 순서)에 구워 두고, 바닥 셰이더가 지금 보이는 공정(ZON) 것만 곱한다.
+// 모델이 다 실린 공정부터 한 번에 하나씩 굽는다(한꺼번에 굽는 멈칫거림을 나눔). 굽기 결과 0행(남쪽)을 그대로 0행에 넣는다(바닥 UV와 맞춤: 화면에서 확인)
+const ZSHADE = { value: Object.assign(new THREE.DataTexture(new Uint8Array(SUN_RES * SUN_RES * 4), SUN_RES, SUN_RES), { magFilter: THREE.LinearFilter, minFilter: THREE.LinearFilter, needsUpdate: true }) };
+const ZON = { value: new THREE.Vector4() }, zoneShadeDone = new Set();
+function zoneSunShadows(el) {
+  for (let i = 0; i < IDS.length; i++) {
+    const id = IDS[i], z = el.zones?.[id]; if (zoneShadeDone.has(id) || !z?.root?.getObjectByName('GLB_' + id)) continue;
+    zoneShadeDone.add(id); const sh = sunShadeBuf(el, z), d = ZSHADE.value.image.data, N = SUN_RES;
+    for (let r = 0; r < N; r++) for (let x = 0; x < N; x++) d[(r * N + x) * 4 + i] = Math.round(Math.min(1, sh[r * N + x]) * 255);
+    ZSHADE.value.needsUpdate = true; el._dirty = true; return true;
+  }
+  return false;
+}
+function addZoneShade(sh) { // 라이트 모드 바닥: 보이는 공정의 그림자를 바닥 그림처럼 푸른 회색으로 곱한다(canvas 곱하기와 같게 sRGB에서 섞고 선형으로)
+  sh.uniforms.uSleekZS = ZSHADE; sh.uniforms.uSleekZOn = ZON; sh.uniforms.uSleekBakeOn = BAKE_ON;
+  sh.fragmentShader = 'uniform sampler2D uSleekZS;\nuniform vec4 uSleekZOn;\n' + declBakeOn(sh.fragmentShader).replace('#include <map_fragment>', `#include <map_fragment>
+#ifdef USE_MAP
+  { vec4 zs = texture2D(uSleekZS, vMapUv) * uSleekZOn; float s = 1.0 - (1.0 - zs.r) * (1.0 - zs.g) * (1.0 - zs.b) * (1.0 - zs.a);
+    diffuseColor.rgb *= mix(vec3(1.0), pow(mix(vec3(1.0), vec3(0.169, 0.208, 0.314), s), vec3(2.2)), 1.0 - uSleekBakeOn); }
+#endif`);
+}
+const declBakeOn = (src) => src.includes('uniform float uSleekBakeOn;') ? src : 'uniform float uSleekBakeOn;\n' + src;
 
 // 바닥 그림에서 바다 칸을 가린다: 빨강 값의 분포를 오츠 문턱값으로 둘로 나눈다. 바다=흰색 캔버스를 돌려준다
 function seaMaskCanvas(img, N) {
@@ -950,6 +1064,7 @@ function bakeLampLight(ground, pool) {
 // ---- 4) 공정을 볼 때(소개 중 포함) 카메라와 공정 사이를 가리는 주변 모델 숨기기 ----
 // 대상 공정: 소개 중이면 그 공정(el.__sleekFocus), 아니면 들어가 있는 공정. 대상이 바뀌면 숨긴 것을 되돌리고 다시 잰다.
 const hidden = new Set();
+function occluders() { return hidden; } // 공정 안 화면에서 숨긴 건물(굽기 함수 안의 지역 변수 hidden과 이름이 겹쳐서 따로 둔다)
 const ray = new THREE.Raycaster();
 let hiddenFor = null;
 function hideOccluders(el) {

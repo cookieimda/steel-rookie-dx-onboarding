@@ -130,10 +130,10 @@ transfer: `<svg class="scene" viewBox="0 0 700 420" xmlns="http://www.w3.org/200
 // 장면 SVG 공용 스타일 (팝업과 공유)
 const SCENE_CSS = `
 /* 장면 SVG 색: .svgbox에 변수로 두고 테마(steel-2d·팝업의 theme 속성)에 따라 바꾼다. SVG 안에 속성으로 박힌 색도 아래에서 같은 변수로 덮는다(CSS가 속성보다 우선) */
-.svgbox{--sc-bg1:#0b1118;--sc-bg2:#0a0f15;--sc-edge:#1f2b37;--sc-plot:#0b1118;--sc-grid:#2b3948;--sc-lbl:#c3cfda;--sc-lbl-strong:#eef3f8;--sc-none:#8b99a8;
-  --sc-sf:#313c48;--sc-sl:#7c8b9a;--sc-rf:#69472d;--sc-rl:#9d6840;--sc-rail:#738392;--sc-metal:#93a0ad;--sc-pipe:#8392a0;--sc-gas:#bbc5cf;--sc-jet:#e6f5ff}
-:host([theme=light]) .svgbox{--sc-bg1:#f8fafc;--sc-bg2:#eef2f7;--sc-edge:#dbe3ec;--sc-plot:#ffffff;--sc-grid:#c9d3de;--sc-lbl:#4a5868;--sc-lbl-strong:#17263d;--sc-none:#64748b;
-  --sc-sf:#e3e9f0;--sc-sl:#7a8899;--sc-rf:#e2c09d;--sc-rl:#a8713f;--sc-rail:#8a99a8;--sc-metal:#a9b5c2;--sc-pipe:#9aa7b4;--sc-gas:#6f7f8f;--sc-jet:#3d86c6}
+.svgbox{--sc-bg1:#141416;--sc-bg2:#111113;--sc-edge:#2a2a2e;--sc-plot:#141416;--sc-grid:#2f2f34;--sc-lbl:#c8c8cd;--sc-lbl-strong:#f2f2f2;--sc-none:#8e8e95;
+  --sc-sf:#34343a;--sc-sl:#8a8a92;--sc-rf:#69472d;--sc-rl:#9d6840;--sc-rail:#7a7a82;--sc-metal:#9a9aa2;--sc-pipe:#8a8a92;--sc-gas:#c0c0c6;--sc-jet:#eef0f2}
+:host([theme=light]) .svgbox{--sc-bg1:#fafafa;--sc-bg2:#f1f1f3;--sc-edge:#e4e4e7;--sc-plot:#ffffff;--sc-grid:#d4d4d8;--sc-lbl:#55555c;--sc-lbl-strong:#161617;--sc-none:#5f5f66;
+  --sc-sf:#e6e6e9;--sc-sl:#7c7c85;--sc-rf:#e2c09d;--sc-rl:#a8713f;--sc-rail:#8e8e96;--sc-metal:#b0b0b7;--sc-pipe:#a0a0a8;--sc-gas:#74747c;--sc-jet:#3d86c6}
 .svgbox{background:linear-gradient(180deg,var(--sc-bg1),var(--sc-bg2));border-color:var(--sc-edge)}
 .svgbox [fill="#313c48"]{fill:var(--sc-sf)}.svgbox [stroke="#7c8b9a"]{stroke:var(--sc-sl)}.svgbox [fill="#0b1118"]{fill:var(--sc-plot)}
 .svgbox [stroke="#2b3948"],.svgbox [stroke="#263441"]{stroke:var(--sc-grid)}.svgbox [fill="#738392"]{fill:var(--sc-rail)}.svgbox [stroke="#738392"]{stroke:var(--sc-rail)}
@@ -155,9 +155,9 @@ const SCENE_CSS = `
 
 const CSS = `
 :host{display:block;height:100%;min-height:0;font-family:"IBM Plex Sans KR","Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif;font-size:14px;line-height:1.5}
-.root{--bg:#0f141c;--surface:#161d28;--ink:#e9eff8;--muted:#a3b0c2;--border:#2a3547;--soft:#222c3a;--accent:#7ca7ff;--active:#263c60;--orange:#ffad61;--warm:#453226;--steel:#566b88;--darksteel:#8c9fb9;--ok:#39d98a;--miss:#ff5d68;--warn:#ffc857;
+.root{--bg:#18181a;--surface:#1f1f22;--ink:#f2f2f2;--muted:#a8a8ad;--border:#2e2e33;--soft:#2a2a2e;--accent:#f2f2f2;--active:#38383e;--orange:#ffad61;--warm:#453226;--steel:#64676e;--darksteel:#9a9ea6;--ok:#39d98a;--miss:#ff5d68;--warn:#ffc857;
   height:100%;overflow:auto;background:var(--bg);color:var(--ink);box-sizing:border-box;outline:none;container-type:inline-size}
-.root[data-theme=light]{--bg:#f5f7fa;--surface:#fff;--ink:#17263d;--muted:#64748b;--border:#e1e7ef;--soft:#edf2f7;--accent:#2260d8;--active:#eaf1ff;--orange:#e98532;--warm:#fff1e5;--steel:#b4c3d6;--darksteel:#7a91af}
+.root[data-theme=light]{--bg:#f4f4f5;--surface:#fff;--ink:#161617;--muted:#5f5f66;--border:#e4e4e7;--soft:#efeff1;--accent:#161617;--active:#e8e8eb;--orange:#e98532;--warm:#fff1e5;--steel:#c4c6cc;--darksteel:#7c7f88}
 .root *{box-sizing:border-box}
 button{font:inherit;cursor:pointer;touch-action:manipulation}
 .header{padding:14px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5}
@@ -177,7 +177,7 @@ h2{font-size:22px;letter-spacing:-.6px;line-height:1.35;margin:6px 0 4px;font-we
 .toolbar{display:flex;justify-content:space-between;gap:10px;align-items:center;margin:18px 0 12px;flex-wrap:wrap}
 .status{font-size:11px;display:flex;gap:7px;align-items:center;color:var(--muted)}.status i{width:6px;height:6px;border-radius:50%;background:var(--accent)}
 .actions{display:flex;gap:7px}.actions button{border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:7px;padding:7px 11px;font-size:11px;white-space:nowrap;min-height:34px}
-.actions .play{background:var(--ink);color:var(--surface);border-color:var(--ink)}.actions .play.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.actions .play{background:var(--ink);color:var(--surface);border-color:var(--ink)}.actions .play.on{background:var(--accent);border-color:var(--accent);color:var(--surface)}
 .map{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:16px 16px 12px}
 .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
 .lane{min-width:0;position:relative}.lane:not(:last-child):after{content:'→';position:absolute;top:96px;right:-12px;color:var(--muted);font-size:16px}

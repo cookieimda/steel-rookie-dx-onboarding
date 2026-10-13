@@ -37,6 +37,14 @@ import {
 } from "./types.js";
 
 const PASS_THRESHOLD = 0.8;
+/** 판정마다 포석호가 먼저 하는 짧은 반응. 맞힘은 feedback, 부분은 almost, 틀림·힌트 요청은 miss 발화로 낸다. */
+export const REACTIONS = {
+  correct: "정답이에요!",
+  recheckCorrect: "정답이에요! 이번에는 정확해요.",
+  almost: "거의 맞았어요, 조금만 더 생각해 볼까요?",
+  miss: "아쉬워요, 같이 다시 볼게요.",
+  keyPoints: "아쉬워요. 핵심만 정리할게요.",
+} as const;
 const ERROR_TEXT = "답변을 채점하지 못했어요. 잠시 후 다시 시도해 주세요.";
 const PAUSE_TEXT = "여기서 멈출게요. 맞힌 개념은 저장했고, 이어 풀면 풀던 개념을 다른 질문으로 다시 물어볼게요.";
 
@@ -285,6 +293,7 @@ export class CheckpointEngine {
       });
       const recheck = await this.askRecheck(attempt, rubric, concept, question);
       const tutor: Utterance[] = [
+        evaluation.verdict === "partial" ? { type: "almost", text: REACTIONS.almost } : { type: "miss", text: REACTIONS.miss },
         { type: "explanation", text: explanation },
         { type: "recheck_question", text: recheck.text },
       ];
@@ -307,7 +316,7 @@ export class CheckpointEngine {
     let write: () => void;
     if (phase === "initial") {
       final = conceptResult(concept.concept_id, "correct");
-      feedback = { type: "feedback", text: "맞아요." };
+      feedback = { type: "feedback", text: REACTIONS.correct };
       write = () => this.repo.insertResult({
         attempt_id: attempt.id, concept_id: concept.concept_id, question, answer,
         verdict: "correct", evidence: evaluation.evidence, explain_from: null,
@@ -318,8 +327,8 @@ export class CheckpointEngine {
       const recheckVerdict = evaluation.verdict as Exclude<Evaluation["verdict"], "assisted">;
       final = conceptResult(concept.concept_id, first.verdict, recheckVerdict);
       feedback = recheckVerdict === "correct"
-        ? { type: "feedback", text: "맞아요, 이번에는 정확해요." }
-        : { type: "key_points", text: ["핵심만 정리할게요.", ...concept.key_points.map((k) => `- ${toPolite(k.point)}`)].join("\n") };
+        ? { type: "feedback", text: REACTIONS.recheckCorrect }
+        : { type: "key_points", text: [REACTIONS.keyPoints, ...concept.key_points.map((k) => `- ${toPolite(k.point)}`)].join("\n") };
       write = () => this.repo.updateRecheck(attempt.id, concept.concept_id, {
         recheck_answer: answer, recheck_verdict: recheckVerdict, recheck_evidence: evaluation.evidence,
       }, now);

@@ -190,6 +190,8 @@
               <span style="font-size:15px;font-weight:700;">{{ cpTitle }}</span>
               <span style="flex:none;padding:3px 10px;border-radius:999px;border:1px solid {{ cpStageColor }};color:{{ cpStageColor }};font-size:15px;font-weight:600;">{{ cpStageLabel }}</span>
               <span style="flex:1;"></span>
+              <!-- 포석호 목소리(브라우저 음성 합성) 켜기·끄기. 지원하지 않는 브라우저에서는 숨긴다 -->
+              <sc-if value="{{ cpVoiceSupported }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ onCpToggleVoice }}" title="포석호가 말풍선을 소리 내어 읽어요" style="height:30px;padding:0 10px;border-radius:999px;border:1px solid var(--line2);background:transparent;color:var(--text);font-size:13px;font-weight:600;cursor:pointer;">{{ cpVoiceLabel }}</button></sc-if>
               <sc-for list="{{ cpDots }}" as="d" hint-placeholder-count="0"><span title="{{ d.index }}" style="width:9px;height:9px;border-radius:50%;background:{{ d.color }};"></span></sc-for>
             </div>
             <sc-if value="{{ cpBubbleText }}" hint-placeholder-val="{{ false }}">

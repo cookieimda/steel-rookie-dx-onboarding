@@ -7,7 +7,7 @@ export const TEXT = {
     learning: '학습 모드',
   },
   badges: {
-    passed: '단련 완료',
+    passed: '학습 완료',
     notPassed: '미통과',
   },
   buttons: {
@@ -64,16 +64,18 @@ export const TEXT = {
   },
   // 튜터 메시지 종류별 머리말(서버 Utterance.type).
   messageLabels: {
-    intro: '튜터',
+    intro: '포석호',
     question: '질문',
     recheck_question: '다른 각도로 다시 물어볼게요',
     explanation: '설명',
-    feedback: '확인',
+    feedback: '포석호',
+    almost: '포석호',
+    miss: '포석호',
     key_points: '핵심 정리',
     result: '결과',
     error: '채점 오류',
   },
-  defaultMessageLabel: '튜터',
+  defaultMessageLabel: '포석호',
   verdicts: {
     correct: '맞음',
     partial: '부분',

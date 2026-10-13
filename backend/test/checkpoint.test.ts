@@ -51,7 +51,7 @@ test("정답 흐름: 모든 개념이 correct면 완료되고 다음 섹션이 �
   assert.deepEqual(texts(ready), ["question:Q:a"]);
 
   const afterA = await engine.respond(USER, started.attempt_id, "correct");
-  assert.deepEqual(texts(afterA), ["feedback:맞아요.", "question:Q:b"]);
+  assert.deepEqual(texts(afterA), ["feedback:정답이에요!", "question:Q:b"]);
   assert.deepEqual(afterA.progress.map((p) => p.status), ["done", "current", "pending"]);
   assert.equal(afterA.result, null);
 
@@ -100,11 +100,11 @@ test("partial → 부가 설명과 다른 각도 재확인 → 재확인 판정�
 
   const partial = await engine.respond(USER, view.attempt_id, "partial@1");
   assert.equal(partial.state, "awaiting_recheck");
-  assert.deepEqual(texts(partial), ["explanation:EX:a:1", "recheck_question:RQ:a"]);
+  assert.deepEqual(texts(partial), ["almost:거의 맞았어요, 조금만 더 생각해 볼까요?", "explanation:EX:a:1", "recheck_question:RQ:a"]);
   assert.deepEqual(tutor.calls.find((c) => c.kind === "recheck")?.extra, { previousQuestion: "Q:a", exclude: [] });
 
   const rechecked = await engine.respond(USER, view.attempt_id, "correct");
-  assert.deepEqual(texts(rechecked), ["feedback:맞아요, 이번에는 정확해요.", "question:Q:b"]);
+  assert.deepEqual(texts(rechecked), ["feedback:정답이에요! 이번에는 정확해요.", "question:Q:b"]);
   assert.equal(evaluator.calls.at(-1)?.question, "RQ:a"); // 재확인 질문으로 채점
 
   await engine.respond(USER, view.attempt_id, "partial");
@@ -156,7 +156,7 @@ test("핵심 요소를 모두 맞혔지만 사실 오류로 partial이면 explai
 
   const partial = await engine.respond(USER, view.attempt_id, "partial@null|불순물 제거를 잘못 앎");
   assert.equal(partial.state, "awaiting_recheck");
-  assert.deepEqual(texts(partial), ["explanation:EX:a:null", "recheck_question:RQ:a"]);
+  assert.deepEqual(texts(partial), ["almost:거의 맞았어요, 조금만 더 생각해 볼까요?", "explanation:EX:a:null", "recheck_question:RQ:a"]);
   assert.deepEqual(tutor.calls.find((c) => c.kind === "explanation")?.extra, { explainFrom: null, misconception: "불순물 제거를 잘못 앎", learnerNotes: null });
 });
 
@@ -435,7 +435,7 @@ test("이어 풀기: 답 대기 중 멈추면 맞힌 개념은 그대로, 풀던
   const { view } = await engine.start(USER, "ironmaking");
   const id = view.attempt_id;
   assert.deepEqual(texts(await engine.respond(USER, id, "네")), ["question:a-Q1"]);
-  assert.deepEqual(texts(await engine.respond(USER, id, "correct")), ["feedback:맞아요.", "question:b-Q1"]);
+  assert.deepEqual(texts(await engine.respond(USER, id, "correct")), ["feedback:정답이에요!", "question:b-Q1"]);
 
   const paused = await engine.pause(USER, id);
   assert.equal(paused.state, "paused");
@@ -542,4 +542,20 @@ test("HTTP: pause·resume 200, 멈춘 시도에 답하면 409, 남의 시도는 
   assert.equal(resumed.status, 200);
   assert.equal(((await resumed.json()) as CheckpointView).state, "awaiting_answer");
   assert.equal((await post(`/api/checkpoints/${view.attempt_id}/resume`)).status, 409);
+});
+
+test("판정 반응: 맞힘은 '정답이에요!', 부분은 almost, 틀림·힌트 요청은 miss를 설명 앞에, 재확인에서도 못 맞히면 '아쉬워요. 핵심만…'", async () => {
+  const { engine } = setup();
+  const { view } = await engine.start(USER, "ironmaking");
+  await engine.respond(USER, view.attempt_id, "네");
+  const wrong = await engine.respond(USER, view.attempt_id, "wrong");
+  assert.deepEqual(wrong.tutor.map((u) => u.type), ["miss", "explanation", "recheck_question"]);
+  assert.equal(wrong.tutor[0].text, "아쉬워요, 같이 다시 볼게요.");
+  const keyPoints = await engine.respond(USER, view.attempt_id, "wrong");
+  assert.match(keyPoints.tutor[0].text, /^아쉬워요\. 핵심만 정리할게요\./);
+
+  const assisted = await engine.respond(USER, view.attempt_id, "assisted");
+  assert.equal(assisted.tutor[0].type, "miss", "힌트 요청도 miss");
+  const recheckCorrect = await engine.respond(USER, view.attempt_id, "correct");
+  assert.equal(recheckCorrect.tutor[0].text, "정답이에요! 이번에는 정확해요.");
 });

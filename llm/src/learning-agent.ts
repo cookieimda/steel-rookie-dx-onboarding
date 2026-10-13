@@ -34,7 +34,7 @@ export interface SceneCatalog {
 
 /** 근거 없이 grounded라고 답했을 때 대신 보여 줄 답. */
 export const UNVERIFIED_ANSWER =
-  "수집한 공개 자료에서는 이 질문의 답을 확인하지 못했어요. 실제 운전 조건이나 작업 절차는 현장 지침에서 따로 확인해 주세요.";
+  "수집한 공개 자료에서는 이 질문의 답을 확인하지 못했어요. 실제 운전 조건이나 작업 절차는 해당 자료와 현장 지침에서 따로 확인해 주세요.";
 
 /** 학습 화면의 설비 작동 단계 설명(backend/src/learning/screen-material.ts). 근거가 아니라 화면 안내에만 쓴다. */
 export interface ScreenMaterial {

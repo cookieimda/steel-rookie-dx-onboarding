@@ -110,6 +110,20 @@ body.home {
 /* 로그인 상태 유지 칸이 없는 모드는 버튼 위를 띄운다 */
 .panel .keep[hidden] + .error { margin-top: 36px; }
 .panel .error.ok { color: #fff; }
+/* 시연 계정 고르기(pick): 입력 칸과 같은 줄 UI. 왼쪽 역할, 오른쪽 아이디 */
+.accounts { display: flex; flex-direction: column; }
+.accounts button {
+  display: flex; align-items: center; justify-content: space-between; height: 72px; padding: 0;
+  border-bottom: 1px solid var(--line-soft); border-radius: 0; background: transparent; color: var(--text);
+  font-family: var(--font-ko); font-size: 16px; font-weight: 500; letter-spacing: 0; text-align: left;
+  transition: border-color .15s, padding .15s;
+}
+.accounts button:hover, .accounts button:focus-visible { background: transparent; border-color: #fff; padding-left: 6px; outline: none; }
+.accounts button > span { display: flex; flex-direction: column; gap: 3px; }
+.accounts b { font-weight: 500; }
+.accounts small { font-size: 12px; color: var(--muted); }
+.accounts code { font-family: "JetBrains Mono", monospace; font-size: 12px; letter-spacing: 0.08em; color: var(--muted); }
+.accounts button:hover code, .accounts button:focus-visible code { color: #fff; }
 .panel .links { display: flex; justify-content: center; align-items: center; gap: 4px; margin-top: 10px; }
 .panel .links button { height: 36px; padding: 0 10px; background: transparent; color: var(--muted); font-family: var(--font-ko); font-size: 13px; font-weight: 400; letter-spacing: 0; }
 .panel .links button:not([hidden]) ~ button:not([hidden])::before { content: "|"; margin-right: 14px; color: var(--line-soft); }

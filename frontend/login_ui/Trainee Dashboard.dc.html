@@ -147,7 +147,7 @@
           </div>
         </sc-if>
         <sc-if value="{{ cpShowOverlay }}" hint-placeholder-val="{{ false }}">
-          <div style="display:flex;justify-content:center;height:170px;overflow:hidden;position:relative;z-index:0;"><x-import component-from-global-scope="cp-character" motion="{{ cpCharacterMotion }}" model="/3d-demo/models/character/tutor.glb" hint-size="150,170" style="width:150px;height:170px;"></x-import></div>
+          <!-- cp-character의 기본 크기(220×260)대로 두고 가운데 정렬, 아래쪽은 잘라 카드 높이를 줄인다 --><div style="display:flex;justify-content:center;height:210px;overflow:hidden;position:relative;z-index:0;"><x-import component-from-global-scope="cp-character" motion="{{ cpCharacterMotion }}" model="/3d-demo/models/character/tutor.glb" hint-size="220,260" style="flex:none;width:220px;height:260px;"></x-import></div>
           <div id="cpBody" style="display:flex;flex-direction:column;gap:12px;color:var(--text);">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
               <span style="font-size:15px;font-weight:700;">{{ cpTitle }}</span>

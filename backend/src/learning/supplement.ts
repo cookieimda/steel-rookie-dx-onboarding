@@ -18,7 +18,7 @@ import { currentUserId } from "../request-user.js";
 import type { Rubric, RubricConcept } from "../rubrics.js";
 import { UsageLimitError } from "../usage.js";
 import { executeLearningTool, type LearningToolContext, type PracticeQuestioner } from "./agent-tools.js";
-import type { LearningRepository } from "./repository.js";
+import { latestPerConcept, type LearningRepository } from "./repository.js";
 import { SupplementRepository, type NewStep, type Supplement } from "./supplement-repository.js";
 
 /** 이만큼 답이 없던 보충학습은 끝낸다(다음 요청 때). */
@@ -125,7 +125,7 @@ export class SupplementEngine {
   private context(userId: string, section: Section, rubric: Rubric): LearningToolContext {
     return {
       userId, section, rubric,
-      repository: this.deps.learningRepo, retriever: this.deps.retriever, scene: this.deps.scene,
+      openMisconceptions: () => this.deps.repo.openMisconceptions(userId, section), retriever: this.deps.retriever, scene: this.deps.scene,
       questioner: this.deps.tutor, evaluator: this.deps.evaluator,
       retryConceptIds: () => this.deps.checkpointProgress?.(userId, section)?.retry_concept_ids ?? [],
     };
@@ -150,7 +150,7 @@ export class SupplementEngine {
     const rubric = this.deps.rubrics.find((r) => r.section === section);
     if (!rubric) return [];
     const resolvedAt = this.deps.repo.lastResolved(userId, section);
-    const open = new Map(this.deps.learningRepo.openMisconceptions(userId, section).map((m) => [m.concept_id, m] as const));
+    const open = new Map(latestPerConcept(this.deps.repo.openMisconceptions(userId, section), Infinity).map((m) => [m.concept_id, m] as const));
     const retry = new Set(this.deps.checkpointProgress?.(userId, section)?.retry_concept_ids ?? []);
     const out: SupplementCandidate[] = [];
     for (const c of rubric.concepts) {

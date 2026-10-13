@@ -2,6 +2,7 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import type { Section } from "../checkpoint/types.js";
+import type { OpenMisconception } from "./repository.js";
 
 export type SupplementState = "awaiting_answer" | "awaiting_recheck" | "completed" | "stopped";
 export type SupplementOutcome = "resolved" | "not_resolved";
@@ -136,6 +137,17 @@ export class SupplementRepository {
         .prepare("UPDATE misconceptions SET resolved = 1, resolved_at = ? WHERE user_id = ? AND concept_id = ? AND source = 'learning' AND origin = 'live' AND resolved = 0")
         .run(now, userId, conceptId).changes,
     );
+  }
+
+  /**
+   * 보충학습이 보는 미해결 오개념: 실제 기록과 시연 기록(origin = 'seed', 시연 계정 trainee02~20에만 있음)을 함께 본다.
+   * 시연 계정으로 보충학습을 보여 주기 위해서다(관리자 통계가 seed를 세는 것과 같은 이유). 학습 채팅 프롬프트·학습자 메모는 지금처럼 실제 기록만 본다.
+   */
+  openMisconceptions(userId: string, section: Section): OpenMisconception[] {
+    return this.db
+      .prepare("SELECT concept_id, summary, source, created_at FROM misconceptions WHERE user_id = ? AND section = ? AND resolved = 0 ORDER BY created_at, id")
+      .all(userId, section)
+      .map((row) => ({ concept_id: String(row.concept_id), summary: String(row.summary), source: row.source as OpenMisconception["source"], created_at: String(row.created_at) }));
   }
 
   private insertSteps(id: string, steps: NewStep[], now: string): void {

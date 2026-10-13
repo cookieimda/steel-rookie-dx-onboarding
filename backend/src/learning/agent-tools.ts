@@ -7,7 +7,7 @@ import type { PracticeQuestion } from "../../../llm/src/tutor.js";
 import type { SceneAction, SceneCatalog } from "../../../llm/src/learning-agent.js";
 import { parseLearningToolCall, type LearningToolCall, type LearningToolError, type LearningToolName } from "../../../llm/src/learning-tools.js";
 import type { Retrieved, Retriever } from "../../../llm/src/retrieval.js";
-import { latestPerConcept, type LearningRepository, type OpenMisconception } from "./repository.js";
+import { latestPerConcept, type OpenMisconception } from "./repository.js";
 import type { NewStep } from "./supplement-repository.js";
 
 /** 보충학습 확인 문제를 만드는 튜터(GeminiTutor.practiceQuestion). 체크포인트 질문 은행은 쓰지 않는다. */
@@ -19,7 +19,8 @@ export interface LearningToolContext {
   userId: string;
   section: Section;
   rubric: Rubric;
-  repository: LearningRepository;
+  /** 미해결 오개념(보충학습은 시연 기록도 본다: SupplementRepository.openMisconceptions). */
+  openMisconceptions: () => OpenMisconception[];
   retriever: Retriever;
   scene?: SceneCatalog;
   questioner: PracticeQuestioner;
@@ -73,7 +74,7 @@ export async function executeLearningTool<T extends LearningToolName>(raw: { too
     switch (call.tool) {
       case "get_learning_state":
         result = {
-          open_misconceptions: latestPerConcept(ctx.repository.openMisconceptions(ctx.userId, ctx.section)).filter((m) => conceptOf(m.concept_id)),
+          open_misconceptions: latestPerConcept(ctx.openMisconceptions()).filter((m) => conceptOf(m.concept_id)),
           retry_concept_ids: (ctx.retryConceptIds?.() ?? []).filter((id) => conceptOf(id)),
         };
         break;

@@ -90,9 +90,9 @@ async function setup(opts: { inProgress?: boolean; retry?: string[]; chunks?: Ch
     const res = await fetch(base + path, { method, headers: { "content-type": "application/json", "x-user-id": user }, body: body === undefined ? undefined : JSON.stringify(body) });
     return { status: res.status, body: (res.status === 204 ? null : await res.json()) as SupplementView & { error?: string; code?: string; candidates?: unknown[]; active?: SupplementView | null } };
   };
-  const memo = (concept: string, summary: string, source: "learning" | "checkpoint" = "learning", at = now()) =>
-    db.prepare("INSERT INTO misconceptions (id, user_id, section, concept_id, source, answer_text, summary, created_at) VALUES (?, 'u1', 'ironmaking', ?, ?, 'a', ?, ?)")
-      .run(`${concept}-${source}-${at}`, concept, source, summary, at);
+  const memo = (concept: string, summary: string, source: "learning" | "checkpoint" = "learning", at = now(), origin: "live" | "seed" = "live") =>
+    db.prepare("INSERT INTO misconceptions (id, user_id, section, concept_id, source, answer_text, summary, created_at, origin) VALUES (?, 'u1', 'ironmaking', ?, ?, 'a', ?, ?, ?)")
+      .run(`${concept}-${source}-${origin}-${at}`, concept, source, summary, at, origin);
   const open = (concept: string) => learningRepo.openMisconceptions("u1", "ironmaking").filter((m) => m.concept_id === concept);
   return { db, repo, agent, tutor, evaluator, call, memo, open, tick: (ms: number) => (clock += ms), close: () => srv.close() };
 }
@@ -327,7 +327,7 @@ test("도구 검증: 다른 공정·없는 설비·없는 개념·형식 오류�
   const db = openDatabase(":memory:");
   const evaluator = new FakeEvaluator();
   const ctx: LearningToolContext = {
-    userId: "u1", section: "ironmaking", rubric: ironmaking, repository: new LearningRepository(db), retriever: new Retriever({ chunksFor: () => CHUNKS }),
+    userId: "u1", section: "ironmaking", rubric: ironmaking, openMisconceptions: () => new LearningRepository(db).openMisconceptions("u1", "ironmaking"), retriever: new Retriever({ chunksFor: () => CHUNKS }),
     scene, questioner: new FakeTutor(), evaluator,
   };
   const steps: unknown[] = [];
@@ -353,6 +353,24 @@ test("deleteUserData: 보충학습과 실행 기록도 지운다(live·all), see
     assert.equal(deleteUserData(s.db, "u1", { origin: "seed" }).learning_supplements, 0);
     assert.equal(deleteUserData(s.db, "u1").learning_supplements, 1);
     assert.equal(Number(s.db.prepare("SELECT COUNT(*) AS n FROM learning_supplement_steps").get()!.n), 0);
+  } finally {
+    s.close();
+  }
+});
+
+test("시연 기록(seed) 오개념도 후보·설명에 쓰고(시연 계정), 맞히면 다시 권하지 않는다. 해결 처리는 실제 기록만", async () => {
+  const s = await setup();
+  try {
+    s.memo("coke_reduction", "시연: 코크스를 불순물 제거로 앎", "learning", undefined, "seed");
+    const list = await s.call("GET", "/api/learning/supplements?section=ironmaking");
+    assert.deepEqual((list.body.candidates as { concept_id: string; reason: string }[]).map((c) => [c.concept_id, c.reason]), [["coke_reduction", "misconception"]]);
+    const r = await s.call("POST", "/api/learning/supplements", { section: "ironmaking", concept_id: "coke_reduction" });
+    assert.match(r.body.messages[0]!.text, /지난번 기록: 시연: 코크스를 불순물 제거로 앎/);
+    s.tick(1000);
+    const done = await s.call("POST", `/api/learning/supplements/${r.body.id}/answer`, { answer: "일산화탄소로 환원" });
+    assert.equal(done.body.outcome, "resolved");
+    assert.doesNotMatch(done.body.messages[1]!.text, /해결로 바꿨어요/, "시연 기록은 해결로 바꾸지 않음");
+    assert.deepEqual((await s.call("GET", "/api/learning/supplements?section=ironmaking")).body.candidates, []);
   } finally {
     s.close();
   }

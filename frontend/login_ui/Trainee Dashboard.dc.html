@@ -33,6 +33,10 @@
       --accent: #161617; --accent-ink: #fff; --bubble-in: #efeff1; --send: #0b5cc4; --ok: #177a42; --mid: #9a6200; --bad: #c53030;
     }
     * { box-sizing: border-box; }
+    /* 스크롤바(가로·세로): 화면 전체를 AI 튜터 채팅창과 같은 얇은 테마색으로. 페이지 스크롤바는 html에 있어 body 변수 대신 같은 값을 직접 쓴다 */
+    body * { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+    html { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .13) transparent; }
+    html:has(body[data-theme="light"]) { scrollbar-color: rgba(0, 0, 0, .1) transparent; }
     a { color: inherit; text-decoration: none; }
     button, input { font-family: inherit; letter-spacing: inherit; }
     .card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; }

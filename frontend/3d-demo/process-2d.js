@@ -89,7 +89,7 @@ svg.thumb *{animation:none!important}svg.thumb .lbl{display:none}svg.thumb [data
 .peek[hidden]{display:none}.peek .big{border-radius:10px;overflow:hidden;border:1px solid var(--line);background:var(--p-bg)}.peek .big svg{width:100%;height:auto;display:block}
 .peek .t{display:flex;align-items:baseline;gap:8px;padding:0 4px}.peek .t b{font-size:15px}.peek .t span{font-size:13px;color:var(--dim)}
 .peek p{margin:0;padding:0 4px;font-size:15px;line-height:1.55;color:var(--muted)}.peek .go{padding:0 4px;font-size:13px;color:var(--lit)}
-@container (max-width:900px){.layout{grid-template-columns:1fr}.chapters{flex-direction:row;overflow-x:auto}.chapters .ch-h{display:none}.ch{grid-template-columns:1fr;width:150px;flex:none}.th{width:100%;height:76px}.peek{display:none}}
+@container (max-width:900px){.layout{grid-template-columns:1fr}.chapters{flex-direction:row;overflow-x:auto;padding-bottom:6px;scrollbar-width:thin;scrollbar-color:var(--line) transparent}.chapters .ch-h{display:none}.ch{grid-template-columns:1fr;width:150px;flex:none}.th{width:100%;height:76px}.peek{display:none}}
 .body{display:flex;flex-direction:column;gap:12px;min-width:0}
 .head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.head h3{margin:0;font-size:18px;font-weight:700}.head .en{font-size:15px;color:var(--dim)}.head .hint{margin-left:auto;font-size:15px;color:var(--dim)}
 .svg{width:100%;height:auto;display:block;border-radius:12px;border:1px solid var(--line)}

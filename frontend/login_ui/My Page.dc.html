@@ -20,7 +20,7 @@
     <iframe title="관리자 학습 현황" src="./Admin%20Dashboard.dc.html" style="display:block;width:100%;height:100vh;border:0;"></iframe>
   </sc-if>
   <sc-if value="{{ isTrainee }}" hint-placeholder-val="{{ false }}">
-    <iframe title="신입사원 학습 현황" src="./Trainee%20Dashboard.dc.html" style="display:block;width:100%;height:100vh;border:0;"></iframe>
+    <iframe title="신입사원 학습 현황" src="{{ traineeSrc }}" style="display:block;width:100%;height:100vh;border:0;"></iframe>
   </sc-if>
 </div>
 </x-dc>
@@ -45,7 +45,8 @@ class Component extends DCLogic {
   }
   renderVals() {
     const u = this.state.user;
-    return { isAdmin: !!u && u.role === 'admin', isTrainee: !!u && u.role !== 'admin' };
+    // 공정 화면에서 넘어온 맥락(?p=공정&eq=설비&ask=1)은 그대로 신입사원 대시보드에 넘긴다(#140)
+    return { isAdmin: !!u && u.role === 'admin', isTrainee: !!u && u.role !== 'admin', traineeSrc: './Trainee%20Dashboard.dc.html' + window.location.search };
   }
 }
 </script>

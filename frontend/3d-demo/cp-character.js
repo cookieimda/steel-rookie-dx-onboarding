@@ -165,14 +165,6 @@ class GltfRenderer {
     body.add(model);
     scene.add(body);
     this.body = body;
-    // 얼굴 판: 새겨진 눈·코·입을 덮고 표정을 그린다. 못 만들면(얼굴을 못 찾음) 모델 얼굴 그대로 둔다.
-    try {
-      this.face = buildFacePlate(THREE, model);
-      if (this.face) body.add(this.face.mesh);
-    } catch (e) {
-      console.warn('[cp-character] 얼굴 판을 만들지 못함', e);
-      this.face = null;
-    }
 
     this.clips = gltf.animations.map((c) => c.name);
     if (gltf.animations.length) {
@@ -190,6 +182,24 @@ class GltfRenderer {
     this.ready = true;
     this.resize();
     this.tick();
+    // 얼굴 판은 몸을 한 번 그린 다음 프레임에 붙인다(그동안에도 캐릭터가 먼저 보이게).
+    requestAnimationFrame(() => this.attachFace(model));
+  }
+
+  /** 얼굴 판: 새겨진 눈·코·입을 덮고 표정을 그린다. 못 만들면(얼굴을 못 찾음) 모델 얼굴 그대로 둔다. */
+  attachFace(model) {
+    if (this.disposed || this.face) return;
+    try {
+      this.face = buildFacePlate(this.THREE, model);
+      if (this.face) {
+        this.body.add(this.face.mesh);
+        this.faceKey = '';
+        this.tick();
+      }
+    } catch (e) {
+      console.warn('[cp-character] 얼굴 판을 만들지 못함', e);
+      this.face = null;
+    }
   }
 
   play(name) {

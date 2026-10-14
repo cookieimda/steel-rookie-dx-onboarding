@@ -212,7 +212,64 @@ export const nextBlinkIn = (random = Math.random) => 2.6 + random() * 2.4;
 export const BLINK_SECONDS = 0.13;
 
 /**
- * 얼굴 판 만들기: 정면에서 머리를 향해 격자로 광선을 쏴 표면 점을 얻고, 앞뒤(z) 높이를 여러 번 고르게 펴서(새겨진 홈을 지움)
+ * 정면(z가 큰 쪽)에서 본 높이 지도: 영역 안 삼각형을 한 번씩 격자에 칠해(래스터화) 칸마다 가장 앞(z 최대) 표면의 z와 uv를 남긴다.
+ * 광선을 칸마다 쏘면 삼각형 약 12만 개를 매번 다 검사해 40초 넘게 걸려서(2026-10-14 측정), 삼각형을 한 번만 훑는 방식으로 바꿨다.
+ * 돌려주는 hitAt(x, y)는 Raycaster 결과와 같은 모양({ point: { z }, uv: { x, y } } 또는 null)이다.
+ */
+export function frontHeightField(THREE, meshes, { x0, x1, y0, y1, step }) {
+  const nx = Math.ceil((x1 - x0) / step) + 1, ny = Math.ceil((y1 - y0) / step) + 1;
+  const zs = new Float32Array(nx * ny).fill(-Infinity), us = new Float32Array(nx * ny), vs = new Float32Array(nx * ny);
+  const p = new THREE.Vector3();
+  for (const mesh of meshes) {
+    const g = mesh.geometry, pos = g.attributes.position, uv = g.attributes.uv, index = g.index;
+    if (!pos) continue;
+    const P = new Float32Array(pos.count * 3);
+    for (let i = 0; i < pos.count; i++) {
+      p.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+      P[i * 3] = p.x; P[i * 3 + 1] = p.y; P[i * 3 + 2] = p.z;
+    }
+    const triangles = index ? index.count / 3 : pos.count / 3;
+    for (let t = 0; t < triangles; t++) {
+      const a = index ? index.getX(t * 3) : t * 3, b = index ? index.getX(t * 3 + 1) : t * 3 + 1, c = index ? index.getX(t * 3 + 2) : t * 3 + 2;
+      const ax = P[a * 3], ay = P[a * 3 + 1], az = P[a * 3 + 2];
+      const bx = P[b * 3], by = P[b * 3 + 1], bz = P[b * 3 + 2];
+      const cx = P[c * 3], cy = P[c * 3 + 1], cz = P[c * 3 + 2];
+      const minX = Math.min(ax, bx, cx), maxX = Math.max(ax, bx, cx), minY = Math.min(ay, by, cy), maxY = Math.max(ay, by, cy);
+      if (maxX < x0 || minX > x1 || maxY < y0 || minY > y1) continue;
+      const d = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy);
+      if (Math.abs(d) < 1e-12) continue;
+      const i0 = Math.max(0, Math.ceil((minX - x0) / step)), i1 = Math.min(nx - 1, Math.floor((maxX - x0) / step));
+      const j0 = Math.max(0, Math.ceil((minY - y0) / step)), j1 = Math.min(ny - 1, Math.floor((maxY - y0) / step));
+      for (let j = j0; j <= j1; j++) {
+        const Y = y0 + j * step;
+        for (let i = i0; i <= i1; i++) {
+          const X = x0 + i * step;
+          const w1 = ((by - cy) * (X - cx) + (cx - bx) * (Y - cy)) / d;
+          const w2 = ((cy - ay) * (X - cx) + (ax - cx) * (Y - cy)) / d;
+          const w3 = 1 - w1 - w2;
+          if (w1 < -1e-6 || w2 < -1e-6 || w3 < -1e-6) continue;
+          const Z = w1 * az + w2 * bz + w3 * cz;
+          const k = j * nx + i;
+          if (Z <= zs[k]) continue;
+          zs[k] = Z;
+          if (uv) {
+            us[k] = w1 * uv.getX(a) + w2 * uv.getX(b) + w3 * uv.getX(c);
+            vs[k] = w1 * uv.getY(a) + w2 * uv.getY(b) + w3 * uv.getY(c);
+          }
+        }
+      }
+    }
+  }
+  return (x, y) => {
+    const i = Math.round((x - x0) / step), j = Math.round((y - y0) / step);
+    if (i < 0 || j < 0 || i >= nx || j >= ny) return null;
+    const k = j * nx + i;
+    return Number.isFinite(zs[k]) ? { point: { z: zs[k] }, uv: { x: us[k], y: vs[k] } } : null;
+  };
+}
+
+/**
+ * 얼굴 판 만들기: 정면에서 본 머리 높이 지도(frontHeightField)에서 표면 점을 얻고, 앞뒤(z) 높이를 여러 번 고르게 펴서(새겨진 홈을 지움)
  * 표면에서 조금 띄운 판을 만든다. 모델은 높이 1·발 중앙 원점으로 맞춘 뒤 부른다. 얼굴을 못 찾으면 null.
  * @returns {{ mesh, canvas, ctx, texture, skin } | null}
  */
@@ -221,12 +278,8 @@ export function buildFacePlate(THREE, model, { document: doc = globalThis.docume
   model.updateMatrixWorld(true);
   model.traverse((o) => { if (o.isMesh) meshes.push(o); });
   if (!meshes.length || !doc) return null;
-  const ray = new THREE.Raycaster();
-  const dir = new THREE.Vector3(0, 0, -1);
-  const hitAt = (x, y) => {
-    ray.set(new THREE.Vector3(x, y, 5), dir);
-    return ray.intersectObjects(meshes, false)[0] ?? null;
-  };
+  // 얼굴 찾기·판·피부색이 쓰는 영역(높이 1 기준 머리 앞면 넉넉히). 칸 0.004 ≈ 판 격자의 절반.
+  const hitAt = frontHeightField(THREE, meshes, { x0: -0.32, x1: 0.32, y0: 0.3, y1: 1.0, step: 0.004 });
   // 얼굴 가운데: 몸 위쪽에서 정면으로 가장 튀어나온 높이(머리 앞면).
   let best = null;
   for (let y = 0.45; y <= 0.95; y += 0.01) {

@@ -33,6 +33,19 @@
 - 질문 은행이 있는 개념: 은행 질문(첫 질문·재확인)마다 말투 다듬기를 `--polish-count`(기본 3)회 돌려, 원문 유출, 다듬은 결과와 그 유출(완화·엄격 4글자), 실제로 쓴 문장(다듬은 문장, 또는 유출로 원문)을 표로 적는다. '의미 변경' 열(다듬으면서 묻는 내용이 바뀌었는지)은 사람이 채운다.
 - 은행이 빈 개념(대체 경로): 개념마다 LLM 질문을 `--count`(기본 10)개 만들어 처리(통과·재생성·대체)를 적는다. 유출 검사에 걸린 질문은 시도별 문장과 걸린 표현(정답 용어, 근거 문장 구)을 따로 표로 적는다. '범위 초과' 열(핵심 요소만으로 답할 수 없는 질문인지)은 사람이 채운다.
 
+## 학습 모드 근거 검색
+
+`npm run eval:retrieval [-- --public-only] [--ranking overlap] [--follow-up merge|pointing|empty-fallback] [--max-results 5] [--records 파일]`
+
+- 모델을 부르지 않는다(비용 없음). 세트 두 개를 따로 집계한다.
+  - `retrieval/ironmaking.jsonl`(단독 질문): 질문(`query`), 화면 설비(`screen`, 선택), 답이 있는 공개 자료 id(`expected_source_ids`, 빈 배열이면 검색 결과가 없어야 맞음).
+  - `retrieval/ironmaking-followup.jsonl`(이어지는 질문): 위 필드에 직전 대화(`history: [{question, answer}]`)를 더한다. "그 바람은 몇 도야?"처럼 앞 대화를 가리키는 질문과, 주제를 바꾸는 질문(`switch-`)을 섞는다.
+- 출력: 세트별 Recall@N(기대 출처가 상위 N개에 하나라도 있는 케이스 비율), MRR(첫 기대 출처 순위의 역수 평균), 놓친 케이스. 서버와 같이 루브릭 용어집으로 검색어를 넓히고, 이어지는 질문은 서버와 같은 `retrieveWithHistory`로 찾는다.
+- `--public-only`는 section.md 없이 공개 자료 메모만, `--ranking overlap`은 예전 방식(겹친 두 글자 수), `--follow-up`은 이어지는 질문 방식(기본 merge, empty-fallback은 예전 방식)으로 잰다. 검색을 바꾸면 같이 비교한다.
+- `--records`에는 방식·세트별 결과와 자료 판(공개 자료 메모·section.md 해시)을 남긴다.
+- 자료 형식(출처 id, 조각 id, 태그, 루브릭 개념·검색 힌트와의 연결)은 `npm test`의 `learning-materials.test.ts`가 검사한다.
+- 검색 결과만 보는 평가다. 답이 맞는지는 `eval:learning`과 사람 검수로 따로 본다.
+
 ## 긴 실행: 결과 기록, 이어 하기, 연결 재시도
 
 두 스크립트(`eval:evaluator`, `eval:questions`) 공통.

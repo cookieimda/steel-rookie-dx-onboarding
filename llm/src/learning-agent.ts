@@ -11,6 +11,7 @@ import type { GlossaryEntry } from "../../backend/src/rubrics.js";
 import { escapeDelimited, GeminiCallError, renderPrompt, type GenerateRequest, type LlmClient } from "./gemini.js";
 import { politeText } from "./polite.js";
 import type { Retrieved, Screen } from "./retrieval.js";
+import { currentTrace } from "./trace.js";
 
 const MAX_ATTEMPTS = 2;
 const TEMPERATURE = 0.3;
@@ -308,6 +309,28 @@ export function parseLearningReply(
   return { answer: politeText(r.answer.trim()), status: r.status, source_ids, follow_up, detected_misconception, scene_actions, keyword_card };
 }
 
+/** 서버 검증 전에 모델이 낸 값(trace용). 검증 뒤 값(LearningReply)과 비교해 무엇을 버렸는지 본다. */
+export interface ModelProposal {
+  status: string;
+  source_ids: string[];
+  scene_actions: { type: string; target_id: string }[];
+  misconception: string | null;
+  keyword_card: string | null;
+}
+
+/** 형식 검사를 통과한 응답 원문에서 모델이 낸 값을 꺼낸다. 꺼낼 수 없으면 null. */
+export function modelProposal(raw: string): ModelProposal | null {
+  const r = ReplySchema.safeParse((() => { try { return JSON.parse(raw); } catch { return null; } })());
+  if (!r.success) return null;
+  return {
+    status: r.data.status,
+    source_ids: r.data.source_ids,
+    scene_actions: r.data.scene_actions,
+    misconception: r.data.detected_misconception?.concept_id ?? null,
+    keyword_card: r.data.keyword_card?.concept_id ?? null,
+  };
+}
+
 /** Gemini 과부하(HTTP 503 "high demand")·연결 끊김 때 다시 부르기 전에 기다리는 시간(ms). 길이가 다시 부르는 횟수다. */
 export const OVERLOAD_RETRY_DELAYS_MS = [1000, 2000];
 
@@ -321,24 +344,30 @@ export class GeminiLearningAgent implements LearningAgent {
    * 503 과부하와 순간적인 연결 끊김(fetch failed)은 몇 초 사이에도 풀리므로 잠시 뒤 다시 부른다.
    * 시간 초과(이미 오래 기다림)와 그 밖의 HTTP 오류는 그대로 올려 보낸다.
    */
-  private async generate(request: GenerateRequest): Promise<string> {
+  private async generate(request: GenerateRequest, retries: string[]): Promise<string> {
     for (let retry = 0; ; retry++) {
       try {
         return await this.gemini.generate(request);
       } catch (error) {
         const transient = error instanceof GeminiCallError && (error.httpStatus === 503 || error.reason === "network");
         if (!transient || retry >= this.retryDelaysMs.length) throw error;
+        retries.push(error.httpStatus === 503 ? "overload_503" : "network");
         await new Promise((r) => setTimeout(r, this.retryDelaysMs[retry]));
       }
     }
   }
 
   async reply(input: LearningInput, { onAnswer }: { onAnswer?: (text: string) => void } = {}): Promise<LearningReply> {
+    // 요청 trace(trace.ts): 다시 부른 이유, 형식 오류, 모델이 낸 제안(서버 검증 전)을 남긴다. 호출별 시간·토큰은 LLM 클라이언트가 남긴다.
+    const trace = currentTrace();
+    const retries: string[] = [];
+    const formatProblems: string[] = [];
     // 스트리밍: 받는 중인 JSON에서 answer만 꺼내 해요체로 바꿔 넘긴다(최종 답은 parseLearningReply 결과).
     let shown = "";
     const onText = onAnswer && ((raw: string) => {
       const text = partialAnswer(raw);
       if (!text?.trim()) return;
+      trace?.once("first_text_ms", trace.elapsed());
       const polite = politeText(text);
       if (polite !== shown) onAnswer((shown = polite));
     });
@@ -355,13 +384,25 @@ export class GeminiLearningAgent implements LearningAgent {
         (input.keywordConcepts ?? []).map((c) => c.concept_id),
       ),
     };
-    let problem = "";
+    const record = (proposal: ModelProposal | null) =>
+      trace?.set("agent", { prompt_chars: request.system.length + request.prompt.length, retries, format_problems: formatProblems, proposal });
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       // 연결·HTTP 오류(LlmUnavailableError)는 503 과부하만 generate()가 다시 부르고 나머지는 그대로 올려 보낸다. 형식 오류는 여기서 다시 부른다.
-      const result = parseLearningReply(await this.generate(request), input);
-      if (typeof result !== "string") return result;
-      problem = result;
+      let raw: string;
+      try {
+        raw = await this.generate(request, retries);
+      } catch (error) {
+        record(null);
+        throw error;
+      }
+      const result = parseLearningReply(raw, input);
+      if (typeof result !== "string") {
+        record(modelProposal(raw));
+        return result;
+      }
+      formatProblems.push(result);
     }
-    throw new LearningFormatError(`학습 모드 응답 형식 오류(${MAX_ATTEMPTS}회): ${problem}`);
+    record(null);
+    throw new LearningFormatError(`학습 모드 응답 형식 오류(${MAX_ATTEMPTS}회): ${formatProblems.at(-1)}`);
   }
 }

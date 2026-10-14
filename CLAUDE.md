@@ -265,6 +265,7 @@ content/
 
 - `npm test`: 빌드 후 `backend/test/*.test.ts`를 `node:test`로 실행한다.
 - `npm run typecheck`: 타입 검사.
+- `npm run trace:report`: 서버가 질문마다 남긴 학습 모드 trace(`data/traces/`, `TRACE_LOG=off`면 안 남김)를 요약한다(지연·unverified 원인·LLM 호출과 토큰·서버 검증·근거 겹침). 모델을 부르지 않는다. 설계는 [docs/agent-observability.md](docs/agent-observability.md), 계획은 [docs/agent-roadmap.md](docs/agent-roadmap.md).
 - `npm run eval:evaluator -- --set smoke|hard`: 실제 Gemini로 평가자 정확도를 잰다(기본 smoke). 비용과 요청 제한 때문에 `npm test`에는 넣지 않는다. 케이스 사이 대기는 `EVAL_DELAY_MS`(기본 1000, 무료 등급은 5000 권장).
   - `llm/eval/smoke/`: 회귀 테스트용. 루브릭 표현을 따른 쉬운 케이스라 거의 100%가 정상이고, 평가자 품질의 근거로 쓰지 않는다.
   - `llm/eval/hard/`: 품질 평가용. 공격 케이스(`source: synthetic`)와 사람 답변(`source: human`)을 source별로 따로 집계한다. 형식과 필드는 `llm/eval/README.md`.

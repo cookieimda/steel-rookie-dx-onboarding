@@ -4,6 +4,7 @@ import { DEFAULT_GEMINI_MODEL, GeminiClient } from "../../llm/src/gemini.js";
 import { GeminiLearningAgent } from "../../llm/src/learning-agent.js";
 import { useApprovedSources } from "../../llm/src/ironmaking-sources.js";
 import { loadSectionChunks, Retriever } from "../../llm/src/retrieval.js";
+import { traceSinkFromEnv } from "../../llm/src/trace.js";
 import { GeminiTutor } from "../../llm/src/tutor.js";
 import { createAdminRouter } from "./admin/routes.js";
 import { createApp } from "./app.js";
@@ -104,6 +105,8 @@ const learning = createLearningRouter({
   checkpointProgress,
   cache: answerCache,
   suggestedQuestions,
+  // 질문마다 단계별 기록을 data/traces/learning-날짜.jsonl에 남긴다(docs/agent-observability.md). 끄려면 TRACE_LOG=off.
+  traceSink: traceSinkFromEnv(),
 });
 
 const app = createApp({ engine, usage, learning });

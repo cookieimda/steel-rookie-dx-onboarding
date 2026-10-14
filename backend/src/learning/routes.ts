@@ -3,12 +3,15 @@
 // 튜터가 고른 키워드 카드는 루브릭에서 내용을 꺼내 붙인다(keywords.ts). 체크포인트 진행 중에는 붙이지 않는다.
 // 예전 /api/chat(제선 Q&A, 지금은 삭제)의 요청·응답 필드는 유지하고 screen, follow_up, scene_actions를 더했다.
 // GET /api/chat/sessions/:sessionId: 저장된 대화(페이지를 새로고침해도 채팅을 이어 보이게).
+// 요청마다 trace(단계별 시간·검색 후보·모델 제안과 서버 검증 결과·unverified 원인)를 traceSink에 넘긴다(docs/agent-observability.md).
 import express from "express";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { getPublicSources } from "../../../llm/src/ironmaking-sources.js";
-import { LearningFormatError, type LearningAgent, type SceneCatalog } from "../../../llm/src/learning-agent.js";
+import { groundingSupport } from "../../../llm/src/grounding.js";
+import { LearningFormatError, type LearningAgent, type ModelProposal, type SceneCatalog } from "../../../llm/src/learning-agent.js";
 import { retrieveWithHistory, withScreenEquipment, type Retriever } from "../../../llm/src/retrieval.js";
+import { runWithTrace, Trace, type TraceSink } from "../../../llm/src/trace.js";
 import { LlmUnavailableError, SECTION_ORDER, type Section } from "../checkpoint/types.js";
 import { currentUserId } from "../request-user.js";
 import type { Rubric } from "../rubrics.js";
@@ -29,6 +32,29 @@ const NOT_FOUND = { error: "대화를 찾지 못했어요. 새로 질문해 주�
 /** 자료 id → 화면에 보여 줄 출처. */
 function toSources(sourceIds: string[]) {
   return getPublicSources(sourceIds).map(({ id, title, date, date_type, url, publisher }) => ({ id, title, date, date_type, url, publisher }));
+}
+
+/**
+ * unverified 답의 원인(trace용). grounded·safety_redirect면 null.
+ * - no_chunks: 검색된 근거가 없음(검색 부족)
+ * - model_unverified: 근거는 있었지만 모델이 근거로 답할 수 없다고 함(근거 밖 질문이거나 근거가 맞지 않음)
+ * - invalid_sources: 모델은 grounded라고 했지만 이번 검색 결과에 없는 조각만 인용해 서버가 unverified로 바꿈(출처 검증 실패)
+ * - cached: 저장한 답을 씀(원인은 처음 받은 trace에 있음)
+ */
+export type UnverifiedReason = "no_chunks" | "model_unverified" | "invalid_sources" | "cached";
+export function unverifiedReason(status: string, chunkCount: number, proposal: ModelProposal | null | "cached"): UnverifiedReason | null {
+  if (status !== "unverified") return null;
+  if (proposal === "cached") return "cached";
+  if (chunkCount === 0) return "no_chunks";
+  return proposal?.status === "grounded" ? "invalid_sources" : "model_unverified";
+}
+
+/** 오류 종류(trace용). 라우트가 돌려주는 HTTP 상태와 짝이 맞는다. */
+function errorKind(error: unknown): string {
+  if (error instanceof UsageLimitError) return "usage_limit";
+  if (error instanceof LearningFormatError) return "format_error";
+  if (error instanceof LlmUnavailableError) return error.status === 503 ? "llm_not_configured" : "llm_unavailable";
+  return "internal";
 }
 
 const ChatRequest = z.object({
@@ -65,6 +91,8 @@ export interface LearningDeps {
   cache?: AnswerCache;
   /** 화면(공정 id, 전체 화면이면 null·설비 id)에 보이는 추천 질문. 추천 질문은 개인 기록이 있어도 저장한 답을 쓴다. */
   suggestedQuestions?: (processId: string | null, equipmentId: string | null) => string[];
+  /** 요청마다 완성된 trace를 받는다(llm/src/trace.ts). 서버는 data/traces/*.jsonl에 쓰고, 없으면 남기지 않는다. */
+  traceSink?: TraceSink;
   now?: () => string;
 }
 
@@ -80,7 +108,7 @@ export interface LearningRouter extends express.Router {
   warmAnswers(items: WarmItem[], options?: { onEach?: (item: WarmItem, result: "cached" | "saved" | "skipped" | "failed", ms: number) => void }): Promise<{ saved: number; cached: number; failed: number }>;
 }
 
-export function createLearningRouter({ repo, retriever, agent, rubrics, scene, screenSteps = [], checkpointProgress, cache, suggestedQuestions, now = () => new Date().toISOString() }: LearningDeps): LearningRouter {
+export function createLearningRouter({ repo, retriever, agent, rubrics, scene, screenSteps = [], checkpointProgress, cache, suggestedQuestions, traceSink, now = () => new Date().toISOString() }: LearningDeps): LearningRouter {
   const router = express.Router() as LearningRouter;
 
   /** 튜터 입력(근거 검색 포함). 실제 질문과 미리 받기(warm)가 같은 경로를 쓴다. */
@@ -145,10 +173,23 @@ export function createLearningRouter({ repo, retriever, agent, rubrics, scene, s
   // 같은 세션에서 답변 중에 또 질문하면 막는다(대화 순서가 꼬이지 않게).
   const busy = new Set<string>();
 
+  // 요청마다 trace(llm/src/trace.ts)를 만들어 단계별 시간·검색 후보·모델 제안·서버 검증 결과를 남긴다(docs/agent-observability.md).
+  // 클라이언트가 X-Trace-Id를 보내면 그 id를 쓰고, 응답 헤더 X-Trace-Id와 본문 trace_id로 돌려준다.
   router.post("/api/chat", async (req, res) => {
+    const trace = new Trace("learning", req.get("x-trace-id"));
+    res.setHeader("X-Trace-Id", trace.id);
+    try {
+      await runWithTrace(trace, () => chat(req, res, trace));
+    } finally {
+      traceSink?.(trace.toRecord());
+    }
+  });
+
+  const chat = async (req: express.Request, res: express.Response, trace: Trace) => {
     const body = ChatRequest.safeParse(req.body);
     if (!body.success) {
-      res.status(400).json({ error: "질문은 1~1000자로 입력해 주세요." });
+      trace.set("outcome", "bad_request");
+      res.status(400).json({ error: "질문은 1~1000자로 입력해 주세요.", trace_id: trace.id });
       return;
     }
     const userId = currentUserId();
@@ -157,20 +198,24 @@ export function createLearningRouter({ repo, retriever, agent, rubrics, scene, s
     const equipmentId = body.data.screen?.equipment_id ?? null;
 
     const sessionId = body.data.session_id ?? randomUUID();
+    const stream = body.data.stream === true;
+    // 질문 원문은 실패한 질문을 검색 평가 세트로 옮길 때 쓴다. 근거 원문·답 원문은 남기지 않는다(docs/agent-observability.md).
+    trace.set("request", { session_id: sessionId, new_session: !body.data.session_id, section, process_id: body.data.screen?.process_id ?? null, equipment_id: equipmentId, question, stream });
     if (body.data.session_id) {
       // 없는 세션이나 다른 사람의 세션은 구분하지 않고 같은 답을 준다.
       if (repo.sessionOwner(sessionId) !== userId) {
-        res.status(404).json(NOT_FOUND);
+        trace.set("outcome", "not_found");
+        res.status(404).json({ ...NOT_FOUND, trace_id: trace.id });
         return;
       }
     }
     if (busy.has(sessionId)) {
-      res.status(409).json({ error: "이전 질문에 답하는 중이에요." });
+      trace.set("outcome", "busy");
+      res.status(409).json({ error: "이전 질문에 답하는 중이에요.", trace_id: trace.id });
       return;
     }
     busy.add(sessionId);
     // 스트리밍(stream: true)이면 여기부터 NDJSON으로 답한다. 오류도 마지막 done 줄의 status로 알린다.
-    const stream = body.data.stream === true;
     const startStream = () => {
       if (res.headersSent) return;
       res.status(200).setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
@@ -178,12 +223,14 @@ export function createLearningRouter({ repo, retriever, agent, rubrics, scene, s
       res.flushHeaders();
     };
     const send = (status: number, payload: object) => {
+      trace.set("http_status", status);
+      const withTrace = { ...payload, trace_id: trace.id };
       if (!stream) {
-        res.status(status).json(payload);
+        res.status(status).json(withTrace);
         return;
       }
       startStream();
-      res.end(`${JSON.stringify({ type: "done", status, body: payload })}\n`);
+      res.end(`${JSON.stringify({ type: "done", status, body: withTrace })}\n`);
     };
     const onAnswer = stream ? (text: string) => {
       startStream();
@@ -193,44 +240,68 @@ export function createLearningRouter({ repo, retriever, agent, rubrics, scene, s
       const base = { user_id: userId, session_id: sessionId, section, equipment_id: equipmentId, question };
 
       if (isSafetyQuestion(question)) {
-        repo.saveTurn({ ...base, answer: SAFETY_ANSWER, status: "safety_redirect", source_ids: [] }, now());
+        trace.set("outcome", "safety_redirect");
+        trace.time("save", () => repo.saveTurn({ ...base, answer: SAFETY_ANSWER, status: "safety_redirect", source_ids: [] }, now()));
         send(200, { answer: SAFETY_ANSWER, status: "safety_redirect", sources: [], follow_up: null, scene_actions: [], keyword_card: null, session_id: sessionId });
         return;
       }
 
-      const progress = checkpointProgress?.(userId, section) ?? null;
-      const history = repo.recentTurns(sessionId, HISTORY_TURNS).map((t) => ({ question: t.question, answer: t.answer }));
-      // 개념당 최근 1개, 최대 5개(학습자 메모와 같은 기준). 프롬프트가 계속 길어지지 않게 한다.
-      const openMisconceptions = latestPerConcept(repo.openMisconceptions(userId, section)).map((m) => ({ concept_id: m.concept_id, summary: m.summary }));
+      const { progress, history, openMisconceptions } = trace.time("context", () => ({
+        progress: checkpointProgress?.(userId, section) ?? null,
+        history: repo.recentTurns(sessionId, HISTORY_TURNS).map((t) => ({ question: t.question, answer: t.answer })),
+        // 개념당 최근 1개, 최대 5개(학습자 메모와 같은 기준). 프롬프트가 계속 길어지지 않게 한다.
+        openMisconceptions: latestPerConcept(repo.openMisconceptions(userId, section)).map((m) => ({ concept_id: m.concept_id, summary: m.summary })),
+      }));
       const retryConcepts = progress?.retry_concept_ids ?? [];
       const processId = body.data.screen?.process_id ?? null;
-      const { rubric, chunks, input, cacheKey } = prepare({ section, processId, equipmentId, question, history, openMisconceptions, retryConcepts, inProgress: !!progress?.in_progress });
+      const { rubric, chunks, input, cacheKey } = trace.time("retrieve", () =>
+        prepare({ section, processId, equipmentId, question, history, openMisconceptions, retryConcepts, inProgress: !!progress?.in_progress }));
+      trace.set("context", { history_turns: history.length, open_misconceptions: openMisconceptions.length, retry_concepts: retryConcepts.length, checkpoint_in_progress: !!progress?.in_progress });
+      trace.set("retrieval", { count: chunks.length, results: chunks.map((c) => ({ id: c.id, score: c.score })) });
 
       // 저장한 답(answer-cache.ts): 개인 기록이 없는 질문이면 쓰고 저장한다. 추천 질문은 개인 기록이 있어도 저장한 답을 쓴다(저장은 하지 않음).
       const generic = history.length === 0 && openMisconceptions.length === 0 && retryConcepts.length === 0 && !progress?.in_progress;
       const suggested = isSuggested(processId, equipmentId, question);
       const hit = cache && (generic || suggested) ? cache.get(cacheKey) : null;
+      trace.set("cache", !cache ? "off" : hit ? "hit" : generic || suggested ? "miss" : "personal");
       // 추천 질문은 오개념을 단정하는 질문이 아니므로 저장한 답의 오개념 감지는 쓰지 않는다.
-      const reply = hit ? { ...hit, detected_misconception: generic ? hit.detected_misconception : null } : await agent.reply(input, { onAnswer });
+      const reply = hit ? { ...hit, detected_misconception: generic ? hit.detected_misconception : null } : await trace.timeAsync("llm", () => agent.reply(input, { onAnswer }));
       if (!hit && generic) cache?.set(cacheKey, reply);
 
-      const at = now();
-      if (reply.detected_misconception) {
-        repo.recordMisconception({ user_id: userId, section, concept_id: reply.detected_misconception.concept_id, answer_text: question, summary: reply.detected_misconception.summary }, at);
-      }
-      repo.saveTurn({ ...base, answer: reply.answer, status: reply.status, source_ids: reply.source_ids }, at);
+      trace.time("save", () => {
+        const at = now();
+        if (reply.detected_misconception) {
+          repo.recordMisconception({ user_id: userId, section, concept_id: reply.detected_misconception.concept_id, answer_text: question, summary: reply.detected_misconception.summary }, at);
+        }
+        repo.saveTurn({ ...base, answer: reply.answer, status: reply.status, source_ids: reply.source_ids }, at);
+      });
 
       // 조각 id(자료id#번호) → 자료 id → 화면에 보여 줄 출처.
-      const cited = chunks.filter((c) => reply.source_ids.includes(c.id)).flatMap((c) => c.source_ids);
-      const sources = toSources(cited);
+      const citedChunks = chunks.filter((c) => reply.source_ids.includes(c.id));
+      const sources = toSources(citedChunks.flatMap((c) => c.source_ids));
       const card = reply.keyword_card && !progress?.in_progress ? keywordCard(rubric, reply.keyword_card.concept_id) : null;
       const keyword_card = card && { concept_id: card.concept_id, name: card.name, keywords: card.keywords, source: card.source_id ? toSources([card.source_id])[0] ?? null : null };
+      const proposal = (trace.fields.agent as { proposal?: ModelProposal | null } | undefined)?.proposal ?? null;
+      trace.set("outcome", reply.status);
+      trace.set("result", {
+        status: reply.status,
+        unverified_reason: unverifiedReason(reply.status, chunks.length, hit ? "cached" : proposal),
+        source_ids: reply.source_ids,
+        scene_actions: reply.scene_actions,
+        misconception: reply.detected_misconception?.concept_id ?? null,
+        keyword_card: keyword_card?.concept_id ?? null,
+        answer_chars: reply.answer.length,
+        follow_up: reply.follow_up !== null,
+      });
+      if (reply.status === "grounded") trace.set("grounding", groundingSupport(reply.answer, citedChunks.map((c) => c.text)));
       send(200, { answer: reply.answer, status: reply.status, sources, follow_up: reply.follow_up, scene_actions: reply.scene_actions, keyword_card, session_id: sessionId });
     } catch (error) {
+      trace.set("error", { kind: errorKind(error), message: (error as Error)?.message ?? String(error) });
+      trace.set("outcome", "error");
       if (error instanceof UsageLimitError) {
         send(429, { error: `오늘 쓸 수 있는 튜터 호출(${error.limit}회)을 다 썼어요.`, code: "USAGE_LIMIT" });
       } else if (error instanceof LlmUnavailableError) {
-        console.error(`학습 모드 Gemini 오류: ${error.message}`);
+        console.error(`학습 모드 Gemini 오류(trace ${trace.id}): ${error.message}`);
         send(
           error.status,
           error.status === 503
@@ -238,16 +309,16 @@ export function createLearningRouter({ repo, retriever, agent, rubrics, scene, s
             : { error: "Gemini 연결 중 오류가 생겼어요. 잠시 후 다시 시도해 주세요." },
         );
       } else if (error instanceof LearningFormatError) {
-        console.error(error.message);
+        console.error(`${error.message} (trace ${trace.id})`);
         send(502, { error: "답변을 처리하지 못했어요. 다시 시도해 주세요." });
       } else {
-        console.error(error);
+        console.error(`trace ${trace.id}:`, error);
         send(500, { error: "답변을 처리하지 못했어요. 다시 시도해 주세요." });
       }
     } finally {
       busy.delete(sessionId);
     }
-  });
+  };
 
   // 저장된 대화(오래된 것부터 최근 RESTORE_TURNS개). 없는 세션·다른 사람의 세션은 POST와 같이 구분하지 않고 404.
   // follow_up·scene_actions·keyword_card는 저장하지 않으므로 돌려주지 않는다(다시 보여 줄 때 화면을 움직이지 않는다).

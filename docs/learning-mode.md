@@ -178,6 +178,11 @@ CREATE TABLE learning_turns (
 - 자료 5건 추가·자료 질문 5개(유형 `material`) 추가·프롬프트 예시(다음 공정 이동, 꼬리 질문은 지금 섹션 안에서만) 뒤(같은 날, 1회): 전체 통과 51/51, 화면 조작 17/17, 꼬리 질문 grounded 45/46. 남은 1개는 "고로 안으로 불어넣는 뜨거운 바람은 어떻게 만드나요?"(열풍로 축열 원리 자료가 없음).
 - 시연 리허설에서 "코크스는 불순물 없애려고 넣는 거죠?"에 오개념은 기록됐지만 답이 바로잡지 않아, 프롬프트에 "오개념을 감지하면 답 첫 문장에서 부드럽게 바로잡기"를 넣고 오개념 케이스 2개에 `answer_any`를 붙였다. 다시 측정(같은 날, 1회): 전체 통과 51/51, 답변 내용 2/2, 꼬리 질문 grounded 46/46.
 - 학습 프롬프트·검색·공개 자료 메모·추천 질문을 바꾸면 다시 돌려 확인한다.
+- 보고서에 grounded 답의 근거 겹침(문장별 글자 겹침, 관찰용)도 나온다. 전체 통과에는 넣지 않는다([agent-observability.md](agent-observability.md) '근거 겹침').
+
+## 요청 기록 (trace)
+
+- `/api/chat` 요청마다 단계별 시간·검색 후보·LLM 호출과 토큰·모델 제안과 서버 검증 결과·unverified 원인을 `data/traces/learning-날짜.jsonl`에 남기고, `X-Trace-Id`·응답 `trace_id`로 돌려준다. 요약은 `npm run trace:report`. 상세는 [agent-observability.md](agent-observability.md), 전체 계획은 [agent-roadmap.md](agent-roadmap.md).
 
 ## 추천 질문 (`frontend/3d-demo/learning-suggestions.js`)
 

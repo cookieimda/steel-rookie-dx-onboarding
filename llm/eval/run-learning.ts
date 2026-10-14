@@ -18,6 +18,7 @@ import { loadSceneCatalog } from "../../backend/src/learning/scene-catalog.js";
 import { isSafetyQuestion } from "../../backend/src/learning/safety.js";
 import { loadFinalRubrics } from "../../backend/src/rubrics.js";
 import { DEFAULT_GEMINI_MODEL } from "../src/gemini.js";
+import { groundingSupport } from "../src/grounding.js";
 import {
   GeminiLearningAgent,
   LearningFormatError,
@@ -158,7 +159,7 @@ async function main(): Promise<void> {
   const only = option("section", "");
   if (only && !SECTION_ORDER.includes(only as Section)) throw new Error(`--section은 ${SECTION_ORDER.join("|")} 중 하나입니다: ${only}`);
   const cases = [...loadLearningSet(), ...(await loadSuggestionCases())].filter((c) => !only || c.section === only);
-  const done: { c: LearningCase; r: LearningRecord }[] = [];
+  const done: Done[] = [];
   let skipped = 0;
   let stopped = false;
   // 라우트와 같은 입력: 답·검색은 케이스의 공정 기준, 화면은 케이스의 화면 그대로(전체 공정 화면이면 process_id null).
@@ -181,8 +182,10 @@ async function main(): Promise<void> {
     // 모델·프롬프트(근거 조각·화면 목록 포함)·꼬리 질문 확인 여부가 같으면 같은 결과로 본다. 안전 질문은 모델을 부르지 않는다.
     const fp = safety ? fingerprint("safety", c.question) : fingerprint(model, learningSystemPrompt(input), learningUserPrompt(input), followUp ? "follow-up" : "");
     const prior = records.done(c.id, fp);
+    // 근거 겹침(grounding.ts)은 보고서에서 인용한 조각 본문으로 센다. 기록 파일에는 남기지 않는다(조각은 같은 fingerprint면 같다).
+    const evidenceOf = (r: LearningRecord) => input.chunks.filter((ch) => r.source_ids.includes(ch.id)).map((ch) => ch.text);
     if (prior) {
-      done.push({ c, r: prior });
+      done.push({ c, r: prior, evidence: evidenceOf(prior) });
       skipped++;
       process.stdout.write("-");
       continue;
@@ -232,7 +235,7 @@ async function main(): Promise<void> {
       }
     }
     records.append(record);
-    done.push({ c, r: record });
+    done.push({ c, r: record, evidence: evidenceOf(record) });
     process.stdout.write(record.infra_error ? "E" : passed(score(c, record)) ? "." : "x");
     if (streak.push(record.infra_error)) {
       console.error(`\n연결 오류가 ${MAX_CONSECUTIVE_INFRA}케이스 연속으로 나서 멈춥니다: ${record.error}`);
@@ -249,7 +252,30 @@ async function main(): Promise<void> {
   report(done);
 }
 
-function report(all: { c: LearningCase; r: LearningRecord }[]): void {
+interface Done {
+  c: LearningCase;
+  r: LearningRecord;
+  /** 답이 인용한 조각 본문(근거 겹침용). */
+  evidence: string[];
+}
+
+/** grounded 답의 근거 겹침(grounding.ts) 요약 줄. 판정이 아니라 관찰 지표라 전체 통과에는 넣지 않는다. */
+export function groundingLines(rows: Pick<Done, "c" | "r" | "evidence">[], listLimit = 5): string[] {
+  const scored = rows
+    .filter((o) => o.r.status === "grounded")
+    .map((o) => ({ o, g: groundingSupport(o.r.answer, o.evidence) }))
+    .filter((x) => x.g.rate !== null);
+  if (!scored.length) return [];
+  const full = scored.filter((x) => x.g.rate === 1).length;
+  const mean = scored.reduce((n, x) => n + x.g.rate!, 0) / scored.length;
+  const lines = [`  근거 겹침(grounded ${scored.length}개, 관찰용): 모든 문장 겹침 ${full}/${scored.length} (${pct(full, scored.length)}) · 평균 ${mean.toFixed(3)}`];
+  for (const x of scored.filter((s) => s.g.rate! < 1).sort((a, b) => a.g.rate! - b.g.rate!).slice(0, listLimit)) {
+    lines.push(`    - ${x.o.c.id} ${x.g.rate} · "${x.g.weakest!.text.slice(0, 80)}" (${x.g.weakest!.overlap})`);
+  }
+  return lines;
+}
+
+function report(all: Done[]): void {
   // 연결 오류는 튜터의 답이 아니므로 일치율에서 뺀다(개수만 표시).
   const infra = all.filter((o) => o.r.infra_error);
   const rows = all.filter((o) => !o.r.infra_error).map((o) => ({ ...o, k: score(o.c, o.r) }));
@@ -261,6 +287,7 @@ function report(all: { c: LearningCase; r: LearningRecord }[]): void {
   const checked = rows.filter((o) => o.k.answer !== null);
   if (checked.length) console.log(`  답변 내용(answer_any): ${checked.filter((o) => o.k.answer).length}/${checked.length}`);
   console.log(`  형식 오류(format_error): ${rows.filter((o) => o.r.status === "format_error").length}개, 연결 오류(infra_error, 제외): ${infra.length}개`);
+  for (const line of groundingLines(rows)) console.log(line);
 
   const asked = rows.filter((o) => o.r.follow_up && o.r.follow_up_status && o.r.follow_up_status !== "infra_error");
   if (asked.length) {

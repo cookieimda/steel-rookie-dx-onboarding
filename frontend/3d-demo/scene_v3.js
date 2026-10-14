@@ -21,7 +21,7 @@ const SITE_ROADS = { R7: [[-30, -80], [0, -90], [40, -84], [88, -70]], RJ: [[-30
 // 공정 사이 레일 경유점 (null = 앞쪽은 출구 Z, 뒤쪽은 입구 Z를 그대로 씀)
 const SITE_LINKS = { 'ironmaking>steelmaking': [[43, null], [43, -58], [-55, -58], [-55, null]], 'steelmaking>continuous_casting': [[-6.7, null], [-6.7, -16], [-66, -16], [-66, null]], 'continuous_casting>rolling': [[-24, null], [-24, 34]] };
 
-const STEEL = 0x7d8794, DARK = 0x4a525c, ACCENT = 0x22c7f0, UI = '#22c7f0';
+const STEEL = 0x7d8794, DARK = 0x4a525c, ACCENT = 0x22c7f0, UI = '#ff9a2e', UI_INK = '#1a1200'; // UI: 이름표 번호·선택 테두리(우리 UI 주황), UI_INK: 그 위 글자
 const HAZE = 0xdfe3e8; // [UI 시안] 낮 배경을 옅게 만들 때 섞는 스튜디오 회색
 const mat = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.7, metalness: 0.35, ...o });
 const mesh = (g, m, y = 0) => { const o = new THREE.Mesh(g, m); o.position.y = y; return o; };
@@ -233,8 +233,8 @@ class SteelScene extends HTMLElement {
     const id = this.getAttribute('selected');
     this.eqs.forEach(e => { const on = e.id === id, act = on || e.id === this.hoverId, dot = e.label.querySelector('i'), nm = e.label.querySelector('.nm');
       Object.assign(e.label.style, { color: '#ffffff', opacity: act || !id ? '1' : '0.8', fontWeight: '600', alignItems: 'center', gap: '6px', padding: '0', background: 'transparent', border: 'none', boxShadow: 'none', zIndex: on ? '3' : act ? '2' : '1' });
-      Object.assign(nm.style, { padding: '5px 10px', borderRadius: '7px', background: on ? 'rgba(9,14,21,.94)' : 'rgba(18,24,32,.8)', border: '1px solid ' + (on ? UI : 'rgba(255,255,255,.16)'), boxShadow: on ? '0 0 0 3px rgba(34,199,240,.22), 0 6px 18px rgba(0,0,0,.28)' : '0 4px 12px rgba(0,0,0,.2)', backdropFilter: 'blur(6px)', webkitBackdropFilter: 'blur(6px)' });
-      const sz = on ? 24 : 20; Object.assign(dot.style, { width: sz + 'px', height: sz + 'px', borderRadius: '50%', background: UI, border: '2px solid #ffffff', boxSizing: 'border-box', boxShadow: on ? '0 0 0 4px rgba(34,199,240,.35), 0 0 12px ' + UI : '0 2px 6px rgba(0,0,0,.35)' }); });
+      Object.assign(nm.style, { padding: '5px 10px', borderRadius: '7px', background: on ? 'rgba(9,14,21,.94)' : 'rgba(18,24,32,.8)', border: '1px solid ' + (on ? UI : 'rgba(255,255,255,.16)'), boxShadow: on ? '0 0 0 3px rgba(255,154,46,.22), 0 6px 18px rgba(0,0,0,.28)' : '0 4px 12px rgba(0,0,0,.2)', backdropFilter: 'blur(6px)', webkitBackdropFilter: 'blur(6px)' });
+      const sz = on ? 24 : 20; Object.assign(dot.style, { width: sz + 'px', height: sz + 'px', borderRadius: '50%', background: UI, color: UI_INK, border: '2px solid #ffffff', boxSizing: 'border-box', boxShadow: on ? '0 0 0 4px rgba(255,154,46,.35), 0 0 12px ' + UI : '0 2px 6px rgba(0,0,0,.35)' }); });
   }
 
   // 멀리 보이는 제철소 실루엣 + 불티
@@ -657,7 +657,7 @@ class SteelScene extends HTMLElement {
       lab.innerHTML = `<i>${i + 1}</i><span class="nm" style="display:flex;flex-direction:column;gap:2px"><b>${e.name}</b><u></u></span>`;
       const tip = lab.querySelector('u'); tip.textContent = e.role; tip.style.cssText = 'text-decoration:none;display:none;font-size:11px;font-weight:400;opacity:0;max-height:0;overflow:hidden;white-space:normal;max-width:220px;line-height:1.4;color:inherit;transition:max-height .22s ease, opacity .22s ease';
       Object.assign(lab.style, { position: 'absolute', left: '0', top: '0', willChange: 'transform', display: 'none', alignItems: 'flex-start', gap: '8px', padding: '4px 6px', fontFamily: '"IBM Plex Sans KR", sans-serif', fontSize: '13px', fontWeight: '500', letterSpacing: '0.02em', lineHeight: '1', whiteSpace: 'nowrap', pointerEvents: 'auto', cursor: 'pointer', textShadow: 'none', transition: 'opacity .2s' });
-      lab.querySelector('i').style.cssText = 'flex:none;display:flex;align-items:center;justify-content:center;font-style:normal;font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:700;color:#04202b';
+      lab.querySelector('i').style.cssText = 'flex:none;display:flex;align-items:center;justify-content:center;font-style:normal;font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:700;color:' + UI_INK;
       lab.onmouseenter = () => { this._hover(e.id); }; lab.onmouseleave = () => { this._hover(null); this._styleLabels(); if (this.dimmed) this.eqs.forEach(q => { if (q.id !== this.getAttribute('selected')) q.label.style.opacity = '0.2'; }); };
       lab.onclick = () => this._select(e.id, true);
       this.labels.appendChild(lab);
@@ -675,7 +675,7 @@ class SteelScene extends HTMLElement {
     zl.innerHTML = `<code>${p.num}</code><span style="display:flex;flex-direction:column;align-items:flex-start;gap:2px"><b>${p.name}</b><small>${p.sub || ''}</small></span>`;
     Object.assign(zl.style, { position: 'absolute', left: '0', top: '0', willChange: 'transform', display: 'flex', alignItems: 'baseline', gap: '8px', padding: '8px 14px', border: '1px solid rgba(255,255,255,.25)', borderRadius: '2px', background: 'rgba(8,12,18,.6)', color: '#fff', fontFamily: '"IBM Plex Sans KR", sans-serif', cursor: 'pointer', pointerEvents: 'auto', whiteSpace: 'nowrap', transition: 'opacity .25s, background .2s, border-color .2s' });
     zl.querySelector('code').style.cssText = 'font-family:"Noto Sans KR",sans-serif;font-size:26px;font-weight:900;line-height:1;opacity:.55'; zl.querySelector('b').style.cssText = 'font-size:17px;font-weight:700;letter-spacing:.02em'; zl.querySelector('small').style.cssText = 'font-size:11px;font-weight:500;opacity:.75;white-space:nowrap';
-    zl.onmouseenter = () => { zl.style.borderColor = '#22c7f0'; zl.style.background = '#22c7f0'; zl.style.color = '#06202b'; }; zl.onmouseleave = () => this._styleZoneLabels();
+    zl.onmouseenter = () => { zl.style.borderColor = UI; zl.style.background = UI; zl.style.color = UI_INK; }; zl.onmouseleave = () => this._styleZoneLabels();
     const go = (ev) => { ev.stopPropagation(); ev.preventDefault(); this.dispatchEvent(new CustomEvent('steel-goto', { detail: { process: p.id }, bubbles: true, composed: true })); };
     zl.onpointerdown = go; zl.onpointerup = (ev) => ev.stopPropagation();
     zl.onclick = (ev) => ev.stopPropagation();
@@ -1093,7 +1093,7 @@ class SteelScene extends HTMLElement {
   }
   _hover(id) {
     if (this.hoverId === id) return; this.hoverId = id; this._dirty = true;
-    const sel = this.getAttribute('selected'), accent = this.dark ? UI : '#22c7f0';
+    const sel = this.getAttribute('selected'), accent = UI;
     this.eqs.forEach(e => {
       const on = e.id === id && e.id !== sel;
       // 3D: 살짝 밝아지는 emissive + 바닥 점선 사각

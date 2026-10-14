@@ -24,7 +24,7 @@
 
     .top { position: fixed; top: 18px; left: 22px; right: 22px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; pointer-events: none; z-index: 5; }
     .ttl { padding: 10px 16px; border-radius: 14px; background: var(--surf); border: 1px solid var(--line); box-shadow: var(--shadow); pointer-events: auto; max-width: 520px; transition: opacity .9s var(--ease), transform .9s var(--ease); }
-    .ttl.out { opacity: 0; transform: translateY(-10px); pointer-events: none; } /* 제목 카드는 여는 장면 뒤 잠깐만 보이고 사라진다 */
+    .ttl.out { opacity: 0; transform: translateY(-10px); pointer-events: none; } /* 제목 카드는 처음 잠깐만 보이고 사라진다 */
     .ttl h1 { margin: 0; font: 800 22px/1.15 var(--f-body); letter-spacing: -.01em; }
     .ttl p { margin: 4px 0 0; font: 400 15px/1.4 var(--f-body); color: var(--muted); }
     .seg { pointer-events: auto; display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 999px; background: var(--surf); border: 1px solid var(--line); box-shadow: var(--shadow); }
@@ -64,19 +64,6 @@
     .flow .nx { height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--text); font: 600 15px/1 var(--f-body); cursor: pointer; white-space: nowrap; }
     .flow .nx:hover { background: var(--surf2); }
 
-    /* 여는 장면(홈과 같은 hero) */
-    .top, .flow { transition: opacity .8s var(--ease); }
-    body.intro .top, body.intro .flow { opacity: 0; pointer-events: none; }
-    .ov { position: fixed; left: 0; right: 0; bottom: 9vh; z-index: 6; text-align: center; color: #fff; pointer-events: none; transition: opacity .9s var(--ease), transform .9s var(--ease); }
-    .ov.out { opacity: 0; transform: translateY(-14px); }
-    .ov .eb { margin: 0 0 14px; font: 400 13px/1 var(--f-mono); letter-spacing: .3em; color: #9a9aa0; }
-    .ov h2 { margin: 0; font: 800 clamp(40px, 7vw, 96px)/.95 var(--f-en); letter-spacing: .02em; }
-    .ov .lead { margin: 18px 0 0; font: 300 15px/1.5 var(--f-body); color: #a1a1a6; }
-    .ov .lead strong { font-weight: 700; color: #fff; }
-    .ov .steps { margin: 18px 0 0; font: 400 13px/1 var(--f-mono); letter-spacing: .22em; color: #9a9aa0; }
-    .ov .steps .on { color: #fff; }
-    .ov .skip { pointer-events: auto; margin-top: 22px; height: 36px; padding: 0 16px; border-radius: 999px; border: 1px solid rgba(255,255,255,.22); background: transparent; color: #c9c9ce; font: 500 15px/1 var(--f-body); cursor: pointer; }
-    .ov .skip:hover { color: #fff; border-color: rgba(255,255,255,.5); }
 
     #load { position: fixed; inset: 0; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 45%, #232327 0%, var(--night) 60%); z-index: 9; transition: opacity .6s var(--ease); }
     #load.off { opacity: 0; pointer-events: none; }
@@ -84,10 +71,10 @@
     #load .bar { width: 180px; height: 1px; background: rgba(255,255,255,.14); overflow: hidden; margin-top: 14px; }
     #load .bar i { display: block; height: 100%; width: 0; background: #f2f2f2; transition: width .3s var(--ease); }
     @media (max-width: 900px) { .ttl p { display: none; } .ttl h1 { font-size: 20px; } .flow .lbl { display: none; } .flow .tl button span { font-size: 12px; } }
-    @media (prefers-reduced-motion: reduce) { .pc, .fl, .flow .tl .fill, #load, .ov { transition: none; } }
+    @media (prefers-reduced-motion: reduce) { .pc, .fl, .flow .tl .fill, #load { transition: none; } }
   </style>
 </head>
-<body class="intro">
+<body>
   <div id="stage" aria-label="포항제철소 밤 지도 위 제철 공정 3D. 제선, 제강, 연주, 열연 구역이 순서대로 올라오고, 구역에 마우스를 올리면 들어가기 버튼이 보입니다."></div>
   <div id="hud"></div>
 
@@ -103,8 +90,6 @@
     <button class="nx" id="btnNext">다음 공정 ›</button>
   </div>
 
-  <!-- 여는 장면 문구(홈 hero와 같은 형식). 아무 곳이나 누르거나 키를 누르면 건너뛴다 -->
-  <div class="ov" id="ov"><p class="eb">[ STEEL PROCESS MAP ]</p><h2>STEEL, ON THE MAP.</h2><p class="lead">점이 모여 제철소가 됩니다. 실제 배치 그대로 <strong>제선부터 열연까지</strong> 따라가 보세요.</p><p class="steps" id="ovSteps"><span>IRONMAKING</span> · <span>STEELMAKING</span> · <span>CASTING</span> · <span>ROLLING</span></p><button class="skip" id="ovSkip" type="button">건너뛰기</button></div>
 
   <div id="load"><div style="display:flex;flex-direction:column;align-items:center"><b>ST-ROOKIE</b><div class="bar"><i id="loadbar"></i></div></div></div>
 

@@ -1,6 +1,6 @@
 // 포석호(이해도 확인 캐릭터) 얼굴·감정 연출. cp-character.js가 쓴다.
 // - 모델(AI로 만든 tutor.glb)의 눈·코·입은 표면에 새겨져 있어 울퉁불퉁하고 표정을 바꿀 수 없다.
-//   그래서 얼굴 위에 머리 표면을 따라 매끈하게 편 판(buildFacePlate)을 덮고, 그 위에 눈·코·입을 그린다(drawFace).
+//   그래서 얼굴 위에 머리 표면을 따라 매끈하게 편 판(buildFacePlate)을 덮고, 원래 얼굴과 같은 모양·자리로 눈·코·입을 다시 그린다(drawFace).
 // - 표정은 동작 이름표로 정한다(EXPRESSION_BY_MOTION). 바뀌면 바로 다시 그리고, 대기 표정에서는 가끔 눈을 깜빡인다.
 // - 감정 배경(MOOD_BY_MOTION)은 캐릭터 뒤 효과 층(cp-character.js의 .fx)에 쓴다.
 // - 브라우저 없이 불러와도 되게, 캔버스·three는 인자로 받는다.
@@ -34,11 +34,12 @@ export const POP_MOTIONS = new Set(['greet', 'praise', 'celebrate', 'encourage',
 export const popAt = (t) => (t >= 0 && t < POP.seconds ? 1 + POP.scale * Math.sin((Math.PI * t) / POP.seconds) : 1);
 
 const INK = '#2b2622';
-/** 이목구비 배율(얼굴 판 가운데 기준). */
-export const FEATURE_SCALE = 1.22;
 
 /**
- * 얼굴을 그린다(512×512, 얼굴 판의 uv와 같은 좌표). 가운데는 피부색으로 덮고 가장자리는 흐리게 해 머리와 이어지게 한다.
+ * 얼굴을 그린다(512×512, 얼굴 판의 uv와 같은 좌표). 포석호 원래 얼굴(tutor.glb에 새겨진 모양)을 같은 자리·크기로 매끈하게 다시 그린다:
+ * 동그란 까만 눈(진한 테두리·회색 눈동자·빛 반사), 작고 둥근 코에서 내려와 'ω'로 갈라지는 입, 그 아래 따로 있는 얇은 미소선.
+ * 감정은 이 얼굴에서 조금씩만 바꾼다(웃으면 눈이 ^^·미소선이 벌어짐, 슬프면 작은 눈썹·눈물·뒤집힌 미소선). 볼의 분홍은 모델 텍스처 그대로다.
+ * 좌표는 원래 얼굴과 다시 그린 얼굴을 같은 화면에서 찍어 겹쳐 보며 맞췄다(판 좌표: 눈 y198·좌우 ±96, 코 y194, 'ω' 갈림 y226, 미소선 y383).
  * @param {CanvasRenderingContext2D} ctx
  * @param {{ expression: string, blink?: boolean, skin?: string }} o
  */
@@ -58,167 +59,152 @@ export function drawFace(ctx, { expression = 'neutral', blink = false, skin = '#
   ctx.fill();
   ctx.restore();
 
-  const eyeY = 172, eyeDX = 112, noseY = 240, mouthY = 306;
-  // 이목구비는 머리에 비해 크게(감정이 잘 보이게) 그린다. 피부 덮개는 그대로 두고 이목구비만 키운다.
-  ctx.save();
-  ctx.translate(cx, 240);
-  ctx.scale(FEATURE_SCALE, FEATURE_SCALE);
-  ctx.translate(-cx, -240);
-  const line = (w) => { ctx.strokeStyle = INK; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; };
-  const blush = (alpha) => {
+  const eyeY = 198, eyeDX = 96, eyeR = 25;
+  const noseY = 194, jointY = 226, mouthEndY = 222, mouthDX = 56;
+  const smileY = 383, smileDX = 44;
+  const line = (w, color = INK) => { ctx.strokeStyle = color; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; };
+
+  // 원래 눈: 진한 테두리 + 회색 눈동자 + 왼쪽 위 빛 반사. look은 눈동자·반사를 옮긴다(위를 봄 등).
+  const eye = (x, y, { r = eyeR, lookX = 0, lookY = 0 } = {}) => {
+    ctx.fillStyle = INK;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#55504c';
+    ctx.beginPath();
+    ctx.arc(x + 2 + lookX, y + 3 + lookY, r * 0.68, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    ctx.beginPath();
+    ctx.ellipse(x - r * 0.3 + lookX, y - r * 0.36 + lookY, r * 0.26, r * 0.18, -0.5, 0, Math.PI * 2);
+    ctx.fill();
+  };
+  const closedEye = (x, y) => { line(9); ctx.beginPath(); ctx.moveTo(x - eyeR, y + 2); ctx.quadraticCurveTo(x, y + 12, x + eyeR, y + 2); ctx.stroke(); };
+  const happyEye = (x, y) => { line(10); ctx.beginPath(); ctx.moveTo(x - eyeR, y + 8); ctx.quadraticCurveTo(x, y - 22, x + eyeR, y + 8); ctx.stroke(); };
+  const eyes = (opts = {}) => {
     for (const s of [-1, 1]) {
-      const b = ctx.createRadialGradient(cx + s * 168, 262, 4, cx + s * 168, 262, 46);
-      b.addColorStop(0, `rgba(255,140,150,${alpha})`);
-      b.addColorStop(1, 'rgba(255,140,150,0)');
-      ctx.fillStyle = b;
-      ctx.beginPath();
-      ctx.ellipse(cx + s * 168, 262, 52, 34, 0, 0, Math.PI * 2);
-      ctx.fill();
+      const x = cx + s * eyeDX;
+      if (blink && BLINKING.has(expression)) closedEye(x, eyeY);
+      else eye(x, eyeY, typeof opts === 'function' ? opts(s) : opts);
     }
   };
-  const ovalEye = (x, y, { rx = 30, ry = 37, lookX = 0, lookY = 0 } = {}) => {
+  const brows = (tilt, y = eyeY - 44) => { line(8); for (const s of [-1, 1]) { const x = cx + s * eyeDX; ctx.beginPath(); ctx.moveTo(x - 20, y + s * tilt); ctx.lineTo(x + 20, y - s * tilt); ctx.stroke(); } };
+
+  // 원래 코와 'ω' 입: 둥근 코 → 아래로 짧은 선 → 양쪽으로 둥글게 올라가는 두 곡선.
+  const noseMouth = (open = 0) => {
     ctx.fillStyle = INK;
     ctx.beginPath();
-    ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+    ctx.moveTo(cx - 20, noseY - 9);
+    ctx.quadraticCurveTo(cx, noseY - 22, cx + 20, noseY - 9);
+    ctx.quadraticCurveTo(cx + 18, noseY + 12, cx, noseY + 18);
+    ctx.quadraticCurveTo(cx - 18, noseY + 12, cx - 20, noseY - 9);
     ctx.fill();
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
     ctx.beginPath();
-    ctx.arc(x - rx * 0.32 + lookX, y - ry * 0.38 + lookY, rx * 0.36, 0, Math.PI * 2);
+    ctx.ellipse(cx - 5, noseY - 6, 5, 3, -0.3, 0, Math.PI * 2);
     ctx.fill();
+    line(13);
     ctx.beginPath();
-    ctx.arc(x + rx * 0.3 + lookX, y + ry * 0.3 + lookY, rx * 0.15, 0, Math.PI * 2);
-    ctx.fill();
-  };
-  const closedEye = (x, y) => { line(11); ctx.beginPath(); ctx.moveTo(x - 26, y + 2); ctx.quadraticCurveTo(x, y + 12, x + 26, y + 2); ctx.stroke(); };
-  const happyEye = (x, y, w = 30) => { line(12); ctx.beginPath(); ctx.moveTo(x - w, y + 10); ctx.quadraticCurveTo(x, y - 26, x + w, y + 10); ctx.stroke(); };
-  const brow = (x, y, tilt) => { line(10); ctx.beginPath(); ctx.moveTo(x - 30, y + tilt); ctx.lineTo(x + 30, y - tilt); ctx.stroke(); };
-  const nose = () => {
-    ctx.fillStyle = INK;
-    ctx.beginPath();
-    ctx.ellipse(cx, noseY, 17, 11, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.beginPath();
-    ctx.ellipse(cx - 5, noseY - 4, 6, 3, -0.3, 0, Math.PI * 2);
-    ctx.fill();
-  };
-  const catMouth = (open = 0) => {
-    line(9);
-    ctx.beginPath();
-    ctx.moveTo(cx, noseY + 10);
-    ctx.lineTo(cx, mouthY - 22);
-    ctx.moveTo(cx - 38, mouthY - 26);
-    ctx.quadraticCurveTo(cx - 18, mouthY - 6 + open, cx, mouthY - 22);
-    ctx.quadraticCurveTo(cx + 18, mouthY - 6 + open, cx + 38, mouthY - 26);
+    ctx.moveTo(cx, noseY + 14);
+    ctx.lineTo(cx, jointY);
+    for (const s of [-1, 1]) {
+      ctx.moveTo(cx, jointY);
+      ctx.bezierCurveTo(cx + s * mouthDX * 0.2, jointY + 15 + open, cx + s * mouthDX * 0.8, jointY + 17 + open, cx + s * mouthDX, mouthEndY - 6);
+    }
     ctx.stroke();
   };
-  const openMouth = (w, h) => {
-    ctx.fillStyle = '#5a2a2a';
+  // 원래 미소선(아래쪽 얇은 곡선). curve > 0이면 웃는 쪽, < 0이면 뒤집힌(시무룩한) 쪽.
+  const smile = (curve = 9, width = smileDX) => {
+    line(11);
     ctx.beginPath();
-    ctx.moveTo(cx - w, mouthY - 24);
-    ctx.quadraticCurveTo(cx, mouthY - 24 + h * 2, cx + w, mouthY - 24);
-    ctx.closePath();
+    ctx.moveTo(cx - width, smileY - curve * 0.4);
+    ctx.quadraticCurveTo(cx, smileY + curve * 1.2, cx + width, smileY - curve * 0.4);
+    ctx.stroke();
+  };
+  const openSmile = (width, depth) => {
+    ctx.fillStyle = '#4a2424';
+    ctx.beginPath();
+    ctx.moveTo(cx - width, smileY - 6);
+    ctx.quadraticCurveTo(cx, smileY - 12, cx + width, smileY - 6);
+    ctx.quadraticCurveTo(cx, smileY + depth * 2, cx - width, smileY - 6);
     ctx.fill();
     ctx.fillStyle = '#ff8f9a';
     ctx.beginPath();
-    ctx.ellipse(cx, mouthY - 24 + h * 0.75, w * 0.5, h * 0.32, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx, smileY + depth * 0.7, width * 0.45, depth * 0.35, 0, 0, Math.PI * 2);
     ctx.fill();
-    line(8);
-    ctx.beginPath();
-    ctx.moveTo(cx, noseY + 10);
-    ctx.lineTo(cx, mouthY - 24);
-    ctx.stroke();
   };
-  const eyes = (opts) => {
+  const softBlush = (alpha) => {
     for (const s of [-1, 1]) {
-      if (blink && BLINKING.has(expression)) closedEye(cx + s * eyeDX, eyeY + 6);
-      else ovalEye(cx + s * eyeDX, eyeY, typeof opts === 'function' ? opts(s) : opts);
+      const x = cx + s * 150, y = eyeY + 58;
+      const b = ctx.createRadialGradient(x, y, 2, x, y, 34);
+      b.addColorStop(0, `rgba(255,150,160,${alpha})`);
+      b.addColorStop(1, 'rgba(255,150,160,0)');
+      ctx.fillStyle = b;
+      ctx.beginPath();
+      ctx.arc(x, y, 34, 0, Math.PI * 2);
+      ctx.fill();
     }
   };
 
   switch (expression) {
     case 'happy':
-      blush(0.55);
-      for (const s of [-1, 1]) happyEye(cx + s * eyeDX, eyeY + 4);
-      nose();
-      openMouth(42, 30);
+      softBlush(0.35);
+      for (const s of [-1, 1]) happyEye(cx + s * eyeDX, eyeY);
+      noseMouth(4);
+      openSmile(40, 16);
       break;
     case 'excited':
-      blush(0.75);
-      for (const s of [-1, 1]) happyEye(cx + s * eyeDX, eyeY, 34);
-      // 반짝이
-      ctx.fillStyle = '#ffd34d';
-      for (const [x, y, r] of [[cx - 196, 110, 16], [cx + 200, 120, 13], [cx + 172, 70, 9]]) {
-        ctx.beginPath();
-        for (let i = 0; i < 8; i++) {
-          const a = (Math.PI / 4) * i, rr = i % 2 ? r * 0.38 : r;
-          ctx.lineTo(x + rr * Math.cos(a), y + rr * Math.sin(a));
-        }
-        ctx.fill();
-      }
-      nose();
-      openMouth(56, 42);
+      softBlush(0.5);
+      for (const s of [-1, 1]) happyEye(cx + s * eyeDX, eyeY - 2);
+      noseMouth(6);
+      openSmile(48, 24);
       break;
     case 'determined':
-      blush(0.35);
-      eyes({ rx: 25, ry: 30 });
-      for (const s of [-1, 1]) brow(cx + s * eyeDX, eyeY - 52, s * 9);
-      nose();
-      catMouth(10);
+      eyes();
+      brows(5);
+      noseMouth();
+      smile(10, 46);
       break;
     case 'curious':
-      blush(0.3);
-      eyes((s) => (s < 0 ? { rx: 24, ry: 28 } : { rx: 30, ry: 37 }));
-      brow(cx - eyeDX, eyeY - 48, 0);
-      line(10);
+      eyes((s) => (s > 0 ? { r: eyeR + 4 } : { r: eyeR - 2 }));
+      line(8);
       ctx.beginPath();
-      ctx.moveTo(cx + eyeDX - 30, eyeY - 52);
-      ctx.quadraticCurveTo(cx + eyeDX, eyeY - 80, cx + eyeDX + 30, eyeY - 58);
+      ctx.moveTo(cx + eyeDX - 20, eyeY - 44);
+      ctx.quadraticCurveTo(cx + eyeDX, eyeY - 60, cx + eyeDX + 22, eyeY - 46);
       ctx.stroke();
-      nose();
-      ctx.fillStyle = '#5a2a2a';
+      noseMouth();
+      ctx.fillStyle = '#4a2424';
       ctx.beginPath();
-      ctx.ellipse(cx, mouthY - 10, 14, 17, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx, smileY, 11, 13, 0, 0, Math.PI * 2);
       ctx.fill();
       break;
     case 'thinking':
-      eyes({ rx: 24, ry: 30, lookX: 7, lookY: -9 });
+      eyes({ lookX: 5, lookY: -7 });
+      noseMouth();
       line(10);
       ctx.beginPath();
-      ctx.moveTo(cx + eyeDX - 28, eyeY - 56);
-      ctx.quadraticCurveTo(cx + eyeDX, eyeY - 74, cx + eyeDX + 30, eyeY - 60);
-      ctx.stroke();
-      nose();
-      line(9);
-      ctx.beginPath();
-      ctx.moveTo(cx - 30, mouthY - 14);
-      ctx.bezierCurveTo(cx - 12, mouthY - 24, cx + 8, mouthY - 4, cx + 30, mouthY - 16);
+      ctx.moveTo(cx - smileDX, smileY);
+      ctx.bezierCurveTo(cx - 14, smileY - 9, cx + 12, smileY + 9, cx + smileDX, smileY - 2);
       ctx.stroke();
       break;
     case 'sad':
-      eyes({ rx: 24, ry: 29, lookY: 4 });
-      for (const s of [-1, 1]) brow(cx + s * eyeDX, eyeY - 50, -s * 10);
-      nose();
-      line(9);
-      ctx.beginPath();
-      ctx.moveTo(cx - 32, mouthY - 2);
-      ctx.quadraticCurveTo(cx, mouthY - 30, cx + 32, mouthY - 2);
-      ctx.stroke();
+      eyes({ lookY: 3 });
+      brows(-6);
+      noseMouth();
+      smile(-9);
       // 눈물
       ctx.fillStyle = '#7cc4ff';
       ctx.beginPath();
-      ctx.moveTo(cx + eyeDX + 18, eyeY + 34);
-      ctx.quadraticCurveTo(cx + eyeDX + 34, eyeY + 66, cx + eyeDX + 18, eyeY + 74);
-      ctx.quadraticCurveTo(cx + eyeDX + 2, eyeY + 66, cx + eyeDX + 18, eyeY + 34);
+      ctx.moveTo(cx + eyeDX + 14, eyeY + 26);
+      ctx.quadraticCurveTo(cx + eyeDX + 27, eyeY + 52, cx + eyeDX + 14, eyeY + 59);
+      ctx.quadraticCurveTo(cx + eyeDX + 1, eyeY + 52, cx + eyeDX + 14, eyeY + 26);
       ctx.fill();
       break;
     default:
-      blush(0.3);
-      eyes({});
-      nose();
-      catMouth(0);
+      eyes();
+      noseMouth();
+      smile();
   }
-  ctx.restore();
 }
 
 /** 다음 깜빡임까지 기다릴 초(2.6~5초). */

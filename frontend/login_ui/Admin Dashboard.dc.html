@@ -45,6 +45,8 @@
     <span style="font-family:var(--mono);font-size:15px;letter-spacing:0.08em;padding:3px 8px;border-radius:6px;border:1px solid var(--line);color:{{ srcColor }};white-space:nowrap;">● {{ srcLabel }}</span>
     <div style="flex:1;"></div>
     <nav style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+      <!-- 보고서: 신입사원 통계를 CSV로 내려받는다(엑셀에서 열림, GET /api/admin/report.csv). 화면 필터와 상관없이 전체 명단. 헤더에 둬서 어디서든 누른다 -->
+      <button type="button" onClick="{{ onReport }}" disabled="{{ reportBusy }}" title="신입사원별 공정 이해도·결과·시도 횟수·오개념 개수·마지막 학습일을 CSV로 내려받아요" style="height:38px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--text);font-size:15px;font-weight:600;cursor:pointer;white-space:nowrap;" style-hover="background:var(--panel2);">{{ reportLabel }}</button>
       <button type="button" onClick="{{ toggleTheme }}" aria-label="테마 전환" style="width:40px;height:40px;border-radius:10px;border:none;background:transparent;color:var(--muted);font-size:15px;cursor:pointer;" style-hover="background:var(--panel2);color:var(--text);">{{ themeIcon }}</button>
       <button type="button" onClick="{{ logout }}" style="height:40px;padding:0 16px;border-radius:10px;border:none;background:transparent;color:var(--muted);font-size:15px;font-weight:500;cursor:pointer;" style-hover="background:var(--panel2);color:var(--text);">로그아웃</button>
       <a href="/3d-demo/steel-index.html" target="_top" style="display:flex;align-items:center;height:40px;padding:0 20px;border-radius:10px;background:var(--accent);color:var(--accent-ink);font-size:15px;font-weight:700;white-space:nowrap;" style-hover="opacity:.88;">학습 화면</a>
@@ -242,7 +244,6 @@
           <sc-if value="{{ rowsEmpty }}" hint-placeholder-val="{{ false }}"><span style="padding:24px 18px;text-align:center;color:var(--muted);">조건에 맞는 신입사원이 없습니다.</span></sc-if>
         </div>
       </div>
-      <span style="font-size:15px;color:var(--dim);">칸: 마지막 체크포인트 이해도 · 시도 횟수. 잠김 = 앞 섹션 미통과. 기록은 DB 데이터이고, 설비·단계 같은 교육 내용은 샘플입니다.</span>
     </section>
   </main>
 
@@ -327,7 +328,8 @@ const ago = iso => { const d = days(iso); return d == null ? '기록 없음' : d
 
 class Component extends DCLogic {
   state = { P: null, data: null, error: null, ai: null, theme: this.props.theme ?? 'dark', sec: 'all', status: 'all', q: '', sort: 'progress', loadedAt: null,
-    detailId: null, detail: null, detailError: null }; // 신입사원 상세 패널(GET /api/admin/trainees/:id)
+    detailId: null, detail: null, detailError: null, // 신입사원 상세 패널(GET /api/admin/trainees/:id)
+    report: null }; // 보고서 내려받기 상태: null | 'busy' | 'error'
   componentDidMount() {
     document.body.dataset.theme = this.state.theme;
     import('../3d-demo/data_v2.js').then(m => this.setState({ P: m.PROCESSES }));
@@ -510,6 +512,8 @@ class Component extends DCLogic {
       secCards,
       statusTabs: ['all', 'done', 'active', 'retry', 'idle'].map(k => tab(S.status === k, `${k === 'all' ? '전체' : STATUS[k].label} ${statusCount(k)}`, () => this.setState({ status: k }))),
       query: S.q, onQuery: e => this.setState({ q: e.target.value }),
+      reportBusy: S.report === 'busy', reportLabel: S.report === 'busy' ? '보고서 만드는 중…' : S.report === 'error' ? '보고서 다시 받기' : '보고서 내려받기(CSV)',
+      onReport: () => { this.setState({ report: 'busy' }); import('./admin_data.js').then(m => m.downloadReport()).then(() => this.setState({ report: null }), () => this.setState({ report: 'error' })); },
       cols: [col('신입사원', 'name', 'left'), ...secs.map(s => col(meta(s).name)), col('진도', 'progress', 'left'), col('미해결 오개념', 'mis', 'right'), col('마지막 학습', 'last', 'right'), col('상태', null, 'right')],
       rows, rowsEmpty: !!D && rows.length === 0,
     };

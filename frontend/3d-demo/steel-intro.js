@@ -16,7 +16,7 @@
 // - 공정 사이 연결: 구역 아래 둥근 주황 테두리와 같은 주황 선(가운데 선 + 번짐), 모서리는 둥글게. 제선에서 열연까지 다 이어지면 위에서 전체를 보여 주며
 //   선이 세 번 깜빡이고, 그 뒤 밝기를 42%로 낮춘다.
 // - 카메라: 네 구역 전체가 화면에 꼭 차는 거리(overviewPose)보다 멀리 빠지지 않는다. 지도 버튼은 그 시점으로 간다. 앞 구역 오른쪽 변에서 나와 돌아 내려가 다음 구역 왼쪽 변으로 들어간다(구역 경계로 경로를 만든다).
-// - 공정 구역: 제선 → 제강 → 연주 → 열연이 1·2·3·4 순서로 땅에서 솟는다(받침 없음, 지역 클리핑으로 땅 위만 그림). 구역 둘레 주황 발광 테두리, 지금 구역은 15% 물결.
+// - 공정 구역: 제선 → 제강 → 연주 → 열연이 1·2·3·4 순서로 땅에서 솟는다(받침 없음, 지역 클리핑으로 땅 위만 그림). 구역 둘레 발광 테두리·연결선·투광등·물결은 노랑~주황 불빛(0xffa63d·0xffb352·0xffcc66, 2026-10-14 요청), 지금 구역은 15% 물결.
 // - 칩(번호·이름·[들어가기])과 흐름 라벨은 한꺼번에 띄우지 않는다: 구역이 솟을 때 3초만 보이고, 그 구역(또는 칩)에 마우스를 올리면 다시 보인다.
 // - 진행: ▶/⏸, [다음 공정], ← →, 숫자 키, Space. Enter = 지금 구역 들어가기. 수치는 data_v2.js에서만.
 
@@ -171,12 +171,12 @@ const loadAll = () => Promise.all(procs.map((p) => new Promise((resolve) => {
     const w = fb.max.x - fb.min.x + 5, d = fb.max.z - fb.min.z + 5, cx = (fb.min.x + fb.max.x) / 2, cz = (fb.min.z + fb.max.z) / 2;
     p.foot = { w, d, cx, cz }; p.modelTop = all.max.y;
     // 구역 둘레 주황 발광 테두리(받침 대신)
-    const glow = new THREE.Mesh(new THREE.PlaneGeometry(w + 10, d + 10), new THREE.MeshBasicMaterial({ map: GLOW, color: 0xff6b35, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })); glow.rotation.x = -Math.PI / 2; glow.position.set(cx, 0.06, cz); scene.add(glow);
-    for (let k = 0; k < 2; k++) { const r = new THREE.Mesh(new THREE.RingGeometry(0.97, 1, 96), new THREE.MeshBasicMaterial({ color: 0xffa04a, transparent: true, opacity: 0, depthWrite: false })); r.rotation.x = -Math.PI / 2; r.position.set(cx, 0.08, cz); scene.add(r); p.ripples.push(r); }
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(w + 10, d + 10), new THREE.MeshBasicMaterial({ map: GLOW, color: 0xffa63d, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })); glow.rotation.x = -Math.PI / 2; glow.position.set(cx, 0.06, cz); scene.add(glow);
+    for (let k = 0; k < 2; k++) { const r = new THREE.Mesh(new THREE.RingGeometry(0.97, 1, 96), new THREE.MeshBasicMaterial({ color: 0xffcc66, transparent: true, opacity: 0, depthWrite: false })); r.rotation.x = -Math.PI / 2; r.position.set(cx, 0.08, cz); scene.add(r); p.ripples.push(r); }
     // 마우스 판정용 보이지 않는 상자(구역 전체)
     const hh = Math.max(4, p.modelTop), hit = new THREE.Mesh(new THREE.BoxGeometry(w, hh, d), new THREE.MeshBasicMaterial({ visible: false })); hit.position.set(cx, hh / 2, cz); scene.add(hit);
     // 구역 투광등(솟은 뒤 켜짐) + 따뜻한 빛
-    const warm = new THREE.PointLight(0xff9a3c, 0, 90, 1.6); warm.position.set(cx, p.modelTop + 8, cz); scene.add(warm);
+    const warm = new THREE.PointLight(0xffb352, 0, 90, 1.6); warm.position.set(cx, p.modelTop + 8, cz); scene.add(warm);
     p.cloudTargets = sampleProc(root, p.foot);
     root.position.y = -RISE_DEPTH; root.visible = false; scene.add(root);
     Object.assign(p, { root, glow, hit, warm });
@@ -227,7 +227,7 @@ function gather(cl, tg) { // 홈과 같은 모양 바꾸기: 점마다 조금씩
 // 공정 연결 선: 구역 아래 둥근 주황 테두리(glowTex)와 같은 모양 — 가운데 얇은 주황 선 + 양옆 부드러운 번짐(가산 합성).
 // 띠 폭 4 안에서 uv.y(폭 방향)로 선을 그린다. reach까지만 보여 앞 구역에서 다음 구역으로 그어지듯 나타난다
 const flowMat = () => new THREE.ShaderMaterial({
-  uniforms: { t: { value: 0 }, reach: { value: 0 }, gain: { value: 1 }, color: { value: new THREE.Color(0xff6b35) }, W: { value: 4.0 } },
+  uniforms: { t: { value: 0 }, reach: { value: 0 }, gain: { value: 1 }, color: { value: new THREE.Color(0xffa63d) }, W: { value: 4.0 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
   fragmentShader: 'uniform float t, reach, W, gain; uniform vec3 color; varying vec2 vUv; void main(){ if (vUv.x > reach) discard; float d = abs(vUv.y - 0.5) * W; float core = 1.0 - smoothstep(0.3, 0.46, d); float halo = exp(-d * d / 1.6) * 0.5; float a = max(core * 0.95, halo) * 0.5 * gain; gl_FragColor = vec4(color, a); }',
   transparent: true, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending,

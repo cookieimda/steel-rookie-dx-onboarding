@@ -27,7 +27,7 @@ import { createSection } from './steel-index-section.js';
 import { createStage, STAGE_H } from './steel-index-stage.js';
 
 const { PROCESSES } = DATA;
-const ORANGE = 0xff6b35, CYAN = 0x22c7f0;
+const ORANGE = 0xffa63d, RIPPLE = 0xffcc66; // 공정 자리 발광 테두리·선택 설비 물결은 노랑~주황 불빛(2026-10-14 요청, 전에는 물결이 시안)
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const RISE = { dur: 1100, gap: 240, depth: 22, sinkGap: 60, sinkDur: 480 };
 const THEME_KEY = 'st-rookie:index-theme';
@@ -59,7 +59,7 @@ Object.assign(key.shadow.camera, { left: -50, right: 50, top: 45, bottom: -45, n
 scene.add(key, key.target);
 const fill = new THREE.DirectionalLight(0x7fb0ff, 0.4); fill.position.set(60, 40, -30); scene.add(fill);
 const rim = new THREE.DirectionalLight(0xffffff, 0.6); rim.position.set(10, 30, -90); scene.add(rim);
-const warm = new THREE.PointLight(0xff8a2a, 0, 30, 1.6); scene.add(warm);
+const warm = new THREE.PointLight(0xffb352, 0, 30, 1.6); scene.add(warm);
 
 // ---- 슬레이트 테이블 -----------------------------------------------------------------------------
 function slateTexture() {
@@ -105,7 +105,7 @@ const glow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMa
 glow.rotation.x = -Math.PI / 2; glow.position.y = 0.12; glow.renderOrder = 1; scene.add(glow);
 // 선택한 설비를 감싸는 바닥 링(v4의 선택 링과 같은 시안). 참고 영상의 '선택 돔' 역할을 가볍게 한다
 // 선택한 설비: 바닥에 굵은 링을 두지 않고, 15% 불투명 물결 두 개가 바깥으로 퍼진다(2026-10-13 요청)
-const ripples = [0, 1].map(() => { const r = new THREE.Mesh(new THREE.RingGeometry(0.97, 1, 96), new THREE.MeshBasicMaterial({ color: CYAN, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })); r.rotation.x = -Math.PI / 2; r.position.y = 0.1; r.renderOrder = 2; r.raycast = () => {}; scene.add(r); return r; });
+const ripples = [0, 1].map(() => { const r = new THREE.Mesh(new THREE.RingGeometry(0.97, 1, 96), new THREE.MeshBasicMaterial({ color: RIPPLE, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })); r.rotation.x = -Math.PI / 2; r.position.y = 0.1; r.renderOrder = 2; r.raycast = () => {}; scene.add(r); return r; });
 let rippleR = 3;
 
 // ---- 공정·설비 -------------------------------------------------------------------------------------

@@ -23,7 +23,8 @@
     img.ic { display: block; }
 
     .top { position: fixed; top: 18px; left: 22px; right: 22px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; pointer-events: none; z-index: 5; }
-    .ttl { padding: 10px 16px; border-radius: 14px; background: var(--surf); border: 1px solid var(--line); box-shadow: var(--shadow); pointer-events: auto; max-width: 520px; }
+    .ttl { padding: 10px 16px; border-radius: 14px; background: var(--surf); border: 1px solid var(--line); box-shadow: var(--shadow); pointer-events: auto; max-width: 520px; transition: opacity .9s var(--ease), transform .9s var(--ease); }
+    .ttl.out { opacity: 0; transform: translateY(-10px); pointer-events: none; } /* 제목 카드는 여는 장면 뒤 잠깐만 보이고 사라진다 */
     .ttl h1 { margin: 0; font: 800 22px/1.15 var(--f-body); letter-spacing: -.01em; }
     .ttl p { margin: 4px 0 0; font: 400 15px/1.4 var(--f-body); color: var(--muted); }
     .seg { pointer-events: auto; display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 999px; background: var(--surf); border: 1px solid var(--line); box-shadow: var(--shadow); }
@@ -50,7 +51,7 @@
     .fl i { font-style: normal; color: var(--molten); }
 
     .flow { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); width: min(880px, calc(100vw - 44px)); z-index: 5; display: flex; align-items: center; gap: 16px; padding: 10px 16px 10px 10px; border-radius: 999px; background: var(--surf); border: 1px solid var(--line); box-shadow: var(--shadow); pointer-events: auto; box-sizing: border-box; }
-    .flow .pl { width: 44px; height: 44px; border-radius: 50%; border: 0; background: #f2f2f2; display: grid; place-items: center; cursor: pointer; flex: none; }
+    .flow .pl { width: 32px; height: 32px; border-radius: 50%; border: 0; background: #f2f2f2; display: grid; place-items: center; cursor: pointer; flex: none; }
     .flow .lbl { font: 400 12px/1 var(--f-mono); letter-spacing: .22em; color: var(--dim); white-space: nowrap; }
     .flow .tl { flex: 1; position: relative; height: 44px; margin: 0 14px; }
     .flow .tl::before { content: ""; position: absolute; left: 0; right: 0; top: 14px; height: 1px; background: rgba(255,255,255,.18); }
@@ -91,12 +92,12 @@
   <div id="hud"></div>
 
   <div class="top">
-    <div class="ttl"><h1>제철 공정 지도</h1><p>제선 → 제강 → 연주 → 열연 구역이 차례로 올라옵니다. 구역에 마우스를 올려 그 공정으로 들어가세요.</p></div>
+    <div class="ttl" id="ttl"><h1>제철 공정 지도</h1><p>제선 → 제강 → 연주 → 열연 구역이 차례로 올라옵니다. 구역에 마우스를 올려 그 공정으로 들어가세요.</p></div>
     <div class="seg" role="group" aria-label="보기"><button id="v2d" aria-pressed="false">지도</button><button id="v3d" class="on" aria-pressed="true">3D</button><span class="sep"></span><a href="/login" title="마이페이지">마이페이지</a></div>
   </div>
 
   <div class="flow">
-    <button class="pl" id="btnPlay" title="재생" aria-label="재생"><img class="ic" id="icPlay" width="22" height="22" alt=""></button>
+    <button class="pl" id="btnPlay" title="재생" aria-label="재생"><img class="ic" id="icPlay" width="16" height="16" alt=""></button>
     <span class="lbl">PROCESS FLOW</span>
     <div class="tl" id="tl"><div class="fill" id="tlFill" style="width:0"></div></div>
     <button class="nx" id="btnNext">다음 공정 ›</button>

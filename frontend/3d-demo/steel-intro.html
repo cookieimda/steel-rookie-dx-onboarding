@@ -33,6 +33,7 @@
     .seg .sep { width: 1px; height: 22px; background: var(--line); margin: 0 4px; }
     .seg a { height: 36px; padding: 0 14px; border-radius: 999px; display: inline-flex; align-items: center; color: var(--text); font: 600 15px/1 var(--f-body); text-decoration: none; }
     .seg a:hover { background: var(--surf2); }
+    .seg #btnLogout:hover { background: var(--surf2); color: var(--text); }
 
     /* 공정 칩: 번호 · 이름 · [들어가기]. 기본은 숨김, 솟을 때 3초·마우스를 올리면 보인다 */
     .pc { position: absolute; left: 0; top: 0; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; opacity: 0; transition: opacity .3s var(--ease); pointer-events: none; }
@@ -80,7 +81,7 @@
 
   <div class="top">
     <div class="ttl" id="ttl"><h1>제철 공정 지도</h1><p>제선 → 제강 → 연주 → 열연 구역이 차례로 올라옵니다. 구역에 마우스를 올려 그 공정으로 들어가세요.</p></div>
-    <div class="seg" role="group" aria-label="보기"><button id="v2d" aria-pressed="false">지도</button><button id="v3d" class="on" aria-pressed="true">3D</button><span class="sep"></span><a href="/login" title="마이페이지">마이페이지</a></div>
+    <div class="seg" role="group" aria-label="보기"><button id="v2d" aria-pressed="false">지도</button><button id="v3d" class="on" aria-pressed="true">3D</button><span class="sep"></span><a href="/login" title="마이페이지">마이페이지</a><button id="btnLogout" type="button" hidden>로그아웃</button></div>
   </div>
 
   <div class="flow">
@@ -93,6 +94,22 @@
 
   <div id="load"><div style="display:flex;flex-direction:column;align-items:center"><b>ST-ROOKIE</b><div class="bar"><i id="loadbar"></i></div></div></div>
 
+  <script>
+    // 로그아웃. 로그아웃 API는 없다(JWT, docs/auth-api.md). 이 브라우저의 토큰과 이어 보던 학습 대화 id를 지우고 홈(/)으로 간다.
+    // 토큰이 있을 때만 버튼을 보인다(login_ui/home-sleek.html과 같은 방식).
+    (() => {
+      const TOKEN_KEY = 'st-rookie-token', CHAT_KEY = 'st-rookie:learning-session';
+      const btn = document.getElementById('btnLogout');
+      let hasToken = false;
+      try { hasToken = !!(localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY)); } catch (e) {}
+      btn.hidden = !hasToken;
+      btn.addEventListener('click', () => {
+        for (const s of ['localStorage', 'sessionStorage']) { try { window[s].removeItem(TOKEN_KEY); } catch (e) {} }
+        try { sessionStorage.removeItem(CHAT_KEY); } catch (e) {}
+        location.href = '/';
+      });
+    })();
+  </script>
   <script type="module" src="./steel-intro.js"></script>
 </body>
 </html>

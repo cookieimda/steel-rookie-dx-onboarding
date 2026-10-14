@@ -6,7 +6,7 @@
 //     하단 재생 바(설비 차례로 보기 + 단계 카드 자동 넘김, 1×·2×). 아이콘·온도 보조는 steel-index-ui.js(v4에서 옮김).
 // 학습 현황(벽 대시보드, 왼쪽 위 패널은 없앴다): 지금 보는 것 · 이 세션에서 본 설비 수 · 이해도 확인 상태(GET /api/sections/:section/progress, 로그인 때만) · 다시 볼 설비(GET /api/me/misconceptions의
 //     미해결 체크포인트 오개념 → learn-hud-state.js의 개념→설비 표). 실제 값만 보여 주고, 로그인 전에는 안내 문구를 둔다.
-// 설비 보기: 하단 점·3D 클릭(설비를 짚으면 그 설비, 그 밖은 다음 설비)·← →. 설비 번호 핀·핫스팟은 UI 주황(--hot, 2026-10-14 요청. 바닥 물결만 시안). 선택한 설비는 바닥의 시안 링으로 감싸고 나머지 설비는 색을 낮춘다. 전체 보기(공정만)에서는 설비 UI를 띄우지 않는다.
+// 설비 보기: 하단 점·3D 클릭(설비를 짚으면 그 설비, 그 밖은 다음 설비)·← →. 고른 설비 위에는 v4와 같은 작동 연출(work-fx.js: 불씨·불꽃·수증기·분사·쇳물 + 점광)이 돈다(단계 보기(단면) 중에는 숨김). 설비 번호 핀·핫스팟은 UI 주황(--hot, 2026-10-14 요청. 바닥 물결만 시안). 선택한 설비는 바닥의 시안 링으로 감싸고 나머지 설비는 색을 낮춘다. 전체 보기(공정만)에서는 설비 UI를 띄우지 않는다.
 // 대시보드 보기: 뒷벽(공정 이름 + 대시보드 4장)이 화면에 꼭 차게 정면에서 보고, 앞에 선 공정 모델은 옅게(18%) 둬 벽이 읽히게 한다. 드래그·설비 선택·공정 바꾸기로 외관으로 돌아온다(평면 보기를 대신한다, 2026-10-14 요청).
 // 튜터: 이 화면에는 없다(#140). 설비 패널의 [튜터에게 묻기]가 마이페이지(/login_ui/My Page.dc.html?p=공정&eq=설비&ask=1)로 보내고, 마이페이지가 그 공정·설비를 고른 채 ASK 탭을 연다.
 // 수치는 data_v2.js와 서버 응답에서만 가져온다. 꾸며 낸 실시간 값은 쓰지 않는다. prefers-reduced-motion이면 솟아오르기·글자 연출·자전 없이 바로 놓는다.
@@ -24,6 +24,7 @@ import { conceptStatuses, equipmentStatuses, groupBySection } from './learn-hud-
 import { icon, stepIcon, parseTemp, heatOf } from './steel-index-ui.js';
 import { createSection } from './steel-index-section.js';
 import { createStage, STAGE_H } from './steel-index-stage.js';
+import { createWorkFx } from './work-fx.js';
 
 const { PROCESSES } = DATA;
 const ORANGE = 0xffa63d, RIPPLE = 0xffcc66; // 공정 자리 발광 테두리·선택 설비 물결은 노랑~주황 불빛(2026-10-14 요청, 전에는 물결이 시안)
@@ -77,6 +78,7 @@ const tableMat = new THREE.MeshStandardMaterial({ color: 0x24272c, roughness: 0.
 const table = new THREE.Mesh(new THREE.BoxGeometry(150, 6, 90), tableMat); table.position.y = -3 - STAGE_H; table.receiveShadow = true; scene.add(table);
 const edge = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(150, 6, 90)), new THREE.LineBasicMaterial({ color: 0x3a3e45, transparent: true, opacity: 0.8 })); edge.position.y = -3 - STAGE_H; scene.add(edge);
 const stage3d = createStage({ scene, slateMap, reduced: REDUCED }); // ㄴ자 무대(바닥판 + 뒷벽 + 벽 대시보드)
+const work = createWorkFx({ scene, isDark: () => theme === 'dark' }); // 고른 설비의 작동 연출(v4와 같음)
 
 // ---- 테마(3D 영역만. 화면 틀은 v4처럼 항상 어둡다) ------------------------------------------------------------
 let theme = 'dark';
@@ -205,7 +207,7 @@ $('top').addEventListener('focusin', () => document.body.classList.add('peek'));
 // ---- 오른쪽 패널 ------------------------------------------------------------------------------------------
 const right = $('right');
 function closePanel() { panel = null; right.classList.remove('on'); right.innerHTML = ''; document.body.classList.remove('panel'); section.hide(); clearInterval(typer); }
-function openPanel(kind) { panel = kind; right.classList.add('on'); document.body.classList.add('panel'); renderPanel(); }
+function openPanel(kind) { panel = kind; right.classList.add('on'); document.body.classList.add('panel'); renderPanel(); work.setVisible(panel !== 'steps'); } // 단면 보기 중에는 작동 입자를 숨긴다(v4와 같음)
 function renderPanel() {
   if (!panel || !cur) return;
   const e = curEq; if (!e) return closePanel();
@@ -305,7 +307,7 @@ function sink(p) {
 }
 
 // ---- 설비 보기 ---------------------------------------------------------------------------------------
-function clearDim(p) { section.hide(); warm.intensity = 0; ripples.forEach((r) => { r.material.opacity = 0; }); p.eqs.forEach((q) => q.node.traverse((o) => { if (!o.isMesh || !o.material.userData.color) return; const m = o.material; m.color.copy(m.userData.color); if (m.userData.emissive) { m.emissive.copy(m.userData.emissive); m.emissiveIntensity = m.userData.emissiveI; } })); }
+function clearDim(p) { section.hide(); work.stop(); warm.intensity = 0; ripples.forEach((r) => { r.material.opacity = 0; }); p.eqs.forEach((q) => q.node.traverse((o) => { if (!o.isMesh || !o.material.userData.color) return; const m = o.material; m.color.copy(m.userData.color); if (m.userData.emissive) { m.emissive.copy(m.userData.emissive); m.emissiveIntensity = m.userData.emissiveI; } })); }
 function enterStep(e, userAct = true) {
   if (!cur || !e || !e.up || sinking) return;
   if (userAct && tour) stopTour();
@@ -313,7 +315,7 @@ function enterStep(e, userAct = true) {
   mode = 'step'; curEq = e; stepIdx = 0; cur.seen.add(e.id);
   if (tour) tour.t0 = performance.now();
   openPanel(tour ? 'steps' : 'eq');
-  renderProg(cur); stage3d.setEquipment(e); syncUi();
+  renderProg(cur); stage3d.setEquipment(e); syncUi(); if (!REDUCED) work.start(e);
   const c = e.box.getCenter(new THREE.Vector3()), s = e.box.getSize(new THREE.Vector3());
   warm.position.set(c.x, e.box.max.y + 2, c.z); warm.intensity = 14;
   ripples.forEach((r) => r.position.set(c.x, 0.1, c.z)); rippleR = Math.max(2.5, Math.max(s.x, s.z) * 0.62);
@@ -436,7 +438,7 @@ function frame(now) {
   else if (!drag && !REDUCED && mode === 'overview' && view === '3d') orbit.yaw += dt * 0.01;
   const o = orbit; camera.position.set(o.target.x + o.dist * Math.sin(o.yaw) * Math.cos(o.pitch), o.target.y + o.dist * Math.sin(o.pitch), o.target.z + o.dist * Math.cos(o.yaw) * Math.cos(o.pitch)); camera.lookAt(o.target);
   if (curEq && !REDUCED) { warm.intensity = 14 + 3 * Math.sin(now / 420); ripples.forEach((r, k) => { const ph = ((now / 2200) + k * 0.5) % 1; r.scale.setScalar(rippleR * (0.8 + 0.8 * ph)); r.material.opacity = 0.15 * (1 - ph); }); }
-  section.tick(now); stage3d.tick(now, camera);
+  section.tick(now); stage3d.tick(now, camera); work.tick(now);
   composer.render(); placeHud();
 }
 

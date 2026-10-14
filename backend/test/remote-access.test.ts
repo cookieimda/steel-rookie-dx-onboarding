@@ -136,7 +136,7 @@ test("첫 화면(/)은 홈으로 보내고, 쿼리가 있는 주소는 3D 화면
   assert.match(await (await fetch(base + "/")).text(), /STEEL, IN 3D\./);
   const scene = await fetch(base + "/?p=ironmaking&tutor=1", { redirect: "manual" });
   assert.equal(scene.status, 200);
-  assert.match(await scene.text(), /sleek-overview\.js/);
+  assert.match(await scene.text(), /steel-index\.js/);
   const login = await fetch(base + "/login", { redirect: "manual" });
   assert.equal(login.headers.get("location"), "/login_ui/My%20Page.dc.html");
 });

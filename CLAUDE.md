@@ -195,7 +195,7 @@ content/
 - 접속 비밀번호: `.env`의 `TEST_PASSCODE`가 있으면 `/api/access`를 뺀 모든 `/api` 요청에 `X-Test-Passcode`를 확인한다. 비어 있으면 검사하지 않는다(`backend/src/test-access.ts`).
 - 사용량: 사용자별 하루 LLM 호출 수를 `llm_usage`에 세고 `LLM_DAILY_LIMIT`(기본 150, 0 이하면 무제한)를 넘으면 429(`backend/src/usage.ts`). `GeminiClient`의 `beforeCall` 훅으로 센다.
 - 서버는 `127.0.0.1`에만 바인딩한다. 외부 공유는 `npm run tunnel`(cloudflared quick tunnel)로만 하고, `TEST_PASSCODE`가 없으면 터널이 열리지 않는다.
-- 앱 구성은 `backend/src/app.ts`의 `createApp()`, 실행은 `ironmaking-server.ts`.
+- 앱 구성은 `backend/src/app.ts`의 `createApp()`, 실행은 `ironmaking-server.ts`. 시연 서버는 `npm run start:gemini`(`scripts/start-gemini.mjs`)로 켠다: Gemini로 고정하고 추천 질문 미리 받기(`WARM_ANSWERS`, 유료 호출)를 기본으로 끈다.
 - 사용자 기록 삭제: `npm run db:reset-user -- 이름 --origin seed|live|all [--yes]`(`--origin` 필수, 없으면 사용법을 보이고 종료). 이름이 로그인 아이디면 그 계정(`users.id`)의 기록과 같은 이름의 헤더 기록을 함께 지운다. 계정은 지우지 않는다. 실제 기록(live)은 eval 사람 답변 원천이라 필요하면 `eval:export-human`으로 먼저 백업한다. 진행 방법은 `docs/team-test.md`.
 - 사용자별 데이터(계정, 개념 점수, 판정 기록, 오개념, 진도, 튜토리얼 완료 여부)는 DB에 둔다.
 - 교육 내용과 루브릭은 DB가 아니라 `content/` 파일로 관리한다.

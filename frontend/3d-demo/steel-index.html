@@ -177,69 +177,55 @@
     .toast.on { display: block; }
     @media (prefers-reduced-motion: reduce) { #load, .bar .stop i { transition: none; } }
 
-    /* ---- HUD 스킨(2026-10-14 요청: 터미널/HUD 느낌). 아주 어두운 반투명 유리, 모노 라벨, 가는 주황 선, 모서리를 비스듬히 자른 판. 아래 규칙이 위의 알약(999px) 규칙을 덮어쓴다 ---- */
-    :root { --glass: rgba(6,12,18,.58); --glass2: rgba(255,255,255,.045); --edge: rgba(255,255,255,.1); --edge2: rgba(255,158,100,.45); --r-s: 3px; --r-m: 4px; --r-l: 6px; }
-    .top { border-radius: 4px; background: var(--glass); border-color: var(--edge); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); padding: 4px 8px; gap: 4px; clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px)); }
-    .top .rb { border-radius: 4px; background: transparent; border: 1px solid transparent; }
+    /* ---- 네온 스킨(2026-10-14 요청: 참고 화면의 글로우 느낌을 주황으로). 짙은 남색 유리 + 빛나는 주황 테두리·제목 글로우, 둥근 알약, 자간 넓은 모노 라벨. 아래 규칙이 위 규칙을 덮어쓴다 ---- */
+    :root { --glass: rgba(8,12,22,.72); --glass2: rgba(255,255,255,.04); --edge: rgba(255,158,100,.22); --edge2: rgba(255,158,100,.55); --glow: 0 0 0 1px rgba(255,158,100,.06), 0 0 22px rgba(255,107,53,.16), inset 0 0 28px rgba(255,107,53,.05); --neon: #ffd2b0; --r-s: 8px; --r-m: 12px; --r-l: 16px; }
+    .top { border-radius: 14px; background: var(--glass); border: 1px solid var(--edge); box-shadow: var(--glow); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); padding: 5px 8px; gap: 4px; }
+    .top .rb { border-radius: 10px; background: transparent; border: 1px solid transparent; }
     .top .rb:hover { background: var(--glass2); border-color: var(--edge); }
-    .top .rb.on { background: var(--hot); border-color: transparent; }
-    .top .tabs, .top .seg { border-radius: 4px; background: transparent; border: 1px solid var(--edge); height: 36px; padding: 0 2px; }
-    .top .tabs button, .top .seg button { border-radius: 3px; height: 30px; }
-    .top .tabs button.on, .top .seg button.on { background: rgba(255,158,100,.14); color: var(--hot); box-shadow: inset 0 -2px 0 var(--hot); }
+    .top .rb.on { background: var(--hot); border-color: transparent; box-shadow: 0 0 14px rgba(255,158,100,.45); }
+    .top .tabs, .top .seg { border-radius: 10px; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.06); height: 36px; padding: 0 3px; }
+    .top .tabs button, .top .seg button { border-radius: 8px; height: 30px; }
+    .top .tabs button.on, .top .seg button.on { background: rgba(255,158,100,.1); color: var(--neon); border: 1px solid var(--edge2); box-shadow: 0 0 12px rgba(255,158,100,.3), inset 0 0 10px rgba(255,158,100,.08); text-shadow: 0 0 8px rgba(255,158,100,.6); }
     .top .tabs button.on code { color: var(--hot); }
     .top .sep { background: var(--edge); }
-    .hint { font: 400 13px/1 var(--f-mono); letter-spacing: .1em; color: var(--dim); }
-    .right { border-radius: 6px; background: var(--glass); border-color: var(--edge); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: none; clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px)); }
-    .right::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: linear-gradient(90deg, var(--hot), rgba(255,158,100,0) 70%); pointer-events: none; z-index: 1; }
-    .right .eyebrow, .right h2, .lvh, .chiphead, .right .io small, .kpi small, .msg.ai .cite { font-family: var(--f-mono); letter-spacing: .08em; font-size: 13px; }
-    .right .x, .tutorhead .x2, .right .steps .tile, .badge, .chips button, .stepcard .nav button, .msg.err, .typing, .msg.safety { border-radius: 4px; }
-    .right .io, .kpi { border-radius: 4px; background: var(--glass2); border: 1px solid var(--edge); border-left: 2px solid var(--edge2); }
-    .stepcard .heat { border-radius: 4px; }
+    .hint { font: 400 12px/1 var(--f-mono); letter-spacing: .2em; text-transform: uppercase; color: var(--dim); }
+    .right { border-radius: 16px; background: var(--glass); border: 1px solid var(--edge); box-shadow: var(--glow); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+    .right h1, .tutorhead h1 { color: var(--neon); text-shadow: 0 0 14px rgba(255,158,100,.55), 0 0 2px rgba(255,210,176,.6); }
+    .right .eyebrow, .right h2, .lvh, .chiphead, .right .io small, .kpi small, .msg.ai .cite { font-family: var(--f-mono); letter-spacing: .18em; font-size: 12px; text-transform: uppercase; color: var(--dim); }
+    .right h2, .lvh { color: var(--hot); text-shadow: 0 0 10px rgba(255,158,100,.35); }
+    .right .io, .kpi { border-radius: 12px; background: var(--glass2); border: 1px solid var(--edge); box-shadow: inset 0 0 20px rgba(255,107,53,.05); }
+    .kpi b { color: var(--neon); text-shadow: 0 0 12px rgba(255,158,100,.4); }
     .right .foot { border-top-color: var(--edge); }
-    .right .foot button { border-radius: 4px; background: transparent; border-color: var(--edge); }
-    .right .foot button.primary { background: rgba(255,158,100,.14); color: var(--hot); border: 1px solid var(--edge2); }
-    .right .foot button.primary:hover { background: var(--hot); color: var(--accent-ink); filter: none; }
-    .stepcard .no { border-radius: 4px; background: var(--glass2); border: 1px solid var(--edge2); box-shadow: none; }
-    .stepcard .no i { border-radius: 3px; }
-    .badge { background: transparent; }
-    .badge.run { border-color: var(--edge2); color: var(--hot); } /* '재생 중' 배지의 초록이 거슬린다는 의견 → 주황(2026-10-14) */
-    .badge.run::before { background: var(--hot); }
-    .msg.user { border-radius: 4px; background: rgba(255,158,100,.12); border: 1px solid var(--edge2); }
-    .msg.ai .b { border-radius: 4px; background: var(--glass2); border: 1px solid var(--edge); }
-    .msg.ai .fu { border-color: var(--edge2); color: var(--hot); }
-    form.send input { border-radius: 4px; background: rgba(0,0,0,.25); border-color: var(--edge); }
-    form.send input:focus { border-color: var(--hot); }
-    form.send button { border-radius: 4px; background: var(--hot); }
-    .bar { border-radius: 4px; background: var(--glass); border-color: var(--edge); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: none; height: 68px; clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px); }
-    .bar .play { border-radius: 4px; background: transparent; border-color: var(--edge2); }
-    .bar .play:hover { background: rgba(255,158,100,.14); }
-    .bar .track::before { background: var(--edge); }
-    .bar .stop i { border-radius: 2px; background: transparent; border-color: var(--dim); }
+    .right .foot button { border-radius: 999px; background: transparent; border-color: var(--edge); }
+    .right .foot button.primary { background: rgba(255,158,100,.12); color: var(--neon); border: 1px solid var(--edge2); box-shadow: 0 0 14px rgba(255,158,100,.3); text-shadow: 0 0 8px rgba(255,158,100,.5); }
+    .right .foot button.primary:hover { background: var(--hot); color: var(--accent-ink); text-shadow: none; filter: none; }
+    .stepcard .no { border-radius: 999px; background: rgba(255,158,100,.08); border: 1px solid var(--edge2); box-shadow: 0 0 14px rgba(255,158,100,.25); color: var(--neon); }
+    .badge { border-radius: 999px; background: transparent; border-color: var(--edge); }
+    .badge.run { border-color: var(--edge2); color: var(--neon); box-shadow: 0 0 10px rgba(255,158,100,.3); text-shadow: 0 0 8px rgba(255,158,100,.5); } /* '재생 중'은 초록 대신 주황 */
+    .badge.run::before { background: var(--hot); box-shadow: 0 0 8px var(--hot); }
+    .hots li.on button { box-shadow: 0 0 12px rgba(255,158,100,.25); }
+    .msg.user { background: rgba(255,158,100,.1); border: 1px solid var(--edge2); box-shadow: 0 0 12px rgba(255,158,100,.18); }
+    .msg.ai .b { background: var(--glass2); border: 1px solid rgba(255,255,255,.07); }
+    .msg.ai .fu { border-color: var(--edge2); color: var(--neon); }
+    .chips button { border-color: var(--edge); }
+    form.send input { background: rgba(0,0,0,.3); border-color: var(--edge); }
+    form.send input:focus { border-color: var(--edge2); box-shadow: 0 0 12px rgba(255,158,100,.25); }
+    form.send button { background: var(--hot); box-shadow: 0 0 14px rgba(255,158,100,.4); }
+    .toast { background: var(--glass); border-color: var(--edge2); box-shadow: var(--glow); backdrop-filter: blur(18px); }
+    .tag .k { background: var(--glass) !important; border-color: var(--edge2) !important; box-shadow: 0 0 14px rgba(255,158,100,.3) !important; backdrop-filter: blur(12px) !important; }
+    /* 하단 재생 바: 고정 크기(커졌다 작아지지 않음). 높이 58px, 이름은 항상 보이되 14px, 점은 작게 */
+    .bar { height: 58px; gap: 12px; padding: 0 16px 0 10px; border-radius: 999px; background: var(--glass); border: 1px solid var(--edge); box-shadow: var(--glow); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+    .bar .play { width: 40px; height: 40px; border-radius: 50%; background: rgba(255,158,100,.1); border-color: var(--edge2); box-shadow: 0 0 12px rgba(255,158,100,.3); }
+    .bar .play img { width: 22px; height: 22px; }
+    .bar .play:hover { background: rgba(255,158,100,.22); }
+    .bar .track::before { background: var(--edge); top: 6px; }
+    .bar .stop { min-width: 84px; max-width: 130px; gap: 7px; padding: 0 6px; font: 500 14px/1 var(--f-body); }
+    .bar .stop i { width: 8px; height: 8px; margin-top: 2px; border-radius: 50%; background: transparent; border-color: #5c5c62; }
     .bar .stop.done i { background: var(--hot); border-color: var(--hot); }
-    .bar .stop.cur { color: var(--hot); }
-    .bar .stop.cur i { background: var(--hot); border-color: var(--hot); transform: scale(1.5) rotate(45deg); }
-    .bar .speed { border-radius: 4px; border: 1px solid var(--edge); }
-    .toast { border-radius: 4px; background: var(--glass); backdrop-filter: blur(18px); }
-    .tag .k { border-radius: 4px !important; background: var(--glass) !important; border-color: var(--edge2) !important; backdrop-filter: blur(12px) !important; }
-    .tag .k i { border-radius: 3px !important; }
-    /* 재생 바 최소화(2026-10-14 요청): 평소에는 재생 버튼 + 설비 점 + 지금 설비 이름 + 속도만 48px 높이로. 마우스를 올리거나 키보드 초점이 들어오면 이름이 모두 보이는 원래 크기로 펼쳐진다 */
-    .bar { height: 48px; gap: 10px; padding: 0 12px 0 8px; transition: height .25s var(--ease); }
-    .bar .play { width: 34px; height: 34px; }
-    .bar .play img { width: 20px; height: 20px; }
-    .bar .track { align-items: center; }
-    .bar .track::before { top: 50%; transform: translateY(-50%); left: 8px; right: 8px; }
-    .bar .stop { min-width: 0; width: auto; max-width: none; padding: 0 7px; gap: 0; flex-direction: row; }
-    .bar .stop i { margin-top: 0; }
-    .bar .stop span { display: none; }
-    .bar .stop.cur { gap: 8px; padding: 0 10px 0 7px; }
-    .bar .stop.cur span { display: block; max-width: none; overflow: visible; text-overflow: clip; padding-right: 2px; } /* 접힌 상태에서 이름이 '재가…'로 잘리지 않게 */
-    .bar .speed { height: 30px; min-width: 38px; font-size: 13px; }
-    .bar:hover, .bar:focus-within { height: 68px; }
-    .bar:hover .track, .bar:focus-within .track { align-items: flex-start; }
-    .bar:hover .track::before, .bar:focus-within .track::before { top: 7px; transform: none; }
-    .bar:hover .stop, .bar:focus-within .stop { flex-direction: column; gap: 9px; min-width: 96px; padding: 0 8px; }
-    .bar:hover .stop i, .bar:focus-within .stop i { margin-top: 3px; }
-    .bar:hover .stop span, .bar:focus-within .stop span { display: block; }
+    .bar .stop.cur { color: var(--neon); text-shadow: 0 0 8px rgba(255,158,100,.6); }
+    .bar .stop.cur i { background: var(--hot); border-color: var(--hot); box-shadow: 0 0 10px var(--hot); transform: scale(1.5); }
+    .bar .speed { height: 32px; min-width: 40px; border-radius: 999px; border: 1px solid var(--edge); font-size: 13px; }
+    @media (max-width: 1280px) { body.panel .bar .stop { width: auto; min-width: 72px; font-size: 13px; } }
   </style>
 </head>
 <body>

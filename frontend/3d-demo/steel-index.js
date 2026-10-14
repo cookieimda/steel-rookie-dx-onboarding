@@ -369,7 +369,9 @@ function ghost(p, on) { // 공정 모델을 옅게 하거나(on) 되돌린다. �
     else if (m.userData.op != null) { m.opacity = m.userData.op; m.transparent = m.userData.op < 1; m.depthWrite = true; m.userData.op = null; } });
 }
 // 고른 설비 시점(외관). 설비 상자의 긴 변 × 2.4 거리, 살짝 왼쪽
-const eqPose = (e, yaw) => { const c = e.box.getCenter(new THREE.Vector3()), s = e.box.getSize(new THREE.Vector3()); return { yaw, pitch: 0.34, dist: Math.max(14, Math.max(s.x, s.z, s.y) * 2.4), target: new THREE.Vector3(c.x - s.x * 0.15, c.y, c.z) }; };
+// 오른쪽 패널이 열려 있으면 남은 폭에 맞게 그만큼 더 물러난다(최대 1.6배)
+const panelZoom = () => (document.body.classList.contains('panel') ? Math.min(1.6, stage.clientWidth / Math.max(300, stage.clientWidth - (right.offsetWidth || 440))) : 1);
+const eqPose = (e, yaw) => { const c = e.box.getCenter(new THREE.Vector3()), s = e.box.getSize(new THREE.Vector3()); return { yaw, pitch: 0.34, dist: Math.max(14, Math.max(s.x, s.z, s.y) * 2.4) * panelZoom(), target: new THREE.Vector3(c.x - s.x * 0.15, c.y, c.z) }; };
 function boardPose() { // 뒷벽 전체(폭 W, 높이 Hw)가 화면에 꼭 차게 정면에서 조금 위에서. 벽 폭은 화면 폭의 90%, 높이는 세로의 75%쯤
   const b = stage3d.bounds(); if (!b) return home;
   const W = b.max.x - b.min.x, Hw = b.max.y - b.min.y, half = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)), a = Math.max(0.7, Math.min(2.2, camera.aspect));
@@ -417,7 +419,14 @@ renderer.domElement.addEventListener('wheel', (e) => { e.preventDefault(); orbit
 const composer = new EffectComposer(renderer);
 const renderPass = new RenderPass(scene, camera); composer.addPass(renderPass);
 const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.4, 0.4, 1.35); composer.addPass(bloom); composer.addPass(new OutputPass());
-function resize() { const w = stage.clientWidth || 1, h = stage.clientHeight || 1; renderer.setSize(w, h, false); composer.setSize(w, h); bloom.resolution.set(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+function resize() { const w = stage.clientWidth || 1, h = stage.clientHeight || 1; renderer.setSize(w, h, false); composer.setSize(w, h); bloom.resolution.set(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); applyViewOffset(); }
+// 오른쪽 패널이 열리면 패널 폭의 절반만큼 장면을 왼쪽으로 밀어, 고른 설비가 패널에 가리지 않고 남은 영역 가운데에 온다(2026-10-14 요청). 천천히 옮겨 간다
+let viewOff = 0;
+function applyViewOffset() { const w = stage.clientWidth || 1, h = stage.clientHeight || 1; if (viewOff < 0.5) camera.clearViewOffset(); else camera.setViewOffset(w, h, viewOff, 0, w, h); }
+function viewOffsetTick() {
+  const want = document.body.classList.contains('panel') ? Math.min(right.offsetWidth || 440, stage.clientWidth * 0.4) / 2 : 0;
+  if (Math.abs(want - viewOff) < 0.5) return; viewOff += (want - viewOff) * (REDUCED ? 1 : 0.12); if (Math.abs(want - viewOff) < 0.5) viewOff = want; applyViewOffset();
+}
 new ResizeObserver(resize).observe(stage); resize();
 
 function riseTick(now) {
@@ -454,7 +463,7 @@ let last = 0;
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
-  riseTick(now);
+  riseTick(now); viewOffsetTick();
   if (anim) { const k = Math.min(1, (now - anim.t0) / anim.dur), s = easeOut(k); orbit.yaw = anim.from.yaw + (anim.to.yaw - anim.from.yaw) * s; orbit.pitch = anim.from.pitch + (anim.to.pitch - anim.from.pitch) * s; orbit.dist = anim.from.dist + (anim.to.dist - anim.from.dist) * s; orbit.target.lerpVectors(anim.from.target, anim.to.target, s); if (k >= 1) anim = null; }
   else if (!drag && !REDUCED && mode === 'overview' && view === '3d') orbit.yaw += dt * 0.01;
   const o = orbit; camera.position.set(o.target.x + o.dist * Math.sin(o.yaw) * Math.cos(o.pitch), o.target.y + o.dist * Math.sin(o.pitch), o.target.z + o.dist * Math.cos(o.yaw) * Math.cos(o.pitch)); camera.lookAt(o.target);

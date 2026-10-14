@@ -1,5 +1,7 @@
 // 설계도 위 펜 필기 <sketch-pad process="ironmaking" mode="plan">. 마이페이지 '설계도·필기' 탭에서 도면(iframe) 위에 겹친다.
-// - 도구: 펜(검정·빨강·파랑), 형광펜, 텍스트(누른 자리에 글 입력, 마지막 펜 색), 지우개(닿은 획·글을 통째로 지움), 되돌리기, 모두 지우기.
+// - 도구: 펜(검정·빨강·파랑), 색 고르기(RGB 팔레트를 열어 고른 색의 펜), 형광펜, 텍스트(누른 자리에 글 입력, 마지막 펜 색),
+//   스티커 메모(누른 자리에 종이 메모를 붙인다. 여러 줄, 메모를 끌면 옮기고 누르면 고친다), 지우개(닿은 획·글·메모를 통째로 지움), 되돌리기, 모두 지우기.
+// - 스티커 메모의 종이 색은 노랑이 기본이고, 스티커 도구를 고른 채 색 고르기를 쓰면 그 색을 옅게 한 종이가 된다.
 // - 좌표는 이 영역 크기에 대한 비율(0~1)로 둔다. 부모가 도면 영역 비율을 고정하므로 화면 크기가 바뀌어도 같은 자리에 그려진다.
 // - 공정·도면(top·plan·front)마다 내 계정에 저장한다: GET /api/me/sketches/:process, PUT /api/me/sketches/:process/:mode(그린 뒤 0.8초).
 //   로그인하지 않았으면 그릴 수는 있지만 저장하지 않는다고 알린다.
@@ -14,12 +16,20 @@ export const TOOLS = [
   { id: 'black', label: '검정 펜', tool: 'pen', color: '#111827', width: 0.0035, swatch: '#111827' },
   { id: 'red', label: '빨강 펜', tool: 'pen', color: '#e03131', width: 0.0035, swatch: '#e03131' },
   { id: 'blue', label: '파랑 펜', tool: 'pen', color: '#1971c2', width: 0.0035, swatch: '#1971c2' },
+  { id: 'custom', label: '색 고르기 (RGB 팔레트)', tool: 'pen', width: 0.0035 }, // 색은 고른 값(customColor)
   { id: 'marker', label: '형광펜', tool: 'marker', color: '#ffd43b', width: 0.018, swatch: '#ffd43b' },
   { id: 'text', label: '텍스트', tool: 'text', width: 0.02 },
+  { id: 'sticky', label: '스티커 메모', tool: 'sticky', width: 0.2 },
   { id: 'eraser', label: '지우개', tool: 'eraser' },
 ];
 /** 텍스트 한 줄 최대 길이(서버 검증과 같다). */
 export const MAX_TEXT = 200;
+/** 스티커 메모 최대 길이(서버 검증과 같다). */
+export const MAX_STICKY = 300;
+const STICKY_INK = '#2b2b2b';
+const STICKY_FONT = (px) => `500 ${px}px Pretendard, "Malgun Gothic", sans-serif`;
+/** 고른 색을 흰색과 섞어 옅은 종이 색으로 만든다. */
+const pastel = (hex, k = 0.72) => '#' + [1, 3, 5].map((i) => Math.round(parseInt(hex.slice(i, i + 2), 16) * (1 - k) + 255 * k).toString(16).padStart(2, '0')).join('');
 const TEXT_FONT = (px) => `600 ${px}px Pretendard, "Malgun Gothic", sans-serif`;
 
 const round = (v) => Math.round(v * 10000) / 10000;
@@ -39,6 +49,9 @@ class SketchPad extends HTMLElement {
     this.data = {};          // process → { top: [], plan: [], front: [] }
     this.toolId = 'red';
     this.penColor = '#e03131'; // 텍스트는 마지막으로 고른 펜 색으로 쓴다
+    this.customColor = '#7048e8'; // 색 고르기(RGB 팔레트)로 고른 펜 색
+    this.stickyColor = '#fff3bf'; // 스티커 메모 종이 색
+    this.noteDrag = null;    // 스티커 메모를 끄는 중
     this.drawing = null;     // 그리는 중인 획
     this.saveTimer = null;
     this.history = [];       // 되돌리기: { process, mode, strokes(이전 상태) }
@@ -62,6 +75,12 @@ class SketchPad extends HTMLElement {
     this.canvas.addEventListener('pointermove', (e) => this.move(e));
     this.canvas.addEventListener('pointerup', (e) => this.up(e));
     this.canvas.addEventListener('pointercancel', (e) => this.up(e));
+    // 색 고르기: 브라우저의 RGB 팔레트(input type=color)를 연다
+    this.colorInput = document.createElement('input');
+    this.colorInput.type = 'color'; this.colorInput.value = this.customColor; this.colorInput.setAttribute('aria-label', '필기 색 고르기');
+    this.colorInput.style.cssText = 'position:absolute;left:12px;top:12px;width:1px;height:1px;opacity:0;pointer-events:none;';
+    this.colorInput.addEventListener('input', () => this.pickColor(this.colorInput.value));
+    this.append(this.colorInput);
     this.resize();
     this.load();
   }
@@ -93,6 +112,20 @@ class SketchPad extends HTMLElement {
       const on = this.toolId === t.id;
       if (t.tool === 'eraser') { btn(t.label, '⌫', () => this.pick(t.id), on); continue; }
       if (t.tool === 'text') { btn(`${t.label} (누른 자리에 입력, Enter로 확정)`, 'T', () => this.pick(t.id), on); continue; }
+      if (t.id === 'custom') { // 무지개 고리 안에 지금 고른 색
+        const ring = document.createElement('span');
+        ring.style.cssText = `display:grid;place-items:center;width:18px;height:18px;border-radius:50%;background:conic-gradient(#ff3b3b,#ffd43b,#51cf66,#22b8cf,#4c6ef5,#cc5de8,#ff3b3b);`;
+        const dot = document.createElement('span'); dot.style.cssText = `width:10px;height:10px;border-radius:50%;background:${this.customColor};box-shadow:0 0 0 2px rgba(18,22,28,.9);`;
+        ring.append(dot);
+        btn(`${t.label}${this.toolId === 'sticky' ? ' · 메모 종이 색' : ''}`, ring, () => this.colorInput.click(), on);
+        continue;
+      }
+      if (t.tool === 'sticky') { // 접힌 귀퉁이가 있는 작은 종이(지금 종이 색)
+        const note = document.createElement('span');
+        note.style.cssText = `display:block;width:16px;height:16px;border-radius:2px;background:linear-gradient(225deg,rgba(0,0,0,.25) 0 4px,${this.stickyColor} 4px);box-shadow:0 1px 2px rgba(0,0,0,.4);`;
+        btn(`${t.label} (누른 자리에 붙이기 · 메모를 끌면 옮기기 · 누르면 고치기)`, note, () => this.pick(t.id), on);
+        continue;
+      }
       const dot = document.createElement('span');
       dot.style.cssText = `display:block;width:${t.tool === 'marker' ? 16 : 12}px;height:${t.tool === 'marker' ? 8 : 12}px;border-radius:${t.tool === 'marker' ? '3px' : '50%'};background:${t.swatch};${t.tool === 'marker' ? 'opacity:.8;' : ''}box-shadow:0 0 0 1px rgba(255,255,255,.35);`;
       btn(t.label, dot, () => this.pick(t.id), on);
@@ -108,9 +141,57 @@ class SketchPad extends HTMLElement {
     this.commitText();
     this.toolId = id;
     const t = TOOLS.find((x) => x.id === id);
-    if (t?.tool === 'pen') this.penColor = t.color;
+    if (t?.tool === 'pen') this.penColor = id === 'custom' ? this.customColor : t.color;
     this.renderBar();
-    this.canvas.style.cursor = id === 'eraser' ? 'cell' : id === 'text' ? 'text' : 'crosshair';
+    this.canvas.style.cursor = id === 'eraser' ? 'cell' : id === 'text' ? 'text' : id === 'sticky' ? 'copy' : 'crosshair';
+  }
+
+  /** RGB 팔레트에서 고른 색: 스티커 도구를 쓰는 중이면 종이 색(옅게), 아니면 그 색의 펜. */
+  pickColor(hex) {
+    this.customColor = hex;
+    if (this.toolId === 'sticky') { this.stickyColor = pastel(hex); this.renderBar(); return; }
+    this.pick('custom');
+  }
+
+  /** 스티커 메모: 누른 자리(at)에 여러 줄 입력칸을 띄운다. note가 있으면 그 메모를 고친다. Ctrl+Enter·바깥 누르기로 확정, Esc로 취소. */
+  openSticky(at, note = null) {
+    this.commitText();
+    const width = note ? note.width : TOOLS.find((x) => x.id === 'sticky').width, color = note ? note.color : this.stickyColor, fs = this.stickyFont(width);
+    const area = document.createElement('textarea');
+    area.maxLength = MAX_STICKY; area.placeholder = '메모 (Ctrl+Enter로 붙이기)'; area.value = note ? note.text : '';
+    area.setAttribute('aria-label', '스티커 메모');
+    area.style.cssText = `position:absolute;left:${at[0] * this.w}px;top:${at[1] * this.h}px;width:${width * this.w}px;min-height:${fs * 5}px;padding:${fs * 0.8}px;box-sizing:border-box;font:${STICKY_FONT(fs)};line-height:1.4;color:${STICKY_INK};background:${color};border:0;border-radius:3px;box-shadow:0 6px 16px rgba(0,0,0,.35);outline:2px solid rgba(255,255,255,.7);resize:none;z-index:3;`;
+    this.textInput = { el: area, at, color, sticky: true, note, width };
+    area.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); this.commitText(); }
+      else if (e.key === 'Escape') { e.preventDefault(); this.commitText(true); }
+      e.stopPropagation();
+    });
+    area.addEventListener('blur', () => this.commitText());
+    this.append(area);
+    setTimeout(() => area.focus(), 0);
+  }
+
+  stickyFont(width) { return Math.max(15, Math.min(18, width * this.w * 0.085)); } // 글자는 15px 이상(프로젝트 글자 크기 규칙)
+
+  /** 스티커 메모가 차지하는 상자(px)와 줄바꿈한 줄들. 지우개·끌기·그리기에 쓴다. */
+  stickyBox(s) {
+    const fs = this.stickyFont(s.width), w = s.width * this.w, pad = fs * 0.8, maxW = w - pad * 2;
+    this.ctx.save(); this.ctx.font = STICKY_FONT(fs);
+    const lines = [];
+    for (const para of s.text.split('\n')) { // 글자 단위로 감싼다(한글은 띄어쓰기가 적어서)
+      let line = '';
+      for (const ch of para) { if (line && this.ctx.measureText(line + ch).width > maxW) { lines.push(line); line = ch.trimStart(); } else line += ch; }
+      lines.push(line);
+    }
+    this.ctx.restore();
+    return { x: s.points[0][0] * this.w, y: s.points[0][1] * this.h, w, h: pad * 2 + lines.length * fs * 1.4, pad, fs, lines };
+  }
+
+  /** 그 자리에 있는 맨 위 스티커 메모. */
+  stickyAt([x, y]) {
+    const px = x * this.w, py = y * this.h;
+    return [...this.strokes].reverse().find((s) => { if (s.tool !== 'sticky') return false; const b = this.stickyBox(s); return px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h; }) || null;
   }
 
   /** 텍스트 도구: 누른 자리에 입력칸을 띄운다. Enter·바깥 누르기로 확정, Esc로 취소. */
@@ -136,6 +217,21 @@ class SketchPad extends HTMLElement {
     const t = this.textInput;
     if (!t) return;
     this.textInput = null;
+    if (t.sticky) { // 스티커 메모: 새로 붙이거나, 고친 글로 바꾸거나, 글을 다 지우면 메모를 뗀다
+      const text = t.el.value.replace(/\s+$/, '').slice(0, MAX_STICKY);
+      t.el.remove();
+      if (cancel) return;
+      if (t.note) {
+        if (text.trim() === t.note.text) return;
+        this.remember();
+        this.strokes = text.trim() ? this.strokes.map((s) => (s === t.note ? { ...s, text: text.trim() } : s)) : this.strokes.filter((s) => s !== t.note);
+      } else {
+        if (!text.trim()) return;
+        this.remember();
+        this.strokes = [...this.strokes, { tool: 'sticky', color: t.color, width: t.width, text: text.trim(), points: [[round(t.at[0]), round(t.at[1])]] }];
+      }
+      this.redraw(); this.scheduleSave(); return;
+    }
     const text = t.el.value.trim().slice(0, MAX_TEXT);
     t.el.remove();
     if (cancel || !text) return;
@@ -196,13 +292,24 @@ class SketchPad extends HTMLElement {
     const p = this.point(e);
     if (this.toolId === 'eraser') { this.erasing = true; this.erase(p); return; }
     if (this.toolId === 'text') { e.preventDefault(); this.openText(p); return; }
+    if (this.toolId === 'sticky') { // 메모 위를 누르면 끌어서 옮기고(그냥 떼면 고치기), 빈 곳을 누르면 새 메모
+      e.preventDefault(); const s = this.stickyAt(p);
+      if (s) this.noteDrag = { s, from: p, at: s.points[0], moved: false }; else this.openSticky(p);
+      return;
+    }
     const t = TOOLS.find((x) => x.id === this.toolId);
-    this.drawing = { tool: t.tool, color: t.color, width: t.width, points: [p] };
+    this.drawing = { tool: t.tool, color: t.id === 'custom' ? this.customColor : t.color, width: t.width, points: [p] };
     this.redraw();
   }
 
   move(e) {
     if (this.erasing) { this.erase(this.point(e)); return; }
+    if (this.noteDrag) {
+      const d = this.noteDrag, p = this.point(e), b = this.stickyBox(d.s);
+      const nx = Math.min(1 - b.w / this.w, Math.max(0, d.at[0] + p[0] - d.from[0])), ny = Math.min(1 - b.h / this.h, Math.max(0, d.at[1] + p[1] - d.from[1]));
+      if (!d.moved && Math.hypot((p[0] - d.from[0]) * this.w, (p[1] - d.from[1]) * this.h) < 4) return;
+      d.moved = true; d.s.points = [[nx, ny]]; this.redraw(); return; // 끄는 동안은 그 메모 자리만 바꾼다(놓을 때 기록)
+    }
     if (!this.drawing) return;
     const p = this.point(e), last = this.drawing.points.at(-1);
     if (Math.hypot((p[0] - last[0]) * this.w, (p[1] - last[1]) * this.h) < 1.5) return;
@@ -212,6 +319,15 @@ class SketchPad extends HTMLElement {
 
   up() {
     if (this.erasing) { this.erasing = false; return; }
+    if (this.noteDrag) {
+      const d = this.noteDrag; this.noteDrag = null;
+      if (!d.moved) { this.openSticky(d.at, d.s); return; }
+      const moved = { ...d.s, points: [[round(d.s.points[0][0]), round(d.s.points[0][1])]] };
+      d.s.points = [d.at]; // 되돌리기에 옮기기 전 자리가 남게
+      this.remember();
+      this.strokes = this.strokes.map((s) => (s === d.s ? moved : s));
+      this.redraw(); this.scheduleSave(); return;
+    }
     if (!this.drawing) return;
     const stroke = { ...this.drawing, points: this.drawing.points.map(([x, y]) => [round(x), round(y)]) };
     this.drawing = null;
@@ -225,6 +341,7 @@ class SketchPad extends HTMLElement {
   erase([x, y]) {
     const px = x * this.w, py = y * this.h, radius = 10;
     const keep = this.strokes.filter((s) => {
+      if (s.tool === 'sticky') { const b = this.stickyBox(s); return !(px >= b.x - radius && px <= b.x + b.w + radius && py >= b.y - radius && py <= b.y + b.h + radius); }
       if (s.tool === 'text') { const b = this.textBox(s); return !(px >= b.x - radius && px <= b.x + b.w + radius && py >= b.y - radius && py <= b.y + b.h + radius); }
       const pts = s.points.map(([a, b]) => [a * this.w, b * this.h]);
       if (pts.length === 1) return Math.hypot(px - pts[0][0], py - pts[0][1]) > radius;
@@ -289,6 +406,20 @@ class SketchPad extends HTMLElement {
     ctx.clearRect(0, 0, this.w, this.h);
     const list = this.drawing ? [...this.strokes, this.drawing] : this.strokes;
     for (const s of list) {
+      if (s.tool === 'sticky') { // 그림자 + 종이 + 접힌 귀퉁이 + 여러 줄 글
+        if (this.textInput?.note === s) continue; // 고치는 중이면 입력칸이 대신 보인다
+        const b = this.stickyBox(s), fold = Math.min(14, b.w * 0.12);
+        ctx.save();
+        ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 4;
+        ctx.fillStyle = s.color;
+        ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x + b.w, b.y); ctx.lineTo(b.x + b.w, b.y + b.h - fold); ctx.lineTo(b.x + b.w - fold, b.y + b.h); ctx.lineTo(b.x, b.y + b.h); ctx.closePath(); ctx.fill();
+        ctx.shadowColor = 'transparent';
+        ctx.fillStyle = 'rgba(0,0,0,.16)'; ctx.beginPath(); ctx.moveTo(b.x + b.w, b.y + b.h - fold); ctx.lineTo(b.x + b.w - fold, b.y + b.h - fold); ctx.lineTo(b.x + b.w - fold, b.y + b.h); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = STICKY_INK; ctx.font = STICKY_FONT(b.fs); ctx.textBaseline = 'top';
+        b.lines.forEach((ln, i) => ctx.fillText(ln, b.x + b.pad, b.y + b.pad + i * b.fs * 1.4));
+        ctx.restore();
+        continue;
+      }
       if (s.tool === 'text') {
         // 남색 도면 위에서도 읽히게 밝은 바탕을 깐다.
         const b = this.textBox(s);

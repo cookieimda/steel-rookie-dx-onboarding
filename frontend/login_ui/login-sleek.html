@@ -33,7 +33,7 @@
     // 백엔드 계약(바꾸지 않음): POST /api/auth/login { username, password, remember } → { token, user }
     // 토큰 키와 저장 위치는 3D 화면(api-client.js)이 읽는 규칙과 같아야 로그인 상태가 이어진다.
     const TOKEN_KEY = 'st-rookie-token';
-    const NEXT_URL = '/3d-demo/Steel%20Academy%20v4.dc.html';
+    const NEXT_URL = '/3d-demo/steel-intro.html'; // 첫 화면: 복셀 공정 지도 → 공정 인덱스 3D
 
     const tokenStore = {
       get() { try { return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY); } catch { return null; } },

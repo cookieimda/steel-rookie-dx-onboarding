@@ -31,7 +31,16 @@ const TextStroke = z.object({
   text: z.string().trim().min(1).max(200),
   points: z.array(Point).length(1),
 });
-const Stroke = z.union([LineStroke, TextStroke]);
+/** 스티커 메모: 누른 자리(점 하나 = 메모 왼쪽 위)에 붙이는 종이. color는 종이 색, width는 메모 너비(영역 너비 비율), 글은 여러 줄. */
+export const MAX_STICKY_TEXT = 300;
+const StickyStroke = z.object({
+  tool: z.literal("sticky"),
+  color: Color,
+  width: z.number().min(0.06).max(0.4),
+  text: z.string().trim().min(1).max(MAX_STICKY_TEXT),
+  points: z.array(Point).length(1),
+});
+const Stroke = z.union([LineStroke, TextStroke, StickyStroke]);
 const SketchBody = z.object({ strokes: z.array(Stroke).max(500) });
 const SketchParams = z.object({ process: z.enum(SECTION_ORDER as [Section, ...Section[]]), mode: z.enum(DRAW_MODES).optional() });
 

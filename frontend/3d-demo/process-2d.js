@@ -195,7 +195,8 @@ class Process2D extends HTMLElement {
       if (b.dataset.i !== undefined) { b.onmouseenter = b.onfocus = () => this.showPeek(b); b.onmouseleave = b.onblur = () => this.hidePeek(); }
     });
   }
-  // 미리보기 창: 목록 왼쪽(그림 위)에 큰 장면(움직임 포함)과 첫 단계 설명을 띄운다
+  // 미리보기 창: 목록 오른쪽(목록 밖, 학습 화면에서는 AI 튜터 열 위)에 큰 장면(움직임 포함)과 첫 단계 설명을 띄운다.
+  // 오른쪽에 창이 들어갈 자리가 없으면(좁은 창) 목록 왼쪽(그림 위)에 띄운다
   showPeek(btn) {
     const d = this.items()[+btn.dataset.i], peek = this.$('peek'), root = this.shadowRoot.querySelector('.root');
     peek.innerHTML = `<div class="big"><svg class="svg" viewBox="0 0 600 320" xmlns="http://www.w3.org/2000/svg">${SCENES[d.id] || ''}</svg></div>
@@ -204,7 +205,8 @@ class Process2D extends HTMLElement {
     peek.hidden = false;
     const r = root.getBoundingClientRect(), b = btn.getBoundingClientRect(), list = this.$('chapters').getBoundingClientRect();
     const top = Math.max(8, Math.min(b.top - r.top - 8, r.height - peek.offsetHeight - 8));
-    peek.style.top = `${top}px`; peek.style.left = `${list.left - r.left - peek.offsetWidth - 12}px`;
+    const fitsRight = list.right + 12 + peek.offsetWidth <= document.documentElement.clientWidth - 8;
+    peek.style.top = `${top}px`; peek.style.left = `${fitsRight ? list.right - r.left + 12 : list.left - r.left - peek.offsetWidth - 12}px`;
   }
   hidePeek() { const p = this.$('peek'); if (p) p.hidden = true; }
   // 글자를 맨 위 층으로 옮긴다: 장면 SVG는 나중에 그린 그림이 앞 단계 글자를 덮는다(예: 윈드박스 상자가 '팔레트 대차' 글자를 가림).

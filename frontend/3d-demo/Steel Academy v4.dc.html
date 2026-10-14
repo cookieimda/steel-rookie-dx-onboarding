@@ -40,6 +40,8 @@
   <script type="module">import { attachPlantSite } from './plant-site.js'; attachPlantSite();</script>
   <!-- [세련안] 밤 불빛: 창문 띠·투광등·장애등·출선구 붉은빛·가로등 바닥 번짐 (스프라이트만, 실제 Light 없음) -->
   <script type="module">import { attachNightLights } from './night-lights.js'; attachNightLights();</script>
+  <!-- 학습 상태 HUD(설비 이름표 핀·다시 보기 링·도착 연출)와 다크 모드 블룸. scene_v3.js를 고치지 않고 바깥에서 붙는다: learn-hud.js, 설계 노트는 저장소 밖에 둔다 -->
+  <script type="module">import { attachLearnHud } from './learn-hud.js'; attachLearnHud();</script>
   <style>
     /* [UI 시안] 화면 틀(상단바·좌측 메뉴·우측 패널·하단 바)은 항상 어두운 남색, 3D 영역만 밝은 스튜디오 톤 */
     html, body { margin: 0; height: 100%; overflow: hidden; font-family: "IBM Plex Sans KR", sans-serif; }

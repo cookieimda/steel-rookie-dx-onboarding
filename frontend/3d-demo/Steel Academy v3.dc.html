@@ -17,7 +17,7 @@
   <style>
     /* [UI 시안] 화면 틀(상단바·좌측 메뉴·우측 패널·하단 바)은 항상 어두운 남색, 3D 영역만 밝은 스튜디오 톤 */
     html, body { margin: 0; height: 100%; overflow: hidden; font-family: "IBM Plex Sans KR", sans-serif; }
-    body { --chrome: #141b24; --chrome2: #1a222d; --chrome3: #232d3a; --chrome4: #2c3846; --line: rgba(255,255,255,.08); --line2: rgba(255,255,255,.14); --text: #eef2f6; --muted: #93a0b0; --dim: #5f6b7a; --accent: #22c7f0; --accent-ink: #04202b; --hot: #ff9a2e; --warn: #f5b13d; --danger: #ff5a5a; background: var(--chrome); color: var(--text); }
+    body { --chrome: #141b24; --chrome2: #1a222d; --chrome3: #232d3a; --chrome4: #2c3846; --line: rgba(255,255,255,.08); --line2: rgba(255,255,255,.14); --text: #eef2f6; --muted: #93a0b0; --dim: #5f6b7a; --accent: #22c7f0; --accent-ink: #04202b; --hot: #ff9e64; --warn: #f5b13d; --danger: #ff5a5a; background: var(--chrome); color: var(--text); }
     a { color: var(--accent); }
     button, input { font-family: inherit; }
     button { transition: background-color .16s ease, color .16s ease, border-color .16s ease, box-shadow .16s ease, opacity .16s ease; }
@@ -69,7 +69,7 @@
           <sc-for list="{{ zd.cells }}" as="c" hint-placeholder-count="6">
             <button onClick="{{ c.onClick }}" title="{{ c.role }}" style="position:absolute;left:{{ c.x }};top:{{ c.y }};width:{{ c.w }};height:{{ c.h }};border:{{ c.border }};border-radius:4px;background:{{ c.bg }};box-shadow:{{ c.shadow }};color:#e6f2ff;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:{{ c.gap }};padding:8px;overflow:hidden;" style-hover="border-color:#22c7f0;background:rgba(34,199,240,.1);">
               <span style="position:absolute;left:8px;top:8px;width:24px;height:24px;border-radius:12px;display:flex;align-items:center;justify-content:center;border:1.5px solid #7fd3f7;background:{{ c.numBg }};color:{{ c.numColor }};font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;">{{ c.n }}</span>
-              <sc-if value="{{ c.now }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;right:8px;top:8px;padding:2px 7px;border-radius:10px;background:rgba(255,154,46,.18);border:1px solid #ff9a2e;color:#ffb866;font-size:10px;font-weight:700;">현재</span></sc-if>
+              <sc-if value="{{ c.now }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;right:8px;top:8px;padding:2px 7px;border-radius:10px;background:rgba(255,158,100,.18);border:1px solid #ff9e64;color:#ffb866;font-size:10px;font-weight:700;">현재</span></sc-if>
               <img src="{{ c.icon }}" width="{{ c.iconSz }}" height="{{ c.iconSz }}" alt="">
               <span style="font-size:{{ c.fs }};font-weight:700;line-height:1.25;text-align:center;">{{ c.name }}</span>
               <span style="display:{{ c.subDisp }};font-size:11px;color:#9fc6e8;line-height:1.3;text-align:center;">→ {{ c.out }}</span>
@@ -372,7 +372,7 @@
                   <span style="position:relative;font-family:'Noto Sans KR',sans-serif;font-size:38px;font-weight:900;letter-spacing:-0.01em;line-height:1.1;color:{{ sec.tempColor }};text-shadow:0 1px 2px rgba(0,0,0,.6);animation:tempIn .55s ease-out both;">{{ sec.temp }}</span>
                   <div style="position:relative;margin-top:2px;">
                     <div style="height:10px;border-radius:5px;background:linear-gradient(90deg,#3b82f6 0%,#facc15 40%,#f97316 65%,#ef4444 100%);opacity:.3;"></div>
-                    <div style="position:absolute;top:-2px;height:14px;left:{{ sec.tL }};width:{{ sec.tW }};border-radius:7px;background:linear-gradient(90deg,#ffd27a,#ff7a1a);box-shadow:0 0 6px {{ sec.heatA }};transform-origin:left center;animation:growW .7s ease-out .15s both;"></div>
+                    <div style="position:absolute;top:-2px;height:14px;left:{{ sec.tL }};width:{{ sec.tW }};border-radius:7px;background:linear-gradient(90deg,#ffd27a,#ff6b35);box-shadow:0 0 6px {{ sec.heatA }};transform-origin:left center;animation:growW .7s ease-out .15s both;"></div>
                     <div style="display:flex;justify-content:space-between;margin-top:6px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:#d2c6b8;"><span>0℃</span><span>500</span><span>1,000</span><span>1,500</span><span>2,000℃</span></div>
                   </div>
                   <span style="position:relative;font-size:13px;color:#f3ebe2;line-height:1.5;">{{ sec.label }}</span>
@@ -397,7 +397,7 @@
                   <span style="position:relative;font-family:'Noto Sans KR',sans-serif;font-size:38px;font-weight:900;letter-spacing:-0.01em;line-height:1.1;color:{{ sec.tempColor }};text-shadow:0 1px 2px rgba(0,0,0,.6);animation:tempIn .55s ease-out both;">{{ sec.temp }}</span>
                   <div style="position:relative;margin-top:2px;">
                     <div style="height:10px;border-radius:5px;background:linear-gradient(90deg,#3b82f6 0%,#facc15 40%,#f97316 65%,#ef4444 100%);opacity:.3;"></div>
-                    <div style="position:absolute;top:-2px;height:14px;left:{{ sec.tL }};width:{{ sec.tW }};border-radius:7px;background:linear-gradient(90deg,#ffd27a,#ff7a1a);box-shadow:0 0 6px {{ sec.heatA }};transform-origin:left center;animation:growW .7s ease-out .15s both;"></div>
+                    <div style="position:absolute;top:-2px;height:14px;left:{{ sec.tL }};width:{{ sec.tW }};border-radius:7px;background:linear-gradient(90deg,#ffd27a,#ff6b35);box-shadow:0 0 6px {{ sec.heatA }};transform-origin:left center;animation:growW .7s ease-out .15s both;"></div>
                     <div style="display:flex;justify-content:space-between;margin-top:6px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:#d2c6b8;"><span>0℃</span><span>500</span><span>1,000</span><span>1,500</span><span>2,000℃</span></div>
                   </div>
                   <span style="position:relative;font-size:13px;color:#f3ebe2;line-height:1.5;">{{ sec.label }}</span>
@@ -598,7 +598,7 @@ const STEP_ICON = [[/냉각|소화|물|스프레이|수냉/, 'drop'], [/파쇄|�
 const stepIcon = (z) => (STEP_ICON.find(([re]) => re.test(z || '')) || [0, 'react'])[1];
 // 온도 글자 → [최저, 최고] ℃ (상온·이하·약 처리)
 const parseTemp = (t) => { if (!t) return null; if (/상온/.test(t)) return [15, 35]; const v = (t.replace(/,/g, '').match(/\d+(\.\d+)?/g) || []).map(Number); if (!v.length) return null; let a = Math.min(...v), b = Math.max(...v); if (/이하/.test(t)) a = Math.max(0, b - 140); if (a === b) { a *= 0.96; b *= 1.04; } return [a, b]; };
-const heatOf = (hi) => hi < 300 ? ['rgba(59,130,246,.5)', 'rgba(96,165,250,.3)', '#9cc6ff'] : hi < 800 ? ['rgba(245,158,11,.5)', 'rgba(251,191,36,.3)', '#ffc46b'] : hi < 1300 ? ['rgba(249,115,22,.6)', 'rgba(251,146,60,.35)', '#ff9a2e'] : ['rgba(239,68,68,.6)', 'rgba(249,115,22,.4)', '#ff7a45'];
+const heatOf = (hi) => hi < 300 ? ['rgba(59,130,246,.5)', 'rgba(96,165,250,.3)', '#9cc6ff'] : hi < 800 ? ['rgba(245,158,11,.5)', 'rgba(251,191,36,.3)', '#ffc46b'] : hi < 1300 ? ['rgba(249,115,22,.6)', 'rgba(251,146,60,.35)', '#ff9e64'] : ['rgba(239,68,68,.6)', 'rgba(249,115,22,.4)', '#ff7a45'];
 // 반응식 "A + B → C" → 칩 목록(왼쪽은 왼쪽에서, 오른쪽 결과는 합쳐지듯 등장)
 const reaction = (fml) => { if (!fml || !fml.includes('→')) return null; const [l, r] = fml.split('→').map(t => t.split('+').map(q => q.trim()).filter(Boolean)); const out = []; let d = 0.15;
   l.forEach((t, i) => { if (i) out.push({ text: '+', op: true, d: d - 0.05 }); out.push({ text: t, side: 'L', d }); d += 0.2; });
@@ -606,7 +606,7 @@ const reaction = (fml) => { if (!fml || !fml.includes('→')) return null; const
   r.forEach((t, i) => { if (i) out.push({ text: '+', op: true, d: d - 0.05 }); out.push({ text: t, side: 'R', d }); d += 0.18; });
   return out.map(x => x.op ? { text: x.text, pad: '0 2px', bg: 'transparent', border: 'none', color: '#c3ccd7', fs: '16px', shadow: 'none', anim: `opIn .3s ease-out ${x.d.toFixed(2)}s both` }
     : x.side === 'L' ? { text: x.text, pad: '5px 10px', bg: 'rgba(34,199,240,.12)', border: '1px solid rgba(34,199,240,.6)', color: '#bfefff', fs: '13px', shadow: 'none', anim: `chipL .45s ease-out ${x.d.toFixed(2)}s both` }
-    : { text: x.text, pad: '5px 10px', bg: 'rgba(255,154,46,.2)', border: '1px solid #ff9a2e', color: '#ffd5a6', fs: '13px', shadow: '0 0 14px rgba(255,154,46,.45)', anim: `fuse .6s ease-out ${x.d.toFixed(2)}s both` }); };
+    : { text: x.text, pad: '5px 10px', bg: 'rgba(255,158,100,.2)', border: '1px solid #ff9e64', color: '#ffd5a6', fs: '13px', shadow: '0 0 14px rgba(255,158,100,.45)', anim: `fuse .6s ease-out ${x.d.toFixed(2)}s both` }); };
 
 class Component extends DCLogic {
   state = { ready: false, processId: 'site', selectedId: null, tutorOpen: false, devOpen: false, settingsOpen: false, theme: null, speed: 1, messages: [], input: '', pending: false, lastReq: null, lastRes: null, lastResults: [], progress: 0, matLabel: '', playing: false, view: 'exterior', drawMode: 'zone', layer: null, ai: 'unknown', expanded: {} };
@@ -781,7 +781,7 @@ class Component extends DCLogic {
     const togglePlay = () => { if (site) return; const sc = this.scene(); if (S.playing || touring) { sc?.stop(); if (S.view === 'flow') this.setState({ view: 'exterior' }); } else sc?.tour(sp, Math.max(0, k)); };
     // 단면 패널
     const lys = (eq && eq.interior) || [], li = S.layer;
-    const sec = { layers: lys.map((ly, i) => { const on = i === li, st = eq.steps?.[i]; return { open: on, n: i + 1, zone: st?.zone || ly.label, swatch: ly.color, bg: on ? 'rgba(255,154,46,.16)' : 'transparent', border: 'none', anim: on ? 'popBg .45s ease-out' : 'none', shadow: on ? '0 6px 18px rgba(255,120,30,.18)' : 'none', hoverBg: on ? 'rgba(255,154,46,.16)' : 'rgba(255,255,255,.04)', color: on ? '#ffffff' : '#c3ccd7', weight: on ? '700' : '500', ring: on ? '#ff9a2e' : '#4a5566', numBg: on ? '#ff9a2e' : 'transparent', numColor: on ? '#1a1206' : '#93a0b0', onClick: () => this.scene()?.layer(i) }; }),
+    const sec = { layers: lys.map((ly, i) => { const on = i === li, st = eq.steps?.[i]; return { open: on, n: i + 1, zone: st?.zone || ly.label, swatch: ly.color, bg: on ? 'rgba(255,158,100,.16)' : 'transparent', border: 'none', anim: on ? 'popBg .45s ease-out' : 'none', shadow: on ? '0 6px 18px rgba(255,120,30,.18)' : 'none', hoverBg: on ? 'rgba(255,158,100,.16)' : 'rgba(255,255,255,.04)', color: on ? '#ffffff' : '#c3ccd7', weight: on ? '700' : '500', ring: on ? '#ff9e64' : '#4a5566', numBg: on ? '#ff9e64' : 'transparent', numColor: on ? '#1a1206' : '#93a0b0', onClick: () => this.scene()?.layer(i) }; }),
       has: li != null && !!lys[li], none: li == null };
     if (sec.has) { const ly = lys[li], st = eq.steps?.[li], temp = ly.temp || st?.temp || '—', rng = parseTemp(temp), [hA, hB, hC] = heatOf(rng ? rng[1] : 0), rx = reaction(ly.formula);
       const key = eq.id + ':' + li; if (this._secKey !== key) { this._secKey = key; this._secFlip = !this._secFlip; } // 층이 바뀌면 카드를 새로 그려 애니메이션을 다시 재생

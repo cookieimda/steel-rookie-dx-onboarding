@@ -253,7 +253,7 @@ class SketchPad extends HTMLElement {
     const mk = (label, text, cancel) => {
       const b = document.createElement('button');
       b.type = 'button'; b.title = label; b.setAttribute('aria-label', label); b.textContent = text;
-      b.style.cssText = `width:30px;height:30px;border-radius:50%;border:1px solid rgba(255,255,255,.35);background:${cancel ? 'rgba(18,22,28,.92)' : '#ff9a2e'};color:${cancel ? '#eef2f6' : '#1a1200'};font:700 16px/1 Pretendard, "Malgun Gothic", sans-serif;cursor:pointer;padding:0;box-shadow:0 2px 6px rgba(0,0,0,.35);`;
+      b.style.cssText = `width:30px;height:30px;border-radius:50%;border:1px solid rgba(255,255,255,.35);background:${cancel ? 'rgba(18,22,28,.92)' : '#ff9e64'};color:${cancel ? '#eef2f6' : '#1a1200'};font:700 16px/1 Pretendard, "Malgun Gothic", sans-serif;cursor:pointer;padding:0;box-shadow:0 2px 6px rgba(0,0,0,.35);`;
       b.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); this.commitText(cancel); });
       bar.append(b);
     };

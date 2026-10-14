@@ -21,7 +21,7 @@ const SITE_ROADS = { R7: [[-30, -80], [0, -90], [40, -84], [88, -70]], RJ: [[-30
 // 공정 사이 레일 경유점 (null = 앞쪽은 출구 Z, 뒤쪽은 입구 Z를 그대로 씀)
 const SITE_LINKS = { 'ironmaking>steelmaking': [[43, null], [43, -58], [-55, -58], [-55, null]], 'steelmaking>continuous_casting': [[-6.7, null], [-6.7, -16], [-66, -16], [-66, null]], 'continuous_casting>rolling': [[-24, null], [-24, 34]] };
 
-const STEEL = 0x7d8794, DARK = 0x4a525c, ACCENT = 0x22c7f0, UI = '#ff9a2e', UI_INK = '#1a1200'; // UI: 이름표 번호·선택 테두리(우리 UI 주황), UI_INK: 그 위 글자
+const STEEL = 0x7d8794, DARK = 0x4a525c, ACCENT = 0x22c7f0, UI = '#ff9e64', UI_INK = '#1a1200'; // UI: 이름표 번호·선택 테두리(우리 UI 주황), UI_INK: 그 위 글자
 const HAZE = 0xdfe3e8; // [UI 시안] 낮 배경을 옅게 만들 때 섞는 스튜디오 회색
 const mat = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.7, metalness: 0.35, ...o });
 const mesh = (g, m, y = 0) => { const o = new THREE.Mesh(g, m); o.position.y = y; return o; };
@@ -233,8 +233,8 @@ class SteelScene extends HTMLElement {
     const id = this.getAttribute('selected');
     this.eqs.forEach(e => { const on = e.id === id, act = on || e.id === this.hoverId, dot = e.label.querySelector('i'), nm = e.label.querySelector('.nm');
       Object.assign(e.label.style, { color: '#ffffff', opacity: act || !id ? '1' : '0.8', fontWeight: '600', alignItems: 'center', gap: '6px', padding: '0', background: 'transparent', border: 'none', boxShadow: 'none', zIndex: on ? '3' : act ? '2' : '1' });
-      Object.assign(nm.style, { padding: '5px 10px', borderRadius: '7px', background: on ? 'rgba(9,14,21,.94)' : 'rgba(18,24,32,.8)', border: '1px solid ' + (on ? UI : 'rgba(255,255,255,.16)'), boxShadow: on ? '0 0 0 3px rgba(255,154,46,.22), 0 6px 18px rgba(0,0,0,.28)' : '0 4px 12px rgba(0,0,0,.2)', backdropFilter: 'blur(6px)', webkitBackdropFilter: 'blur(6px)' });
-      const sz = on ? 24 : 20; Object.assign(dot.style, { width: sz + 'px', height: sz + 'px', borderRadius: '50%', background: UI, color: UI_INK, border: '2px solid #ffffff', boxSizing: 'border-box', boxShadow: on ? '0 0 0 4px rgba(255,154,46,.35), 0 0 12px ' + UI : '0 2px 6px rgba(0,0,0,.35)' }); });
+      Object.assign(nm.style, { padding: '5px 10px', borderRadius: '7px', background: on ? 'rgba(9,14,21,.94)' : 'rgba(18,24,32,.8)', border: '1px solid ' + (on ? UI : 'rgba(255,255,255,.16)'), boxShadow: on ? '0 0 0 3px rgba(255,158,100,.22), 0 6px 18px rgba(0,0,0,.28)' : '0 4px 12px rgba(0,0,0,.2)', backdropFilter: 'blur(6px)', webkitBackdropFilter: 'blur(6px)' });
+      const sz = on ? 24 : 20; Object.assign(dot.style, { width: sz + 'px', height: sz + 'px', borderRadius: '50%', background: UI, color: UI_INK, border: '2px solid #ffffff', boxSizing: 'border-box', boxShadow: on ? '0 0 0 4px rgba(255,158,100,.35), 0 0 12px ' + UI : '0 2px 6px rgba(0,0,0,.35)' }); });
   }
 
   // 멀리 보이는 제철소 실루엣 + 불티
@@ -826,7 +826,7 @@ class SteelScene extends HTMLElement {
     car.updateMatrixWorld(true); const bb = new THREE.Box3().setFromObject(car), c = bb.getCenter(new THREE.Vector3()), par = car.parent;
     const pivot = new THREE.Object3D(); par.add(pivot); pivot.position.copy(par.worldToLocal(c.clone())); pivot.updateMatrixWorld(true);
     const save = { pos: car.position.clone(), quat: car.quaternion.clone() }; pivot.attach(car);
-    let sMat = null; if (stream) { sMat = stream.material; stream.material = sMat.clone(); stream.material.transparent = true; stream.material.opacity = 0; if (stream.material.emissive) stream.material.emissive.set(0xff7a1a); }
+    let sMat = null; if (stream) { sMat = stream.material; stream.material = sMat.clone(); stream.material.transparent = true; stream.material.opacity = 0; if (stream.material.emissive) stream.material.emissive.set(0xff6b35); }
     this._torp = { car, par, pivot, save, p0: pivot.position.clone(), stream, sMat, ph: null }; return true;
   }
   _torpTick(now) {

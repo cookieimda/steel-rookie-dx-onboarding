@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;700&family=Noto+Sans+KR:wght@400;500;600;700;900&display=swap">
   <style>
     /* 표면: 피드백대로 Slate-900 불투명 + Slate-700 경계선 */
-    :root { --chrome: rgb(15,23,42); --chrome2: #141d33; --chrome3: #1e293b; --chrome4: #283548; --line: rgba(51,65,85,.6); --line2: rgba(51,65,85,.9); --text: #f2f2f2; --muted: #b3b3b8; --dim: #80808a; --accent: #f2f2f2; --accent-ink: #111; --hot: #ff9a2e; --molten: #ff7a1a; --warn: #f5b13d; --ok: #3ddc97; --cyan: #ff9a2e; /* 이름은 그대로 두고 값만 UI 주황(설비 번호 핀·핫스팟, 2026-10-14 요청) */ --ease: cubic-bezier(.2,.8,.2,1); --t-fast: .15s; --t-base: .25s; --f-body: "Noto Sans KR", "Pretendard", system-ui, sans-serif; --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace; --r-s: 8px; --r-m: 12px; --r-l: 16px; color-scheme: dark; }
+    :root { --chrome: rgb(15,23,42); --chrome2: #141d33; --chrome3: #1e293b; --chrome4: #283548; --line: rgba(51,65,85,.6); --line2: rgba(51,65,85,.9); --text: #f2f2f2; --muted: #b3b3b8; --dim: #80808a; --accent: #f2f2f2; --accent-ink: #111; --hot: #ff9e64; --molten: #ff6b35; --warn: #f5b13d; --ok: #3ddc97; --cyan: #ff9e64; /* 이름은 그대로 두고 값만 UI 주황(설비 번호 핀·핫스팟, 2026-10-14 요청) */ --ease: cubic-bezier(.2,.8,.2,1); --t-fast: .15s; --t-base: .25s; --f-body: "Noto Sans KR", "Pretendard", system-ui, sans-serif; --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace; --r-s: 8px; --r-m: 12px; --r-l: 16px; color-scheme: dark; }
     html, body { margin: 0; height: 100%; background: #0d1114; color: var(--text); font-family: var(--f-body); font-size: 15px; overflow: hidden; -webkit-font-smoothing: antialiased; }
     button { font-family: inherit; }
     button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--molten); outline-offset: 2px; }
@@ -90,20 +90,20 @@
     .hots { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
     .hots li button { width: 100%; display: grid; grid-template-columns: 18px 1fr; gap: 10px; align-items: start; padding: 9px 10px; border: 1px solid transparent; border-radius: var(--r-s); background: transparent; color: var(--text); text-align: left; cursor: pointer; font: 400 15px/1.45 var(--f-body); }
     .hots li button:hover { background: rgba(255,255,255,.05); }
-    .hots li.on button { background: rgba(255,154,46,.1); border-color: rgba(255,154,46,.5); }
-    .hots li button i { width: 12px; height: 12px; border-radius: 50%; margin-top: 5px; background: var(--cyan); box-shadow: 0 0 0 3px rgba(255,154,46,.25); }
+    .hots li.on button { background: rgba(255,158,100,.1); border-color: rgba(255,158,100,.5); }
+    .hots li button i { width: 12px; height: 12px; border-radius: 50%; margin-top: 5px; background: var(--cyan); box-shadow: 0 0 0 3px rgba(255,158,100,.25); }
     .hots li button b { display: block; font-weight: 600; }
     .hots li button small { display: block; font-size: 15px; color: var(--muted); }
     /* 3D 위 핫스팟 핀(step-fx 말풍선을 바꾼 것). 글은 패널 '현장 포인트'에서 */
     .sfx.lh-hot { pointer-events: none; }
-    .sfx.lh-hot .lh-pin { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; background: var(--cyan); box-shadow: 0 0 0 0 rgba(255,154,46,.6); cursor: pointer; pointer-events: auto; padding: 0; animation: lhPulse 1.6s ease-out infinite; }
+    .sfx.lh-hot .lh-pin { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; background: var(--cyan); box-shadow: 0 0 0 0 rgba(255,158,100,.6); cursor: pointer; pointer-events: auto; padding: 0; animation: lhPulse 1.6s ease-out infinite; }
     .sfx.lh-hot .lh-pin i { display: block; width: 100%; height: 100%; }
-    .sfx.lh-hot.on .lh-pin { background: var(--molten); box-shadow: 0 0 0 4px rgba(255,122,26,.35); animation: none; transform: translate(-50%, -50%) scale(1.25); }
-    @keyframes lhPulse { 0% { box-shadow: 0 0 0 0 rgba(255,154,46,.6); } 70% { box-shadow: 0 0 0 10px rgba(255,154,46,0); } 100% { box-shadow: 0 0 0 0 rgba(255,154,46,0); } }
+    .sfx.lh-hot.on .lh-pin { background: var(--molten); box-shadow: 0 0 0 4px rgba(255,107,53,.35); animation: none; transform: translate(-50%, -50%) scale(1.25); }
+    @keyframes lhPulse { 0% { box-shadow: 0 0 0 0 rgba(255,158,100,.6); } 70% { box-shadow: 0 0 0 10px rgba(255,158,100,0); } 100% { box-shadow: 0 0 0 0 rgba(255,158,100,0); } }
     @media (prefers-reduced-motion: reduce) { .sfx.lh-hot .lh-pin, .badge.run::before { animation: none; } }
     /* 단계 보기 (v4 단면 보기 카드) */
-    .stepcard .no { display: flex; align-items: center; gap: 12px; height: 50px; padding: 0 14px; border-radius: 999px; background: rgba(255,154,46,.16); box-shadow: 0 6px 18px rgba(255,120,30,.18); font: 700 17px/1 var(--f-body); }
-    .stepcard .no i { width: 28px; height: 28px; border-radius: 50%; background: #ff9a2e; color: #1a1206; font: 700 15px/1 var(--f-mono); font-style: normal; display: grid; place-items: center; }
+    .stepcard .no { display: flex; align-items: center; gap: 12px; height: 50px; padding: 0 14px; border-radius: 999px; background: rgba(255,158,100,.16); box-shadow: 0 6px 18px rgba(255,120,30,.18); font: 700 17px/1 var(--f-body); }
+    .stepcard .no i { width: 28px; height: 28px; border-radius: 50%; background: #ff9e64; color: #1a1206; font: 700 15px/1 var(--f-mono); font-style: normal; display: grid; place-items: center; }
     .stepcard .no em { margin-left: auto; width: 10px; height: 10px; border-radius: 3px; background: #6b7686; }
     .stepcard .heat { position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 10px; padding: 14px 16px 12px; border-radius: var(--r-m); background: #17120e; margin-top: 16px; }
     .stepcard .heat .bg { position: absolute; left: -30%; top: -40%; width: 160%; height: 180%; opacity: .4; pointer-events: none; }
@@ -112,7 +112,7 @@
     .stepcard .heat .val { font: 900 34px/1.1 var(--f-body); letter-spacing: -.01em; font-variant-numeric: tabular-nums; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
     .right, .bar { box-shadow: 0 20px 25px -5px rgba(0,0,0,.5); }
     .stepcard .heat .bar { height: 10px; border-radius: 5px; background: linear-gradient(90deg,#3b82f6 0%,#facc15 40%,#f97316 65%,#ef4444 100%); opacity: .3; }
-    .stepcard .heat .fill { position: absolute; top: -2px; height: 14px; border-radius: 7px; background: linear-gradient(90deg,#ffd27a,#ff7a1a); }
+    .stepcard .heat .fill { position: absolute; top: -2px; height: 14px; border-radius: 7px; background: linear-gradient(90deg,#ffd27a,#ff6b35); }
     .stepcard .heat .scale { display: flex; justify-content: space-between; margin-top: 6px; font: 400 12px/1 var(--f-mono); color: #d2c6b8; }
     .stepcard .heat .note2 { font: 400 15px/1.5 var(--f-body); color: #c4b6a6; }
     .stepcard .nav { display: flex; gap: 8px; margin-top: 14px; }
@@ -176,6 +176,52 @@
     .toast { position: fixed; left: 50%; bottom: 100px; transform: translateX(-50%); z-index: 8; padding: 10px 16px; border-radius: 999px; background: var(--chrome); border: 1px solid rgba(245,177,61,.5); color: #ffd58a; font: 500 15px/1.3 var(--f-body); display: none; }
     .toast.on { display: block; }
     @media (prefers-reduced-motion: reduce) { #load, .bar .stop i { transition: none; } }
+
+    /* ---- HUD 스킨(2026-10-14 요청: 터미널/HUD 느낌). 아주 어두운 반투명 유리, 모노 라벨, 가는 주황 선, 모서리를 비스듬히 자른 판. 아래 규칙이 위의 알약(999px) 규칙을 덮어쓴다 ---- */
+    :root { --glass: rgba(6,12,18,.58); --glass2: rgba(255,255,255,.045); --edge: rgba(255,255,255,.1); --edge2: rgba(255,158,100,.45); --r-s: 3px; --r-m: 4px; --r-l: 6px; }
+    .top { border-radius: 4px; background: var(--glass); border-color: var(--edge); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); padding: 4px 8px; gap: 4px; clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px)); }
+    .top .rb { border-radius: 4px; background: transparent; border: 1px solid transparent; }
+    .top .rb:hover { background: var(--glass2); border-color: var(--edge); }
+    .top .rb.on { background: var(--hot); border-color: transparent; }
+    .top .tabs, .top .seg { border-radius: 4px; background: transparent; border: 1px solid var(--edge); height: 36px; padding: 0 2px; }
+    .top .tabs button, .top .seg button { border-radius: 3px; height: 30px; }
+    .top .tabs button.on, .top .seg button.on { background: rgba(255,158,100,.14); color: var(--hot); box-shadow: inset 0 -2px 0 var(--hot); }
+    .top .tabs button.on code { color: var(--hot); }
+    .top .sep { background: var(--edge); }
+    .hint { font: 400 13px/1 var(--f-mono); letter-spacing: .1em; color: var(--dim); }
+    .right { border-radius: 6px; background: var(--glass); border-color: var(--edge); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: none; clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px)); }
+    .right::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: linear-gradient(90deg, var(--hot), rgba(255,158,100,0) 70%); pointer-events: none; z-index: 1; }
+    .right .eyebrow, .right h2, .lvh, .chiphead, .right .io small, .kpi small, .msg.ai .cite { font-family: var(--f-mono); letter-spacing: .08em; font-size: 13px; }
+    .right .x, .tutorhead .x2, .right .steps .tile, .badge, .chips button, .stepcard .nav button, .msg.err, .typing, .msg.safety { border-radius: 4px; }
+    .right .io, .kpi { border-radius: 4px; background: var(--glass2); border: 1px solid var(--edge); border-left: 2px solid var(--edge2); }
+    .stepcard .heat { border-radius: 4px; }
+    .right .foot { border-top-color: var(--edge); }
+    .right .foot button { border-radius: 4px; background: transparent; border-color: var(--edge); }
+    .right .foot button.primary { background: rgba(255,158,100,.14); color: var(--hot); border: 1px solid var(--edge2); }
+    .right .foot button.primary:hover { background: var(--hot); color: var(--accent-ink); filter: none; }
+    .stepcard .no { border-radius: 4px; background: var(--glass2); border: 1px solid var(--edge2); box-shadow: none; }
+    .stepcard .no i { border-radius: 3px; }
+    .badge { background: transparent; }
+    .badge.run { border-color: var(--edge2); color: var(--hot); } /* '재생 중' 배지의 초록이 거슬린다는 의견 → 주황(2026-10-14) */
+    .badge.run::before { background: var(--hot); }
+    .msg.user { border-radius: 4px; background: rgba(255,158,100,.12); border: 1px solid var(--edge2); }
+    .msg.ai .b { border-radius: 4px; background: var(--glass2); border: 1px solid var(--edge); }
+    .msg.ai .fu { border-color: var(--edge2); color: var(--hot); }
+    form.send input { border-radius: 4px; background: rgba(0,0,0,.25); border-color: var(--edge); }
+    form.send input:focus { border-color: var(--hot); }
+    form.send button { border-radius: 4px; background: var(--hot); }
+    .bar { border-radius: 4px; background: var(--glass); border-color: var(--edge); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: none; height: 68px; clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px); }
+    .bar .play { border-radius: 4px; background: transparent; border-color: var(--edge2); }
+    .bar .play:hover { background: rgba(255,158,100,.14); }
+    .bar .track::before { background: var(--edge); }
+    .bar .stop i { border-radius: 2px; background: transparent; border-color: var(--dim); }
+    .bar .stop.done i { background: var(--hot); border-color: var(--hot); }
+    .bar .stop.cur { color: var(--hot); }
+    .bar .stop.cur i { background: var(--hot); border-color: var(--hot); transform: scale(1.5) rotate(45deg); }
+    .bar .speed { border-radius: 4px; border: 1px solid var(--edge); }
+    .toast { border-radius: 4px; background: var(--glass); backdrop-filter: blur(18px); }
+    .tag .k { border-radius: 4px !important; background: var(--glass) !important; border-color: var(--edge2) !important; backdrop-filter: blur(12px) !important; }
+    .tag .k i { border-radius: 3px !important; }
   </style>
 </head>
 <body>

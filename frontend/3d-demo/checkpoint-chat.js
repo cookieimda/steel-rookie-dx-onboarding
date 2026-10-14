@@ -17,7 +17,7 @@
 
 import { ApiError, createApiClient } from './api-client.js';
 import { TEXT } from './tutor-text.js';
-import { setVoiceOn, speak, voiceOn, voiceSupported } from './tutor-voice.js';
+import { playSfx, setSfxOn, sfxFor, sfxOn, sfxSupported } from './tutor-sfx.js';
 
 /** 섹션 순서(backend/src/checkpoint/types.ts의 SECTION_ORDER와 같다). */
 export const SECTIONS = ['ironmaking', 'steelmaking', 'continuous_casting', 'rolling'];
@@ -97,7 +97,7 @@ export function createCheckpointChat(c, { api = createApiClient(), overlayPage =
   const scroll = () => (c.scrollCheckpoint ?? c.scrollChat)?.call(c);
   // 요청 중복을 막는 표시. setState는 바로 반영되지 않을 수 있어서 state(cpPending)와 따로 둔다.
   let busy = false;
-  // 마지막으로 읽은 말풍선(같은 말풍선을 다시 읽지 않게).
+  // 마지막으로 효과음을 낸 말풍선(같은 말풍선에서 다시 내지 않게).
   let spokenKey = null;
   // 답하는 중이라 막힌 학습 질문. [멈추고 질문하기]로 멈춘 뒤 보낸다.
   let heldLearning = null;
@@ -492,9 +492,9 @@ export function createCheckpointChat(c, { api = createApiClient(), overlayPage =
       const bubble = st.cpTurn[st.cpBubbleIndex] ?? null;
       const bubbleHasNext = st.cpBubbleIndex < st.cpTurn.length - 1;
       const overlayShown = !overlayPage && !!st.cpOverlayOpen && (!!cp || st.cpPending);
-      // 포석호 목소리(tutor-voice.js): 켜져 있으면 새로 보이는 말풍선을 한 번 읽는다.
-      const voiceKey = overlayShown && bubble ? `${cp?.attempt_id}|${st.cpMessages.length}|${st.cpBubbleIndex}|${bubble.text}` : null;
-      if (voiceKey && voiceKey !== spokenKey && voiceOn()) { spokenKey = voiceKey; speak(bubble.text); }
+      // 포석호 효과음(tutor-sfx.js): 반응 말풍선(정답·거의·아쉬움·결과)이 새로 보일 때 한 번만 낸다. 문장은 읽지 않는다.
+      const sfxKey = overlayShown && bubble ? `${cp?.attempt_id}|${st.cpMessages.length}|${st.cpBubbleIndex}|${bubble.text}` : null;
+      if (sfxKey && sfxKey !== spokenKey) { spokenKey = sfxKey; playSfx(sfxFor(bubble.type, { unlocked: !!cp?.result?.unlocked })); }
       return {
         // 튜터 패널 머리글('학습 모드')
         cpHeaderMode: TEXT.header.learning,
@@ -567,12 +567,12 @@ export function createCheckpointChat(c, { api = createApiClient(), overlayPage =
         cpOverlayLockFilter: overlayShown ? 'grayscale(1)' : 'none',
         cpOverlayLockNotice: TEXT.overlayLocked,
         cpCharacterMotion: characterMotion(st, bubble),
-        cpVoiceSupported: voiceSupported(), cpVoiceLabel: voiceOn() ? '🔊 목소리 켜짐' : '🔈 목소리 꺼짐',
-        onCpToggleVoice: () => {
-          const on = !voiceOn();
-          setVoiceOn(on);
-          spokenKey = null; // 켜면 지금 말풍선부터 읽는다
-          c.setState({ cpVoiceTick: Date.now() });
+        cpSfxSupported: sfxSupported(), cpSfxLabel: sfxOn() ? '🔊 효과음 켜짐' : '🔈 효과음 꺼짐',
+        onCpToggleSfx: () => {
+          const on = !sfxOn();
+          setSfxOn(on);
+          if (on) playSfx('correct', { force: true }); // 켜면 한 번 들려준다
+          c.setState({ cpSfxTick: Date.now() });
         },
         cpBubbleText: bubble?.text ?? '',
         cpBubbleType: bubble?.type ?? null,

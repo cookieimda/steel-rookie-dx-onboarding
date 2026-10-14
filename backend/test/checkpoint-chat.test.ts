@@ -906,3 +906,16 @@ test("오버레이가 없는 페이지(3D 화면, overlayPage): 시작·이어 �
   assert.equal(v.cpOverlayLockPointer, "auto", "공정 이동·재생을 막지 않는다");
   assert.ok(!net.keys().includes("POST /api/checkpoints"), "이 페이지에서는 시작 요청을 보내지 않는다");
 });
+
+test("포석호 효과음: 반응 말풍선에만 소리가 나고(정답·거의·아쉬움·결과), 질문·설명에는 나지 않는다. 브라우저 밖에서는 아무것도 하지 않는다", async () => {
+  const { sfxFor, playSfx, sfxSupported, SFX_NAMES } = await load("tutor-sfx.js");
+  assert.deepEqual(
+    ["feedback", "almost", "miss", "key_points", "intro", "question", "recheck_question", "explanation", "error"].map((t) => sfxFor(t)),
+    ["correct", "almost", "miss", "miss", null, null, null, null, null],
+  );
+  assert.equal(sfxFor("result", { unlocked: true }), "celebrate");
+  assert.equal(sfxFor("result", { unlocked: false }), "cheer");
+  assert.ok(["correct", "almost", "miss", "celebrate", "cheer"].every((n) => SFX_NAMES.includes(n)));
+  assert.equal(sfxSupported(), false);
+  assert.doesNotThrow(() => playSfx("correct", { force: true }));
+});

@@ -220,6 +220,24 @@
     .toast { border-radius: 4px; background: var(--glass); backdrop-filter: blur(18px); }
     .tag .k { border-radius: 4px !important; background: var(--glass) !important; border-color: var(--edge2) !important; backdrop-filter: blur(12px) !important; }
     .tag .k i { border-radius: 3px !important; }
+    /* 재생 바 최소화(2026-10-14 요청): 평소에는 재생 버튼 + 설비 점 + 지금 설비 이름 + 속도만 48px 높이로. 마우스를 올리거나 키보드 초점이 들어오면 이름이 모두 보이는 원래 크기로 펼쳐진다 */
+    .bar { height: 48px; gap: 10px; padding: 0 12px 0 8px; transition: height .25s var(--ease); }
+    .bar .play { width: 34px; height: 34px; }
+    .bar .play img { width: 20px; height: 20px; }
+    .bar .track { align-items: center; }
+    .bar .track::before { top: 50%; transform: translateY(-50%); left: 8px; right: 8px; }
+    .bar .stop { min-width: 0; width: auto; max-width: none; padding: 0 7px; gap: 0; flex-direction: row; }
+    .bar .stop i { margin-top: 0; }
+    .bar .stop span { display: none; }
+    .bar .stop.cur { gap: 8px; padding: 0 10px 0 7px; }
+    .bar .stop.cur span { display: block; max-width: none; overflow: visible; text-overflow: clip; padding-right: 2px; } /* 접힌 상태에서 이름이 '재가…'로 잘리지 않게 */
+    .bar .speed { height: 30px; min-width: 38px; font-size: 13px; }
+    .bar:hover, .bar:focus-within { height: 68px; }
+    .bar:hover .track, .bar:focus-within .track { align-items: flex-start; }
+    .bar:hover .track::before, .bar:focus-within .track::before { top: 7px; transform: none; }
+    .bar:hover .stop, .bar:focus-within .stop { flex-direction: column; gap: 9px; min-width: 96px; padding: 0 8px; }
+    .bar:hover .stop i, .bar:focus-within .stop i { margin-top: 3px; }
+    .bar:hover .stop span, .bar:focus-within .stop span { display: block; }
   </style>
 </head>
 <body>

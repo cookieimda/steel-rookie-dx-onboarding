@@ -117,7 +117,7 @@ function lightLayer(list) {
   const pts = new THREE.Points(g, m); pts.frustumCulled = false; pts.renderOrder = 5; scene.add(pts); lightLayers.push(pts); return pts;
 }
 // 보케 색: 흰 금빛 ~ 주황(사진처럼 섞임), 크기는 작은 것이 많고 큰 것이 드물게, 밝기도 제각각
-const BOKEH = ['#fff0cf', '#ffe1a6', '#ffd27a', '#ffd27a', '#ffb35c', '#ffb35c', '#ff9a3c', '#ff7a1a'];
+const BOKEH = ['#fff0cf', '#ffe1a6', '#ffd27a', '#ffd27a', '#ffb35c', '#ffb35c', '#ff9a3c', '#ff6b35'];
 const bokehLight = (p, scale = 1) => ({ p, c: BOKEH[(Math.random() * BOKEH.length) | 0], s: (1.6 + Math.pow(Math.random(), 2.2) * 7.5) * scale, b: 0.35 + Math.random() * 0.65 });
 const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
 function alongLines(lines, n, y, jitter = 0.4) {
@@ -171,7 +171,7 @@ const loadAll = () => Promise.all(procs.map((p) => new Promise((resolve) => {
     const w = fb.max.x - fb.min.x + 5, d = fb.max.z - fb.min.z + 5, cx = (fb.min.x + fb.max.x) / 2, cz = (fb.min.z + fb.max.z) / 2;
     p.foot = { w, d, cx, cz }; p.modelTop = all.max.y;
     // 구역 둘레 주황 발광 테두리(받침 대신)
-    const glow = new THREE.Mesh(new THREE.PlaneGeometry(w + 10, d + 10), new THREE.MeshBasicMaterial({ map: GLOW, color: 0xff7a1a, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })); glow.rotation.x = -Math.PI / 2; glow.position.set(cx, 0.06, cz); scene.add(glow);
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(w + 10, d + 10), new THREE.MeshBasicMaterial({ map: GLOW, color: 0xff6b35, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })); glow.rotation.x = -Math.PI / 2; glow.position.set(cx, 0.06, cz); scene.add(glow);
     for (let k = 0; k < 2; k++) { const r = new THREE.Mesh(new THREE.RingGeometry(0.97, 1, 96), new THREE.MeshBasicMaterial({ color: 0xffa04a, transparent: true, opacity: 0, depthWrite: false })); r.rotation.x = -Math.PI / 2; r.position.set(cx, 0.08, cz); scene.add(r); p.ripples.push(r); }
     // 마우스 판정용 보이지 않는 상자(구역 전체)
     const hh = Math.max(4, p.modelTop), hit = new THREE.Mesh(new THREE.BoxGeometry(w, hh, d), new THREE.MeshBasicMaterial({ visible: false })); hit.position.set(cx, hh / 2, cz); scene.add(hit);
@@ -227,7 +227,7 @@ function gather(cl, tg) { // 홈과 같은 모양 바꾸기: 점마다 조금씩
 // 공정 연결 선: 구역 아래 둥근 주황 테두리(glowTex)와 같은 모양 — 가운데 얇은 주황 선 + 양옆 부드러운 번짐(가산 합성).
 // 띠 폭 4 안에서 uv.y(폭 방향)로 선을 그린다. reach까지만 보여 앞 구역에서 다음 구역으로 그어지듯 나타난다
 const flowMat = () => new THREE.ShaderMaterial({
-  uniforms: { t: { value: 0 }, reach: { value: 0 }, gain: { value: 1 }, color: { value: new THREE.Color(0xff7a1a) }, W: { value: 4.0 } },
+  uniforms: { t: { value: 0 }, reach: { value: 0 }, gain: { value: 1 }, color: { value: new THREE.Color(0xff6b35) }, W: { value: 4.0 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
   fragmentShader: 'uniform float t, reach, W, gain; uniform vec3 color; varying vec2 vUv; void main(){ if (vUv.x > reach) discard; float d = abs(vUv.y - 0.5) * W; float core = 1.0 - smoothstep(0.3, 0.46, d); float halo = exp(-d * d / 1.6) * 0.5; float a = max(core * 0.95, halo) * 0.5 * gain; gl_FragColor = vec4(color, a); }',
   transparent: true, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending,

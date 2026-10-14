@@ -32,7 +32,7 @@ function injectStyle() {
     .lh-pin > b.on { display: inline-flex; }
     .lh-pin > b > em { width: 6px; height: 6px; border-radius: 50%; font-style: normal; background: currentColor; box-shadow: 0 0 0 0 currentColor; }
     .lh-pin > b.pulse > em { animation: lhPulse 1.6s ease-out infinite; }
-    .lh-pin > b.lh-fact { font-family: "IBM Plex Mono", monospace; font-weight: 700; color: #ffd9a8; border-color: rgba(255,154,46,.45); background: rgba(255,154,46,.1); }
+    .lh-pin > b.lh-fact { font-family: "IBM Plex Mono", monospace; font-weight: 700; color: #ffd9a8; border-color: rgba(255,158,100,.45); background: rgba(255,158,100,.1); }
     @keyframes lhPulse { 0% { box-shadow: 0 0 0 0 currentColor; opacity: 1; } 70% { box-shadow: 0 0 0 7px transparent; opacity: 1; } 100% { box-shadow: 0 0 0 0 transparent; opacity: 1; } }
     @media (prefers-reduced-motion: reduce) { .lh-pin > b.pulse > em { animation: none; } }`;
   document.head.appendChild(s);

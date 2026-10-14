@@ -27,7 +27,7 @@ import { createSection } from './steel-index-section.js';
 import { createStage, STAGE_H } from './steel-index-stage.js';
 
 const { PROCESSES } = DATA;
-const ORANGE = 0xff7a1a, CYAN = 0x22c7f0;
+const ORANGE = 0xff6b35, CYAN = 0x22c7f0;
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const RISE = { dur: 1100, gap: 240, depth: 22, sinkGap: 60, sinkDur: 480 };
 const THEME_KEY = 'st-rookie:index-theme';
@@ -122,7 +122,7 @@ const section = createSection({ scene, renderer, hud, getCamera: () => camera, g
 function focusHotspot(i) { section.highlight(i); right.querySelectorAll('[data-hot]').forEach((r) => { const on = r.dataset.hot === String(i); r.classList.toggle('on', on); if (on) r.scrollIntoView({ block: 'nearest', behavior: REDUCED ? 'auto' : 'smooth' }); }); }
 let typer = null;
 function typewrite(el, text) { clearInterval(typer); if (REDUCED) { el.textContent = text; return; } let i = 0; el.textContent = ''; const caret = document.createElement('span'); caret.style.color = 'var(--hot)'; caret.textContent = '▍'; el.appendChild(caret); typer = setInterval(() => { i++; el.firstChild.nodeValue = text.slice(0, i); if (i >= text.length) { clearInterval(typer); caret.remove(); } }, Math.max(12, Math.min(28, 1400 / Math.max(1, text.length)))); el.insertBefore(document.createTextNode(''), caret); }
-function formulaChips(fml) { if (!fml || !fml.includes('→')) return ''; const [l, r] = fml.split('→').map((t) => t.split('+').map((q) => q.trim()).filter(Boolean)); const chip = (t, hot) => `<span style="padding:6px 10px;border-radius:8px;background:${hot ? 'rgba(255,154,46,.2)' : 'rgba(255,255,255,.08)'};border:1px solid ${hot ? 'rgba(255,154,46,.6)' : 'rgba(255,255,255,.18)'};color:${hot ? '#ffd27a' : '#e6ebf1'};font:700 15px/1 var(--f-mono)">${esc(t)}</span>`; const plus = '<span style="color:#9aa3ad;font:400 15px/1 var(--f-mono)">+</span>'; return `<div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;padding:12px;border-radius:10px;background:rgba(0,0,0,.28)"><span style="font:400 15px/1 var(--f-body);color:#c3ccd7">무엇이 조합되나요</span><div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">${l.map((t) => chip(t, false)).join(plus)}<span style="color:#ff9a2e;font:700 18px/1 var(--f-mono)">→</span>${r.map((t) => chip(t, true)).join(plus)}</div></div>`; }
+function formulaChips(fml) { if (!fml || !fml.includes('→')) return ''; const [l, r] = fml.split('→').map((t) => t.split('+').map((q) => q.trim()).filter(Boolean)); const chip = (t, hot) => `<span style="padding:6px 10px;border-radius:8px;background:${hot ? 'rgba(255,158,100,.2)' : 'rgba(255,255,255,.08)'};border:1px solid ${hot ? 'rgba(255,158,100,.6)' : 'rgba(255,255,255,.18)'};color:${hot ? '#ffd27a' : '#e6ebf1'};font:700 15px/1 var(--f-mono)">${esc(t)}</span>`; const plus = '<span style="color:#9aa3ad;font:400 15px/1 var(--f-mono)">+</span>'; return `<div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;padding:12px;border-radius:10px;background:rgba(0,0,0,.28)"><span style="font:400 15px/1 var(--f-body);color:#c3ccd7">무엇이 조합되나요</span><div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">${l.map((t) => chip(t, false)).join(plus)}<span style="color:#ff9e64;font:700 18px/1 var(--f-mono)">→</span>${r.map((t) => chip(t, true)).join(plus)}</div></div>`; }
 
 function tuneMaterial(o) {
   const m = o.material = o.material.clone(), nm = m.name || '';

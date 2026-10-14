@@ -72,7 +72,7 @@ export function createStage({ scene, slateMap, reduced = false }) {
     const a = Math.min(1, Math.max(0, (k - 0.4) / 0.5)); x.globalAlpha = a;
     const sub = `ST-ROOKIE · ${D.en} Process`, io = `${D.num} / 04   ${D.io || ''}`;
     x.fillStyle = ink2; fitFont(x, sub, 700, 58, c.width - 24); x.fillText(sub, 10, lh + 22);
-    x.fillStyle = '#ff7a1a'; fitFont(x, io, 500, 34, c.width - 24, MONO); x.fillText(io, 12, lh + 104);
+    x.fillStyle = '#ff6b35'; fitFont(x, io, 500, 34, c.width - 24, MONO); x.fillText(io, 12, lh + 104);
     x.globalAlpha = 1; tex.needsUpdate = true;
   }
   function drawGraph(k) { // 공정 온도 흐름(선이 왼쪽부터 그어진다)
@@ -83,17 +83,17 @@ export function createStage({ scene, slateMap, reduced = false }) {
     x.strokeStyle = 'rgba(255,255,255,.08)'; x.lineWidth = 2; x.fillStyle = '#6f7b88'; x.font = `400 24px ${MONO}`;
     [0, 500, 1000, 1500, 2000].forEach((v) => { x.beginPath(); x.moveTo(l, Y(v)); x.lineTo(r, Y(v)); x.stroke(); x.fillText(`${fmt(v)}`, 40, Y(v) - 12); });
     st.bands.forEach((bd, j) => { const x0 = X(bd.i0) - (bd.i0 ? (X(1) - X(0)) / 2 : 0), x1 = X(bd.i1) + (bd.i1 < P.length - 1 ? (X(1) - X(0)) / 2 : 0), on = st.eq === bd.eq;
-      if (on) { x.fillStyle = 'rgba(255,122,26,.12)'; x.fillRect(x0, t - 10, x1 - x0, b - t + 10); }
+      if (on) { x.fillStyle = 'rgba(255,107,53,.12)'; x.fillRect(x0, t - 10, x1 - x0, b - t + 10); }
       if (j) { x.strokeStyle = 'rgba(255,255,255,.1)'; x.setLineDash([6, 8]); x.beginPath(); x.moveTo(x0, t - 10); x.lineTo(x0, b); x.stroke(); x.setLineDash([]); }
       x.fillStyle = on ? '#ffd2a8' : '#8f9aa6'; x.font = `${on ? 700 : 500} 26px ${FONT}`; const nm = bd.eq.data.name, tw = x.measureText(nm).width; x.fillText(nm, Math.max(x0 + 6, (x0 + x1) / 2 - tw / 2), b + 22); });
     const n = Math.max(1, Math.floor(k * (P.length - 1) + 1e-6)), frac = k * (P.length - 1) - (n - 1), last = Math.min(P.length - 1, n);
     const pts = P.slice(0, n).map((q, i) => [X(i), Y(q.v)]); if (k < 1 && last < P.length) { const a = P[n - 1], bq = P[last]; pts.push([X(n - 1) + (X(last) - X(n - 1)) * Math.min(1, frac), Y(a.v + (bq.v - a.v) * Math.min(1, frac))]); }
-    const g = x.createLinearGradient(0, t, 0, b); g.addColorStop(0, 'rgba(255,122,26,.42)'); g.addColorStop(1, 'rgba(255,122,26,0)');
+    const g = x.createLinearGradient(0, t, 0, b); g.addColorStop(0, 'rgba(255,107,53,.42)'); g.addColorStop(1, 'rgba(255,107,53,0)');
     x.beginPath(); x.moveTo(pts[0][0], b); pts.forEach(([a, v]) => x.lineTo(a, v)); x.lineTo(pts[pts.length - 1][0], b); x.closePath(); x.fillStyle = g; x.fill();
-    x.save(); x.shadowColor = 'rgba(255,140,40,.9)'; x.shadowBlur = 18; x.strokeStyle = '#ff8a2a'; x.lineWidth = 6; x.lineJoin = 'round'; x.beginPath(); pts.forEach(([a, v], i) => (i ? x.lineTo(a, v) : x.moveTo(a, v))); x.stroke(); x.restore();
+    x.save(); x.shadowColor = 'rgba(255,140,40,.9)'; x.shadowBlur = 18; x.strokeStyle = '#ff6b35'; x.lineWidth = 6; x.lineJoin = 'round'; x.beginPath(); pts.forEach(([a, v], i) => (i ? x.lineTo(a, v) : x.moveTo(a, v))); x.stroke(); x.restore();
     if (k >= 1) { const hi = P.reduce((m, q, i) => (q.v > P[m].v ? i : m), 0), hx = X(hi), hy = Y(P[hi].v);
       x.strokeStyle = 'rgba(255,210,168,.6)'; x.setLineDash([5, 6]); x.lineWidth = 2; x.beginPath(); x.moveTo(hx, hy); x.lineTo(hx, b); x.stroke(); x.setLineDash([]);
-      x.save(); x.shadowColor = '#ff8a2a'; x.shadowBlur = 20; x.fillStyle = '#ffb066'; x.beginPath(); x.arc(hx, hy, 11, 0, Math.PI * 2); x.fill(); x.restore(); }
+      x.save(); x.shadowColor = '#ff6b35'; x.shadowBlur = 20; x.fillStyle = '#ffcba4'; x.beginPath(); x.arc(hx, hy, 11, 0, Math.PI * 2); x.fill(); x.restore(); }
     tex.needsUpdate = true;
   }
   function hottest(list) { return list.reduce((m, q) => (!m || q.v > m.v ? q : m), null); }
@@ -102,7 +102,7 @@ export function createStage({ scene, slateMap, reduced = false }) {
     const list = st.eq ? st.pts.filter((q) => q.eq === st.eq) : st.pts, h0 = hottest(list), h = h0 && { ...h0, temp: h0.temp.replace(/^[→~\s]+/, '') }; // 데이터의 '→ 약 200℃' 같은 앞 화살표는 뺀다
     head(x, st.eq ? 'HOTTEST · 이 설비' : 'HOTTEST · 공정');
     if (!h) { x.fillStyle = '#9aa6b2'; x.font = `400 30px ${FONT}`; x.fillText('온도 자료가 없어요', 40, 170); tex.needsUpdate = true; return; }
-    x.save(); x.shadowColor = 'rgba(255,140,40,.8)'; x.shadowBlur = 16; x.fillStyle = '#ffb066'; fitFont(x, h.temp, 800, 72, Wc - 80); x.fillText(h.temp, 40, Hc * 0.52); x.restore();
+    x.save(); x.shadowColor = 'rgba(255,140,40,.8)'; x.shadowBlur = 16; x.fillStyle = '#ffcba4'; fitFont(x, h.temp, 800, 72, Wc - 80); x.fillText(h.temp, 40, Hc * 0.52); x.restore();
     x.fillStyle = '#e6ebf1'; fitFont(x, h.zone, 700, 34, Wc - 80); x.fillText(h.zone, 40, Hc * 0.52 + 54); x.fillStyle = '#8f9aa6'; x.font = `400 28px ${FONT}`; x.fillText(`${h.eq.data.name} · 교육용 예시값`, 40, Hc * 0.52 + 100);
     tex.needsUpdate = true;
   }
@@ -111,7 +111,7 @@ export function createStage({ scene, slateMap, reduced = false }) {
     head(x, 'MATERIAL FLOW · 소재 흐름');
     const [a, b] = (D.io || '').split('→').map((s) => s.trim());
     x.fillStyle = '#c3ccd7'; fitFont(x, a || '-', 500, 32, Wc - 80); x.fillText(a || '-', 40, Hc * 0.4);
-    x.fillStyle = '#ff9a2e'; x.font = `700 38px ${MONO}`; x.fillText('→', 40, Hc * 0.4 + 52);
+    x.fillStyle = '#ff9e64'; x.font = `700 38px ${MONO}`; x.fillText('→', 40, Hc * 0.4 + 52);
     x.fillStyle = '#ffffff'; fitFont(x, b || '-', 800, 56, Wc - 136); x.fillText(b || '-', 96, Hc * 0.4 + 60);
     const steps = st.p.eqs.reduce((s, e) => s + (e.data.steps || []).length, 0);
     x.fillStyle = '#8f9aa6'; x.font = `400 28px ${MONO}`; x.fillText(`설비 ${st.p.eqs.length} · 단계 ${steps}`, 40, Hc - 44);

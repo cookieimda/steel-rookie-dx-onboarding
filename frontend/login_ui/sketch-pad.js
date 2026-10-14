@@ -1,6 +1,7 @@
 // 설계도 위 펜 필기 <sketch-pad process="ironmaking" mode="plan">. 마이페이지 '설계도·필기' 탭에서 도면(iframe) 위에 겹친다.
 // - 도구: 펜(검정·빨강·파랑), 색 고르기(RGB 팔레트를 열어 고른 색의 펜), 형광펜, 텍스트(누른 자리에 글 입력, 마지막 펜 색),
 //   스티커 메모(누른 자리에 종이 메모를 붙인다. 여러 줄, 메모를 끌면 옮기고 누르면 고친다), 지우개(닿은 획·글·메모를 통째로 지움), 되돌리기, 모두 지우기.
+// - 열린 메모(텍스트·스티커) 위에는 [✓ 붙이기]·[× 지우기] 버튼이 뜬다(noteActions). 붙이면 메모가 그 자리에 남고, 다시 누르면 새 메모를 붙일 수 있다(여러 개).
 // - 스티커 메모의 종이 색은 노랑이 기본이고, 스티커 도구를 고른 채 색 고르기를 쓰면 그 색을 옅게 한 종이가 된다.
 // - 좌표는 이 영역 크기에 대한 비율(0~1)로 둔다. 부모가 도면 영역 비율을 고정하므로 화면 크기가 바뀌어도 같은 자리에 그려진다.
 // - 공정·도면(top·plan·front)마다 내 계정에 저장한다: GET /api/me/sketches/:process, PUT /api/me/sketches/:process/:mode(그린 뒤 0.8초).
@@ -161,7 +162,7 @@ class SketchPad extends HTMLElement {
     area.maxLength = MAX_STICKY; area.placeholder = '메모 (Ctrl+Enter로 붙이기)'; area.value = note ? note.text : '';
     area.setAttribute('aria-label', '스티커 메모');
     area.style.cssText = `position:absolute;left:${at[0] * this.w}px;top:${at[1] * this.h}px;width:${width * this.w}px;min-height:${fs * 5}px;padding:${fs * 0.8}px;box-sizing:border-box;font:${STICKY_FONT(fs)};line-height:1.4;color:${STICKY_INK};background:${color};border:0;border-radius:3px;box-shadow:0 6px 16px rgba(0,0,0,.35);outline:2px solid rgba(255,255,255,.7);resize:none;z-index:3;`;
-    this.textInput = { el: area, at, color, sticky: true, note, width };
+    this.textInput = { el: area, at, color, sticky: true, note, width, bar: this.noteActions(at, 'Ctrl+Enter') };
     area.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); this.commitText(); }
       else if (e.key === 'Escape') { e.preventDefault(); this.commitText(true); }
@@ -202,7 +203,7 @@ class SketchPad extends HTMLElement {
     input.type = 'text'; input.maxLength = MAX_TEXT; input.placeholder = '메모 입력 후 Enter';
     input.setAttribute('aria-label', '필기 텍스트');
     input.style.cssText = `position:absolute;left:${x * this.w}px;top:${y * this.h}px;min-width:160px;max-width:60%;padding:2px 6px;font:${TEXT_FONT(size)};color:${this.penColor};background:rgba(255,255,255,.92);border:1px dashed ${this.penColor};border-radius:4px;outline:none;z-index:2;`;
-    this.textInput = { el: input, at: [x, y], color: this.penColor };
+    this.textInput = { el: input, at: [x, y], color: this.penColor, bar: this.noteActions([x, y], 'Enter') };
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') { e.preventDefault(); this.commitText(); }
       else if (e.key === 'Escape') { e.preventDefault(); this.commitText(true); }
@@ -216,7 +217,7 @@ class SketchPad extends HTMLElement {
   commitText(cancel = false) {
     const t = this.textInput;
     if (!t) return;
-    this.textInput = null;
+    this.textInput = null; t.bar?.remove();
     if (t.sticky) { // 스티커 메모: 새로 붙이거나, 고친 글로 바꾸거나, 글을 다 지우면 메모를 뗀다
       const text = t.el.value.replace(/\s+$/, '').slice(0, MAX_STICKY);
       t.el.remove();
@@ -239,6 +240,24 @@ class SketchPad extends HTMLElement {
     this.strokes = [...this.strokes, { tool: 'text', color: t.color, width: TOOLS.find((x) => x.id === 'text').width, text, points: [[round(t.at[0]), round(t.at[1])]] }];
     this.redraw();
     this.scheduleSave();
+  }
+
+  /** 열린 메모 바로 위에 [✓ 붙이기]·[× 지우기]를 띄운다. pointerdown에서 처리해(기본 동작 막음) 입력칸의 blur(=붙이기)보다 먼저 받는다. */
+  noteActions(at, keyHint) {
+    const bar = document.createElement('div');
+    bar.setAttribute('role', 'group'); bar.setAttribute('aria-label', '메모 붙이기·지우기');
+    const top = at[1] * this.h, y = top >= 36 ? top - 34 : top + 4; // 위에 자리가 없으면 메모 안쪽 위
+    bar.style.cssText = `position:absolute;left:${at[0] * this.w}px;top:${y}px;display:flex;gap:4px;z-index:4;`;
+    const mk = (label, text, cancel) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.title = label; b.setAttribute('aria-label', label); b.textContent = text;
+      b.style.cssText = `width:30px;height:30px;border-radius:50%;border:1px solid rgba(255,255,255,.35);background:${cancel ? 'rgba(18,22,28,.92)' : '#ff9a2e'};color:${cancel ? '#eef2f6' : '#1a1200'};font:700 16px/1 Pretendard, "Malgun Gothic", sans-serif;cursor:pointer;padding:0;box-shadow:0 2px 6px rgba(0,0,0,.35);`;
+      b.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); this.commitText(cancel); });
+      bar.append(b);
+    };
+    mk(`붙이기 (${keyHint})`, '✓', false); mk('지우기 (Esc)', '×', true);
+    this.append(bar);
+    return bar;
   }
 
   /** 텍스트 획이 차지하는 상자(px). 지우개와 그리기에 쓴다. */

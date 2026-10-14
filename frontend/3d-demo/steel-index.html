@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;700&family=Noto+Sans+KR:wght@400;500;600;700;900&display=swap">
   <style>
     /* 표면: 피드백대로 Slate-900 불투명 + Slate-700 경계선 */
-    :root { --chrome: rgb(15,23,42); --chrome2: #141d33; --chrome3: #1e293b; --chrome4: #283548; --line: rgba(51,65,85,.6); --line2: rgba(51,65,85,.9); --text: #f2f2f2; --muted: #b3b3b8; --dim: #80808a; --accent: #f2f2f2; --accent-ink: #111; --hot: #ff9a2e; --molten: #ff7a1a; --warn: #f5b13d; --ok: #3ddc97; --cyan: #22c7f0; --ease: cubic-bezier(.2,.8,.2,1); --t-fast: .15s; --t-base: .25s; --f-body: "Noto Sans KR", "Pretendard", system-ui, sans-serif; --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace; --r-s: 8px; --r-m: 12px; --r-l: 16px; color-scheme: dark; }
+    :root { --chrome: rgb(15,23,42); --chrome2: #141d33; --chrome3: #1e293b; --chrome4: #283548; --line: rgba(51,65,85,.6); --line2: rgba(51,65,85,.9); --text: #f2f2f2; --muted: #b3b3b8; --dim: #80808a; --accent: #f2f2f2; --accent-ink: #111; --hot: #ff9a2e; --molten: #ff7a1a; --warn: #f5b13d; --ok: #3ddc97; --cyan: #ff9a2e; /* 이름은 그대로 두고 값만 UI 주황(설비 번호 핀·핫스팟, 2026-10-14 요청) */ --ease: cubic-bezier(.2,.8,.2,1); --t-fast: .15s; --t-base: .25s; --f-body: "Noto Sans KR", "Pretendard", system-ui, sans-serif; --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace; --r-s: 8px; --r-m: 12px; --r-l: 16px; color-scheme: dark; }
     html, body { margin: 0; height: 100%; background: #0d1114; color: var(--text); font-family: var(--f-body); font-size: 15px; overflow: hidden; -webkit-font-smoothing: antialiased; }
     button { font-family: inherit; }
     button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--molten); outline-offset: 2px; }
@@ -46,8 +46,8 @@
     .hint { position: fixed; top: 20px; right: 18px; z-index: 5; font: 400 15px/1 var(--f-body); color: var(--muted); pointer-events: none; white-space: nowrap; }
 
 
-    /* ---- 오른쪽 패널 (불투명) ---- */
-    .right { position: fixed; top: 62px; right: 10px; bottom: 96px; z-index: 6; width: 440px; max-width: calc(100vw - 20px); border-radius: var(--r-l); background: var(--chrome); border: 1px solid var(--line2); display: none; flex-direction: column; overflow: hidden; }
+    /* ---- 오른쪽 패널 (반투명 + 흐림. 3D가 비치게, 2026-10-14 요청) ---- */
+    .right { position: fixed; top: 62px; right: 10px; bottom: 96px; z-index: 6; width: 440px; max-width: calc(100vw - 20px); border-radius: var(--r-l); background: rgba(15,23,42,.66); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--line2); display: none; flex-direction: column; overflow: hidden; }
     .right.on { display: flex; }
     .right .scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 22px 18px; display: flex; flex-direction: column; scrollbar-width: thin; }
     .right .eyebrow { font: 400 13px/1 var(--f-mono); letter-spacing: .06em; color: var(--muted); }
@@ -56,7 +56,7 @@
     .right .x:hover { background: var(--chrome3); }
     .right h2 { margin: 20px 0 8px; font: 500 15px/1 var(--f-body); color: var(--muted); }
     .right p { margin: 0; font: 400 16px/1.6 var(--f-body); color: #e4e4e6; text-wrap: pretty; }
-    .right .io { display: grid; grid-template-columns: 1fr 20px 1fr; align-items: center; gap: 10px; padding: 12px 14px; border-radius: var(--r-m); background: var(--chrome3); margin-top: 14px; }
+    .right .io { display: grid; grid-template-columns: 1fr 20px 1fr; align-items: center; gap: 10px; padding: 12px 14px; border-radius: var(--r-m); background: rgba(30,41,59,.55); margin-top: 14px; }
     .right .io small { display: block; font: 400 15px/1 var(--f-body); color: var(--muted); margin-bottom: 6px; }
     .right .io b { font: 700 15px/1.4 var(--f-body); }
     .right .io span { color: var(--muted); font-size: 18px; text-align: center; }
@@ -83,23 +83,23 @@
     .badge { display: inline-flex; align-items: center; height: 28px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line2); background: var(--chrome3); font: 600 15px/1 var(--f-body); color: var(--muted); }
     .badge.run { border-color: rgba(61,220,151,.5); color: var(--ok); }
     .badge.run::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); margin-right: 7px; animation: blink 1.2s infinite; }
-    .kpi { display: flex; flex-direction: column; gap: 3px; margin-top: 10px; padding: 12px 14px; border-radius: var(--r-m); background: var(--chrome3); }
+    .kpi { display: flex; flex-direction: column; gap: 3px; margin-top: 10px; padding: 12px 14px; border-radius: var(--r-m); background: rgba(30,41,59,.55); }
     .kpi b { font: 700 32px/1.1 var(--f-body); letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
     .kpi span { font: 400 15px/1.4 var(--f-body); color: var(--muted); }
     .kpi small { font: 400 15px/1.4 var(--f-mono); color: var(--dim); }
     .hots { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
     .hots li button { width: 100%; display: grid; grid-template-columns: 18px 1fr; gap: 10px; align-items: start; padding: 9px 10px; border: 1px solid transparent; border-radius: var(--r-s); background: transparent; color: var(--text); text-align: left; cursor: pointer; font: 400 15px/1.45 var(--f-body); }
     .hots li button:hover { background: rgba(255,255,255,.05); }
-    .hots li.on button { background: rgba(34,199,240,.1); border-color: rgba(34,199,240,.5); }
-    .hots li button i { width: 12px; height: 12px; border-radius: 50%; margin-top: 5px; background: var(--cyan); box-shadow: 0 0 0 3px rgba(34,199,240,.25); }
+    .hots li.on button { background: rgba(255,154,46,.1); border-color: rgba(255,154,46,.5); }
+    .hots li button i { width: 12px; height: 12px; border-radius: 50%; margin-top: 5px; background: var(--cyan); box-shadow: 0 0 0 3px rgba(255,154,46,.25); }
     .hots li button b { display: block; font-weight: 600; }
     .hots li button small { display: block; font-size: 15px; color: var(--muted); }
     /* 3D 위 핫스팟 핀(step-fx 말풍선을 바꾼 것). 글은 패널 '현장 포인트'에서 */
     .sfx.lh-hot { pointer-events: none; }
-    .sfx.lh-hot .lh-pin { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; background: var(--cyan); box-shadow: 0 0 0 0 rgba(34,199,240,.6); cursor: pointer; pointer-events: auto; padding: 0; animation: lhPulse 1.6s ease-out infinite; }
+    .sfx.lh-hot .lh-pin { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; background: var(--cyan); box-shadow: 0 0 0 0 rgba(255,154,46,.6); cursor: pointer; pointer-events: auto; padding: 0; animation: lhPulse 1.6s ease-out infinite; }
     .sfx.lh-hot .lh-pin i { display: block; width: 100%; height: 100%; }
     .sfx.lh-hot.on .lh-pin { background: var(--molten); box-shadow: 0 0 0 4px rgba(255,122,26,.35); animation: none; transform: translate(-50%, -50%) scale(1.25); }
-    @keyframes lhPulse { 0% { box-shadow: 0 0 0 0 rgba(34,199,240,.6); } 70% { box-shadow: 0 0 0 10px rgba(34,199,240,0); } 100% { box-shadow: 0 0 0 0 rgba(34,199,240,0); } }
+    @keyframes lhPulse { 0% { box-shadow: 0 0 0 0 rgba(255,154,46,.6); } 70% { box-shadow: 0 0 0 10px rgba(255,154,46,0); } 100% { box-shadow: 0 0 0 0 rgba(255,154,46,0); } }
     @media (prefers-reduced-motion: reduce) { .sfx.lh-hot .lh-pin, .badge.run::before { animation: none; } }
     /* 단계 보기 (v4 단면 보기 카드) */
     .stepcard .no { display: flex; align-items: center; gap: 12px; height: 50px; padding: 0 14px; border-radius: 999px; background: rgba(255,154,46,.16); box-shadow: 0 6px 18px rgba(255,120,30,.18); font: 700 17px/1 var(--f-body); }
@@ -146,9 +146,9 @@
     .tutorhead .x2 { width: 40px; height: 40px; border: 0; border-radius: 50%; background: transparent; cursor: pointer; display: grid; place-items: center; }
     .tutorhead .x2:hover { background: var(--chrome3); }
 
-    /* ---- 하단 재생 바 (불투명) ---- */
-    .bar { position: fixed; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 16px; height: 74px; padding: 0 22px 0 12px; border-radius: 999px; background: var(--chrome); border: 1px solid var(--line2); max-width: calc(100vw - 20px); }
-    body.panel .bar { left: 10px; right: 460px; transform: none; max-width: none; width: auto; justify-content: center; }
+    /* ---- 하단 재생 바 (반투명 + 흐림) ---- */
+    .bar { position: fixed; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 16px; height: 74px; padding: 0 22px 0 12px; border-radius: 999px; background: rgba(15,23,42,.7); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--line2); max-width: calc(100vw - 20px); }
+    body.panel .bar { left: calc((100vw - 460px) / 2); max-width: calc(100vw - 480px); } /* 패널 왼쪽 영역 가운데, 폭은 내용만큼(전에는 그 영역을 다 채워 길었다) */
     .bar .play { width: 48px; height: 48px; border-radius: 50%; border: 1px solid var(--line2); background: var(--chrome3); color: var(--text); display: grid; place-items: center; cursor: pointer; flex: none; }
     .bar .play:hover { background: var(--chrome4); }
     .bar .track { display: flex; align-items: flex-start; position: relative; }

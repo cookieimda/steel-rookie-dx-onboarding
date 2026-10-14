@@ -6,7 +6,7 @@
 //     하단 재생 바(설비 차례로 보기 + 단계 카드 자동 넘김, 1×·2×). 아이콘·온도 보조는 steel-index-ui.js(v4에서 옮김).
 // 학습 현황(벽 대시보드, 왼쪽 위 패널은 없앴다): 지금 보는 것 · 이 세션에서 본 설비 수 · 이해도 확인 상태(GET /api/sections/:section/progress, 로그인 때만) · 다시 볼 설비(GET /api/me/misconceptions의
 //     미해결 체크포인트 오개념 → learn-hud-state.js의 개념→설비 표). 실제 값만 보여 주고, 로그인 전에는 안내 문구를 둔다.
-// 설비 보기: 하단 점·3D 클릭(설비를 짚으면 그 설비, 그 밖은 다음 설비)·← →. 선택한 설비는 바닥의 시안 링으로 감싸고 나머지 설비는 색을 낮춘다. 전체 보기(공정만)에서는 설비 UI를 띄우지 않는다.
+// 설비 보기: 하단 점·3D 클릭(설비를 짚으면 그 설비, 그 밖은 다음 설비)·← →. 설비 번호 핀·핫스팟은 UI 주황(--hot, 2026-10-14 요청. 바닥 물결만 시안). 선택한 설비는 바닥의 시안 링으로 감싸고 나머지 설비는 색을 낮춘다. 전체 보기(공정만)에서는 설비 UI를 띄우지 않는다.
 // 대시보드 보기: 뒷벽(공정 이름 + 대시보드 4장)이 화면에 꼭 차게 정면에서 보고, 앞에 선 공정 모델은 옅게(18%) 둬 벽이 읽히게 한다. 드래그·설비 선택·공정 바꾸기로 외관으로 돌아온다(평면 보기를 대신한다, 2026-10-14 요청).
 // 튜터: learning-chat.js(createLearningChat)를 그대로 쓴다(POST /api/chat, 로그인 토큰). 페이지 컴포넌트 대신 작은 어댑터(state·setState·scene()·goProcess)를 넘긴다.
 // 수치는 data_v2.js와 서버 응답에서만 가져온다. 꾸며 낸 실시간 값은 쓰지 않는다. prefers-reduced-motion이면 솟아오르기·글자 연출·자전 없이 바로 놓는다.
@@ -300,7 +300,7 @@ function renderTutor() {
 function tagFor(e) {
   if (e.tag) return e.tag;
   const t = document.createElement('div'); t.className = 'tag'; t.style.cssText = 'position:absolute;left:0;top:0;transform:translate(-50%,-100%);opacity:0;transition:opacity .3s;display:flex;flex-direction:column;align-items:center;gap:6px;white-space:nowrap;pointer-events:none;';
-  t.innerHTML = `<span class="k" style="display:inline-flex;align-items:center;gap:8px;padding:7px 12px 7px 7px;background:rgba(13,17,20,.86);border:1px solid rgba(255,255,255,.2);color:#fff;font:600 15px/1 var(--f-body);border-radius:999px;backdrop-filter:blur(6px)"><i style="width:22px;height:22px;border-radius:50%;background:#22c7f0;color:#04202b;font:700 12px/1 var(--f-mono);font-style:normal;display:grid;place-items:center">${e.i + 1}</i><span class="nm">${esc(e.data.name)}</span></span><span class="ld" style="width:1px;height:22px;background:linear-gradient(#c9d1d6,transparent)"></span>`;
+  t.innerHTML = `<span class="k" style="display:inline-flex;align-items:center;gap:8px;padding:7px 12px 7px 7px;background:rgba(13,17,20,.86);border:1px solid rgba(255,255,255,.2);color:#fff;font:600 15px/1 var(--f-body);border-radius:999px;backdrop-filter:blur(6px)"><i style="width:22px;height:22px;border-radius:50%;background:var(--hot);color:#1a1200;font:700 12px/1 var(--f-mono);font-style:normal;display:grid;place-items:center">${e.i + 1}</i><span class="nm">${esc(e.data.name)}</span></span><span class="ld" style="width:1px;height:22px;background:linear-gradient(#c9d1d6,transparent)"></span>`;
   hud.appendChild(t); return (e.tag = t);
 }
 
@@ -369,7 +369,9 @@ function ghost(p, on) { // 공정 모델을 옅게 하거나(on) 되돌린다. �
     else if (m.userData.op != null) { m.opacity = m.userData.op; m.transparent = m.userData.op < 1; m.depthWrite = true; m.userData.op = null; } });
 }
 // 고른 설비 시점(외관). 설비 상자의 긴 변 × 2.4 거리, 살짝 왼쪽
-const eqPose = (e, yaw) => { const c = e.box.getCenter(new THREE.Vector3()), s = e.box.getSize(new THREE.Vector3()); return { yaw, pitch: 0.34, dist: Math.max(14, Math.max(s.x, s.z, s.y) * 2.4), target: new THREE.Vector3(c.x - s.x * 0.15, c.y, c.z) }; };
+// 오른쪽 패널이 열려 있으면 남은 폭에 맞게 그만큼 더 물러난다(최대 1.6배)
+const panelZoom = () => (document.body.classList.contains('panel') ? Math.min(1.6, stage.clientWidth / Math.max(300, stage.clientWidth - (right.offsetWidth || 440))) : 1);
+const eqPose = (e, yaw) => { const c = e.box.getCenter(new THREE.Vector3()), s = e.box.getSize(new THREE.Vector3()); return { yaw, pitch: 0.34, dist: Math.max(14, Math.max(s.x, s.z, s.y) * 2.4) * panelZoom(), target: new THREE.Vector3(c.x - s.x * 0.15, c.y, c.z) }; };
 function boardPose() { // 뒷벽 전체(폭 W, 높이 Hw)가 화면에 꼭 차게 정면에서 조금 위에서. 벽 폭은 화면 폭의 90%, 높이는 세로의 75%쯤
   const b = stage3d.bounds(); if (!b) return home;
   const W = b.max.x - b.min.x, Hw = b.max.y - b.min.y, half = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)), a = Math.max(0.7, Math.min(2.2, camera.aspect));
@@ -417,7 +419,14 @@ renderer.domElement.addEventListener('wheel', (e) => { e.preventDefault(); orbit
 const composer = new EffectComposer(renderer);
 const renderPass = new RenderPass(scene, camera); composer.addPass(renderPass);
 const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.4, 0.4, 1.35); composer.addPass(bloom); composer.addPass(new OutputPass());
-function resize() { const w = stage.clientWidth || 1, h = stage.clientHeight || 1; renderer.setSize(w, h, false); composer.setSize(w, h); bloom.resolution.set(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+function resize() { const w = stage.clientWidth || 1, h = stage.clientHeight || 1; renderer.setSize(w, h, false); composer.setSize(w, h); bloom.resolution.set(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); applyViewOffset(); }
+// 오른쪽 패널이 열리면 패널 폭의 절반만큼 장면을 왼쪽으로 밀어, 고른 설비가 패널에 가리지 않고 남은 영역 가운데에 온다(2026-10-14 요청). 천천히 옮겨 간다
+let viewOff = 0;
+function applyViewOffset() { const w = stage.clientWidth || 1, h = stage.clientHeight || 1; if (viewOff < 0.5) camera.clearViewOffset(); else camera.setViewOffset(w, h, viewOff, 0, w, h); }
+function viewOffsetTick() {
+  const want = document.body.classList.contains('panel') ? Math.min(right.offsetWidth || 440, stage.clientWidth * 0.4) / 2 : 0;
+  if (Math.abs(want - viewOff) < 0.5) return; viewOff += (want - viewOff) * (REDUCED ? 1 : 0.12); if (Math.abs(want - viewOff) < 0.5) viewOff = want; applyViewOffset();
+}
 new ResizeObserver(resize).observe(stage); resize();
 
 function riseTick(now) {
@@ -454,7 +463,7 @@ let last = 0;
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
-  riseTick(now);
+  riseTick(now); viewOffsetTick();
   if (anim) { const k = Math.min(1, (now - anim.t0) / anim.dur), s = easeOut(k); orbit.yaw = anim.from.yaw + (anim.to.yaw - anim.from.yaw) * s; orbit.pitch = anim.from.pitch + (anim.to.pitch - anim.from.pitch) * s; orbit.dist = anim.from.dist + (anim.to.dist - anim.from.dist) * s; orbit.target.lerpVectors(anim.from.target, anim.to.target, s); if (k >= 1) anim = null; }
   else if (!drag && !REDUCED && mode === 'overview' && view === '3d') orbit.yaw += dt * 0.01;
   const o = orbit; camera.position.set(o.target.x + o.dist * Math.sin(o.yaw) * Math.cos(o.pitch), o.target.y + o.dist * Math.sin(o.pitch), o.target.z + o.dist * Math.cos(o.yaw) * Math.cos(o.pitch)); camera.lookAt(o.target);

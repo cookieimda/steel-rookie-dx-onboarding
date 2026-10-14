@@ -45,8 +45,9 @@
     <span style="font-family:var(--mono);font-size:15px;letter-spacing:0.08em;padding:3px 8px;border-radius:6px;border:1px solid var(--line);color:{{ srcColor }};white-space:nowrap;">● {{ srcLabel }}</span>
     <div style="flex:1;"></div>
     <nav style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-      <!-- 보고서: 신입사원 통계를 CSV로 내려받는다(엑셀에서 열림, GET /api/admin/report.csv). 화면 필터와 상관없이 전체 명단. 헤더에 둬서 어디서든 누른다 -->
+      <!-- 보고서: 엑셀(CSV)은 신입사원 통계를 내려받고(GET /api/admin/report.csv), PDF(그림)는 admin-report.html을 새 탭으로 연다. 엑셀은(엑셀에서 열림, GET /api/admin/report.csv). 화면 필터와 상관없이 전체 명단. 헤더에 둬서 어디서든 누른다 -->
       <button type="button" onClick="{{ onReport }}" disabled="{{ reportBusy }}" title="신입사원별 공정 이해도·결과·시도 횟수·오개념 개수·마지막 학습일을 CSV로 내려받아요" style="height:38px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--text);font-size:15px;font-weight:600;cursor:pointer;white-space:nowrap;" style-hover="background:var(--panel2);">{{ reportLabel }}</button>
+      <button type="button" onClick="{{ onReportPdf }}" title="상태 분포·공정별 이해도·오답률 높은 개념 차트와 신입사원 표를 A4 보고서로 열어요. 인쇄 창에서 PDF로 저장하세요" style="height:38px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--text);font-size:15px;font-weight:600;cursor:pointer;white-space:nowrap;" style-hover="background:var(--panel2);">보고서 PDF(그림)</button>
       <button type="button" onClick="{{ toggleTheme }}" aria-label="테마 전환" style="width:40px;height:40px;border-radius:10px;border:none;background:transparent;color:var(--muted);font-size:15px;cursor:pointer;" style-hover="background:var(--panel2);color:var(--text);">{{ themeIcon }}</button>
       <button type="button" onClick="{{ logout }}" style="height:40px;padding:0 16px;border-radius:10px;border:none;background:transparent;color:var(--muted);font-size:15px;font-weight:500;cursor:pointer;" style-hover="background:var(--panel2);color:var(--text);">로그아웃</button>
       <a href="/3d-demo/steel-index.html" target="_top" style="display:flex;align-items:center;height:40px;padding:0 20px;border-radius:10px;background:var(--accent);color:var(--accent-ink);font-size:15px;font-weight:700;white-space:nowrap;" style-hover="opacity:.88;">학습 화면</a>
@@ -512,7 +513,9 @@ class Component extends DCLogic {
       secCards,
       statusTabs: ['all', 'done', 'active', 'retry', 'idle'].map(k => tab(S.status === k, `${k === 'all' ? '전체' : STATUS[k].label} ${statusCount(k)}`, () => this.setState({ status: k }))),
       query: S.q, onQuery: e => this.setState({ q: e.target.value }),
-      reportBusy: S.report === 'busy', reportLabel: S.report === 'busy' ? '보고서 만드는 중…' : S.report === 'error' ? '보고서 다시 받기' : '보고서 내려받기(CSV)',
+      reportBusy: S.report === 'busy', reportLabel: S.report === 'busy' ? '보고서 만드는 중…' : S.report === 'error' ? '엑셀 다시 받기' : '보고서 엑셀(CSV)',
+      // 그림 보고서: 차트·표 페이지(admin-report.html)를 새 탭으로 열고 바로 인쇄 창을 띄운다(PDF로 저장)
+      onReportPdf: () => { window.open('/login_ui/admin-report.html?print=1', '_blank'); },
       onReport: () => { this.setState({ report: 'busy' }); import('./admin_data.js').then(m => m.downloadReport()).then(() => this.setState({ report: null }), () => this.setState({ report: 'error' })); },
       cols: [col('신입사원', 'name', 'left'), ...secs.map(s => col(meta(s).name)), col('진도', 'progress', 'left'), col('미해결 오개념', 'mis', 'right'), col('마지막 학습', 'last', 'right'), col('상태', null, 'right')],
       rows, rowsEmpty: !!D && rows.length === 0,

@@ -83,6 +83,7 @@
     .badge { display: inline-flex; align-items: center; height: 28px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line2); background: var(--chrome3); font: 600 15px/1 var(--f-body); color: var(--muted); }
     .badge.run { border-color: rgba(61,220,151,.5); color: var(--ok); }
     .badge.run::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); margin-right: 7px; animation: blink 1.2s infinite; }
+    @keyframes blink { 0%, 100% { opacity: .2 } 50% { opacity: 1 } }
     .kpi { display: flex; flex-direction: column; gap: 3px; margin-top: 10px; padding: 12px 14px; border-radius: var(--r-m); background: rgba(30,41,59,.55); }
     .kpi b { font: 700 32px/1.1 var(--f-body); letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
     .kpi span { font: 400 15px/1.4 var(--f-body); color: var(--muted); }
@@ -115,36 +116,7 @@
     .stepcard .heat .fill { position: absolute; top: -2px; height: 14px; border-radius: 7px; background: linear-gradient(90deg,#ffd27a,#ff6b35); }
     .stepcard .heat .scale { display: flex; justify-content: space-between; margin-top: 6px; font: 400 12px/1 var(--f-mono); color: #d2c6b8; }
     .stepcard .heat .note2 { font: 400 15px/1.5 var(--f-body); color: #c4b6a6; }
-    .stepcard .nav { display: flex; gap: 8px; margin-top: 14px; }
-    .stepcard .nav button { flex: 1; height: 40px; border-radius: 999px; border: 1px solid var(--line2); background: transparent; color: var(--text); font: 600 15px/1 var(--f-body); cursor: pointer; }
-    .stepcard .nav button:hover { background: var(--chrome3); }
 
-    /* AI 튜터 (v4) */
-    .chat { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 16px 12px; display: flex; flex-direction: column; gap: 12px; scrollbar-width: thin; }
-    .msg.user { align-self: flex-end; max-width: 85%; background: var(--chrome4); padding: 10px 13px; border-radius: 12px 12px 4px 12px; font: 400 15px/1.5 var(--f-body); }
-    .msg.ai { align-self: flex-start; max-width: 94%; display: flex; flex-direction: column; gap: 8px; }
-    .msg.ai .b { background: var(--chrome3); padding: 10px 13px; border-radius: 12px 12px 12px 4px; font: 400 15px/1.6 var(--f-body); text-wrap: pretty; white-space: pre-wrap; }
-    .msg.ai .cite { font: 400 15px/1.4 var(--f-body); color: var(--muted); padding-left: 4px; }
-    .msg.ai .fu { text-align: left; display: flex; flex-direction: column; gap: 2px; background: transparent; border: 1px dashed var(--accent); border-radius: var(--r-s); padding: 8px 12px; color: var(--text); cursor: pointer; font: 400 15px/1.4 var(--f-body); }
-    .msg.safety { align-self: flex-start; max-width: 92%; background: rgba(255,90,90,.12); border: 1px solid rgba(255,90,90,.4); color: #ffc9c9; padding: 10px 12px; border-radius: 10px; font: 400 15px/1.55 var(--f-body); }
-    .msg.err { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line2); background: var(--chrome3); font: 600 15px/1.4 var(--f-body); }
-    .typing { align-self: flex-start; display: flex; gap: 4px; padding: 12px 14px; background: var(--chrome3); border-radius: 10px; }
-    .typing i { width: 6px; height: 6px; border-radius: 3px; background: var(--muted); animation: blink 1s infinite; } .typing i:nth-child(2) { animation-delay: .2s } .typing i:nth-child(3) { animation-delay: .4s }
-    @keyframes blink { 0%, 100% { opacity: .2 } 50% { opacity: 1 } }
-    .chips { display: flex; gap: 8px; flex-wrap: wrap; }
-    .chips button { min-height: 36px; padding: 8px 12px; border-radius: 999px; border: 1px solid var(--line2); background: var(--chrome3); color: var(--text); font: 400 15px/1.2 var(--f-body); cursor: pointer; text-align: left; }
-    .chips button:hover { background: var(--chrome4); }
-    .chiphead { display: flex; align-items: center; gap: 10px; margin-top: 6px; font: 600 15px/1 var(--f-body); color: var(--muted); white-space: nowrap; }
-    .chiphead i { flex: 1; height: 1px; background: var(--line2); }
-    form.send { display: flex; gap: 8px; padding: 10px 16px 12px; border-top: 1px solid var(--line); }
-    form.send input { flex: 1; min-width: 0; height: 42px; background: var(--chrome2); color: var(--text); border: 1px solid var(--line2); border-radius: 999px; padding: 0 16px; font: 400 15px/1 var(--f-body); outline: none; }
-    form.send input:focus { border-color: var(--accent); }
-    form.send button { height: 42px; padding: 0 16px; border-radius: 999px; border: 0; background: var(--accent); color: var(--accent-ink); font: 700 15px/1 var(--f-body); cursor: pointer; flex: none; }
-    .tutorhead { display: flex; align-items: flex-start; gap: 10px; padding: 18px 16px 10px; }
-    .tutorhead h1 { margin: 0; font: 900 24px/1.1 var(--f-body); }
-    .tutorhead small { display: block; margin-top: 4px; font: 400 15px/1.4 var(--f-body); color: #c3ccd7; }
-    .tutorhead .x2 { width: 40px; height: 40px; border: 0; border-radius: 50%; background: transparent; cursor: pointer; display: grid; place-items: center; }
-    .tutorhead .x2:hover { background: var(--chrome3); }
 
     /* ---- 하단 재생 바 (반투명 + 흐림) ---- */
     .bar { position: fixed; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 16px; height: 74px; padding: 0 22px 0 12px; border-radius: 999px; background: rgba(15,23,42,.7); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--line2); max-width: calc(100vw - 20px); }
@@ -191,8 +163,20 @@
     .hint { font: 400 13px/1 var(--f-mono); letter-spacing: .1em; color: var(--dim); }
     .right { border-radius: 6px; background: var(--glass); border-color: var(--edge); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: none; clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px)); }
     .right::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: linear-gradient(90deg, var(--hot), rgba(255,158,100,0) 70%); pointer-events: none; z-index: 1; }
-    .right .eyebrow, .right h2, .lvh, .chiphead, .right .io small, .kpi small, .msg.ai .cite { font-family: var(--f-mono); letter-spacing: .08em; font-size: 13px; }
-    .right .x, .tutorhead .x2, .right .steps .tile, .badge, .chips button, .stepcard .nav button, .msg.err, .typing, .msg.safety { border-radius: 4px; }
+    .right .eyebrow, .right h2, .lvh, .right .io small, .kpi small { font-family: var(--f-mono); letter-spacing: .08em; font-size: 13px; }
+    .right .x, .right .steps .tile, .badge { border-radius: 4px; }
+    /* 긴 설명에서도 설비 이름·단계 머리는 위에 붙어 있고(sticky), 닫기(.x)는 패널 구석에, 단계 이동은 아래 .foot에 고정(#140) */
+    .right .phead, .stepcard .lv.l1 { position: sticky; top: -20px; z-index: 2; margin: -20px -22px 0; padding: 20px 22px 10px; background: rgba(6,12,18,.94); }
+    .stepcard .lv.l1 { border-bottom: 1px solid var(--line2); }
+    .right .x { z-index: 3; } /* 고정된 머리 위에 닫기 버튼이 오게 */
+    /* 좁은 화면(≤760px): 상단 바·재생 바를 화면 폭에 맞추고 안에서 가로 스크롤(조작 바가 화면 밖으로 넘어가지 않게, #140) */
+    @media (max-width: 760px) {
+      .top { left: 8px; right: 8px; transform: none; width: auto; max-width: none; overflow-x: auto; scrollbar-width: none; clip-path: none; }
+      body.touring:not(.peek) .top { transform: translateY(calc(-100% - 16px)); }
+      .bar, body.panel .bar { left: 8px; right: 8px; transform: none; width: auto; max-width: none; overflow-x: auto; scrollbar-width: none; clip-path: none; }
+      .bar .track { flex: none; }
+      .right { bottom: 84px; clip-path: none; }
+    }
     .right .io, .kpi { border-radius: 4px; background: var(--glass2); border: 1px solid var(--edge); border-left: 2px solid var(--edge2); }
     .stepcard .heat { border-radius: 4px; }
     .right .foot { border-top-color: var(--edge); }
@@ -204,12 +188,6 @@
     .badge { background: transparent; }
     .badge.run { border-color: var(--edge2); color: var(--hot); } /* '재생 중' 배지의 초록이 거슬린다는 의견 → 주황(2026-10-14) */
     .badge.run::before { background: var(--hot); }
-    .msg.user { border-radius: 4px; background: rgba(255,158,100,.12); border: 1px solid var(--edge2); }
-    .msg.ai .b { border-radius: 4px; background: var(--glass2); border: 1px solid var(--edge); }
-    .msg.ai .fu { border-color: var(--edge2); color: var(--hot); }
-    form.send input { border-radius: 4px; background: rgba(0,0,0,.25); border-color: var(--edge); }
-    form.send input:focus { border-color: var(--hot); }
-    form.send button { border-radius: 4px; background: var(--hot); }
     .bar { border-radius: 4px; background: var(--glass); border-color: var(--edge); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: none; height: 68px; clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px); }
     .bar .play { border-radius: 4px; background: transparent; border-color: var(--edge2); }
     .bar .play:hover { background: rgba(255,158,100,.14); }
@@ -228,14 +206,13 @@
   <div id="stage" aria-label="제철 공정 3D. 위 알약 바에서 공정을 고르고, 왼쪽 설비 목록이나 3D를 클릭하면 설비를 확대해 보여 줍니다."></div>
   <div id="hud"></div>
 
-  <!-- 상단 알약 바: 홈 · 공정 탭 · 외관/대시보드 · 닫기 | 튜터 · 테마 · 마이페이지. 설비 차례로 보기(재생) 중에는 위로 숨고 마우스를 위쪽에 가져가면 내려온다 -->
+  <!-- 상단 알약 바: 홈 · 공정 탭 · 외관/대시보드 · 닫기 | 테마 · 마이페이지(튜터는 #140으로 마이페이지에만). 설비 차례로 보기(재생) 중에는 위로 숨고 마우스를 위쪽에 가져가면 내려온다 -->
   <div class="top" id="top">
     <button class="rb" id="btnHome" title="홈으로" aria-label="홈으로"><img class="ic" id="icHome" width="22" height="22" alt=""></button>
     <div class="tabs" id="tabs" role="tablist" aria-label="공정 선택"></div>
     <div class="seg" role="group" aria-label="보기"><button id="btnView3d" class="on" aria-pressed="true">외관</button><button id="btnViewBoard" aria-pressed="false">대시보드</button></div>
     <button class="rb" id="btnClose" title="설비 보기 끝내기" aria-label="설비 보기 끝내기"><img class="ic" id="icClose" width="20" height="20" alt=""></button>
     <span class="sep"></span>
-    <button class="rb" id="btnTutor" title="AI 튜터" aria-label="AI 튜터"><img class="ic" id="icBot" width="24" height="24" alt=""><span class="dot"></span></button>
     <button class="rb" id="btnTheme" title="라이트 모드로" aria-label="테마 바꾸기"><img class="ic" id="icTheme" width="22" height="22" alt=""></button>
     <button class="rb" id="btnUser" title="마이페이지" aria-label="마이페이지"><img class="ic" id="icUser" width="22" height="22" alt=""></button>
   </div>

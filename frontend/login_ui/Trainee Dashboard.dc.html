@@ -389,6 +389,9 @@ class Component extends DCLogic {
       this.data = m; this.setState({ processes: m.PROCESSES });
       const { createLearningChat } = await import('../3d-demo/learning-chat.js');
       this.chat = await createLearningChat(this);
+      // 공정 화면 [튜터에게 묻기]에서 넘어온 맥락(?p=공정&eq=설비&ask=1, #140): 그 공정·설비를 고른 채 ASK 탭을 연다
+      const q = new URLSearchParams(location.search), p0 = q.get('p'), eq0 = q.get('eq');
+      if (p0 && m.findProcess(p0)) { this.setState({ processId: p0, selectedId: m.findEquipment(p0, eq0) ? eq0 : null }); if (q.get('ask')) this.openTutor(); }
       // 이해도 확인: 3D 화면과 같은 checkpoint-chat.js. 답하는 중에는 학습 채팅을 막는다(lockLearning)
       const { createCheckpointChat } = await import('../3d-demo/checkpoint-chat.js');
       this.checkpoint = createCheckpointChat(this); this.checkpoint.refreshAll();

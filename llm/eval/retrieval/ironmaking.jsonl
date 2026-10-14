@@ -1,0 +1,27 @@
+{"id":"purpose","section":"ironmaking","query":"제선은 어떤 공정인가요?","expected_source_ids":["posco-brochure-2015","posco-newsroom-job-2015"]}
+{"id":"coke-reduction","section":"ironmaking","query":"고로에 코크스를 왜 넣나요?","expected_source_ids":["posco-brochure-2015","posco-newsroom-fe-2019"]}
+{"id":"sinter","section":"ironmaking","query":"소결은 무슨 일을 하나요?","expected_source_ids":["posco-newsroom-fe-2019","posco-automotive-steel-catalog"]}
+{"id":"finex","section":"ironmaking","query":"FINEX는 고로와 어떻게 다른가요?","expected_source_ids":["posco-newsroom-finex-2017","posco-newsroom-routes-2021"]}
+{"id":"hot-stove","section":"ironmaking","query":"고로에 넣는 열풍은 어떻게 만들어요?","screen":{"equipment_id":"hot_stove"},"expected_source_ids":["posco-newsroom-furnace-2019"]}
+{"id":"torpedo","section":"ironmaking","query":"용선은 제강으로 어떻게 옮기나요?","screen":{"equipment_id":"torpedo_car"},"expected_source_ids":["posco-newsroom-tlc-2019","posco-newsroom-fe-2019"]}
+{"id":"taphole","section":"ironmaking","query":"쇳물은 고로 어디로 나와요?","screen":{"equipment_id":"taphole_casthouse"},"expected_source_ids":["posco-newsroom-fe-2019"]}
+{"id":"out-of-scope","section":"ironmaking","query":"오늘 서울 날씨 알려줘","expected_source_ids":[]}
+{"id":"sinter-why","section":"ironmaking","query":"소결광은 왜 만들어?","expected_source_ids":["nippon-steel-sinter-bed-measurement","posco-newsroom-ore-2019","posco-newsroom-fe-2019","eu-jrc-bref-iron-steel","nippon-steel-sinter-reaction-analysis"]}
+{"id":"sinter-how","section":"ironmaking","query":"소결광은 어떻게 만들어요?","expected_source_ids":["jfe-21st-cf-iron-ore","posco-newsroom-sinter-coating-2012"]}
+{"id":"coke-make","section":"ironmaking","query":"코크스는 어떻게 만들어?","expected_source_ids":["posco-newsroom-coke-plant-2015","snmnews-steel-terms-coke","posco-newsroom-coke-ai-2023","jfe-21st-cf-coke","posco-newsroom-job-2015"]}
+{"id":"coke-strength","section":"ironmaking","query":"고로용 코크스는 왜 강해야 해?","expected_source_ids":["jfe-21st-cf-coke","eu-jrc-bref-iron-steel","posco-automotive-steel-catalog"]}
+{"id":"coke-misconception","section":"ironmaking","query":"코크스는 불순물을 없애려고 넣는 거죠?","expected_source_ids":["jfe-21st-cf-coke","posco-newsroom-fe-2019","posco-brochure-2015","jfe-21st-cf-bf-bof-process"]}
+{"id":"hot-stove-role","section":"ironmaking","query":"열풍로는 무슨 일을 해?","expected_source_ids":["jfe-21st-cf-bf-facilities","eu-jrc-bref-iron-steel","posco-newsroom-furnace-2019"]}
+{"id":"hot-blast-temp","section":"ironmaking","query":"열풍은 몇 도야?","expected_source_ids":["posco-newsroom-furnace-2019","jfe-21st-cf-bf-operation"]}
+{"id":"tuyere","section":"ironmaking","query":"풍구는 뭐야?","expected_source_ids":["jfe-21st-cf-bf-facilities"]}
+{"id":"pci","section":"ironmaking","query":"미분탄은 왜 불어넣어?","expected_source_ids":["jfe-21st-cf-bf-operation"]}
+{"id":"charging","section":"ironmaking","query":"고로에 원료는 어떻게 넣어?","expected_source_ids":["jfe-21st-cf-bf-operation","jfe-21st-cf-bf-facilities","posco-newsroom-furnace-2019"]}
+{"id":"reduction-zones","section":"ironmaking","query":"고로 위쪽과 아래쪽 환원은 어떻게 달라?","expected_source_ids":["jfe-21st-cf-bf-operation"]}
+{"id":"hot-metal-carbon","section":"ironmaking","query":"용선에는 탄소가 얼마나 들어 있어?","expected_source_ids":["jfe-21st-cf-bf-bof-process"]}
+{"id":"refractory","section":"ironmaking","query":"고로는 왜 안 녹아?","expected_source_ids":["posco-newsroom-refractory-2020"]}
+{"id":"torpedo-alias","section":"ironmaking","query":"어뢰차가 뭐야?","expected_source_ids":["posco-newsroom-tlc-2019"]}
+{"id":"torpedo-capacity","section":"ironmaking","query":"토페도카는 쇳물을 얼마나 실어?","expected_source_ids":["posco-newsroom-tlc-2019"]}
+{"id":"taphole-close","section":"ironmaking","query":"출선구는 어떻게 막아?","expected_source_ids":["eu-jrc-bref-iron-steel"]}
+{"id":"slag-use","section":"ironmaking","query":"고로 슬래그는 어디에 써?","expected_source_ids":["eu-jrc-bref-iron-steel","nippon-slag-association-slag-types"]}
+{"id":"finex-sinter","section":"ironmaking","query":"파이넥스도 소결 공정이 필요해?","expected_source_ids":["posco-newsroom-finex-2017","posco-newsroom-routes-2021"]}
+{"id":"out-of-scope-lunch","section":"ironmaking","query":"점심 메뉴 추천해 줘","expected_source_ids":[]}

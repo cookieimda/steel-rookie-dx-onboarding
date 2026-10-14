@@ -1,5 +1,5 @@
 // 설계도 위 펜 필기 <sketch-pad process="ironmaking" mode="plan">. 마이페이지 '설계도·필기' 탭에서 도면(iframe) 위에 겹친다.
-// - 도구: 펜(검정·빨강·파랑), 색 고르기(RGB 팔레트를 열어 고른 색의 펜), 형광펜, 텍스트(누른 자리에 글 입력, 마지막 펜 색),
+// - 도구: 펜(검정·빨강·하양. 하양은 남색 도면 위에서 보이게 파랑 대신 둔 고정색, 2026-10-14 요청), 색 고르기(RGB 팔레트를 열어 고른 색의 펜), 형광펜, 텍스트(누른 자리에 글 입력, 마지막 펜 색),
 //   스티커 메모(누른 자리에 종이 메모를 붙인다. 여러 줄, 메모를 끌면 옮기고 누르면 고친다), 지우개(닿은 획·글·메모를 통째로 지움), 되돌리기, 모두 지우기.
 // - 열린 메모(텍스트·스티커) 위에는 [✓ 붙이기]·[× 지우기] 버튼이 뜬다(noteActions). 붙이면 메모가 그 자리에 남고, 다시 누르면 새 메모를 붙일 수 있다(여러 개).
 // - 스티커 메모의 종이 색은 노랑이 기본이고, 스티커 도구를 고른 채 색 고르기를 쓰면 그 색을 옅게 한 종이가 된다.
@@ -12,11 +12,11 @@ const token = () => { try { return localStorage.getItem(TOKEN_KEY) || sessionSto
 const MODES = ['top', 'plan', 'front'];
 const SAVE_DELAY_MS = 800;
 
-/** 도구: 펜 색 3개, 형광펜, 지우개. width는 영역 너비에 대한 비율. */
+/** 도구: 펜 고정색 3개(검정·빨강·하양), 색 고르기, 형광펜, 텍스트, 스티커, 지우개. width는 영역 너비에 대한 비율. */
 export const TOOLS = [
   { id: 'black', label: '검정 펜', tool: 'pen', color: '#111827', width: 0.0035, swatch: '#111827' },
   { id: 'red', label: '빨강 펜', tool: 'pen', color: '#e03131', width: 0.0035, swatch: '#e03131' },
-  { id: 'blue', label: '파랑 펜', tool: 'pen', color: '#1971c2', width: 0.0035, swatch: '#1971c2' },
+  { id: 'white', label: '하양 펜', tool: 'pen', color: '#ffffff', width: 0.0035, swatch: '#ffffff' },
   { id: 'custom', label: '색 고르기 (RGB 팔레트)', tool: 'pen', width: 0.0035 }, // 색은 고른 값(customColor)
   { id: 'marker', label: '형광펜', tool: 'marker', color: '#ffd43b', width: 0.018, swatch: '#ffd43b' },
   { id: 'text', label: '텍스트', tool: 'text', width: 0.02 },
@@ -32,6 +32,8 @@ const STICKY_FONT = (px) => `500 ${px}px Pretendard, "Malgun Gothic", sans-serif
 /** 고른 색을 흰색과 섞어 옅은 종이 색으로 만든다. */
 const pastel = (hex, k = 0.72) => '#' + [1, 3, 5].map((i) => Math.round(parseInt(hex.slice(i, i + 2), 16) * (1 - k) + 255 * k).toString(16).padStart(2, '0')).join('');
 const TEXT_FONT = (px) => `600 ${px}px Pretendard, "Malgun Gothic", sans-serif`;
+/** 텍스트 뒤에 까는 바탕: 잉크가 밝으면(하양 펜) 어둡게, 아니면 밝게. 남색 도면 위에서도 읽히게 한다. */
+const textBg = (hex) => { const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)); return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6 ? 'rgba(13,17,20,.85)' : 'rgba(255,255,255,.9)'; };
 
 const round = (v) => Math.round(v * 10000) / 10000;
 
@@ -202,7 +204,7 @@ class SketchPad extends HTMLElement {
     const input = document.createElement('input');
     input.type = 'text'; input.maxLength = MAX_TEXT; input.placeholder = '메모 입력 후 Enter';
     input.setAttribute('aria-label', '필기 텍스트');
-    input.style.cssText = `position:absolute;left:${x * this.w}px;top:${y * this.h}px;min-width:160px;max-width:60%;padding:2px 6px;font:${TEXT_FONT(size)};color:${this.penColor};background:rgba(255,255,255,.92);border:1px dashed ${this.penColor};border-radius:4px;outline:none;z-index:2;`;
+    input.style.cssText = `position:absolute;left:${x * this.w}px;top:${y * this.h}px;min-width:160px;max-width:60%;padding:2px 6px;font:${TEXT_FONT(size)};color:${this.penColor};background:${textBg(this.penColor)};border:1px dashed ${this.penColor};border-radius:4px;outline:none;z-index:2;`;
     this.textInput = { el: input, at: [x, y], color: this.penColor, bar: this.noteActions([x, y], 'Enter') };
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') { e.preventDefault(); this.commitText(); }
@@ -440,10 +442,10 @@ class SketchPad extends HTMLElement {
         continue;
       }
       if (s.tool === 'text') {
-        // 남색 도면 위에서도 읽히게 밝은 바탕을 깐다.
+        // 남색 도면 위에서도 읽히게 바탕을 깐다(잉크가 밝으면 어두운 바탕).
         const b = this.textBox(s);
         ctx.save();
-        ctx.fillStyle = 'rgba(255,255,255,.9)';
+        ctx.fillStyle = textBg(s.color);
         ctx.beginPath(); ctx.roundRect ? ctx.roundRect(b.x, b.y, b.w, b.h, 4) : ctx.rect(b.x, b.y, b.w, b.h); ctx.fill();
         ctx.fillStyle = s.color; ctx.font = TEXT_FONT(b.px); ctx.textBaseline = 'middle';
         ctx.fillText(s.text, b.x + b.pad, b.y + b.h / 2);

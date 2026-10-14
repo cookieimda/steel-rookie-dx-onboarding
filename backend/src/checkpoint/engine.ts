@@ -534,5 +534,5 @@ function resultMessage(
       : `이해도 ${pct}%예요. 기준(80%)을 넘어서 이해도 확인을 통과했어요.`;
   }
   const names = retryIds.map((id) => findConcept(rubric, id).name).join(", ");
-  return `이해도 ${pct}%예요. 기준(80%)에 못 미쳐서 섹션 처음으로 돌아갈게요. 다시 살펴본 뒤 체크포인트를 다시 시작하면 이 개념만 물어볼게요: ${names}.`;
+  return `이해도 ${pct}%예요. 기준(80%)에 못 미쳐서 섹션 처음으로 돌아갈게요. 다시 살펴본 뒤 이해도 확인을 다시 시작하면 이 개념만 물어볼게요: ${names}.`;
 }

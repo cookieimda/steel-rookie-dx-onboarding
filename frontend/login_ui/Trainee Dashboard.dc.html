@@ -294,7 +294,7 @@
           </div>
         </sc-if>
         <sc-if value="{{ showReview }}" hint-placeholder-val="{{ false }}">
-          <span style="font-size:15px;color:var(--dim);">내 체크포인트의 최근 판정 기준</span>
+          <span style="font-size:15px;color:var(--dim);">이해도 확인에서 최근에 받은 결과 기준</span>
           <sc-if value="{{ reviewEmpty }}" hint-placeholder-val="{{ false }}"><span style="font-size:15px;color:var(--muted);padding:12px 0;">복습할 개념이 없습니다.</span></sc-if>
           <div style="display:flex;flex-direction:column;">
             <sc-for list="{{ reviews }}" as="r" hint-placeholder-count="3">
@@ -501,13 +501,13 @@ class Component extends DCLogic {
         { label: '통과한 섹션', value: T ? String(T.passed_sections) : '—', unit: `/ ${secs.length || '—'}`, sub: '이해도 80% 이상', color: 'var(--ok)' },
         { label: '평균 이해도', value: avg == null ? '—' : pct(avg), unit: '', sub: '응시한 섹션의 마지막 결과', color: avg == null ? 'var(--text)' : scoreColor(avg) },
         { label: '미해결 오개념', value: D ? String(open) : '—', unit: '개', sub: '본인 기록만 표시', color: open ? 'var(--bad)' : 'var(--text)' },
-        { label: '다시 볼 개념', value: D ? String(reviews.length) : '—', unit: '개', sub: '최근 체크포인트 판정', color: reviews.length ? 'var(--mid)' : 'var(--text)' },
+        { label: '다시 볼 개념', value: D ? String(reviews.length) : '—', unit: '개', sub: '최근 이해도 확인 결과', color: reviews.length ? 'var(--mid)' : 'var(--text)' },
       ],
       secCards: secs.map(section => { const info = T?.sections[section], p = process(section); return {
         num: p.num, name: p.name, score: info ? pct(info.understanding) : '—',
         status: !info ? '미응시' : info.passed ? '통과' : '재도전 필요',
         color: !info ? 'var(--muted)' : scoreColor(info.understanding),
-        width: info ? pct(info.understanding) : '0%', attempts: info ? `${info.attempts}회 응시` : '체크포인트 기록 없음',
+        width: info ? pct(info.understanding) : '0%', attempts: info ? `${info.attempts}회 응시` : '아직 이해도 확인 전',
       }; }),
       reviews, reviewEmpty: !!D && reviews.length === 0,
       misconceptions: misconceptions.slice(0, 8).map(m => ({ name: conceptName(m.section, m.concept_id), summary: m.summary,

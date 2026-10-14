@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ST-ROOKIE · 제철 공정 지도</title>
+  <!-- 첫 화면(밤의 지도 테이블): 홈과 같은 밤 배경에서 흰 점이 모여 포항제철소 부지(위성 사진 기준 윤곽)와 공정 모양이 되고, 밤의 지도로 바뀐다.
+       제선 → 제강 → 연주 → 열연 구역이 1·2·3·4 순서로 땅에서 솟고, 주황 불빛(가로등·투광등·항만·도시 창)이 켜진다.
+       공정 칩(번호·이름·[들어가기])은 구역이 솟을 때 3초만 보이고, 그 구역에 마우스를 올리면 다시 보인다. 로직은 steel-intro.js. 설계 노트는 저장소 밖에 둔다 -->
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/+esm">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Montserrat:wght@500;700;800&family=Noto+Sans+KR:wght@300;400;500;600;700;900&display=swap">
+  <style>
+    /* 홈(login_ui/home-sleek)과 같은 밤 UI: 어두운 불투명 표면, 얇은 경계선, 흰 글자, 흰 CTA. 글자 15px 이상 */
+    :root { --night: #141416; --surf: rgba(20,20,23,.94); --surf2: #232327; --line: rgba(255,255,255,.12); --text: #f2f2f2; --muted: #a1a1a6; --dim: #7a7a80; --molten: #ff8a2a; --f-body: "Noto Sans KR", "Pretendard", system-ui, sans-serif; --f-mono: "JetBrains Mono", ui-monospace, Consolas, monospace; --f-en: "Montserrat", "Noto Sans KR", sans-serif; --ease: cubic-bezier(.2,.8,.2,1); --shadow: 0 16px 34px -10px rgba(0,0,0,.6); color-scheme: dark; }
+    html, body { margin: 0; height: 100%; background: var(--night); color: var(--text); font-family: var(--f-body); font-size: 15px; overflow: hidden; -webkit-font-smoothing: antialiased; }
+    button { font-family: inherit; }
+    button:focus-visible, a:focus-visible { outline: 2px solid var(--molten); outline-offset: 2px; }
+    #stage { position: fixed; inset: 0; }
+    #stage canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+    #stage.dragging canvas { cursor: grabbing; }
+    #hud { position: fixed; inset: 0; pointer-events: none; }
+    img.ic { display: block; }
+
+    .top { position: fixed; top: 18px; left: 22px; right: 22px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; pointer-events: none; z-index: 5; }
+    .ttl { padding: 10px 16px; border-radius: 14px; background: var(--surf); border: 1px solid var(--line); box-shadow: var(--shadow); pointer-events: auto; max-width: 520px; }
+    .ttl h1 { margin: 0; font: 800 22px/1.15 var(--f-body); letter-spacing: -.01em; }
+    .ttl p { margin: 4px 0 0; font: 400 15px/1.4 var(--f-body); color: var(--muted); }
+    .seg { pointer-events: auto; display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 999px; background: var(--surf); border: 1px solid var(--line); box-shadow: var(--shadow); }
+    .seg button { height: 36px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: 600 15px/1 var(--f-body); cursor: pointer; }
+    .seg button.on { background: #f2f2f2; color: #111; }
+    .seg .sep { width: 1px; height: 22px; background: var(--line); margin: 0 4px; }
+    .seg a { height: 36px; padding: 0 14px; border-radius: 999px; display: inline-flex; align-items: center; color: var(--text); font: 600 15px/1 var(--f-body); text-decoration: none; }
+    .seg a:hover { background: var(--surf2); }
+
+    /* 공정 칩: 번호 · 이름 · [들어가기]. 기본은 숨김, 솟을 때 3초·마우스를 올리면 보인다 */
+    .pc { position: absolute; left: 0; top: 0; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; opacity: 0; transition: opacity .3s var(--ease); pointer-events: none; }
+    .pc.on { opacity: 1; pointer-events: auto; }
+    .pc .box { display: flex; align-items: center; gap: 10px; padding: 7px 7px 7px 8px; border-radius: 999px; background: var(--surf); border: 1px solid var(--line); box-shadow: var(--shadow); white-space: nowrap; }
+    .pc.cur .box { border-color: rgba(255,138,42,.7); }
+    .pc .num { width: 26px; height: 26px; border-radius: 50%; background: var(--molten); color: #1a0e02; font: 500 13px/1 var(--f-mono); display: grid; place-items: center; flex: none; }
+    .pc .nm { font: 700 16px/1 var(--f-body); }
+    .pc button { height: 32px; padding: 0 14px; border-radius: 999px; border: 0; background: #f2f2f2; color: #111; font: 700 15px/1 var(--f-body); cursor: pointer; }
+    .pc button:hover { background: #fff; }
+    .pc .stem { width: 1px; height: 30px; background: rgba(255,255,255,.55); }
+    .pc .dot { width: 7px; height: 7px; border-radius: 50%; background: #fff; box-shadow: 0 0 8px rgba(255,170,90,.9); }
+
+    .fl { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); padding: 6px 11px; border-radius: 999px; background: var(--surf); border: 1px solid var(--line); color: var(--text); font: 600 15px/1 var(--f-body); white-space: nowrap; opacity: 0; transition: opacity .3s var(--ease); pointer-events: none; }
+    .fl.on { opacity: 1; }
+    .fl i { font-style: normal; color: var(--molten); }
+
+    .flow { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); width: min(880px, calc(100vw - 44px)); z-index: 5; display: flex; align-items: center; gap: 16px; padding: 10px 16px 10px 10px; border-radius: 999px; background: var(--surf); border: 1px solid var(--line); box-shadow: var(--shadow); pointer-events: auto; box-sizing: border-box; }
+    .flow .pl { width: 44px; height: 44px; border-radius: 50%; border: 0; background: #f2f2f2; display: grid; place-items: center; cursor: pointer; flex: none; }
+    .flow .lbl { font: 400 12px/1 var(--f-mono); letter-spacing: .22em; color: var(--dim); white-space: nowrap; }
+    .flow .tl { flex: 1; position: relative; height: 44px; margin: 0 14px; }
+    .flow .tl::before { content: ""; position: absolute; left: 0; right: 0; top: 14px; height: 1px; background: rgba(255,255,255,.18); }
+    .flow .tl .fill { position: absolute; left: 0; top: 14px; height: 1px; background: var(--molten); transition: width .5s var(--ease); }
+    .flow .tl button { position: absolute; top: 14px; transform: translate(-50%, -50%); width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(255,255,255,.4); background: var(--night); cursor: pointer; padding: 0; }
+    .flow .tl button.up { border-color: var(--molten); background: var(--molten); }
+    .flow .tl button.cur { width: 18px; height: 18px; border: 3px solid var(--molten); background: var(--night); }
+    .flow .tl button span { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); font: 500 15px/1 var(--f-body); color: var(--muted); white-space: nowrap; }
+    .flow .tl button.cur span, .flow .tl button.up span { color: #fff; font-weight: 700; }
+    .flow .nx { height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--text); font: 600 15px/1 var(--f-body); cursor: pointer; white-space: nowrap; }
+    .flow .nx:hover { background: var(--surf2); }
+
+    /* 여는 장면(홈과 같은 hero) */
+    .top, .flow { transition: opacity .8s var(--ease); }
+    body.intro .top, body.intro .flow { opacity: 0; pointer-events: none; }
+    .ov { position: fixed; left: 0; right: 0; bottom: 9vh; z-index: 6; text-align: center; color: #fff; pointer-events: none; transition: opacity .9s var(--ease), transform .9s var(--ease); }
+    .ov.out { opacity: 0; transform: translateY(-14px); }
+    .ov .eb { margin: 0 0 14px; font: 400 13px/1 var(--f-mono); letter-spacing: .3em; color: #9a9aa0; }
+    .ov h2 { margin: 0; font: 800 clamp(40px, 7vw, 96px)/.95 var(--f-en); letter-spacing: .02em; }
+    .ov .lead { margin: 18px 0 0; font: 300 15px/1.5 var(--f-body); color: #a1a1a6; }
+    .ov .lead strong { font-weight: 700; color: #fff; }
+    .ov .steps { margin: 18px 0 0; font: 400 13px/1 var(--f-mono); letter-spacing: .22em; color: #9a9aa0; }
+    .ov .steps .on { color: #fff; }
+    .ov .skip { pointer-events: auto; margin-top: 22px; height: 36px; padding: 0 16px; border-radius: 999px; border: 1px solid rgba(255,255,255,.22); background: transparent; color: #c9c9ce; font: 500 15px/1 var(--f-body); cursor: pointer; }
+    .ov .skip:hover { color: #fff; border-color: rgba(255,255,255,.5); }
+
+    #load { position: fixed; inset: 0; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 45%, #232327 0%, var(--night) 60%); z-index: 9; transition: opacity .6s var(--ease); }
+    #load.off { opacity: 0; pointer-events: none; }
+    #load b { font: 400 13px/1 var(--f-mono); letter-spacing: .3em; color: #9a9aa0; }
+    #load .bar { width: 180px; height: 1px; background: rgba(255,255,255,.14); overflow: hidden; margin-top: 14px; }
+    #load .bar i { display: block; height: 100%; width: 0; background: #f2f2f2; transition: width .3s var(--ease); }
+    @media (max-width: 900px) { .ttl p { display: none; } .ttl h1 { font-size: 20px; } .flow .lbl { display: none; } .flow .tl button span { font-size: 12px; } }
+    @media (prefers-reduced-motion: reduce) { .pc, .fl, .flow .tl .fill, #load, .ov { transition: none; } }
+  </style>
+</head>
+<body class="intro">
+  <div id="stage" aria-label="포항제철소 밤 지도 위 제철 공정 3D. 제선, 제강, 연주, 열연 구역이 순서대로 올라오고, 구역에 마우스를 올리면 들어가기 버튼이 보입니다."></div>
+  <div id="hud"></div>
+
+  <div class="top">
+    <div class="ttl"><h1>제철 공정 지도</h1><p>제선 → 제강 → 연주 → 열연 구역이 차례로 올라옵니다. 구역에 마우스를 올려 그 공정으로 들어가세요.</p></div>
+    <div class="seg" role="group" aria-label="보기"><button id="v2d" aria-pressed="false">지도</button><button id="v3d" class="on" aria-pressed="true">3D</button><span class="sep"></span><a href="/login" title="마이페이지">마이페이지</a></div>
+  </div>
+
+  <div class="flow">
+    <button class="pl" id="btnPlay" title="재생" aria-label="재생"><img class="ic" id="icPlay" width="22" height="22" alt=""></button>
+    <span class="lbl">PROCESS FLOW</span>
+    <div class="tl" id="tl"><div class="fill" id="tlFill" style="width:0"></div></div>
+    <button class="nx" id="btnNext">다음 공정 ›</button>
+  </div>
+
+  <!-- 여는 장면 문구(홈 hero와 같은 형식). 아무 곳이나 누르거나 키를 누르면 건너뛴다 -->
+  <div class="ov" id="ov"><p class="eb">[ STEEL PROCESS MAP ]</p><h2>STEEL, ON THE MAP.</h2><p class="lead">점이 모여 제철소가 됩니다. 실제 배치 그대로 <strong>제선부터 열연까지</strong> 따라가 보세요.</p><p class="steps" id="ovSteps"><span>IRONMAKING</span> · <span>STEELMAKING</span> · <span>CASTING</span> · <span>ROLLING</span></p><button class="skip" id="ovSkip" type="button">건너뛰기</button></div>
+
+  <div id="load"><div style="display:flex;flex-direction:column;align-items:center"><b>ST-ROOKIE</b><div class="bar"><i id="loadbar"></i></div></div></div>
+
+  <script type="module" src="./steel-intro.js"></script>
+</body>
+</html>

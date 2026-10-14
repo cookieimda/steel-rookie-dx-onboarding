@@ -6,7 +6,7 @@
 //     하단 재생 바(설비 차례로 보기 + 단계 카드 자동 넘김, 1×·2×). 아이콘·온도 보조는 steel-index-ui.js(v4에서 옮김).
 // 학습 현황(벽 대시보드, 왼쪽 위 패널은 없앴다): 지금 보는 것 · 이 세션에서 본 설비 수 · 이해도 확인 상태(GET /api/sections/:section/progress, 로그인 때만) · 다시 볼 설비(GET /api/me/misconceptions의
 //     미해결 체크포인트 오개념 → learn-hud-state.js의 개념→설비 표). 실제 값만 보여 주고, 로그인 전에는 안내 문구를 둔다.
-// 설비 보기: 하단 점·3D 클릭(설비를 짚으면 그 설비, 그 밖은 다음 설비)·← →. 선택한 설비는 바닥의 시안 링으로 감싸고 나머지 설비는 색을 낮춘다. 전체 보기(공정만)에서는 설비 UI를 띄우지 않는다.
+// 설비 보기: 하단 점·3D 클릭(설비를 짚으면 그 설비, 그 밖은 다음 설비)·← →. 설비 번호 핀·핫스팟은 UI 주황(--hot, 2026-10-14 요청. 바닥 물결만 시안). 선택한 설비는 바닥의 시안 링으로 감싸고 나머지 설비는 색을 낮춘다. 전체 보기(공정만)에서는 설비 UI를 띄우지 않는다.
 // 대시보드 보기: 뒷벽(공정 이름 + 대시보드 4장)이 화면에 꼭 차게 정면에서 보고, 앞에 선 공정 모델은 옅게(18%) 둬 벽이 읽히게 한다. 드래그·설비 선택·공정 바꾸기로 외관으로 돌아온다(평면 보기를 대신한다, 2026-10-14 요청).
 // 튜터: learning-chat.js(createLearningChat)를 그대로 쓴다(POST /api/chat, 로그인 토큰). 페이지 컴포넌트 대신 작은 어댑터(state·setState·scene()·goProcess)를 넘긴다.
 // 수치는 data_v2.js와 서버 응답에서만 가져온다. 꾸며 낸 실시간 값은 쓰지 않는다. prefers-reduced-motion이면 솟아오르기·글자 연출·자전 없이 바로 놓는다.
@@ -300,7 +300,7 @@ function renderTutor() {
 function tagFor(e) {
   if (e.tag) return e.tag;
   const t = document.createElement('div'); t.className = 'tag'; t.style.cssText = 'position:absolute;left:0;top:0;transform:translate(-50%,-100%);opacity:0;transition:opacity .3s;display:flex;flex-direction:column;align-items:center;gap:6px;white-space:nowrap;pointer-events:none;';
-  t.innerHTML = `<span class="k" style="display:inline-flex;align-items:center;gap:8px;padding:7px 12px 7px 7px;background:rgba(13,17,20,.86);border:1px solid rgba(255,255,255,.2);color:#fff;font:600 15px/1 var(--f-body);border-radius:999px;backdrop-filter:blur(6px)"><i style="width:22px;height:22px;border-radius:50%;background:#22c7f0;color:#04202b;font:700 12px/1 var(--f-mono);font-style:normal;display:grid;place-items:center">${e.i + 1}</i><span class="nm">${esc(e.data.name)}</span></span><span class="ld" style="width:1px;height:22px;background:linear-gradient(#c9d1d6,transparent)"></span>`;
+  t.innerHTML = `<span class="k" style="display:inline-flex;align-items:center;gap:8px;padding:7px 12px 7px 7px;background:rgba(13,17,20,.86);border:1px solid rgba(255,255,255,.2);color:#fff;font:600 15px/1 var(--f-body);border-radius:999px;backdrop-filter:blur(6px)"><i style="width:22px;height:22px;border-radius:50%;background:var(--hot);color:#1a1200;font:700 12px/1 var(--f-mono);font-style:normal;display:grid;place-items:center">${e.i + 1}</i><span class="nm">${esc(e.data.name)}</span></span><span class="ld" style="width:1px;height:22px;background:linear-gradient(#c9d1d6,transparent)"></span>`;
   hud.appendChild(t); return (e.tag = t);
 }
 

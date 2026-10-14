@@ -1,6 +1,6 @@
 import { GeminiAdminSummarizer } from "../../llm/src/admin-summary.js";
 import { GeminiEvaluator } from "../../llm/src/evaluator.js";
-import { GeminiClient } from "../../llm/src/gemini.js";
+import { DEFAULT_GEMINI_MODEL, GeminiClient } from "../../llm/src/gemini.js";
 import { GeminiLearningAgent } from "../../llm/src/learning-agent.js";
 import { Retriever } from "../../llm/src/retrieval.js";
 import { GeminiTutor } from "../../llm/src/tutor.js";
@@ -19,10 +19,14 @@ import { LearningRepository } from "./learning/repository.js";
 import { createLearningRouter } from "./learning/routes.js";
 import { loadSceneCatalog } from "./learning/scene-catalog.js";
 import { loadScreenSteps } from "./learning/screen-material.js";
+import { AnswerCache, answerCacheVersion } from "./learning/answer-cache.js";
+import { loadSuggestedQuestions, warmItems } from "./learning/suggested.js";
 import { currentUserId } from "./request-user.js";
 import { loadFinalRubrics } from "./rubrics.js";
 import { passcodeRequired } from "./test-access.js";
 import { LlmUsage } from "./usage.js";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 // 루브릭 형식이 틀리면 여기서 예외가 나 서버가 시작되지 않는다.
 const rubrics = loadFinalRubrics();
@@ -51,13 +55,21 @@ const currentConcepts = new Map(rubrics.map((r) => [r.section, new Set(r.concept
 useLearnerNotesSource({
   openMisconceptions: (userId, section) => learningRepo.openMisconceptions(userId, section).filter((m) => currentConcepts.get(section)?.has(m.concept_id)),
 });
+// 학습 답 저장(answer-cache.ts): 모델·학습 프롬프트·공개 자료가 바뀌면 버전이 바뀌어 다시 받는다.
+const readText = (path: string) => { try { return readFileSync(join(process.cwd(), path), "utf8"); } catch { return ""; } };
+const answerCache = new AnswerCache(
+  answerCacheVersion(process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL, ["llm/prompts/learning-system.md", "backend/data/ironmaking-sources.json", "content/materials/ironmaking/section.md"].map(readText)),
+  process.env.ANSWER_CACHE_PATH || join(process.cwd(), "data", "answer-cache.json"),
+);
+const sceneCatalog = await loadSceneCatalog();
+const suggestedQuestions = await loadSuggestedQuestions();
 const learning = createLearningRouter({
   repo: learningRepo,
   retriever: new Retriever({ glossaryFor: (s) => rubrics.find((r) => r.section === s)?.glossary ?? [] }),
   agent: new GeminiLearningAgent(gemini),
   rubrics,
   // 튜터의 3D 화면 조작(scene_actions)에 쓸 공정·설비 목록. data_v2.js 형식이 틀리면 서버가 시작되지 않는다.
-  scene: await loadSceneCatalog(),
+  scene: sceneCatalog,
   // 학습 화면의 설비 작동 단계 설명(3D·2D). 근거로 답하지 못할 때 화면 위치를 안내하는 데에만 쓴다. 못 읽으면 경고만 남긴다.
   screenSteps: await loadScreenSteps(),
   // 체크포인트에서 아직 만점이 아닌 개념(튜터에 넘김)과 진행 중 여부(진행 중이면 키워드 카드를 붙이지 않음). 이해도 계산은 엔진(summarizeSection)이 한다.
@@ -66,6 +78,8 @@ const learning = createLearningRouter({
     const p = engine.sectionProgress(userId, section);
     return { retry_concept_ids: p.retry_concept_ids, in_progress: p.in_progress_attempt_id !== null };
   },
+  cache: answerCache,
+  suggestedQuestions,
 });
 
 const app = createApp({ engine, usage, learning });
@@ -81,4 +95,11 @@ const port = Number(process.env.PORT ?? 3000);
 app.listen(port, "127.0.0.1", () => {
   console.log(`제선 공정 알아보기: http://localhost:${port}`);
   console.log(`접속 비밀번호: ${passcodeRequired() ? "사용(TEST_PASSCODE)" : "사용 안 함"} · 사용자별 하루 LLM 호출 한도: ${usage.dailyLimit > 0 ? `${usage.dailyLimit}회` : "제한 없음"}`);
+  // 추천 질문 답을 뒤에서 미리 받아 둔다(저장한 답이 있으면 건너뜀). 끄려면 WARM_ANSWERS=off.
+  if (process.env.WARM_ANSWERS?.trim().toLowerCase() === "off") return;
+  const items = warmItems(suggestedQuestions, sceneCatalog);
+  console.log(`추천 질문 답 미리 받기: ${items.length}개(저장된 답 ${answerCache.size}개)`);
+  const started = Date.now();
+  void learning.warmAnswers(items).then(({ saved, cached, failed }) =>
+    console.log(`추천 질문 답 미리 받기 끝: 새로 ${saved} · 이미 있음 ${cached} · 실패 ${failed} (${Math.round((Date.now() - started) / 1000)}초)`));
 });

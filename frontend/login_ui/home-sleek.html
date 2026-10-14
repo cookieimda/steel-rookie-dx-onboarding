@@ -74,7 +74,7 @@
   <script type="module">
     // ---- 로그인 (login-sleek.html과 같은 계약: docs/auth-api.md) ----
     const TOKEN_KEY = 'st-rookie-token';
-    const NEXT_URL = '/3d-demo/Steel%20Academy%20v4.dc.html'; // v4(세련안) 3D 화면
+    const NEXT_URL = '/3d-demo/steel-intro.html'; // 첫 화면: 복셀 공정 지도(steel-intro) → 공정 인덱스 3D(steel-index). v4는 /3d-demo/Steel%20Academy%20v4.dc.html에 그대로 있다
     const ADMIN_URL = '/login'; // 관리자는 My Page(관리자 통계)로 간다
     const nextUrl = (user) => (user?.role === 'admin' ? ADMIN_URL : NEXT_URL);
     // 시연 계정(서버 시작 때 만드는 계정, backend/src/auth/demo-accounts.ts). 비밀번호는 DEMO_PASSWORD 기본값이다.

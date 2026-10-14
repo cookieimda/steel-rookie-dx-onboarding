@@ -45,9 +45,9 @@ export function createApp({ engine, usage, webRoot = join(process.cwd(), "fronte
   app.get("/login", (_req, res) => res.redirect("/login_ui/My%20Page.dc.html"));
 
   // 첫 화면은 홈(로그인). 3D 학습 화면(v4)은 무거워서 로그인한 뒤에 연다.
-  // 쿼리가 있는 주소(예: /?p=ironmaking&tutor=1)는 3D 화면으로 바로 들어가는 링크라 v4를 그대로 준다.
+  // 쿼리가 있는 주소(예: /?p=ironmaking&tutor=1)는 3D 화면으로 바로 들어가는 링크라 공정 인덱스 3D(steel-index.html)를 준다. v4는 /3d-demo/Steel%20Academy%20v4.dc.html로 직접 연다.
   app.get("/", (req, res) => {
-    if (Object.keys(req.query).length) res.sendFile(join(webRoot, "Steel Academy v4.dc.html"));
+    if (Object.keys(req.query).length) res.sendFile(join(webRoot, "steel-index.html"));
     else res.redirect("/login_ui/home-sleek.html");
   });
   return app;

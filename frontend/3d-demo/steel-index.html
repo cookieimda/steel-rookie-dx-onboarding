@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ST-ROOKIE · Steel Process Index</title>
+  <!-- 공정 인덱스 3D: 슬레이트 테이블 위에 공정 하나만 올리고, v4 3D 화면의 UI(상단 알약 바·왼쪽 설비 목록·오른쪽 상세/단계/튜터 패널·하단 재생 바)와 상호작용을 옮겨 왔다.
+       로직은 steel-index.js(독립 페이지, support.js를 쓰지 않는다). 아이콘·온도 보조는 steel-index-ui.js(v4에서 옮김). 설계 노트는 저장소 밖에 둔다, 설계 노트는 저장소 밖에 둔다
+       스타일 원칙((저장소 밖 설계 노트)): 사용자가 읽는 일반 텍스트는 15px 이상, 패널은 불투명(3D 위 글래스는 상단 알약 바와 설비 칩만), 포커스 표시, 클릭 대상 40px 이상. -->
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/+esm">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;700&family=Noto+Sans+KR:wght@400;500;600;700;900&display=swap">
+  <style>
+    /* 표면: 피드백대로 Slate-900 불투명 + Slate-700 경계선 */
+    :root { --chrome: rgb(15,23,42); --chrome2: #141d33; --chrome3: #1e293b; --chrome4: #283548; --line: rgba(51,65,85,.6); --line2: rgba(51,65,85,.9); --text: #f2f2f2; --muted: #b3b3b8; --dim: #80808a; --accent: #f2f2f2; --accent-ink: #111; --hot: #ff9a2e; --molten: #ff7a1a; --warn: #f5b13d; --ok: #3ddc97; --cyan: #22c7f0; --ease: cubic-bezier(.2,.8,.2,1); --t-fast: .15s; --t-base: .25s; --f-body: "Noto Sans KR", "Pretendard", system-ui, sans-serif; --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace; --r-s: 8px; --r-m: 12px; --r-l: 16px; color-scheme: dark; }
+    html, body { margin: 0; height: 100%; background: #0d1114; color: var(--text); font-family: var(--f-body); font-size: 15px; overflow: hidden; -webkit-font-smoothing: antialiased; }
+    button { font-family: inherit; }
+    button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--molten); outline-offset: 2px; }
+    #stage { position: fixed; inset: 0; }
+    #stage canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+    #stage.dragging canvas { cursor: grabbing; }
+    #hud { position: fixed; inset: 0; pointer-events: none; }
+    img.ic { display: block; }
+    .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+    /* ---- 상단 알약 바 (v4). 임시 컨트롤이라 반투명을 둔다 ---- */
+    .top { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 7; display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 999px; background: rgba(18,18,20,.9); border: 1px solid var(--line2); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+    .top .rb { width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--chrome3); color: var(--text); display: grid; place-items: center; cursor: pointer; position: relative; transition: background var(--t-fast) var(--ease); }
+    .top .rb:hover { background: var(--chrome4); }
+    .top .rb.on { background: var(--accent); }
+    .top .rb .dot { position: absolute; top: 6px; right: 6px; width: 9px; height: 9px; border-radius: 50%; background: #ff5a5a; border: 2px solid #121214; display: none; }
+    .top .rb.unread .dot { display: block; }
+    .top .tabs { display: flex; align-items: center; gap: 2px; padding: 0 5px; height: 40px; border-radius: 999px; background: var(--chrome3); }
+    .top .tabs button { height: 32px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: 600 15px/1 var(--f-body); cursor: pointer; display: flex; align-items: center; gap: 7px; transition: background var(--t-fast), color var(--t-fast); }
+    .top .tabs button code { font: 500 12px/1 var(--f-mono); color: var(--dim); }
+    .top .tabs button:hover { background: rgba(255,255,255,.06); color: var(--text); }
+    .top .tabs button.on { background: var(--accent); color: var(--accent-ink); }
+    .top .tabs button.on code { color: #6b6b70; }
+    .top .seg { display: flex; align-items: center; gap: 2px; padding: 0 4px; height: 40px; border-radius: 999px; background: var(--chrome3); }
+    .top .seg button { height: 32px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: 600 15px/1 var(--f-body); cursor: pointer; }
+    .top .seg button.on { background: var(--accent); color: var(--accent-ink); }
+    .top .sep { width: 1px; height: 26px; background: var(--line2); margin: 0 4px; }
+    .hint { position: fixed; top: 20px; right: 18px; z-index: 5; font: 400 15px/1 var(--f-body); color: var(--muted); pointer-events: none; white-space: nowrap; }
+
+
+    /* ---- 오른쪽 패널 (불투명) ---- */
+    .right { position: fixed; top: 62px; right: 10px; bottom: 96px; z-index: 6; width: 440px; max-width: calc(100vw - 20px); border-radius: var(--r-l); background: var(--chrome); border: 1px solid var(--line2); display: none; flex-direction: column; overflow: hidden; }
+    .right.on { display: flex; }
+    .right .scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 22px 18px; display: flex; flex-direction: column; scrollbar-width: thin; }
+    .right .eyebrow { font: 400 13px/1 var(--f-mono); letter-spacing: .06em; color: var(--muted); }
+    .right h1 { margin: 10px 0 0; font: 900 28px/1.15 var(--f-body); letter-spacing: -.02em; }
+    .right .x { position: absolute; top: 14px; right: 14px; width: 40px; height: 40px; border: 0; border-radius: 50%; background: transparent; cursor: pointer; display: grid; place-items: center; }
+    .right .x:hover { background: var(--chrome3); }
+    .right h2 { margin: 20px 0 8px; font: 500 15px/1 var(--f-body); color: var(--muted); }
+    .right p { margin: 0; font: 400 16px/1.6 var(--f-body); color: #e4e4e6; text-wrap: pretty; }
+    .right .io { display: grid; grid-template-columns: 1fr 20px 1fr; align-items: center; gap: 10px; padding: 12px 14px; border-radius: var(--r-m); background: var(--chrome3); margin-top: 14px; }
+    .right .io small { display: block; font: 400 15px/1 var(--f-body); color: var(--muted); margin-bottom: 6px; }
+    .right .io b { font: 700 15px/1.4 var(--f-body); }
+    .right .io span { color: var(--muted); font-size: 18px; text-align: center; }
+    .right .note { display: grid; grid-template-columns: 14px 1fr; gap: 8px; margin-top: 6px; font: 400 15px/1.55 var(--f-body); color: #c3ccd7; }
+    .right .note i { font-style: normal; color: var(--accent); }
+    .right .foot { display: flex; gap: 8px; padding: 10px 16px 12px; border-top: 1px solid var(--line); }
+    .right .foot button { flex: 1; height: 44px; border-radius: 999px; border: 1px solid var(--line2); background: var(--chrome3); color: var(--text); font: 600 15px/1 var(--f-body); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; }
+    .right .foot button.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 700; }
+    .right .foot button:hover { filter: brightness(1.1); }
+    .right .steps { margin-top: 10px; border-top: 1px solid var(--line2); }
+    .right .steps button { width: 100%; display: grid; grid-template-columns: 40px minmax(0,1fr); gap: 10px; padding: 10px 2px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+    .right .steps button:hover { background: rgba(255,255,255,.04); }
+    .right .steps .tile { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; background: var(--chrome3); border: 1.5px solid #6b7686; }
+    .right .steps .zone { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; font: 700 15px/1.2 var(--f-body); }
+    .right .steps .zone code { font: 400 13px/1 var(--f-mono); color: var(--hot); white-space: nowrap; }
+    .right .steps .tx { margin-top: 3px; font: 400 15px/1.55 var(--f-body); color: #c3ccd7; }
+
+    /* 단계 보기: L1(설비·단계·상태) / L2(핵심 수치·현장 포인트) / L3(원리·반응) 3단 블록 */
+    .lv { padding: 14px 0; border-bottom: 1px solid var(--line2); }
+    .lv.l1 { padding-top: 0; }
+    .lv.l3 { border-bottom: 0; }
+    .lvh { font: 500 15px/1 var(--f-body); color: var(--muted); margin-bottom: 10px; }
+    .badges { display: flex; gap: 6px; margin-top: 10px; }
+    .badge { display: inline-flex; align-items: center; height: 28px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line2); background: var(--chrome3); font: 600 15px/1 var(--f-body); color: var(--muted); }
+    .badge.run { border-color: rgba(61,220,151,.5); color: var(--ok); }
+    .badge.run::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); margin-right: 7px; animation: blink 1.2s infinite; }
+    .kpi { display: flex; flex-direction: column; gap: 3px; margin-top: 10px; padding: 12px 14px; border-radius: var(--r-m); background: var(--chrome3); }
+    .kpi b { font: 700 32px/1.1 var(--f-body); letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+    .kpi span { font: 400 15px/1.4 var(--f-body); color: var(--muted); }
+    .kpi small { font: 400 15px/1.4 var(--f-mono); color: var(--dim); }
+    .hots { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+    .hots li button { width: 100%; display: grid; grid-template-columns: 18px 1fr; gap: 10px; align-items: start; padding: 9px 10px; border: 1px solid transparent; border-radius: var(--r-s); background: transparent; color: var(--text); text-align: left; cursor: pointer; font: 400 15px/1.45 var(--f-body); }
+    .hots li button:hover { background: rgba(255,255,255,.05); }
+    .hots li.on button { background: rgba(34,199,240,.1); border-color: rgba(34,199,240,.5); }
+    .hots li button i { width: 12px; height: 12px; border-radius: 50%; margin-top: 5px; background: var(--cyan); box-shadow: 0 0 0 3px rgba(34,199,240,.25); }
+    .hots li button b { display: block; font-weight: 600; }
+    .hots li button small { display: block; font-size: 15px; color: var(--muted); }
+    /* 3D 위 핫스팟 핀(step-fx 말풍선을 바꾼 것). 글은 패널 '현장 포인트'에서 */
+    .sfx.lh-hot { pointer-events: none; }
+    .sfx.lh-hot .lh-pin { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; background: var(--cyan); box-shadow: 0 0 0 0 rgba(34,199,240,.6); cursor: pointer; pointer-events: auto; padding: 0; animation: lhPulse 1.6s ease-out infinite; }
+    .sfx.lh-hot .lh-pin i { display: block; width: 100%; height: 100%; }
+    .sfx.lh-hot.on .lh-pin { background: var(--molten); box-shadow: 0 0 0 4px rgba(255,122,26,.35); animation: none; transform: translate(-50%, -50%) scale(1.25); }
+    @keyframes lhPulse { 0% { box-shadow: 0 0 0 0 rgba(34,199,240,.6); } 70% { box-shadow: 0 0 0 10px rgba(34,199,240,0); } 100% { box-shadow: 0 0 0 0 rgba(34,199,240,0); } }
+    @media (prefers-reduced-motion: reduce) { .sfx.lh-hot .lh-pin, .badge.run::before { animation: none; } }
+    /* 단계 보기 (v4 단면 보기 카드) */
+    .stepcard .no { display: flex; align-items: center; gap: 12px; height: 50px; padding: 0 14px; border-radius: 999px; background: rgba(255,154,46,.16); box-shadow: 0 6px 18px rgba(255,120,30,.18); font: 700 17px/1 var(--f-body); }
+    .stepcard .no i { width: 28px; height: 28px; border-radius: 50%; background: #ff9a2e; color: #1a1206; font: 700 15px/1 var(--f-mono); font-style: normal; display: grid; place-items: center; }
+    .stepcard .no em { margin-left: auto; width: 10px; height: 10px; border-radius: 3px; background: #6b7686; }
+    .stepcard .heat { position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 10px; padding: 14px 16px 12px; border-radius: var(--r-m); background: #17120e; margin-top: 16px; }
+    .stepcard .heat .bg { position: absolute; left: -30%; top: -40%; width: 160%; height: 180%; opacity: .4; pointer-events: none; }
+    .stepcard .heat > * { position: relative; }
+    .stepcard .heat .lab { font: 400 15px/1 var(--f-body); color: #f3ebe2; }
+    .stepcard .heat .val { font: 900 34px/1.1 var(--f-body); letter-spacing: -.01em; font-variant-numeric: tabular-nums; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+    .right, .bar { box-shadow: 0 20px 25px -5px rgba(0,0,0,.5); }
+    .stepcard .heat .bar { height: 10px; border-radius: 5px; background: linear-gradient(90deg,#3b82f6 0%,#facc15 40%,#f97316 65%,#ef4444 100%); opacity: .3; }
+    .stepcard .heat .fill { position: absolute; top: -2px; height: 14px; border-radius: 7px; background: linear-gradient(90deg,#ffd27a,#ff7a1a); }
+    .stepcard .heat .scale { display: flex; justify-content: space-between; margin-top: 6px; font: 400 12px/1 var(--f-mono); color: #d2c6b8; }
+    .stepcard .heat .note2 { font: 400 15px/1.5 var(--f-body); color: #c4b6a6; }
+    .stepcard .nav { display: flex; gap: 8px; margin-top: 14px; }
+    .stepcard .nav button { flex: 1; height: 40px; border-radius: 999px; border: 1px solid var(--line2); background: transparent; color: var(--text); font: 600 15px/1 var(--f-body); cursor: pointer; }
+    .stepcard .nav button:hover { background: var(--chrome3); }
+
+    /* AI 튜터 (v4) */
+    .chat { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 16px 12px; display: flex; flex-direction: column; gap: 12px; scrollbar-width: thin; }
+    .msg.user { align-self: flex-end; max-width: 85%; background: var(--chrome4); padding: 10px 13px; border-radius: 12px 12px 4px 12px; font: 400 15px/1.5 var(--f-body); }
+    .msg.ai { align-self: flex-start; max-width: 94%; display: flex; flex-direction: column; gap: 8px; }
+    .msg.ai .b { background: var(--chrome3); padding: 10px 13px; border-radius: 12px 12px 12px 4px; font: 400 15px/1.6 var(--f-body); text-wrap: pretty; white-space: pre-wrap; }
+    .msg.ai .cite { font: 400 15px/1.4 var(--f-body); color: var(--muted); padding-left: 4px; }
+    .msg.ai .fu { text-align: left; display: flex; flex-direction: column; gap: 2px; background: transparent; border: 1px dashed var(--accent); border-radius: var(--r-s); padding: 8px 12px; color: var(--text); cursor: pointer; font: 400 15px/1.4 var(--f-body); }
+    .msg.safety { align-self: flex-start; max-width: 92%; background: rgba(255,90,90,.12); border: 1px solid rgba(255,90,90,.4); color: #ffc9c9; padding: 10px 12px; border-radius: 10px; font: 400 15px/1.55 var(--f-body); }
+    .msg.err { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line2); background: var(--chrome3); font: 600 15px/1.4 var(--f-body); }
+    .typing { align-self: flex-start; display: flex; gap: 4px; padding: 12px 14px; background: var(--chrome3); border-radius: 10px; }
+    .typing i { width: 6px; height: 6px; border-radius: 3px; background: var(--muted); animation: blink 1s infinite; } .typing i:nth-child(2) { animation-delay: .2s } .typing i:nth-child(3) { animation-delay: .4s }
+    @keyframes blink { 0%, 100% { opacity: .2 } 50% { opacity: 1 } }
+    .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+    .chips button { min-height: 36px; padding: 8px 12px; border-radius: 999px; border: 1px solid var(--line2); background: var(--chrome3); color: var(--text); font: 400 15px/1.2 var(--f-body); cursor: pointer; text-align: left; }
+    .chips button:hover { background: var(--chrome4); }
+    .chiphead { display: flex; align-items: center; gap: 10px; margin-top: 6px; font: 600 15px/1 var(--f-body); color: var(--muted); white-space: nowrap; }
+    .chiphead i { flex: 1; height: 1px; background: var(--line2); }
+    form.send { display: flex; gap: 8px; padding: 10px 16px 12px; border-top: 1px solid var(--line); }
+    form.send input { flex: 1; min-width: 0; height: 42px; background: var(--chrome2); color: var(--text); border: 1px solid var(--line2); border-radius: 999px; padding: 0 16px; font: 400 15px/1 var(--f-body); outline: none; }
+    form.send input:focus { border-color: var(--accent); }
+    form.send button { height: 42px; padding: 0 16px; border-radius: 999px; border: 0; background: var(--accent); color: var(--accent-ink); font: 700 15px/1 var(--f-body); cursor: pointer; flex: none; }
+    .tutorhead { display: flex; align-items: flex-start; gap: 10px; padding: 18px 16px 10px; }
+    .tutorhead h1 { margin: 0; font: 900 24px/1.1 var(--f-body); }
+    .tutorhead small { display: block; margin-top: 4px; font: 400 15px/1.4 var(--f-body); color: #c3ccd7; }
+    .tutorhead .x2 { width: 40px; height: 40px; border: 0; border-radius: 50%; background: transparent; cursor: pointer; display: grid; place-items: center; }
+    .tutorhead .x2:hover { background: var(--chrome3); }
+
+    /* ---- 하단 재생 바 (불투명) ---- */
+    .bar { position: fixed; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 16px; height: 74px; padding: 0 22px 0 12px; border-radius: 999px; background: var(--chrome); border: 1px solid var(--line2); max-width: calc(100vw - 20px); }
+    body.panel .bar { left: 10px; right: 460px; transform: none; max-width: none; width: auto; justify-content: center; }
+    .bar .play { width: 48px; height: 48px; border-radius: 50%; border: 1px solid var(--line2); background: var(--chrome3); color: var(--text); display: grid; place-items: center; cursor: pointer; flex: none; }
+    .bar .play:hover { background: var(--chrome4); }
+    .bar .track { display: flex; align-items: flex-start; position: relative; }
+    .bar .track::before { content: ""; position: absolute; left: 10px; right: 10px; top: 7px; height: 2px; background: var(--line2); }
+    .bar .stop { width: auto; min-width: 96px; max-width: 150px; display: flex; flex-direction: column; align-items: center; gap: 9px; border: 0; background: transparent; color: var(--muted); font: 500 15px/1 var(--f-body); cursor: pointer; white-space: nowrap; position: relative; padding: 0 8px; }
+    .bar .stop span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+    .bar .stop i { width: 9px; height: 9px; border-radius: 50%; background: var(--chrome4); border: 2px solid #4a4a4e; margin-top: 3px; transition: transform var(--t-fast); }
+    .bar .stop.done i { background: #fff; border-color: #fff; }
+    .bar .stop.cur { color: #fff; font-weight: 700; }
+    .bar .stop.cur i { background: #fff; border-color: #fff; transform: scale(1.7); }
+    .bar .speed { height: 36px; min-width: 44px; padding: 0 8px; border: 0; border-radius: 999px; background: transparent; color: var(--text); font: 700 15px/1 var(--f-mono); cursor: pointer; }
+    .bar .speed:hover { background: var(--chrome3); }
+    @media (max-width: 1280px) { body.panel .bar .stop { width: 84px; font-size: 13px; } .bar .stop { width: 96px; } }
+    /* 좁은 화면: 오른쪽 패널이 열리면 왼쪽 목록을 접고(머리만), 상단 바를 줄인다 */
+    @media (max-width: 1100px) { .top { top: 8px; gap: 4px; padding: 4px; } .top .tabs button { padding: 0 8px; } .top .tabs button code { display: none; } .hint { display: none; } .right { top: 58px; } }
+    @media (max-width: 760px) { .right { width: calc(100vw - 20px); top: 60px; } .right h1 { font-size: 24px; } .bar { height: 64px; gap: 10px; } .bar .stop { width: 66px; font-size: 12px; } .bar .play { width: 44px; height: 44px; } .hint { display: none; } .top .tabs button { padding: 0 8px; } .top .tabs button code, .top .seg { display: none; } }
+
+    /* 상태: 로딩·오류 */
+    #load { position: fixed; inset: 0; display: grid; place-items: center; background: #0d1114; z-index: 9; transition: opacity .6s var(--ease); }
+    #load.off { opacity: 0; pointer-events: none; }
+    #load .bar2 { width: 180px; height: 1px; background: rgba(255,255,255,.12); overflow: hidden; margin-top: 14px; }
+    #load .bar2 i { display: block; height: 100%; width: 0; background: var(--molten); transition: width .3s var(--ease); }
+    #load b { font: 500 13px/1 var(--f-mono); letter-spacing: .22em; color: var(--muted); }
+    #load .err { margin-top: 14px; font: 400 15px/1.5 var(--f-body); color: var(--warn); text-align: center; max-width: 360px; display: none; }
+    .toast { position: fixed; left: 50%; bottom: 100px; transform: translateX(-50%); z-index: 8; padding: 10px 16px; border-radius: 999px; background: var(--chrome); border: 1px solid rgba(245,177,61,.5); color: #ffd58a; font: 500 15px/1.3 var(--f-body); display: none; }
+    .toast.on { display: block; }
+    @media (prefers-reduced-motion: reduce) { #load, .bar .stop i { transition: none; } }
+  </style>
+</head>
+<body>
+  <div id="stage" aria-label="제철 공정 3D. 위 알약 바에서 공정을 고르고, 왼쪽 설비 목록이나 3D를 클릭하면 설비를 확대해 보여 줍니다."></div>
+  <div id="hud"></div>
+
+  <!-- 상단 알약 바: 홈 · 공정 탭 · 외관/평면 · 닫기 | 튜터 · 테마 · 마이페이지 -->
+  <div class="top" id="top">
+    <button class="rb" id="btnHome" title="홈으로" aria-label="홈으로"><img class="ic" id="icHome" width="22" height="22" alt=""></button>
+    <div class="tabs" id="tabs" role="tablist" aria-label="공정 선택"></div>
+    <div class="seg" role="group" aria-label="보기"><button id="btnView3d" class="on" aria-pressed="true">외관</button><button id="btnViewPlan" aria-pressed="false">평면</button></div>
+    <button class="rb" id="btnClose" title="설비 보기 끝내기" aria-label="설비 보기 끝내기"><img class="ic" id="icClose" width="20" height="20" alt=""></button>
+    <span class="sep"></span>
+    <button class="rb" id="btnTutor" title="AI 튜터" aria-label="AI 튜터"><img class="ic" id="icBot" width="24" height="24" alt=""><span class="dot"></span></button>
+    <button class="rb" id="btnTheme" title="라이트 모드로" aria-label="테마 바꾸기"><img class="ic" id="icTheme" width="22" height="22" alt=""></button>
+    <button class="rb" id="btnUser" title="마이페이지" aria-label="마이페이지"><img class="ic" id="icUser" width="22" height="22" alt=""></button>
+  </div>
+  <div class="hint">드래그 회전 · 휠 확대</div>
+
+  <!-- 왼쪽: 학습 현황 + 설비 목록 -->
+
+  <!-- 오른쪽 패널: 설비 상세 / 단계 보기 / AI 튜터 -->
+  <aside class="right" id="right" aria-live="polite"></aside>
+
+  <!-- 하단 재생 바 -->
+  <div class="bar" id="bar">
+    <button class="play" id="btnPlay" title="설비 차례로 보기" aria-label="설비 차례로 보기"><img class="ic" id="icPlay" width="26" height="26" alt=""></button>
+    <div class="track" id="track"></div>
+    <button class="speed" id="btnSpeed" title="재생 속도">1×</button>
+  </div>
+
+  <div class="toast" id="toast" role="status"></div>
+  <div id="load"><div style="display:flex;flex-direction:column;align-items:center"><b>ST-ROOKIE</b><div class="bar2"><i id="loadbar"></i></div><div class="err" id="loaderr"></div></div></div>
+
+  <script type="module" src="./steel-index.js"></script>
+</body>
+</html>

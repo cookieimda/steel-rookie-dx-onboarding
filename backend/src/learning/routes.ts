@@ -17,6 +17,7 @@ import { keywordCard, keywordCardConcepts } from "./keywords.js";
 import { latestPerConcept, type LearningRepository } from "./repository.js";
 import { isSafetyQuestion, SAFETY_ANSWER } from "./safety.js";
 import { findScreenMaterial, type ScreenStep } from "./screen-material.js";
+import { normalizeQuestion, type AnswerCache, type AnswerKeyParts } from "./answer-cache.js";
 
 /** 모델에 넘기는 같은 세션의 최근 대화 수. */
 export const HISTORY_TURNS = 6;
@@ -55,11 +56,87 @@ export interface LearningDeps {
    * 아직 만점이 아닌 개념은 튜터에 넘기고, 진행 중인 시도가 있으면 키워드 카드를 붙이지 않는다(정답 용어가 모여 있어서).
    */
   checkpointProgress?: (userId: string, section: Section) => { retry_concept_ids: string[]; in_progress: boolean } | null;
+  /** 학습 답 저장(answer-cache.ts). 없으면 늘 모델을 부른다. */
+  cache?: AnswerCache;
+  /** 화면(공정 id, 전체 화면이면 null·설비 id)에 보이는 추천 질문. 추천 질문은 개인 기록이 있어도 저장한 답을 쓴다. */
+  suggestedQuestions?: (processId: string | null, equipmentId: string | null) => string[];
   now?: () => string;
 }
 
-export function createLearningRouter({ repo, retriever, agent, rubrics, scene, screenSteps = [], checkpointProgress, now = () => new Date().toISOString() }: LearningDeps): express.Router {
-  const router = express.Router();
+/** 미리 받아 둘 질문 하나(서버가 켜질 때 warmAnswers로 받는다). */
+export interface WarmItem {
+  processId: string | null;
+  equipmentId: string | null;
+  question: string;
+}
+
+export interface LearningRouter extends express.Router {
+  /** 추천 질문 답을 차례로 미리 받아 저장한다(이미 있으면 건너뜀). 실패해도 멈추지 않는다. */
+  warmAnswers(items: WarmItem[], options?: { onEach?: (item: WarmItem, result: "cached" | "saved" | "skipped" | "failed", ms: number) => void }): Promise<{ saved: number; cached: number; failed: number }>;
+}
+
+export function createLearningRouter({ repo, retriever, agent, rubrics, scene, screenSteps = [], checkpointProgress, cache, suggestedQuestions, now = () => new Date().toISOString() }: LearningDeps): LearningRouter {
+  const router = express.Router() as LearningRouter;
+
+  /** 튜터 입력(근거 검색 포함). 실제 질문과 미리 받기(warm)가 같은 경로를 쓴다. */
+  const prepare = (args: {
+    section: Section; processId: string | null; equipmentId: string | null; question: string;
+    history: { question: string; answer: string }[]; openMisconceptions: { concept_id: string; summary: string }[];
+    retryConcepts: string[]; inProgress: boolean;
+  }) => {
+    const rubric = rubrics.find((r) => r.section === args.section);
+    const screen = { process_id: args.section, equipment_id: args.equipmentId };
+    const equipmentName = scene?.processes.flatMap((p) => p.equipment).find((e) => e.id === args.equipmentId)?.name ?? null;
+    // '이 설비의 역할은?'처럼 화면의 설비를 가리키면 검색어에 설비 이름을 붙인다(withScreenEquipment).
+    // "그 바람은 몇 도야?"처럼 앞 대화를 이어 묻는 질문은 직전 질문을 붙여 찾은 결과와 합친다(retrieveWithHistory, npm run eval:retrieval로 비교).
+    const query = withScreenEquipment(args.question, equipmentName);
+    const chunks = retrieveWithHistory(retriever, args.section, query, screen, args.history.at(-1));
+    const input = {
+      section: args.section,
+      question: args.question,
+      // 화면 조작은 실제 화면 기준이라 전체 공정 화면(process_id 없음)을 그대로 넘긴다.
+      screen: { process_id: args.processId, equipment_id: args.equipmentId, equipment_name: equipmentName },
+      chunks,
+      history: args.history,
+      openMisconceptions: args.openMisconceptions,
+      concepts: rubric?.concepts.map((c) => ({ concept_id: c.concept_id, name: c.name })) ?? [],
+      glossary: rubric?.glossary ?? [],
+      scene,
+      // 체크포인트 진행 중에는 카드를 고를 수 없게 목록을 비운다.
+      keywordConcepts: args.inProgress ? [] : keywordCardConcepts(rubric),
+      retryConcepts: args.retryConcepts,
+      screenMaterial: findScreenMaterial(args.question, screenSteps, args.section),
+    };
+    const cacheKey: AnswerKeyParts = { section: args.section, processId: args.processId, equipmentId: args.equipmentId, question: args.question, chunkIds: chunks.map((c) => c.id) };
+    return { rubric, chunks, input, cacheKey };
+  };
+  const isSuggested = (processId: string | null, equipmentId: string | null, question: string) =>
+    (suggestedQuestions?.(processId, equipmentId) ?? []).some((q) => normalizeQuestion(q) === normalizeQuestion(question));
+
+  router.warmAnswers = async (items, { onEach } = {}) => {
+    const counts = { saved: 0, cached: 0, failed: 0 };
+    for (const item of items) {
+      const started = Date.now();
+      const section: Section = (item.processId as Section | null) ?? "ironmaking";
+      const { input, cacheKey } = prepare({ section, processId: item.processId, equipmentId: item.equipmentId, question: item.question, history: [], openMisconceptions: [], retryConcepts: [], inProgress: false });
+      if (!cache || cache.has(cacheKey)) {
+        counts.cached++;
+        onEach?.(item, "cached", 0);
+        continue;
+      }
+      try {
+        const reply = await agent.reply(input);
+        cache.set(cacheKey, reply);
+        const saved = reply.status === "grounded";
+        if (saved) counts.saved++; else counts.failed++;
+        onEach?.(item, saved ? "saved" : "skipped", Date.now() - started);
+      } catch {
+        counts.failed++;
+        onEach?.(item, "failed", Date.now() - started);
+      }
+    }
+    return counts;
+  };
   // 같은 세션에서 답변 중에 또 질문하면 막는다(대화 순서가 꼬이지 않게).
   const busy = new Set<string>();
 
@@ -96,32 +173,21 @@ export function createLearningRouter({ repo, retriever, agent, rubrics, scene, s
         return;
       }
 
-      const rubric = rubrics.find((r) => r.section === section);
       const progress = checkpointProgress?.(userId, section) ?? null;
-      const screen = { process_id: section, equipment_id: equipmentId };
-      const equipmentName = scene?.processes.flatMap((p) => p.equipment).find((e) => e.id === equipmentId)?.name ?? null;
       const history = repo.recentTurns(sessionId, HISTORY_TURNS).map((t) => ({ question: t.question, answer: t.answer }));
-      // '이 설비의 역할은?'처럼 화면의 설비를 가리키면 검색어에 설비 이름을 붙인다(withScreenEquipment).
-      // "그 바람은 몇 도야?"처럼 앞 대화를 이어 묻는 질문은 직전 질문을 붙여 찾은 결과와 합친다(retrieveWithHistory, npm run eval:retrieval로 비교).
-      const query = withScreenEquipment(question, equipmentName);
-      const chunks = retrieveWithHistory(retriever, section, query, screen, history.at(-1));
-      const reply = await agent.reply({
-        section,
-        question,
-        // 화면 조작은 실제 화면 기준이라 전체 공정 화면(process_id 없음)을 그대로 넘긴다.
-        screen: { process_id: body.data.screen?.process_id ?? null, equipment_id: equipmentId, equipment_name: equipmentName },
-        chunks,
-        history,
-        // 개념당 최근 1개, 최대 5개(학습자 메모와 같은 기준). 프롬프트가 계속 길어지지 않게 한다.
-        openMisconceptions: latestPerConcept(repo.openMisconceptions(userId, section)).map((m) => ({ concept_id: m.concept_id, summary: m.summary })),
-        concepts: rubric?.concepts.map((c) => ({ concept_id: c.concept_id, name: c.name })) ?? [],
-        glossary: rubric?.glossary ?? [],
-        scene,
-        // 체크포인트 진행 중에는 카드를 고를 수 없게 목록을 비운다.
-        keywordConcepts: progress?.in_progress ? [] : keywordCardConcepts(rubric),
-        retryConcepts: progress?.retry_concept_ids ?? [],
-        screenMaterial: findScreenMaterial(question, screenSteps, section),
-      });
+      // 개념당 최근 1개, 최대 5개(학습자 메모와 같은 기준). 프롬프트가 계속 길어지지 않게 한다.
+      const openMisconceptions = latestPerConcept(repo.openMisconceptions(userId, section)).map((m) => ({ concept_id: m.concept_id, summary: m.summary }));
+      const retryConcepts = progress?.retry_concept_ids ?? [];
+      const processId = body.data.screen?.process_id ?? null;
+      const { rubric, chunks, input, cacheKey } = prepare({ section, processId, equipmentId, question, history, openMisconceptions, retryConcepts, inProgress: !!progress?.in_progress });
+
+      // 저장한 답(answer-cache.ts): 개인 기록이 없는 질문이면 쓰고 저장한다. 추천 질문은 개인 기록이 있어도 저장한 답을 쓴다(저장은 하지 않음).
+      const generic = history.length === 0 && openMisconceptions.length === 0 && retryConcepts.length === 0 && !progress?.in_progress;
+      const suggested = isSuggested(processId, equipmentId, question);
+      const hit = cache && (generic || suggested) ? cache.get(cacheKey) : null;
+      // 추천 질문은 오개념을 단정하는 질문이 아니므로 저장한 답의 오개념 감지는 쓰지 않는다.
+      const reply = hit ? { ...hit, detected_misconception: generic ? hit.detected_misconception : null } : await agent.reply(input);
+      if (!hit && generic) cache?.set(cacheKey, reply);
 
       const at = now();
       if (reply.detected_misconception) {

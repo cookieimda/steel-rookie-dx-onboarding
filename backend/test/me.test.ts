@@ -112,6 +112,17 @@ test("설계도 필기: 텍스트 메모(점 하나·한 줄 200자)도 저장�
   await put("/api/me/sketches/ironmaking/top", { strokes: [] }, kim);
 });
 
+test("설계도 필기: 스티커 메모(점 하나·여러 줄 300자·종이 색·너비)도 저장한다", async () => {
+  const sticky = { tool: "sticky", color: "#fff3bf", width: 0.16, text: "고로 장입 순서\n소결광 → 코크스", points: [[0.6, 0.2]] };
+  assert.equal((await put("/api/me/sketches/ironmaking/front", { strokes: [stroke(0.1), sticky] }, kim)).status, 200);
+  assert.deepEqual((await get("/api/me/sketches/ironmaking", kim)).json.sketches.front[1], sticky);
+  assert.equal((await put("/api/me/sketches/ironmaking/front", { strokes: [{ ...sticky, text: " \n " }] }, kim)).status, 400, "빈 글");
+  assert.equal((await put("/api/me/sketches/ironmaking/front", { strokes: [{ ...sticky, text: "가".repeat(301) }] }, kim)).status, 400, "300자 넘음");
+  assert.equal((await put("/api/me/sketches/ironmaking/front", { strokes: [{ ...sticky, width: 0.9 }] }, kim)).status, 400, "너무 넓음");
+  assert.equal((await put("/api/me/sketches/ironmaking/front", { strokes: [{ ...sticky, color: "yellow" }] }, kim)).status, 400, "색은 #RRGGBB");
+  await put("/api/me/sketches/ironmaking/front", { strokes: [] }, kim);
+});
+
 test("설계도 필기: 로그인 필요, 모르는 공정·도면·형식은 400", async () => {
   assert.equal((await get("/api/me/sketches/ironmaking")).status, 401);
   assert.equal((await put("/api/me/sketches/ironmaking/plan", { strokes: [] })).status, 401);

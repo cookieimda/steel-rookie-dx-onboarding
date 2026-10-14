@@ -212,7 +212,7 @@
               <sc-for list="{{ cpDots }}" as="d" hint-placeholder-count="0"><span title="{{ d.index }}" style="width:9px;height:9px;border-radius:50%;background:{{ d.color }};"></span></sc-for>
             </div>
             <sc-if value="{{ cpBubbleText }}" hint-placeholder-val="{{ false }}">
-              <div style="display:flex;flex-direction:column;gap:4px;background:var(--chrome3);padding:12px 14px;border-left:3px solid {{ cpBubbleColor }};border-radius:4px 12px 12px 4px;font-size:15px;line-height:1.65;white-space:pre-line;text-wrap:pretty;"><span style="font-size:15px;font-weight:700;color:{{ cpBubbleColor }};">{{ cpBubbleLabel }}</span><span>{{ cpBubbleText }}</span></div>
+              <div style="display:flex;flex-direction:column;gap:4px;--accent:#1f2328;--danger:#c53030;background:#ffffff;color:#1f2328;padding:12px 14px;border-radius:12px;font-size:15px;line-height:1.65;white-space:pre-line;text-wrap:pretty;"><span style="font-size:15px;font-weight:700;color:{{ cpBubbleColor }};">{{ cpBubbleLabel }}</span><span>{{ cpBubbleText }}</span></div>
             </sc-if>
             <sc-if value="{{ cpPending }}" hint-placeholder-val="{{ false }}">
               <div style="align-self:flex-start;display:flex;gap:4px;padding:10px 12px;background:var(--chrome3);border-radius:10px;"><span style="width:6px;height:6px;border-radius:3px;background:var(--muted);animation:blink 1s infinite;"></span><span style="width:6px;height:6px;border-radius:3px;background:var(--muted);animation:blink 1s .2s infinite;"></span><span style="width:6px;height:6px;border-radius:3px;background:var(--muted);animation:blink 1s .4s infinite;"></span></div>

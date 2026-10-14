@@ -202,6 +202,8 @@
     .stepcard .no { border-radius: 4px; background: var(--glass2); border: 1px solid var(--edge2); box-shadow: none; }
     .stepcard .no i { border-radius: 3px; }
     .badge { background: transparent; }
+    .badge.run { border-color: var(--edge2); color: var(--hot); } /* '재생 중' 배지의 초록이 거슬린다는 의견 → 주황(2026-10-14) */
+    .badge.run::before { background: var(--hot); }
     .msg.user { border-radius: 4px; background: rgba(255,158,100,.12); border: 1px solid var(--edge2); }
     .msg.ai .b { border-radius: 4px; background: var(--glass2); border: 1px solid var(--edge); }
     .msg.ai .fu { border-color: var(--edge2); color: var(--hot); }

@@ -10,8 +10,13 @@
 // - 보충학습(docs/supplementary-learning.md): 오개념이 있는 개념을 추천 질문 앞에 '보충학습 · 개념' 칩으로 보여 준다.
 //   누르면 설명과 확인 문제가 같은 채팅에 나오고, 진행 중에는 입력창에 쓴 말을 확인 문제의 답으로 보낸다(칩은 '보충학습 그만하기').
 //   페이지 템플릿은 고치지 않는다(메시지·칩·입력창 값만 바꾼다). 상태는 컴포넌트 state의 supplement·supplementCandidates.
+// - 포석호(튜터 캐릭터, cp-character.js): vals()의 tutorMotion이 동작 이름표다(tutorMotionFor). 답을 기다리면 thinking, 글자가 오는 중이면 explain,
+//   보충학습 반응·결과는 checkpoint-chat.js의 motionFor(발화 type → 동작)로 고르고 다음 질문·답을 보낼 때까지 유지한다(state.tutorReaction).
+//   효과음은 tutor-sfx.js. 반응·결과가 올 때 한 번만 낸다(그리는 중에는 내지 않는다). 상태 키는 tutor로 시작한다.
 
 import { suggestionsFor } from './learning-suggestions.js';
+import { motionFor } from './checkpoint-chat.js';
+import * as tutorSfx from './tutor-sfx.js';
 
 const SECTIONS = ['ironmaking', 'steelmaking', 'continuous_casting', 'rolling'];
 const PASS_KEY = 'st-rookie:passcode';
@@ -190,8 +195,71 @@ export function supplementMessages(view) {
 /** 보충학습이 답을 기다리는 중인지. */
 export const supplementWaiting = (s) => !!s && (s.state === 'awaiting_answer' || s.state === 'awaiting_recheck');
 
-/** 페이지 컴포넌트에 붙일 학습 채팅을 만든다. componentDidMount에서 한 번 부른다. */
-export async function createLearningChat(c) {
+/** 포석호(튜터 캐릭터) 이름. 패널 머리의 이름표에 쓴다. */
+export const TUTOR_NAME = '포석호';
+/** 일반 답이 끝난 뒤 explain 동작을 유지하는 시간(ms). 보충학습 시작의 greet → ask 전환에도 쓴다. */
+export const TUTOR_HOLD_MS = 2500;
+/** 보충학습 반응 tone → 체크포인트 발화 type. 동작(checkpoint-chat.js의 MOTION_BY_TYPE)과 효과음(tutor-sfx.js의 sfxFor)이 이 이름을 같이 쓴다. */
+export const TONE_TYPE = { correct: 'feedback', almost: 'almost', miss: 'miss' };
+
+/**
+ * 포석호 반응(페이지 state의 tutorReaction) → 체크포인트 발화 type. 동작은 motionFor(type), 효과음은 sfxFor(type)로 고른다.
+ * 반응 모양: { kind: 'reaction', tone } | { kind: 'result', outcome } | { kind: 'intro' } | { kind: 'question', recheck } | { kind: 'explanation' } | { kind: 'error' }.
+ * then 키가 있으면(다음 반응 또는 null) TUTOR_HOLD_MS 뒤에 그 반응으로 바뀐다(explain → idle, greet → ask).
+ */
+export function reactionType(reaction) {
+  if (!reaction) return null;
+  switch (reaction.kind) {
+    case 'result': return reaction.outcome ? 'result' : null;
+    case 'reaction': return TONE_TYPE[reaction.tone] ?? null;
+    case 'question': return reaction.recheck ? 'recheck_question' : 'question';
+    case 'intro': case 'explanation': case 'error': return reaction.kind;
+    default: return null;
+  }
+}
+/** 결과 반응이 통과(해결)인지. motionFor·sfxFor의 unlocked에 넘긴다. */
+const reactionUnlocked = (reaction) => reaction?.kind === 'result' && reaction.outcome === 'resolved';
+
+/**
+ * 포석호 동작 이름표(cp-character.js의 MOTIONS). 순수 함수.
+ * - 답을 기다리는 중(pending)이고 글자가 아직 안 왔으면 thinking, 스트리밍으로 글자가 오는 중(partial)이면 explain.
+ * - 그다음은 마지막 반응(reaction, 다음 질문·답을 보낼 때까지 유지): 보충학습 반응 tone correct → praise, almost → encourage, miss → sorry,
+ *   끝난 결과 outcome resolved → celebrate, not_resolved → cheer_retry, 보충학습 시작(intro) → greet, 확인 문제 → ask(다시 묻기면 ask_again),
+ *   일반 답이 끝남(explanation) → explain, 오류 → sorry.
+ * - 그 밖에는 idle.
+ */
+export function tutorMotionFor({ pending = false, partial = '', reaction = null } = {}) {
+  if (pending) return partial ? 'explain' : 'thinking';
+  const type = reactionType(reaction);
+  return type ? motionFor(type, { unlocked: reactionUnlocked(reaction) }) : 'idle';
+}
+
+/** 반응의 효과음 이름(tutor-sfx.js). 보충학습 반응(tone)·끝(outcome)에만 있고, 나머지는 null. */
+export function reactionSfx(reaction) {
+  if (!reaction || (reaction.kind !== 'reaction' && reaction.kind !== 'result')) return null;
+  return tutorSfx.sfxFor(reactionType(reaction), { unlocked: reactionUnlocked(reaction) });
+}
+
+/**
+ * 보충학습 응답(view) → 포석호 반응. 끝났으면 결과(outcome), 반응 말(reaction의 tone)이 있으면 그 반응,
+ * 시작(intro)이면 greet 뒤 확인 문제(ask)로 넘어가고, 확인 문제만 있으면 question. 그만두기처럼 해당 없는 응답은 null(idle).
+ */
+export function supplementReaction(view) {
+  if (!view) return null;
+  if (view.state === 'completed' && view.outcome) return { kind: 'result', outcome: view.outcome };
+  const tutor = (view.messages || []).filter(m => m.role === 'tutor');
+  const reaction = tutor.find(m => m.type === 'reaction' && TONE_TYPE[m.tone]);
+  if (reaction) return { kind: 'reaction', tone: reaction.tone };
+  const question = supplementWaiting(view) ? { kind: 'question', recheck: view.state === 'awaiting_recheck' } : null;
+  if (tutor.some(m => m.type === 'intro')) return { kind: 'intro', then: question };
+  return question;
+}
+
+/**
+ * 페이지 컴포넌트에 붙일 학습 채팅을 만든다. componentDidMount에서 한 번 부른다.
+ * options(테스트용): sfx(tutor-sfx.js 모양: playSfx·sfxOn·setSfxOn·sfxSupported), timers(setTimeout·clearTimeout), holdMs(explain·greet 유지 시간).
+ */
+export async function createLearningChat(c, { sfx = tutorSfx, timers = globalThis, holdMs = TUTOR_HOLD_MS } = {}) {
   // 이어지는 대화. 서버가 대화를 DB에 저장하고 이 id로 이어 준다. 새로고침해도 탭에 남은 id로 이어 간다.
   let sessionId = sessionStore.get();
   const useSession = (id) => { sessionId = id || null; sessionStore.set(sessionId); };
@@ -200,10 +268,23 @@ export async function createLearningChat(c) {
   let restoredSupplement = false;
   const sectionNow = () => (SECTIONS.includes(c.state.processId) ? c.state.processId : 'ironmaking');
 
+  // 포석호 반응(state.tutorReaction)은 질문·답을 보내는 setState에서 지우고, 답이 온 setState에서 넣는다(한 번에 그리게).
+  // then이 있는 반응은 holdMs 뒤 then(없으면 idle)으로 넘어간다. 새 질문·답을 보내면 예약을 지운다.
+  let reactionTimer = null;
+  const clearReaction = () => { timers.clearTimeout(reactionTimer); reactionTimer = null; };
+  /** 반응을 state에 넣은 뒤 부른다: then 예약, 그리고 반응·결과면 효과음을 한 번(그릴 때가 아니라 바뀌는 순간에 내서 다시 그려도 겹치지 않는다). */
+  const afterReaction = (reaction) => {
+    clearReaction();
+    if (reaction && 'then' in reaction) reactionTimer = timers.setTimeout(() => { reactionTimer = null; c.setState({ tutorReaction: reaction.then ?? null }); }, holdMs);
+    const name = reactionSfx(reaction);
+    if (name) sfx.playSfx(name);
+  };
+
   /** 보충학습 요청 공통: 기다림 표시 → 요청 → 튜터 말 추가 → 화면 조작 실행·결과 보고. 실패하면 오류 말풍선. */
   const supplementTurn = async (userText, send) => {
     if (c.state.pending) return;
-    c.setState(s => ({ messages: [...s.messages, { role: 'user', text: userText }], input: '', pending: true, pendingSince: Date.now(), partial: '', tutorOpen: true, devOpen: false })); c.scrollChat();
+    clearReaction();
+    c.setState(s => ({ messages: [...s.messages, { role: 'user', text: userText }], input: '', pending: true, pendingSince: Date.now(), partial: '', tutorOpen: true, devOpen: false, tutorReaction: null })); c.scrollChat();
     const tick = setInterval(() => c.setState({ pendingTick: Date.now() }), 1000);
     let view = null, error = null;
     try { view = await send(); } catch (e) { error = e; }
@@ -219,11 +300,14 @@ export async function createLearningChat(c) {
       : supplementMessages(view);
     // 끝났거나(완료·그만둠) 서버에서 이미 끝난 보충학습이면 진행 상태를 지운다.
     const gone = error && [404, 409].includes(error.status) && error.data?.code !== 'BUSY' && error.data?.code !== 'CHECKPOINT_IN_PROGRESS';
+    // 포석호: 반응(tone)·결과(outcome)·시작·확인 문제에 맞는 동작과 효과음. 오류면 아쉬운 표정.
+    const reaction = error ? { kind: 'error' } : supplementReaction(view);
     c.setState(s => ({
       pending: false, pendingSince: null, partial: '', lastResults: results.length ? results : s.lastResults,
       supplement: view ? (supplementWaiting(view) ? view : null) : gone ? null : s.supplement,
-      messages: [...s.messages, ...added],
+      messages: [...s.messages, ...added], tutorReaction: reaction,
     })); c.scrollChat();
+    afterReaction(reaction);
     if (!view || !supplementWaiting(view)) chat.refreshSupplements(true);
   };
 
@@ -242,7 +326,8 @@ export async function createLearningChat(c) {
       const section = SECTIONS.includes(c.state.processId) ? c.state.processId : null; // 전체 보기('site')면 서버 기본(제선)
       const screen = { process_id: section, equipment_id: section ? c.state.selectedId : null };
       const req = { question: text, session_id: sessionId || undefined, screen };
-      c.setState(s => ({ messages: [...s.messages, { role: 'user', text }], input: '', pending: true, pendingSince: Date.now(), partial: '', lastReq: req, tutorOpen: true, devOpen: false })); c.scrollChat();
+      clearReaction();
+      c.setState(s => ({ messages: [...s.messages, { role: 'user', text }], input: '', pending: true, pendingSince: Date.now(), partial: '', lastReq: req, tutorOpen: true, devOpen: false, tutorReaction: null })); c.scrollChat();
       // 답을 기다리는 동안 1초마다 다시 그려 경과 시간을 보여 준다(Gemini가 느리거나 로컬 모델이면 30초 넘게 걸릴 수 있다).
       const tick = setInterval(() => c.setState({ pendingTick: Date.now() }), 1000);
       // 답을 받는 대로 말풍선에 보여 준다(스트리밍). 끝나면 최종 답으로 바꾼다.
@@ -266,7 +351,10 @@ export async function createLearningChat(c) {
       // 학습 모드 API는 아직 화면 조작(scene_actions)을 보내지 않는다(다음 단계).
       const results = await chat.runActions(res.scene_actions);
       clearInterval(tick);
-      c.setState(s => ({ pending: false, pendingSince: null, partial: '', lastRes: res, lastResults: results, messages: [...s.messages, message] })); c.scrollChat();
+      // 포석호: 답을 다 쓰면 잠깐(holdMs) 설명하는 동작 뒤 대기로, 답을 못 받았으면 아쉬운 표정.
+      const reaction = message.evidence === 'error' ? { kind: 'error' } : { kind: 'explanation', then: null };
+      c.setState(s => ({ pending: false, pendingSince: null, partial: '', lastRes: res, lastResults: results, messages: [...s.messages, message], tutorReaction: reaction })); c.scrollChat();
+      afterReaction(reaction);
       // 이번 질문에서 오개념이 기록됐을 수 있어 보충학습 후보를 다시 읽는다.
       chat.refreshSupplements(true);
     },
@@ -285,12 +373,15 @@ export async function createLearningChat(c) {
       const active = data.active || null;
       const announce = active && !restoredSupplement && !c.state.supplement;
       if (active) restoredSupplement = true;
+      // 풀던 확인 문제를 다시 보여 줄 때 포석호는 묻는 동작(다시 묻기면 갸웃).
+      if (announce) clearReaction();
       c.setState(s => ({
         supplementCandidates: data.candidates || [],
         supplement: active,
         messages: announce
           ? [...s.messages, { role: 'assistant', text: `풀던 보충학습이 있어요 · ${active.concept_name}\n확인 문제예요. ${active.question}`, mode: 'free_question', evidence: 'supplement', citations: [], followUp: null }]
           : s.messages,
+        ...(announce ? { tutorReaction: { kind: 'question', recheck: active.state === 'awaiting_recheck' } } : {}),
       }));
       if (announce) c.scrollChat();
     },
@@ -331,7 +422,7 @@ export async function createLearningChat(c) {
       }
     },
 
-    // 튜터 패널 템플릿 값: 메시지, 추천 질문(chips), 입력창.
+    // 튜터 패널 템플릿 값: 메시지, 추천 질문(chips), 입력창, 포석호(tutor*).
     // 메시지의 키워드 카드는 hasKeywordCard·keywordCard다. 체크포인트 진행 중에는 checkpoint-chat.js의 lockLearning()이 숨긴다(정답 용어가 모여 있어서).
     vals(D) {
       const S = c.state;
@@ -349,6 +440,11 @@ export async function createLearningChat(c) {
         messages: shown.map(m => ({ ...m, isUser: m.role === 'user', isSafety: m.role === 'assistant' && m.mode === 'safety_redirect', isAssistant: m.role === 'assistant' && m.mode !== 'safety_redirect', hasFollowUp: !!m.followUp, askFollowUp: () => chat.ask(m.followUp), hasKeywordCard: !!m.keywordCard, keywordCard: m.keywordCard || NO_CARD })),
         chatRef: c.chatRef, pending: S.pending && !streaming, pendingText: pendingText(S.pendingSince), chips,
         input: S.input, onInput: e => c.setState({ input: e.target.value }), send: e => { e.preventDefault(); chat.ask(S.input); },
+        // 포석호(튜터 캐릭터): 이름, 동작 이름표(<cp-character>의 motion 속성), 효과음 켜기·끄기(tutor-sfx.js). 켜면 한 번 들려준다.
+        tutorName: TUTOR_NAME,
+        tutorMotion: tutorMotionFor({ pending: S.pending, partial: S.partial, reaction: S.tutorReaction }),
+        tutorSfxSupported: sfx.sfxSupported(), tutorSfxLabel: sfx.sfxOn() ? '🔊 효과음 켜짐' : '🔈 효과음 꺼짐',
+        onToggleTutorSfx: () => { const on = !sfx.sfxOn(); sfx.setSfxOn(on); if (on) sfx.playSfx('correct', { force: true }); c.setState({ tutorSfxTick: Date.now() }); },
       };
     },
   };

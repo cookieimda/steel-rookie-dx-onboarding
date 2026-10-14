@@ -22,7 +22,12 @@ export function createApp({ engine, usage, webRoot = join(process.cwd(), "fronte
   app.disable("x-powered-by");
   // 요청 본문은 16kb까지. 마이페이지 펜 필기 저장(PUT /api/me/sketches)만 획이 많아 자기 라우트에서 400kb로 따로 읽는다(me/routes.ts).
   const json16 = express.json({ limit: "16kb" });
-  app.use((req, res, next) => (req.method === "PUT" && req.path.startsWith("/api/me/sketches/") ? next() : json16(req, res, next)));
+  const materialJson = express.json({ limit: "128kb" });
+  app.use((req, res, next) => {
+    if (req.method === "PUT" && req.path.startsWith("/api/me/sketches/")) return next();
+    if (req.method === "POST" && req.path === "/api/admin/education/materials") return materialJson(req, res, next);
+    return json16(req, res, next);
+  });
 
   // 비밀번호 없이 열리는 유일한 API: 프론트가 첫 화면에서 비밀번호 입력창을 띄울지 정한다.
   app.get("/api/access", (_req, res) => {
@@ -43,6 +48,7 @@ export function createApp({ engine, usage, webRoot = join(process.cwd(), "fronte
   app.use("/3d-demo", express.static(webRoot));
   app.use("/login_ui", express.static(loginRoot));
   app.get("/login", (_req, res) => res.redirect("/login_ui/My%20Page.dc.html"));
+  app.get("/exam", (_req, res) => res.sendFile(join(loginRoot, "exam.html")));
 
   // 첫 화면은 홈(로그인). 3D 학습 화면(v4)은 무거워서 로그인한 뒤에 연다.
   // 쿼리가 있는 주소(예: /?p=ironmaking&tutor=1)는 3D 화면으로 바로 들어가는 링크라 공정 인덱스 3D(steel-index.html)를 준다. v4는 /3d-demo/Steel%20Academy%20v4.dc.html로 직접 연다.

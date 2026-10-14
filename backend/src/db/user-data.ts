@@ -10,6 +10,9 @@ export interface DeletedCounts {
   learning_turns: number;
   learner_sketches: number;
   learning_supplements: number;
+  exam_events: number;
+  review_tasks: number;
+  education_jobs: number;
 }
 
 /**
@@ -28,6 +31,10 @@ export function deleteUserData(db: DatabaseSync, userId: string, { origin = "all
   db.exec("BEGIN");
   try {
     const counts: DeletedCounts = {
+      // 시험 이력과 복습 일정이 시도를 참조하므로 부모 기록보다 먼저 지운다.
+      exam_events: Number(db.prepare(`DELETE FROM exam_events WHERE attempt_id IN (${attemptsOf})`).run(userId).changes),
+      review_tasks: Number(db.prepare(`DELETE FROM review_tasks WHERE based_attempt IN (${attemptsOf})`).run(userId).changes),
+      education_jobs: origin === "seed" ? 0 : Number(db.prepare("DELETE FROM education_jobs WHERE user_id = ? AND id NOT IN (SELECT job_id FROM exam_events)").run(userId).changes),
       concept_results: Number(db.prepare(`DELETE FROM concept_results WHERE attempt_id IN (${attemptsOf})`).run(userId).changes),
       attempt_messages: Number(db.prepare(`DELETE FROM attempt_messages WHERE attempt_id IN (${attemptsOf})`).run(userId).changes),
       attempt_questions: Number(db.prepare(`DELETE FROM attempt_questions WHERE attempt_id IN (${attemptsOf})`).run(userId).changes),

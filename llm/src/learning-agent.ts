@@ -8,7 +8,7 @@
 import { z } from "zod";
 import { SECTION_NAMES, type Section } from "../../backend/src/checkpoint/types.js";
 import type { GlossaryEntry } from "../../backend/src/rubrics.js";
-import { escapeDelimited, GeminiCallError, renderPrompt, type GeminiClient } from "./gemini.js";
+import { escapeDelimited, GeminiCallError, renderPrompt, type GenerateRequest, type LlmClient } from "./gemini.js";
 import { politeText } from "./polite.js";
 import type { Retrieved, Screen } from "./retrieval.js";
 
@@ -313,7 +313,7 @@ export const OVERLOAD_RETRY_DELAYS_MS = [1000, 2000];
 
 export class GeminiLearningAgent implements LearningAgent {
   constructor(
-    private readonly gemini: GeminiClient,
+    private readonly gemini: LlmClient,
     private readonly retryDelaysMs: number[] = OVERLOAD_RETRY_DELAYS_MS,
   ) {}
 
@@ -321,7 +321,7 @@ export class GeminiLearningAgent implements LearningAgent {
    * 503 과부하와 순간적인 연결 끊김(fetch failed)은 몇 초 사이에도 풀리므로 잠시 뒤 다시 부른다.
    * 시간 초과(이미 오래 기다림)와 그 밖의 HTTP 오류는 그대로 올려 보낸다.
    */
-  private async generate(request: Parameters<GeminiClient["generate"]>[0]): Promise<string> {
+  private async generate(request: GenerateRequest): Promise<string> {
     for (let retry = 0; ; retry++) {
       try {
         return await this.gemini.generate(request);

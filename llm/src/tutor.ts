@@ -7,7 +7,7 @@
 // 이어 풀기: exclude(이 시도에서 이 개념에 이미 쓴 은행 원문)를 빼고 고른다. 은행을 다 썼으면 fallback_question을 다시 쓴다.
 import { LlmUnavailableError, type AskedQuestion, type Tutor } from "../../backend/src/checkpoint/types.js";
 import type { Rubric, RubricConcept } from "../../backend/src/rubrics.js";
-import { escapeDelimited, GeminiCallError, renderPrompt, type GeminiClient } from "./gemini.js";
+import { escapeDelimited, GeminiCallError, renderPrompt, type LlmClient } from "./gemini.js";
 import { politeText, withObject } from "./polite.js";
 import { answerTerms, findLeaks, hasLeak, type LeakResult } from "./question-check.js";
 
@@ -70,7 +70,7 @@ export interface TutorOptions {
 export class GeminiTutor implements Tutor {
   private readonly random: () => number;
 
-  constructor(private readonly gemini: GeminiClient, options: TutorOptions = {}) {
+  constructor(private readonly gemini: LlmClient, options: TutorOptions = {}) {
     this.random = options.random ?? Math.random;
   }
 

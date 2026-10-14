@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { LlmUnavailableError } from "../../backend/src/checkpoint/types.js";
+import type { GenerateRequest, LlmClient } from "./llm-client.js";
 
 /** GEMINI_MODEL이 비어 있을 때 쓰는 모델. */
 export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite";
@@ -12,19 +13,7 @@ export function geminiTimeoutMs(): number {
   return Number.isInteger(value) && value > 0 ? value : 60_000;
 }
 
-export interface GenerateRequest {
-  system: string;
-  prompt: string;
-  temperature: number;
-  maxOutputTokens: number;
-  /** 있으면 JSON 응답을 이 스키마로 강제한다(Gemini responseSchema). */
-  responseSchema?: object;
-  /**
-   * 있으면 streamGenerateContent(SSE)로 받아 받은 글자를 차례로 넘긴다(학습 모드 답을 화면에 바로 보여 줄 때). 지금까지 받은 전체 텍스트를 넘긴다.
-   * 돌려주는 값은 스트리밍과 상관없이 전체 텍스트다.
-   */
-  onText?: (soFar: string) => void;
-}
+export type { GenerateRequest, LlmClient } from "./llm-client.js";
 
 export interface GeminiOptions {
   apiKey?: string;
@@ -57,7 +46,7 @@ function connectionError(error: unknown): GeminiCallError {
   return new GeminiCallError(`Gemini 연결 실패: ${e?.message ?? String(error)}`, timeout ? "timeout" : "network");
 }
 
-export class GeminiClient {
+export class GeminiClient implements LlmClient {
   constructor(private readonly options: GeminiOptions = {}) {}
 
   /** 응답 텍스트를 돌려준다. 키가 없거나 연결·HTTP 오류면 LlmUnavailableError. */
@@ -88,7 +77,8 @@ export class GeminiClient {
                 : { responseMimeType: "text/plain" }),
             },
           }),
-          signal: AbortSignal.timeout(this.options.timeoutMs ?? geminiTimeoutMs()),
+          // 시험 작업이 취소되면(req.signal) 추론도 끊는다. 시간 제한은 geminiTimeoutMs().
+          signal: req.signal ? AbortSignal.any([req.signal, AbortSignal.timeout(this.options.timeoutMs ?? geminiTimeoutMs())]) : AbortSignal.timeout(this.options.timeoutMs ?? geminiTimeoutMs()),
         },
       );
     } catch (error) {

@@ -31,10 +31,13 @@ const catalog = JSON.parse(readFileSync(path, "utf8")) as {
 export const sourceNotice = catalog.notice;
 export const publicSources = catalog.sources;
 const sourcesById = new Map(publicSources.map((source) => [source.id, source]));
+let approvedSources: () => PublicSource[] = () => [];
+export function useApprovedSources(source: () => PublicSource[]) { approvedSources = source; }
 
 /** 자료의 공정. section이 없으면 제선. */
 export const sectionOf = (source: PublicSource): Section => source.section ?? "ironmaking";
 
 export function getPublicSources(ids: string[]): PublicSource[] {
-  return [...new Set(ids)].map((id) => sourcesById.get(id)).filter((source): source is PublicSource => Boolean(source));
+  const approved = new Map(approvedSources().map((s) => [s.id, s]));
+  return [...new Set(ids)].map((id) => sourcesById.get(id) ?? approved.get(id)).filter((source): source is PublicSource => Boolean(source));
 }

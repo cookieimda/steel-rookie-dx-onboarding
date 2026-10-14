@@ -4,6 +4,8 @@
 
 커밋 메시지 규칙은 [agent.md](agent.md)를 따른다.
 보고는 한국어로 한다.
+
+평가 시험(2026-10-14): 학습자 응시는 `/exam`(`frontend/login_ui/exam.html`·`exam.js`·`exam.css`)에서 한다. 마이페이지 AI 튜터 패널의 시험 UI는 뺐고, 3D 화면(v4)의 체크포인트 링크는 `/exam`으로 간다. 시험 작업(대기열·취소·중복 제출 방지)·채점 이력·복습 일정·교육 그룹·자료 검수 API는 `backend/src/education/`, 마이그레이션은 `010_education_workflow.sql`이다. 동작과 범위는 [docs/exam-page.md](docs/exam-page.md)를 먼저 읽는다. 화면은 학습 기록(`Trainee Dashboard.dc.html`)과 같은 디자인 체계이고, 시험 패널과 AI 튜터 패널 머리(학습 기록·v4)에는 튜터 캐릭터 포석호(`frontend/3d-demo/cp-character.js`)가 있다(동작 규칙은 [docs/checkpoint-overlay.md](docs/checkpoint-overlay.md)의 발화 type → 동작 표). 이전 체크포인트 UI(`checkpoint-chat.js`)는 v3·테스트 페이지용으로 남기고, `motionFor`는 `/exam`·`learning-chat.js`가 같이 쓴다.
 작업 시작 전과 커밋 전에 현재 브랜치를 확인한다(`git branch --show-current`). IDE 등에서 브랜치가 바뀌어 커밋이 엉뚱한 브랜치에 쌓인 적이 있다.
 시연 서버가 서빙하는 메인 폴더는 `dev`에 둔다. 작업은 별도 worktree에서 한다(예: `git worktree add -b <브랜치> ../ST-ROOKIE-<작업> origin/dev`). 서버는 실행 폴더의 `frontend/`를 그대로 서빙하므로, 메인 폴더에서 브랜치를 바꾸면 시연 화면도 바뀐다.
 
@@ -48,7 +50,7 @@
 | 프론트(viiin2) | `Steel Academy v3.dc.html`, `scene_v3.js`, `step-fx.js`, `data_v2.js`, `steel-2d*.js`, `models/`, `frontend/login_ui/`(`Admin Dashboard.dc.html` 제외) |
 | ssoyoum: 관리자 대시보드 | `backend/src/admin/`, `frontend/login_ui/Admin Dashboard.dc.html`, 시연 개념 목록 `content/demo/sections.json`·`backend/src/demo-sections.ts`, 이 파일들의 테스트 |
 
-- 마이그레이션 번호 규칙: `backend/src/db/migrations/NNN_이름.sql`을 파일 이름 순서로 한 번씩 적용하고 `schema_migrations`에 이름을 남긴다. 001~009는 사용 중이다(005: 기록 출처 `origin`, 006: 시연 계정 `users.is_demo`, 007: 이어 풀기 질문 기록 `attempt_questions`, 008: 마이페이지 설계도 필기 `learner_sketches`, 009: 보충학습 `learning_supplements`·실행 기록). 새 번호는 지금 가장 큰 번호 + 1로 정하고, 같은 번호를 두 사람이 쓰지 않게 PR을 열기 전에 팀에 알린다. 이미 병합된 마이그레이션 파일은 고치지 않고 새 번호로 추가한다.
+- 마이그레이션 번호 규칙: `backend/src/db/migrations/NNN_이름.sql`을 파일 이름 순서로 한 번씩 적용하고 `schema_migrations`에 이름을 남긴다. 001~010은 사용 중이다(005: 기록 출처 `origin`, 006: 시연 계정 `users.is_demo`, 007: 이어 풀기 질문 기록 `attempt_questions`, 008: 마이페이지 설계도 필기 `learner_sketches`, 009: 보충학습 `learning_supplements`·실행 기록, 010: 평가 시험 작업·루브릭 이력·복습 일정·교육 그룹·자료 검수). 새 번호는 지금 가장 큰 번호 + 1로 정하고, 같은 번호를 두 사람이 쓰지 않게 PR을 열기 전에 팀에 알린다. 이미 병합된 마이그레이션 파일은 고치지 않고 새 번호로 추가한다.
 - 기존 `/api/chat`(`llm/src/ironmaking-agent.ts`)은 학습 모드로 대체되어 지웠다. 기본 모델 상수 `DEFAULT_GEMINI_MODEL`은 `llm/src/gemini.ts`에 있다. `ironmaking-sources.ts`(공개 자료 메모)는 학습 모드 검색(`retrieval.ts`)과 출처 표시(`learning/routes.ts`)가 쓰므로 남긴다.
 - 학습 모드 시작 안내: [docs/onboarding-learning-mode.md](docs/onboarding-learning-mode.md).
 

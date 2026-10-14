@@ -48,6 +48,8 @@
     body { --chrome: #161618; --chrome2: #1c1c1f; --chrome3: #242427; --chrome4: #2e2e32; --line: rgba(255,255,255,.08); --line2: rgba(255,255,255,.14); --text: #f2f2f2; --muted: #a1a1a6; --dim: #6b6b70; --accent: #f2f2f2; --accent-ink: #111111; --hot: #ff9e64; --ease: cubic-bezier(.2,.8,.2,1); --t-fast: .15s; --t-base: .25s; --t-slow: .4s; --warn: #f5b13d; --danger: #ff5a5a; background: var(--chrome); color: var(--text); }
     a { color: var(--accent); }
     button, input { font-family: inherit; }
+    /* 포석호(<cp-character>, AI 튜터 패널 머리): 기본 220×260 대신 x-import의 style이 정한 상자(감싸는 div)를 채운다. 흰 몸이 바탕에 묻히지 않게 은은한 타일을 깐다 */
+    [data-sa-panel] cp-character { display: block; width: 100%; height: 100%; background: var(--chrome3); border-radius: 14px; }
     button { transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease), opacity var(--t-fast) var(--ease); }
     button:active { transform: scale(.97); }
     * { box-sizing: border-box; }
@@ -518,11 +520,19 @@
       </div>
     </sc-if>
 
-    <!-- AI 튜터 -->
+    <!-- AI 튜터. 머리에 포석호(튜터 캐릭터, cp-character.js): 이 sc-if 안에만 두어 패널이 닫히면 함께 사라지고(3D 화면과 WebGL을 나눠 쓰지 않게), 한 자리에 한 개만 둔다 -->
     <sc-if value="{{ panel.tutor }}" hint-placeholder-val="{{ false }}">
-      <div style="display:flex;align-items:flex-start;gap:10px;padding:24px 22px 14px;">
-        <div style="flex:1;display:flex;flex-direction:column;gap:6px;"><span style="font-family:'Noto Sans KR',sans-serif;font-size:32px;font-weight:900;">AI 튜터</span><span style="font-size:15px;color:#c3ccd7;">{{ cpHeaderMode }} · {{ ctxLabel }}</span></div>
-        <button onClick="{{ toggleTutor }}" title="닫기" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:none;border-radius:50%;background:transparent;cursor:pointer;" style-hover="background:var(--chrome3);"><img src="{{ ic.close }}" width="18" height="18" alt=""></button>
+      <div style="display:flex;align-items:center;gap:12px;padding:16px 22px 12px 16px;">
+        <!-- 크기는 이 x-import의 style(감싸는 상자)로 정하고 위 [data-sa-panel] cp-character 규칙이 상자를 채운다. 패널은 zoom 1.25라 화면에서는 100×118로 보인다 -->
+        <x-import component-from-global-scope="cp-character" motion="{{ tutorMotion }}" model="/3d-demo/models/character/tutor.glb" hint-size="80,94" style="width:80px;height:94px;"></x-import>
+        <!-- 이름 · 'AI 튜터 · 학습 모드 · 공정' · 효과음 토글. 패널이 좁아(zoom 1.25) 토글은 오른쪽이 아니라 부제목 아래에 둔다 -->
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:4px;">
+          <span style="font-family:'Noto Sans KR',sans-serif;font-size:26px;font-weight:900;line-height:1.1;">{{ tutorName }}</span>
+          <span style="max-width:100%;font-size:13px;color:#c3ccd7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">AI 튜터 · {{ cpHeaderMode }} · {{ ctxLabel }}</span>
+          <!-- 포석호 효과음(보충학습에서 맞히거나 틀릴 때 짧은 소리) 켜기·끄기. 지원하지 않는 브라우저에서는 숨긴다 -->
+          <sc-if value="{{ tutorSfxSupported }}" hint-placeholder-val="{{ false }}"><button onClick="{{ onToggleTutorSfx }}" title="보충학습에서 맞히거나 틀릴 때 포석호가 짧게 소리를 내요" style="margin-top:4px;height:26px;padding:0 10px;border-radius:999px;border:1px solid var(--line2);background:var(--chrome3);color:var(--text);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;" style-hover="border-color:var(--accent);">{{ tutorSfxLabel }}</button></sc-if>
+        </div>
+        <button onClick="{{ toggleTutor }}" title="닫기" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:none;border-radius:50%;background:transparent;cursor:pointer;flex:none;align-self:flex-start;" style-hover="background:var(--chrome3);"><img src="{{ ic.close }}" width="18" height="18" alt=""></button>
       </div>
       <!-- 풀던 이해도 확인 안내(멈춤·답하는 중). 값은 checkpoint-chat.js의 vals() -->
       <sc-if value="{{ cpShowResumeBanner }}" hint-placeholder-val="{{ false }}"><div style="display:flex;align-items:center;gap:12px;margin:0 22px 12px;padding:12px 14px;border-radius:10px;background:rgba(242,242,242,.1);border:1px solid rgba(242,242,242,.45);"><span style="flex:1;min-width:0;font-size:13px;line-height:1.5;">{{ cpResumeBannerText }}</span><button onClick="{{ onCpResume }}" style="height:32px;padding:0 14px;border:none;border-radius:999px;background:var(--accent);color:var(--accent-ink);font-size:13px;font-weight:700;cursor:pointer;flex:none;" style-hover="filter:brightness(1.1);">{{ cpResumeBannerLabel }}</button></div></sc-if>
@@ -712,7 +722,8 @@ class Component extends DCLogic {
     addEventListener('resize', this._onResize); this._onResize();
     const [d, lc, cc] = await Promise.all([import('./data_v2.js'), import('./learning-chat.js'), import('./checkpoint-chat.js')]);
     this.data = d; this.chat = await lc.createLearningChat(this); // 학습 모드 채팅(ask, 추천 질문)은 learning-chat.js
-    this.checkpoint = cc.createCheckpointChat(this, { overlayPage: '/login' }); // 오버레이는 학습 기록 화면에만 있다. [이어 풀기]는 그 화면으로 옮긴다 this.checkpoint.refreshAll(); // 이해도 확인(학습 잠금, 공정 배지, 오버레이)은 checkpoint-chat.js
+    this.checkpoint = cc.createCheckpointChat(this, { overlayPage: '/exam' }); // 평가 시험은 별도 페이지에서 응시한다.
+    this.checkpoint.refreshAll();
     import('./cp-character.js').catch(e => console.warn('[cp-character] 불러오지 못함', e)); // 오버레이 캐릭터 <cp-character>(x-import가 등록을 기다린다)
     this.setState({ ready: true, speed: this.props.flowSpeed ?? 1 });
     // 3D 영역을 메뉴 밖에 따로 두므로 메뉴 폭 보정은 끈다

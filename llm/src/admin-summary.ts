@@ -1,6 +1,6 @@
 // 관리자 대시보드 "AI 요약": 오답률 높은 개념의 집계 숫자만 받아 보강할 내용을 1~2문장으로 정리한다.
 // 답변 원문·오개념 설명·사용자 id는 입력에 없다(docs/admin-dashboard.md '개인정보').
-import { escapeDelimited, renderPrompt, type GeminiClient } from "./gemini.js";
+import { escapeDelimited, renderPrompt, type LlmClient } from "./gemini.js";
 
 /** 한 개념의 집계. 숫자와 개념·공정 이름만 담는다. */
 export interface SummaryConcept {
@@ -49,7 +49,7 @@ export function parseSummary(text: string): string | { problem: string } {
 }
 
 export class GeminiAdminSummarizer implements AdminSummarizer {
-  constructor(private readonly gemini: GeminiClient) {}
+  constructor(private readonly gemini: LlmClient) {}
 
   async summarize(concepts: readonly SummaryConcept[]): Promise<string> {
     const request = {

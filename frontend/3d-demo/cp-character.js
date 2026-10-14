@@ -34,8 +34,8 @@ export const PROCEDURAL = {
   explain: { pose: (t) => ({ ry: 0.28 * Math.sin((TAU * t) / 1.6), rz: 0.04 * Math.sin((TAU * t) / 1.6) }) },
   // 응원(부분 정답): 고개를 끄덕이며 통통
   encourage: { pose: (t) => { const k = Math.max(0, Math.sin((TAU * t) / 0.8)); return { rx: 0.16 * k, y: 0.04 * k }; } },
-  // 다시 해 보자(미달): 앞으로 기울인 채 힘차게 통통
-  cheer_retry: { pose: (t) => ({ y: 0.08 * Math.abs(Math.sin((Math.PI * t) / 0.35)), rx: 0.1, rz: 0.06 * Math.sin((TAU * t) / 0.7) }) },
+  // 다시 도전(미달): 살짝 고개를 숙이고 차분하게 숨 쉰다.
+  cheer_retry: { pose: (t) => ({ y: -0.01 + 0.004 * Math.sin((TAU * t) / 2.4), rx: 0.12, sy: 0.98, rz: 0.025 * Math.sin((TAU * t) / 2.4) }) },
   // 아쉬움: 고개를 숙이며 작아지고, 천천히 흔들린다
   sorry: { pose: (t) => { const d = ease(Math.min(t, 0.6) / 0.6); return { rx: 0.2 * d, y: -0.03 * d, sy: 1 - 0.06 * d, rz: 0.05 * d * Math.sin((TAU * t) / 2.4) }; } },
   // 점프 + 한 바퀴 회전(크게)

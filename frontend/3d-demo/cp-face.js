@@ -10,7 +10,7 @@ export const EXPRESSION_BY_MOTION = {
   idle: 'neutral', ask: 'neutral', explain: 'neutral',
   greet: 'happy', praise: 'happy',
   celebrate: 'excited',
-  encourage: 'determined', cheer_retry: 'determined',
+  encourage: 'determined', cheer_retry: 'sad',
   ask_again: 'curious', thinking: 'thinking',
   sorry: 'sad',
 };
@@ -22,7 +22,7 @@ export const BLINKING = new Set(['neutral', 'determined', 'curious', 'thinking',
 export const MOOD_BY_MOTION = {
   greet: 'joy', praise: 'joy',
   celebrate: 'celebrate',
-  encourage: 'hope', cheer_retry: 'hope',
+  encourage: 'hope', cheer_retry: 'sad',
   sorry: 'sad',
   ask_again: 'think', thinking: 'think',
 };
@@ -30,7 +30,7 @@ export const MOODS = ['joy', 'celebrate', 'hope', 'sad', 'think'];
 
 /** 감정이 바뀌는 순간 몸이 '톡' 커졌다 돌아오는 동작(초·크기). */
 export const POP = { seconds: 0.28, scale: 0.14 };
-export const POP_MOTIONS = new Set(['greet', 'praise', 'celebrate', 'encourage', 'cheer_retry', 'sorry', 'ask_again']);
+export const POP_MOTIONS = new Set(['greet', 'praise', 'celebrate', 'encourage', 'sorry', 'ask_again']);
 export const popAt = (t) => (t >= 0 && t < POP.seconds ? 1 + POP.scale * Math.sin((Math.PI * t) / POP.seconds) : 1);
 
 const INK = '#2b2622';

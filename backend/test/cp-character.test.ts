@@ -7,6 +7,17 @@ import { pathToFileURL } from "node:url";
 const load = (file: string) => import(pathToFileURL(join(process.cwd(), "frontend", "3d-demo", file)).href);
 const { MOTIONS, PROCEDURAL, MOTION_ALIAS, resolveMotion, poseAt, blendPose, CpCharacter } = await load("cp-character.js");
 const { MOTION_BY_TYPE, motionFor } = await load("checkpoint-chat.js");
+const { EXPRESSION_BY_MOTION, MOOD_BY_MOTION, POP_MOTIONS } = await load("cp-face.js");
+
+test("미통과 완료는 웃음·축하 효과 없이 아쉬움을 표현하고 통과 완료만 축하한다", () => {
+  const retry = motionFor("result", { unlocked: false }), passed = motionFor("result", { unlocked: true });
+  assert.equal(EXPRESSION_BY_MOTION[retry], "sad");
+  assert.equal(MOOD_BY_MOTION[retry], "sad");
+  assert.equal(POP_MOTIONS.has(retry), false);
+  assert.equal(EXPRESSION_BY_MOTION[passed], "excited");
+  assert.equal(MOOD_BY_MOTION[passed], "celebrate");
+  for (let t = 0; t < 3; t += .1) assert.ok(poseAt(retry, t).y <= 0, "미통과는 축하 점프를 하지 않는다");
+});
 
 type Pose = { y: number; rx: number; ry: number; rz: number; sy: number };
 const REST: Pose = { y: 0, rx: 0, ry: 0, rz: 0, sy: 1 };
@@ -70,7 +81,7 @@ test("몸 전체 움직임: 갸웃은 기운 채 유지하고, 좌우 흔들기�
   const droop = poseAt("sorry", 3);
   assert.ok(droop.rx > 0.15 && droop.sy < 1 && droop.y < 0, "아쉬움: 고개를 숙이고 작아진다");
   assert.ok(Math.max(...[0.1, 0.2, 0.3].map((t) => poseAt("encourage", t).rx)) > 0.1, "응원: 끄덕인다");
-  assert.ok(poseAt("cheer_retry", 0.175).y > 0.05, "다시 해 보자: 통통 뛴다");
+  assert.ok(poseAt("cheer_retry", 0.175).y <= 0, "다시 도전: 축하 점프 대신 차분하게 고개를 숙인다");
 });
 
 test("움직임 줄이기 설정이면 어떤 동작이든 기본 자세", () => {

@@ -112,7 +112,9 @@
     .stepcard .heat .lab { font: 400 15px/1 var(--f-body); color: #f3ebe2; }
     .stepcard .heat .val { font: 900 34px/1.1 var(--f-body); letter-spacing: -.01em; font-variant-numeric: tabular-nums; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
     .right, .bar { box-shadow: 0 20px 25px -5px rgba(0,0,0,.5); }
-    .stepcard .heat .bar { height: 10px; border-radius: 5px; background: linear-gradient(90deg,#3b82f6 0%,#facc15 40%,#f97316 65%,#ef4444 100%); opacity: .3; }
+    /* 온도 막대. 클래스가 .bar이면 하단 재생 바 규칙(position: fixed)이 같이 걸려 막대가 패널 구석으로 가고 표시(.fill)만 눈금 위에 남았다(2026-10-14) */
+    .stepcard .heat .hbar-wrap { position: relative; }
+    .stepcard .heat .hbar { height: 10px; border-radius: 5px; background: linear-gradient(90deg,#3b82f6 0%,#facc15 40%,#f97316 65%,#ef4444 100%); opacity: .3; }
     .stepcard .heat .fill { position: absolute; top: -2px; height: 14px; border-radius: 7px; background: linear-gradient(90deg,#ffd27a,#ff6b35); }
     .stepcard .heat .scale { display: flex; justify-content: space-between; margin-top: 6px; font: 400 12px/1 var(--f-mono); color: #d2c6b8; }
     .stepcard .heat .note2 { font: 400 15px/1.5 var(--f-body); color: #c4b6a6; }

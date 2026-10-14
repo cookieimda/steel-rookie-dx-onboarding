@@ -23,8 +23,11 @@
     img.ic { display: block; }
     .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
-    /* ---- 상단 알약 바 (v4). 임시 컨트롤이라 반투명을 둔다 ---- */
-    .top { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 7; display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 999px; background: rgba(18,18,20,.9); border: 1px solid var(--line2); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+    /* ---- 상단 알약 바 (v4). 임시 컨트롤이라 반투명을 둔다 ---- */    .top { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 7; display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 999px; background: rgba(18,18,20,.9); border: 1px solid var(--line2); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+    /* 설비 차례로 보기(재생) 중에는 알약 바를 위로 숨긴다. 마우스를 화면 위쪽으로 가져가면(body.peek) 내려온다 */
+    .top { transition: transform .35s var(--ease), opacity .35s var(--ease); width: max-content; max-width: calc(100vw - 20px); } /* left:50% 때문에 반 폭으로 줄어 글자가 한 자씩 줄바꿈되던 것을 막는다 */
+    .top .tabs button, .top .seg button { white-space: nowrap; }
+    body.touring:not(.peek) .top { transform: translate(-50%, calc(-100% - 16px)); opacity: 0; pointer-events: none; }
     .top .rb { width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--chrome3); color: var(--text); display: grid; place-items: center; cursor: pointer; position: relative; transition: background var(--t-fast) var(--ease); }
     .top .rb:hover { background: var(--chrome4); }
     .top .rb.on { background: var(--accent); }
@@ -179,11 +182,11 @@
   <div id="stage" aria-label="제철 공정 3D. 위 알약 바에서 공정을 고르고, 왼쪽 설비 목록이나 3D를 클릭하면 설비를 확대해 보여 줍니다."></div>
   <div id="hud"></div>
 
-  <!-- 상단 알약 바: 홈 · 공정 탭 · 외관/평면 · 닫기 | 튜터 · 테마 · 마이페이지 -->
+  <!-- 상단 알약 바: 홈 · 공정 탭 · 외관/대시보드 · 닫기 | 튜터 · 테마 · 마이페이지. 설비 차례로 보기(재생) 중에는 위로 숨고 마우스를 위쪽에 가져가면 내려온다 -->
   <div class="top" id="top">
     <button class="rb" id="btnHome" title="홈으로" aria-label="홈으로"><img class="ic" id="icHome" width="22" height="22" alt=""></button>
     <div class="tabs" id="tabs" role="tablist" aria-label="공정 선택"></div>
-    <div class="seg" role="group" aria-label="보기"><button id="btnView3d" class="on" aria-pressed="true">외관</button><button id="btnViewPlan" aria-pressed="false">평면</button></div>
+    <div class="seg" role="group" aria-label="보기"><button id="btnView3d" class="on" aria-pressed="true">외관</button><button id="btnViewBoard" aria-pressed="false">대시보드</button></div>
     <button class="rb" id="btnClose" title="설비 보기 끝내기" aria-label="설비 보기 끝내기"><img class="ic" id="icClose" width="20" height="20" alt=""></button>
     <span class="sep"></span>
     <button class="rb" id="btnTutor" title="AI 튜터" aria-label="AI 튜터"><img class="ic" id="icBot" width="24" height="24" alt=""><span class="dot"></span></button>

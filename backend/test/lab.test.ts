@@ -231,3 +231,20 @@ test("사용자 기록 지우기에 학습 랩 기록도 들어간다(시연 기
   assert.ok(n > 0);
   assert.equal(Number(db.prepare("SELECT COUNT(*) AS n FROM sr_cards WHERE user_id = ?").get(kim.id)?.n), 0);
 });
+
+test("HTTP xAPI 3D 실습 살펴봄: 인과 따라가기·조건 링크(변수)·갈림길 3D(사례)는 서버가 이름을 정하고 실습 활동으로 남는다", async () => {
+  const tour = await call("POST", "/api/me/lab/xapi", lee, { verb: "experienced", practice: "causal-tour", object_id: "coke_rate" });
+  assert.equal(tour.status, 201);
+  assert.equal(tour.json.object.definition.name["ko-KR"], "인과 따라가기 · 코크스비");
+  assert.match(tour.json.object.id, /\/activities\/causal-tour\/coke_rate$/);
+  const inc = await call("POST", "/api/me/lab/xapi", lee, { verb: "experienced", practice: "incident-3d", object_id: "ironmaking-co-gas" });
+  assert.equal(inc.status, 201);
+  assert.match(inc.json.object.definition.name["ko-KR"], /^사고 사례 갈림길 3D · /);
+  assert.equal((await call("POST", "/api/me/lab/xapi", lee, { verb: "experienced", practice: "causal-map-link", object_id: "nope" })).status, 404);
+  assert.equal((await call("POST", "/api/me/lab/xapi", lee, { verb: "experienced", practice: "made-up", object_id: "coke_rate" })).status, 400);
+  assert.equal((await call("POST", "/api/me/lab/xapi", lee, { verb: "experienced", object_id: "blast-furnace" })).status, 400, "설비 살펴봄은 예전 형식 그대로");
+  const list = await call("GET", "/api/me/lab/xapi", lee);
+  assert.equal(list.json.counts.experienced, 2);
+  // 인과 퀴즈 답(activities/causal-link/…)과 활동 id가 겹치지 않는다
+  assert.ok(list.json.statements.every((s: any) => !/\/activities\/causal-link\//.test(s.object.id)));
+});

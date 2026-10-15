@@ -19,7 +19,16 @@ import { computeLeague } from "./league.js";
 import { LabRepository } from "./repository.js";
 import { eunNeun, openingQuestion, revealText, socraticReply, SUGGEST_REVEAL_AFTER } from "./socratic.js";
 import { addDays, GRADES, MATURE_DAYS, NEW_PER_DAY, nextReview, type Grade, type SrState } from "./spaced.js";
-import { actorOf, statementFor, storedStatement, XAPI_VERSION, type Statement, type VerbKey } from "./xapi.js";
+import { actorOf, PRACTICE_KINDS, statementFor, storedStatement, XAPI_VERSION, type PracticeKind, type Statement, type VerbKey } from "./xapi.js";
+import { NODES } from "./causal.js";
+import { loadIncidents } from "./incidents.js";
+
+/** 사고 사례 제목(3D 갈림길 문장 이름). 처음 쓸 때 한 번 읽는다. */
+let incidentTitles: Map<string, string> | null = null;
+const incidentTitle = (id: string) => {
+  if (!incidentTitles) { try { incidentTitles = new Map(loadIncidents().scenarios.map((s) => [s.id, s.title])); } catch { incidentTitles = new Map(); } }
+  return incidentTitles.get(id);
+};
 
 export interface LabDeps {
   db: DatabaseSync;
@@ -35,7 +44,11 @@ export const REPLAY_TYPES = ["start", "tab", "lab", "select", "ask", "answer", "
 const ReplayEvent = z.object({ t: z.number().min(0).max(24 * 3600_000), type: z.enum(REPLAY_TYPES), data: z.record(z.string(), z.union([z.string().max(300), z.number(), z.boolean(), z.null()])).optional() });
 const ReplayBody = z.object({ events: z.array(ReplayEvent).min(1).max(200) });
 const ReviewBody = z.object({ grade: z.union([z.literal(0), z.literal(3), z.literal(4), z.literal(5)]) });
-const XapiBody = z.object({ verb: z.literal("experienced"), object_id: z.string().regex(/^[a-z0-9_]{1,40}$/) });
+const XapiBody = z.object({
+  verb: z.literal("experienced"), object_id: z.string().regex(/^[a-z0-9_-]{1,60}$/),
+  /** 3D 실습 살펴봄: 인과 따라가기·조건 링크(object_id = 인과 지도 변수), 사고 사례 갈림길 3D(object_id = 사례 id). 없으면 설비 살펴봄. */
+  practice: z.enum(Object.keys(PRACTICE_KINDS) as [PracticeKind, ...PracticeKind[]]).optional(),
+});
 const SocraticStart = z.object({ equipment_id: z.string().regex(/^[a-z0-9_]{1,40}$/) });
 const SocraticTurn = z.object({ text: z.string().trim().min(1).max(500) });
 
@@ -133,6 +146,15 @@ export function createLabRouter({ db, auth, deck, llm = null, now = () => new Da
   router.post("/api/me/lab/xapi", login, express.json(), (req, res) => {
     const body = XapiBody.safeParse(req.body);
     if (!body.success) return bad(res, "문장 형식이 올바르지 않아요.", "INVALID_STATEMENT");
+    if (body.data.practice) {
+      const kind = body.data.practice, id = body.data.object_id;
+      const what = kind === "incident-3d" ? incidentTitle(id) : NODES.find((n) => n.id === id)?.label;
+      if (!what) return bad(res, "없는 실습 대상이에요.", "UNKNOWN_PRACTICE", 404);
+      const user = userOf(res), stamp = now().toISOString();
+      const row = repo.addStatement(user.id, { verb: "experienced", object_id: `practice:${kind}:${id}`, object_name: `${PRACTICE_KINDS[kind]} · ${what}`, timestamp: stamp }, stamp);
+      return void res.status(201).set("X-Experience-API-Version", XAPI_VERSION).json(strip(storedStatement(row, actorOf(user))));
+    }
+    if (!/^[a-z0-9_]{1,40}$/.test(body.data.object_id)) return bad(res, "문장 형식이 올바르지 않아요.", "INVALID_STATEMENT");
     const card = byEquipment.get(body.data.object_id);
     if (!card) return bad(res, "없는 설비예요.", "UNKNOWN_EQUIPMENT", 404);
     const user = userOf(res), stamp = now().toISOString();

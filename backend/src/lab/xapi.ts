@@ -94,12 +94,17 @@ export function statementFor(e: CardEvent, actor: Statement["actor"], names: Nam
 
 export interface StoredStatementRow { id: string; verb: string; object_id: string; object_name: string; timestamp: string; stored: string }
 
-/** 화면이 보낸 문장(지금은 설비 살펴봄만) → 문장. */
+/** 3D 실습 살펴봄의 종류(화면이 보냄). 저장할 때 object_id는 practice:<종류>:<id>. */
+export const PRACTICE_KINDS = { "causal-tour": "인과 따라가기", "causal-map-link": "인과 지도 조건 링크", "incident-3d": "사고 사례 갈림길 3D" } as const;
+export type PracticeKind = keyof typeof PRACTICE_KINDS;
+
+/** 화면이 보낸 문장(설비 살펴봄, 3D 실습 살펴봄) → 문장. */
 export function storedStatement(row: StoredStatementRow, actor: Statement["actor"]): Statement & { verbKey: VerbKey } {
   const verbKey = (row.verb in VERBS ? row.verb : "experienced") as VerbKey;
+  const practice = /^practice:([a-z0-9-]+):(.+)$/.exec(row.object_id);
   return {
     id: row.id, actor, verb: { id: VERBS[verbKey].id, display: { "ko-KR": VERBS[verbKey].ko } }, verbKey,
-    object: activity("equipment", row.object_id, row.object_name, `${ACT}/simulation`),
+    object: practice ? activity(practice[1], practice[2], row.object_name, `${ACT}/simulation`) : activity("equipment", row.object_id, row.object_name, `${ACT}/simulation`),
     context: { platform: "ST-ROOKIE", language: "ko-KR", extensions: { [`${BASE}/xapi/ext/source`]: "screen" } },
     timestamp: row.timestamp, stored: row.stored, version: XAPI_VERSION,
   };

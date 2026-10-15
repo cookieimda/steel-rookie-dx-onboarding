@@ -227,7 +227,7 @@ export async function attachSimLab() {
     else if (prev && panel.contains(document.activeElement)) launcherOf[prev]?.focus();
     bWhatif.setAttribute('aria-pressed', String(mode === 'whatif')); bFault.setAttribute('aria-pressed', String(mode === 'fault')); bMap.setAttribute('aria-pressed', String(mode === 'map'));
     panel.hidden = !mode; panel.replaceChildren();
-    if (mode === 'whatif') void whatifPanel(preset); else if (mode === 'fault') void (opt.fault ? faultDrill(opt.fault) : faultList()); else if (mode === 'map') void causalMap(preset, opt.var, opt.tour); else if (mode === 'quiz') void causalQuizPanel(opt.process); else if (mode === 'incident') void incidentPanel(opt.scenario, Number(opt.at), Number(opt.pick));
+    if (mode === 'whatif') void whatifPanel(preset); else if (mode === 'fault') void (opt.fault ? faultDrill(opt.fault) : faultList()); else if (mode === 'map') void causalMap(preset, opt.var, opt.tour, !!opt.fromLink && Object.keys(preset).length > 0); else if (mode === 'quiz') void causalQuizPanel(opt.process); else if (mode === 'incident') void incidentPanel(opt.scenario, Number(opt.at), Number(opt.pick));
   }
   const head = (title, foldable = false) => {
     const h = el('h3'); h.append(el('span', '', title)); h.tabIndex = -1;
@@ -236,6 +236,9 @@ export async function attachSimLab() {
     const x = btn('닫기', () => open(null), 'sl-btn ghost'); x.setAttribute('aria-label', `${title.replace(/^\S+\s/, '')} 닫기 (Esc)`);
     h.append(x); return h;
   };
+
+  /** 3D 실습 살펴봄을 xAPI로 남긴다(학습 랩 xAPI 기록에 보인다). 기록 실패는 화면에 영향 없음. */
+  const experienced = (practice, objectId) => { if (objectId) api('POST', '/api/me/lab/xapi', { verb: 'experienced', practice, object_id: objectId }).catch(() => {}); };
 
   /** 틀린 연결을 튜터 질문으로: v4 입력창에 질문을 채우고 튜터 패널을 연다(보내기는 학습자가). 3D 실습 패널은 접어 둔다. */
   function askTutor(text) {
@@ -257,7 +260,7 @@ export async function attachSimLab() {
 
   // ── ⓪ 공정 인과 지도: 조정 변수 6개 → 공정 사이로 퍼지는 반응 ──
   const SECTION_ORDER = ['ironmaking', 'steelmaking', 'continuous_casting', 'rolling'];
-  async function causalMap(preset = {}, startVar = null, autoTour = false) {
+  async function causalMap(preset = {}, startVar = null, autoTour = false, fromLink = false) {
     const input = { ...preset };
     panel.append(head('🗺 공정 인과 지도', true),
       el('p', 'sl-muted sl-hide', '조정할 수 있는 값 하나를 바꾸면, 그 영향이 다음 공정으로 어떻게 번지는지 3D 공장 위에 흐름으로 보여요. 주황은 값이 오르는 연결, 파랑은 내리는 연결이에요.'));
@@ -317,7 +320,7 @@ export async function attachSimLab() {
           ? [btn(`다음 ▶ (${step + 1}/${data.story.length})`, () => skip?.(), 'sl-btn ghost'), btn('■ 그만 보기', () => { say('따라가기를 멈췄어요.'); stop(true); }, 'sl-btn ghost')]
           : data.story.length > 1 ? [btn(`▶ 인과 따라가기 (${data.story.length}단계)`, () => start(), 'sl-btn')] : []));
       }
-      const start = () => { if (data?.story.length > 1) { token++; step = -1; void go(token); } };
+      const start = () => { if (data?.story.length > 1) { token++; step = -1; experienced('causal-tour', data.story[0].id); void go(token); } };
       return { stop, start, controls() { ctl = el('div', 'sl-tour'); refresh(); if (running()) setTimeout(mark, 0); return ctl; }, get running() { return running(); } };
     })();
     async function run() {
@@ -418,6 +421,7 @@ export async function attachSimLab() {
     }
     plantView();
     await run();
+    if (fromLink) experienced('causal-map-link', Object.keys(preset)[0]);
     if (autoTour) tour.start();
   }
 
@@ -551,6 +555,7 @@ export async function attachSimLab() {
     }
     await goTo(sc.section, t.equipment_id);
     show(pick);
+    experienced('incident-3d', sc.id);
   }
 
   // ── ① 조업 실험(What-if) ──
@@ -722,7 +727,7 @@ export async function attachSimLab() {
     const id = (k) => (/^[a-z0-9_-]{1,40}$/.test(qs.get(k) || '') ? qs.get(k) : undefined);
     // set=coke_rate:290,cast_speed:1.4 (id는 영문·숫자·_, 값은 숫자만. 범위는 서버가 다시 자른다)
     const preset = Object.fromEntries((qs.get('set') || '').split(',').map((kv) => kv.split(':')).filter(([k, v]) => /^[a-z0-9_]{1,40}$/.test(k || '') && Number.isFinite(Number(v)) && v !== '').slice(0, 10).map(([k, v]) => [k, Number(v)]));
-    setTimeout(() => open(lab, preset, { tour: qs.get('tour') === '1', var: id('var'), process: id('process'), fault: id('fault'), scenario: id('scenario'), at: id('at'), pick: id('pick') }), 1200);
+    setTimeout(() => open(lab, preset, { fromLink: !!qs.get('set'), tour: qs.get('tour') === '1', var: id('var'), process: id('process'), fault: id('fault'), scenario: id('scenario'), at: id('at'), pick: id('pick') }), 1200);
   }
   const sectionOf = (eqId) => Object.entries(scene.zones || {}).find(([, z]) => (z.eqs || []).some((e) => e.id === eqId))?.[0] || 'ironmaking';
 }

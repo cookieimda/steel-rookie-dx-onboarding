@@ -89,5 +89,17 @@ export function practiceStats(db: DatabaseSync, content: { faults: FaultDrill[];
     const steps = l.steps.map((s, i) => ({ title: s.title, learners: new Set(mine.filter((x) => Number(x.m![2]) === i + 1).map((x) => x.u)).size }));
     return { id: l.id, title: l.title, steps: l.steps.length, learners: new Set(mine.map((x) => x.u)).size, finished: steps[steps.length - 1]?.learners ?? 0, by_step: steps };
   });
-  return { faults, incidents, causal, lessons, min_link_answers: MIN_LINK_ANSWERS };
+  // ── 거꾸로 추론: 정답률과 헷갈리는 원인(가장 많이 틀린 문제와 그때 가장 많이 고른 다른 원인) ──
+  const diagRows = rows("diagnose_answers", "user_id, question, choice, correct");
+  const causeLabel = (key: string) => { const [id, d] = key.split(":"); return `${label.get(id) ?? id} ${Number(d) > 0 ? "▲" : "▼"}`; };
+  const byQ = new Map<string, Record<string, unknown>[]>();
+  for (const r of diagRows) byQ.set(String(r.question), [...(byQ.get(String(r.question)) ?? []), r]);
+  const confusingCauses = [...byQ.entries()].map(([q, list]) => {
+    const wrong = list.filter((r) => Number(r.correct) !== 1), picks = new Map<string, number>();
+    for (const r of wrong) picks.set(String(r.choice), (picks.get(String(r.choice)) ?? 0) + 1);
+    const top = [...picks.entries()].sort((a, b) => b[1] - a[1])[0];
+    return { cause: causeLabel(q), answers: list.length, rate: rate(list)!, mistaken_for: top ? causeLabel(top[0]) : null };
+  }).filter((x) => x.answers >= MIN_LINK_ANSWERS && x.rate < 1).sort((a, b) => a.rate - b.rate || b.answers - a.answers).slice(0, 5);
+  const diagnose = { answers: diagRows.length, learners: new Set(diagRows.map((r) => r.user_id)).size, rate: rate(diagRows), confusing: confusingCauses };
+  return { faults, incidents, causal, lessons, diagnose, min_link_answers: MIN_LINK_ANSWERS };
 }

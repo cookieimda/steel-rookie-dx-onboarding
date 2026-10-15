@@ -171,7 +171,7 @@ export function createLabExtrasRouter({ db, auth, deck, incidents, faults = { di
     if (!out) return bad(res, 404, "없는 변수예요.");
     res.json(out);
   });
-  // 거꾸로 추론 퀴즈(진단형): 증상 → 원인 고르기. 기록하지 않는 자가 점검(사원증 XP 없음).
+  // 거꾸로 추론 퀴즈(진단형): 증상 → 원인 고르기. 답은 기록해 관리자 통계에 쓴다(017, 사원증 XP 없음).
   router.get("/api/lab/causal/diagnose", login, (req, res) => res.json({ questions: diagnoseQuiz(Number(req.query.seed) || Date.now() % 100000, 4) }));
   router.post("/api/lab/causal/diagnose/check", login, express.json(), (req, res) => {
     const key = z.string().regex(/^[a-z0-9_]{1,40}:-?1$/);
@@ -179,6 +179,8 @@ export function createLabExtrasRouter({ db, auth, deck, incidents, faults = { di
     if (!body.success) return bad(res, 400, "문제·고른 원인·증상을 보내 주세요.");
     const out = checkDiagnose(body.data.id, body.data.choice, body.data.symptoms);
     if (!out) return bad(res, 404, "없는 원인이에요.");
+    db.prepare("INSERT INTO diagnose_answers(id,user_id,question,choice,correct,created_at) VALUES(?,?,?,?,?,?)")
+      .run(randomUUID(), me(res).id, body.data.id, body.data.choice, out.correct ? 1 : 0, new Date().toISOString());
     res.json(out);
   });
   // 오늘의 실습 경로: 내 3D 실습 기록으로 가장 약한 공정을 골라 인과 지도 → 인과 퀴즈 → 이상 상황 훈련을 권한다.

@@ -325,3 +325,18 @@ test("갈림길 → 인과 지도: 연주 브레이크아웃 사례에서 실제
   writeFileSync(join(dir, "a.json"), JSON.stringify(raw));
   assert.throws(() => loadIncidents(join(dir, "a.json")), /조정할 수 없는 값/);
 });
+
+test("거꾸로 추론 기록·통계: 채점할 때 답을 남기고, 통계는 정답률·헷갈리는 원인(많이 고른 다른 답)·지우기", async () => {
+  const { practiceStats } = await import("../src/lab/practice-stats.js");
+  const before = Number(db.prepare("SELECT COUNT(*) AS n FROM diagnose_answers").get()!.n);
+  const r = await call("POST", "/api/lab/causal/diagnose/check", { id: "reheat_temp:-1", choice: "cool_banks:1", symptoms: ["fdt", "coiling_temp"] });
+  assert.equal(r.json.correct, false);
+  assert.equal(Number(db.prepare("SELECT COUNT(*) AS n FROM diagnose_answers").get()!.n), before + 1);
+  await call("POST", "/api/lab/causal/diagnose/check", { id: "reheat_temp:-1", choice: "reheat_temp:-1", symptoms: ["fdt", "coiling_temp"] });
+  const st = practiceStats(db, { faults: [], scenarios: [] });
+  assert.equal(st.diagnose.answers, before + 2);
+  const c = st.diagnose.confusing.find((x) => x.cause.startsWith("재가열 온도"))!;
+  assert.deepEqual([c.cause, c.mistaken_for, c.rate], ["재가열 온도 ▼", "런아웃 냉각 뱅크 ▲", 0.5]);
+  deleteUserData(db, kim.id, { origin: "live" });
+  assert.equal(Number(db.prepare("SELECT COUNT(*) AS n FROM diagnose_answers WHERE user_id = ?").get(kim.id)!.n), 0);
+});

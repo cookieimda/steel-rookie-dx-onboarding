@@ -244,7 +244,16 @@ async function showPractice(pane) {
     lc.append(row);
   }
   if (!lessons.lessons.length) lc.append(el('p', 'muted', '수업이 없어요.'));
-  wrap.append(top, lc, quiz, ft, it);
+  // 거꾸로 추론: 정답률과 헷갈리는 원인
+  const dg = data.diagnose, dc = el('div', 'card ops-card');
+  dc.append(el('strong', '', '🔍 거꾸로 추론'), el('span', 'micro', `답 ${dg?.answers ?? 0}개 · ${dg?.learners ?? 0}명 · 정답률 ${pct(dg?.rate)}. 증상을 보고 원인을 고르는 문제예요.`));
+  for (const c of dg?.confusing ?? []) {
+    const row = el('div', 'pat-row');
+    row.append(el('span', '', `${c.cause}${c.mistaken_for ? ` ↔ 많이 고른 답 ${c.mistaken_for}` : ''}`), rateBar(c.rate), el('span', 'micro', `정답 ${pct(c.rate)} · ${c.answers}번`));
+    dc.append(row);
+  }
+  if (!dg?.confusing?.length) dc.append(el('p', 'muted', `헷갈린 원인이 아직 없어요(같은 문제에 답 ${data.min_link_answers}번 이상일 때 보여요).`));
+  wrap.append(top, lc, quiz, dc, ft, it);
   pane.replaceChildren(wrap);
 }
 

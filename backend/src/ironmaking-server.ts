@@ -1,5 +1,5 @@
 import { GeminiAdminSummarizer } from "../../llm/src/admin-summary.js";
-import { GeminiEvaluator } from "../../llm/src/evaluator.js";
+import { evaluatorGuardOptions, GeminiEvaluator } from "../../llm/src/evaluator.js";
 import { GeminiLearningAgent } from "../../llm/src/learning-agent.js";
 import { useApprovedSources } from "../../llm/src/ironmaking-sources.js";
 import { createLlmClient, profileFor, providerInfo } from "../../llm/src/provider.js";
@@ -54,8 +54,8 @@ const profile = profileFor(llmInfo.provider);
 // 작업을 취소하면 진행 중인 추론도 끊는다(jobAwareClient).
 const llm = jobAwareClient(createLlmClient({ beforeCall: () => usage.consume(jobUserId() ?? currentUserId()) }));
 // 평가자·튜터는 체크포인트·시험·보충학습이 함께 쓴다. 시험 작업에서는 단계(문제·채점·설명)를 작업 상태에 적는다(phase*).
-// 로컬 모델은 판정 필드 형식과 wrong·partial 경계를 자주 틀려서 보강을 켠다(llm/src/evaluator.ts repairFormat·verifyBoundary).
-const evaluator = new GeminiEvaluator(llm, { repairFormat: profile.evaluatorGuards, verifyBoundary: profile.evaluatorGuards });
+// 로컬 모델은 판정 필드 형식·wrong·partial 경계를 자주 틀리고 누락을 오개념으로 적어서 보강을 켠다(llm/src/evaluator.ts evaluatorGuardOptions).
+const evaluator = new GeminiEvaluator(llm, evaluatorGuardOptions(profile.evaluatorGuards));
 const tutor = new GeminiTutor(llm);
 const engine = new CheckpointEngine({
   repo: new CheckpointRepository(db),

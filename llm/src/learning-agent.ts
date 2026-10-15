@@ -294,14 +294,16 @@ export function namedEquipment(question: string, scene: SceneCatalog | undefined
 }
 
 /** 설비 하나의 작동 과정을 묻는 말("어떻게 작동해?", "데우는 과정을 보여 줘", "작동 원리"). 역할·정의 질문("무슨 일을 해?")은 아니다. */
-const OPERATION_INTENT = /어떻게\s?(작동|동작|돌아가|움직|운전|만들|데우|굽)|작동\s?(원리|과정|순서|단계|방식)|(과정|단계|원리|순서)[을를]?\s?(보여|알려)|작동하는\s?(모습|거)/;
+const OPERATION_INTENT = /어떻게\s?(작동|동작|돌아가|움직|운전|만들|데우|굽)|작동\s?(원리|과정|순서|단계|방식)|(과정|단계|원리)[을를]?\s?(보여|알려)|작동하는\s?(모습|거)/;
+/** 공정 전체를 묻는 말("제선 공정 순서를 보여 줘")은 설비 작동 보기가 아니라 공정 흐름(play_animation)이다. */
+const PROCESS_LEVEL = /공정/;
 
 /**
  * 작동 과정을 묻는 질문이면 작동 보기를 할 설비 id(작동 단계가 있는 설비만). 대상은 질문이 이름으로 가리킨 설비 → 모델이 보여 준 설비 → 지금 화면의 설비 순서.
  * 공정 전체 순서("제선 공정 순서를 보여 줘")는 설비가 정해지지 않아 null이다(play_animation 몫).
  */
 export function operationTarget(question: string, scene: SceneCatalog | undefined, screenEquipment: string | null, actions: SceneAction[]): string | null {
-  if (!scene || !OPERATION_INTENT.test(question)) return null;
+  if (!scene || !OPERATION_INTENT.test(question) || PROCESS_LEVEL.test(question)) return null;
   const operable = new Set(scene.processes.flatMap((p) => p.equipment.filter((e) => e.operation).map((e) => e.id)));
   const shown = actions.find((a) => a.type === "focus" || a.type === "highlight")?.target_id ?? null;
   const target = namedEquipment(question, scene) ?? shown ?? screenEquipment;

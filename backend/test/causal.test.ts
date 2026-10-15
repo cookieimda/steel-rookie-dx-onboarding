@@ -106,3 +106,17 @@ test("인과 지도 값의 바닥: 위험 점수·과열도는 조정 값을 어
     for (const n of simulateCausal(input).nodes) if (n.floor !== undefined) assert.ok(n.value >= n.floor, `${n.id} ${n.value} (${JSON.stringify(input)})`);
   }
 });
+
+test("공정 사이 시간 지연: 같은 공정은 바로, 뒤 공정일수록 늦게 닿고, 기준은 바꾼 값 중 가장 앞 공정", async () => {
+  const { arrivalText, simulateCausal } = await import("../src/lab/causal.js");
+  assert.equal(arrivalText("ironmaking", "ironmaking"), "바로");
+  assert.equal(arrivalText("ironmaking", "steelmaking"), "약 2~4시간 뒤");
+  assert.equal(arrivalText("ironmaking", "rolling"), "약 11~30시간 뒤");
+  assert.equal(arrivalText("continuous_casting", "rolling"), "약 8~24시간 뒤");
+  const r = simulateCausal({ coke_rate: 290 });
+  const lows = r.story.map((s) => (s.arrive === "바로" ? 0 : Number(/약 (\d+)~/.exec(s.arrive)![1])));
+  assert.deepEqual([...lows].sort((a, b) => a - b), lows, "이야기 줄은 도착 순서대로");
+  assert.ok(r.story.some((s) => s.process === "steelmaking" && s.arrive === "약 2~4시간 뒤"));
+  assert.ok(simulateCausal({ tap_temp: 1690 }).story.every((s) => s.arrive === "바로" || s.arrive.startsWith("약 1~2시간") || s.arrive.startsWith("약 9~26시간")));
+  assert.match(r.note, /대략값/);
+});

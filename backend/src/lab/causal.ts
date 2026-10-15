@@ -82,7 +82,7 @@ export interface CausalResult {
   nodes: (NodeDef & { value: number; delta: number; status: "ok" | "warn" })[];
   edges: (EdgeDef & { effect: number; active: boolean })[];
   /** 바뀐 변수를 위에서 아래로 따라간 설명(조정 변수 → 영향받은 변수). */
-  story: { id: string; equipment_id: string; causes: string[]; process: ProcessId; text: string; status: "ok" | "warn" }[];
+  story: { id: string; equipment_id: string; causes: string[]; process: ProcessId; text: string; status: "ok" | "warn"; arrive: string }[];
   note: string;
 }
 
@@ -91,6 +91,20 @@ export function eulReul(word: string) {
   const w = word.replace(/\s*\([^)]*\)\s*$/, ""), c = w.charCodeAt(w.length - 1);
   const batchim = c >= 0xac00 && c <= 0xd7a3 ? (c - 0xac00) % 28 !== 0 : /[0-9LMNRlmnr]$/.test(w);
   return `${word}${batchim ? "을" : "를"}`;
+}
+
+// ── 공정 사이 시간 지연: 바꾼 값의 영향은 물질이 다음 공정에 닿아야 나타난다(교육용 대략값, 실제 물류·일정마다 다르다) ──
+const PROCESS_SEQ: ProcessId[] = ["ironmaking", "steelmaking", "continuous_casting", "rolling"];
+/** 앞 공정 → 다음 공정까지 걸리는 시간(시간, [짧게, 길게]): 용선 운송·예비처리, 정련·주조 대기, 슬래브 야드·가열로. */
+export const LAG_HOURS: [number, number][] = [[2, 4], [1, 2], [8, 24]];
+export const LAG_NOTE = "공정 사이 시간은 물질이 옮겨 가는 데 걸리는 대략값이에요(교육용). 같은 공정 안에서는 거의 바로 나타나요.";
+
+/** 원인 공정에서 이 공정까지 영향이 닿는 시간 문구. */
+export function arrivalText(from: ProcessId, to: ProcessId) {
+  const a = PROCESS_SEQ.indexOf(from), b = PROCESS_SEQ.indexOf(to);
+  if (b <= a) return "바로";
+  const [lo, hi] = LAG_HOURS.slice(a, b).reduce(([x, y], [p, q]) => [x + p, y + q], [0, 0]);
+  return `약 ${lo}~${hi}시간 뒤`;
 }
 
 export function simulateCausal(raw: Record<string, number> = {}): CausalResult {
@@ -116,18 +130,20 @@ export function simulateCausal(raw: Record<string, number> = {}): CausalResult {
     return { ...e, effect: round(effect, to.digits + 1), active: Math.abs(effect) >= 0.5 * 10 ** -to.digits };
   });
   const fmt = (n: { value: number; delta: number; unit: string; digits: number }) => `${n.value.toFixed(n.digits)}${n.unit} (${n.delta > 0 ? "+" : ""}${n.delta.toFixed(n.digits)})`;
+  // 시간 기준: 바꾼 조정 값 중 가장 앞 공정
+  const start = PROCESS_SEQ.find((p) => nodes.some((m) => m.control && m.delta && m.process === p)) ?? "ironmaking";
   const story = topoOrder().flatMap((id) => {
     const n = nodeOf.get(id)!;
     if (!n.delta) return [];
     // id·설비·원인 변수: 3D '인과 따라가기'가 이 순서대로 카메라를 옮기고 원인 설비 → 이 설비로 흐름을 그린다
-    const at = { id, equipment_id: n.equipment_id, process: n.process, status: n.status };
+    const at = { id, equipment_id: n.equipment_id, process: n.process, status: n.status, arrive: arrivalText(start, n.process) };
     if (n.control) return [{ ...at, causes: [], text: `${eulReul(n.label)} ${fmt(n)}로 바꿨어요.` }];
     const active = edges.filter((e) => e.to === id && e.active);
     const causes = active.map((e) => nodeOf.get(e.from)!.label);
     const why = edges.filter((e) => e.to === id && e.active).map((e) => e.why).join(" ");
     return [{ ...at, causes: active.map((e) => e.from), text: `${causes.join("·")} → ${n.label} ${fmt(n)}. ${why}${n.status === "warn" ? " 정상 범위를 벗어났어요." : ""}` }];
   });
-  return { nodes, edges, story, note: CAUSAL_NOTE };
+  return { nodes, edges, story, note: `${CAUSAL_NOTE} ${LAG_NOTE}` };
 }
 
 // ── 인과 퀴즈: "원인 → 결과 → 다음 공정 영향"을 한 칸씩 묻는 질문 틀 ──

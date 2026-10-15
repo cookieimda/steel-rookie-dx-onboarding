@@ -336,7 +336,7 @@ export async function attachSimLab() {
           if (i === step) {
             const n = data.nodes.find((x) => x.id === st.id);
             fx.ring(st.equipment_id, st.status === 'warn' ? 0xff4d4d : 0x2bd4b4, true);
-            fx.tag(st.equipment_id, `${i + 1}. ${n.label} ${n.delta > 0 ? '▲' : '▼'} ${fmt(n.value, n.digits)}${n.unit}`, st.status === 'warn' ? 'warn' : 'hot', 6);
+            fx.tag(st.equipment_id, `${i + 1}. ${n.label} ${n.delta > 0 ? '▲' : '▼'} ${fmt(n.value, n.digits)}${n.unit}${st.arrive && st.arrive !== '바로' ? ` · ⏱ ${st.arrive}` : ''}`, st.status === 'warn' ? 'warn' : 'hot', 6);
           }
         });
         scene._dirty = true;
@@ -345,7 +345,7 @@ export async function attachSimLab() {
         while (my === token && panel.contains(story) && step < data.story.length - 1) {
           step++; mark(); draw(); refresh();
           const st = data.story[step];
-          say(`${step + 1}단계. ${st.text}`);
+          say(`${step + 1}단계${st.arrive && st.arrive !== '바로' ? `, ${st.arrive}` : ''}. ${st.text}`);
           await goTo(st.process, st.equipment_id);
           await new Promise((r) => { skip = r; setTimeout(r, STEP_MS); });
         }
@@ -435,7 +435,7 @@ export async function attachSimLab() {
     function render() {
       // 설명: 위에서 아래로 따라간 인과
       story.replaceChildren(...(data.story.length ? [el('b', '', '무엇이 어떻게 번졌나'), tour.controls()] : []), ...(data.story.length ? data.story.map((s, i) => {
-        const box = el('div', s.status === 'warn' ? 'sl-next' : 'sl-cause'); box.dataset.i = i; box.append(el('small', 'sl-muted', `${i + 1}. ${SECTION[s.process]}`), el('div', '', s.text)); return box;
+        const box = el('div', s.status === 'warn' ? 'sl-next' : 'sl-cause'); box.dataset.i = i; box.append(el('small', 'sl-muted', `${i + 1}. ${SECTION[s.process]}${s.arrive && s.arrive !== '바로' ? ` · ⏱ ${s.arrive}` : ''}`), el('div', '', s.text)); return box;
       }) : [el('p', 'sl-muted', '값을 하나 바꾸거나 위 예시를 눌러 보세요. 공정 4개를 잇는 연결이 지금은 옅게 그려져 있어요.')]));
       // 공정별 값
       byProc.replaceChildren(el('small', 'sl-muted', '값을 누르면 무슨 뜻인지, 무엇과 이어져 있는지 보여 줘요.'), ...SECTION_ORDER.map((sec) => {

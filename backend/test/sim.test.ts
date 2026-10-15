@@ -235,7 +235,7 @@ test("내 3D 실습 요약: 퀴즈 칸·정답률, 끝낸 훈련 종류·만점,
   const faults = loadFaults().faults, scenarios = loadIncidents().scenarios, now = new Date().toISOString();
   const empty = practicePath(pdb, u.id, faults, scenarios).summary;
   const totalOptions = scenarios.reduce((n, s) => n + s.timeline.reduce((m, t) => m + (t.branch?.options.length ?? 0), 0), 0);
-  assert.deepEqual(empty, { quiz_answers: 0, quiz_rate: null, faults_done: 0, faults_total: 4, faults_perfect: 0, branches_explored: 0, branches_total: totalOptions });
+  assert.deepEqual(empty, { quiz_answers: 0, quiz_rate: null, faults_done: 0, faults_total: 4, faults_perfect: 0, diagnose_answers: 0, diagnose_rate: null, rebalance_clean: 0, branches_explored: 0, branches_total: totalOptions });
   pdb.prepare("INSERT INTO causal_quiz_answers VALUES(?,?,?,?,?,?)").run("a", u.id, "coke_rate>hm_temp>scrap_pct", 1, 1, now);
   pdb.prepare("INSERT INTO causal_quiz_answers VALUES(?,?,?,?,?,?)").run("b", u.id, "coke_rate>hm_temp>scrap_pct", 2, 0, now);
   pdb.prepare("INSERT INTO fault_attempts VALUES(?,?,?,?,?,?)").run("f1", u.id, faults[0].id, "{}", 1, now);
@@ -243,6 +243,12 @@ test("내 3D 실습 요약: 퀴즈 칸·정답률, 끝낸 훈련 종류·만점,
   pdb.prepare("INSERT INTO branch_explorations VALUES(?,?,?,?,?,?,?)").run("x", u.id, scenarios[0].id, 1, 1, 0, now);
   const s = practicePath(pdb, u.id, faults, scenarios).summary;
   assert.deepEqual([s.quiz_answers, s.quiz_rate, s.faults_done, s.faults_perfect, s.branches_explored], [2, 0.5, 2, 1, 1]);
+  pdb.prepare("INSERT INTO diagnose_answers VALUES(?,?,?,?,?,?)").run("d1", u.id, "tap_temp:1", "tap_temp:1", 1, now);
+  pdb.prepare("INSERT INTO diagnose_answers VALUES(?,?,?,?,?,?)").run("d2", u.id, "tap_temp:1", "coke_rate:-1", 0, now);
+  pdb.prepare("INSERT INTO rebalance_attempts VALUES(?,?,?,?,?,?,?,?)").run("r1", u.id, "p1", "reheat_temp", 1170, 1, 1, now);
+  pdb.prepare("INSERT INTO rebalance_attempts VALUES(?,?,?,?,?,?,?,?)").run("r2", u.id, "p1", "reheat_temp", 1170, 1, 1, now);
+  const s2 = practicePath(pdb, u.id, faults, scenarios).summary;
+  assert.deepEqual([s2.diagnose_answers, s2.diagnose_rate, s2.rebalance_clean], [2, 0.5, 1], "같은 퍼즐은 한 번");
   assert.ok(totalOptions >= 16, "사례 4개 × 갈림길 2개 × 선택 2개 이상");
 });
 

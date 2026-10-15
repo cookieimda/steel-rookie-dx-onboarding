@@ -210,6 +210,8 @@ export function createLearningLab(c) {
         ['인과 퀴즈', P.summary.quiz_answers ? `${Math.round(P.summary.quiz_rate * 100)}% · ${P.summary.quiz_answers}칸` : '아직 없음'],
         ['이상 상황 훈련', `${P.summary.faults_done} / ${P.summary.faults_total}종${P.summary.faults_perfect ? ` · 만점 ${P.summary.faults_perfect}` : ''}`],
         ['갈림길 탐험', `${P.summary.branches_explored} / ${P.summary.branches_total}`],
+        ['거꾸로 추론', P.summary.diagnose_answers ? `${Math.round(P.summary.diagnose_rate * 100)}% · ${P.summary.diagnose_answers}문제` : '아직 없음'],
+        ['되돌리기 퍼즐', `부작용 없이 ${P.summary.rebalance_clean ?? 0}개`],
       ].map(([k, val]) => ({ k, v: val })) : [],
       ppProcs: (P?.processes || []).map(x => ({ name: x.name, quiz: x.quiz_rate == null ? '퀴즈 —' : `퀴즈 ${Math.round(x.quiz_rate * 100)}%`, fault: x.fault_best == null ? '훈련 —' : `훈련 ${Math.round(x.fault_best * 100)}점`,
         w: `${Math.round((1 - x.weakness) * 100)}%`, weak: x.process === P.process ? 'weak' : '' })),

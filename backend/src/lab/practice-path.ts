@@ -65,9 +65,14 @@ export function practicePath(db: DatabaseSync, userId: string, faults: FaultDril
   });
   // 내 3D 실습 요약(학습 기록 카드): 인과 퀴즈 칸·정답률, 끝낸 이상 상황 훈련 종류, 골라 본 갈림길 선택
   const branches = tableExists(db, "branch_explorations") ? Number(db.prepare("SELECT COUNT(*) AS n FROM branch_explorations WHERE user_id = ?").get(userId)?.n ?? 0) : 0;
+  // 거꾸로 추론 답(017)·되돌리기 퍼즐(018)
+  const diag = tableExists(db, "diagnose_answers") ? db.prepare("SELECT correct FROM diagnose_answers WHERE user_id = ?").all(userId) : [];
+  const rebalanceClean = tableExists(db, "rebalance_attempts") ? Number(db.prepare("SELECT COUNT(DISTINCT puzzle) AS n FROM rebalance_attempts WHERE user_id = ? AND clean = 1").get(userId)?.n ?? 0) : 0;
   const summary = {
     quiz_answers: quiz.length, quiz_rate: quiz.length ? Math.round((quiz.filter((r) => Number(r.correct) === 1).length / quiz.length) * 100) / 100 : null,
     faults_done: best.size, faults_total: faults.length, faults_perfect: [...best.values()].filter((v) => v === 1).length,
+    diagnose_answers: diag.length, diagnose_rate: diag.length ? Math.round((diag.filter((r) => Number(r.correct) === 1).length / diag.length) * 100) / 100 : null,
+    rebalance_clean: rebalanceClean,
     branches_explored: branches, branches_total: scenarios.reduce((n, s) => n + s.timeline.reduce((m, t) => m + (t.branch?.options.length ?? 0), 0), 0),
   };
   return { process: p, name: pick.name, reason, steps, processes: processes.map(({ missed: _m, ...rest }) => rest), summary };

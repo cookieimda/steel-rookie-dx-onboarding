@@ -119,7 +119,12 @@ export function createLearningLab(c) {
   const extras = createLabExtras(c, { api, set, S, fail });
   Object.assign(loaders, extras.loaders);
   const load = sub => { set({ labError: null }); return (loaders[sub]?.() || Promise.resolve()).catch(fail); };
-  const open = sub => { set({ labTab: sub }); track('lab', { sub }); load(sub); };
+  // 오늘의 실습 경로는 학습 랩을 열 때 한 번 읽는다(실패하면 조용히 숨긴다).
+  let pathLoaded = false;
+  const open = sub => {
+    set({ labTab: sub }); track('lab', { sub }); load(sub);
+    if (!pathLoaded) { pathLoaded = true; api('GET', '/api/lab/practice-path').then(r => set({ labPath: r }), () => { pathLoaded = false; }); }
+  };
 
   // ── 간격 반복 ──
   const grade = g => {
@@ -191,6 +196,13 @@ export function createLearningLab(c) {
       labShowNotes: sub === 'notes' ? 'flex' : 'none', labShowPatterns: sub === 'patterns' ? 'flex' : 'none',
       ...extras.vals(sub),
     };
+
+    // 오늘의 실습 경로
+    const P = s.labPath, ICON = { map: '🗺', quiz: '🧩', fault: '🚨' };
+    Object.assign(v, {
+      ppHas: !!P?.steps?.length, ppName: P?.name || '', ppReason: P?.reason || '',
+      ppSteps: (P?.steps || []).map((x, i) => ({ n: `${i + 1}단계 ${ICON[x.kind] || ''}${x.done ? ' · 완료' : ''}`, title: x.title, why: x.why, href: x.href })),
+    });
 
     // 간격 반복
     const R = s.labReview, card = R?.queue?.[0];

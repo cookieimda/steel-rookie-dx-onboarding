@@ -191,11 +191,11 @@ export async function attachSimLab() {
   launch.append(bMap, bWhatif, bFault, bPlant);
   document.body.append(launch, panel);
   let mode = null;
-  function open(next, preset) {
+  function open(next, preset, opt = {}) {
     mode = next; fx.clear(); panel.classList.remove('compact');
     bWhatif.setAttribute('aria-pressed', String(mode === 'whatif')); bFault.setAttribute('aria-pressed', String(mode === 'fault')); bMap.setAttribute('aria-pressed', String(mode === 'map'));
     panel.hidden = !mode; panel.replaceChildren();
-    if (mode === 'whatif') void whatifPanel(preset); else if (mode === 'fault') void faultList(); else if (mode === 'map') void causalMap(preset); else if (mode === 'quiz') void causalQuizPanel();
+    if (mode === 'whatif') void whatifPanel(preset); else if (mode === 'fault') void (opt.fault ? faultDrill(opt.fault) : faultList()); else if (mode === 'map') void causalMap(preset, opt.var); else if (mode === 'quiz') void causalQuizPanel(opt.process);
   }
   const head = (title, foldable = false) => {
     const h = el('h3'); h.append(el('span', '', title));
@@ -213,7 +213,7 @@ export async function attachSimLab() {
 
   // ── ⓪ 공정 인과 지도: 조정 변수 6개 → 공정 사이로 퍼지는 반응 ──
   const SECTION_ORDER = ['ironmaking', 'steelmaking', 'continuous_casting', 'rolling'];
-  async function causalMap(preset = {}) {
+  async function causalMap(preset = {}, startVar = null) {
     const input = { ...preset };
     panel.append(head('🗺 공정 인과 지도', true),
       el('p', 'sl-muted sl-hide', '조정할 수 있는 값 하나를 바꾸면, 그 영향이 다음 공정으로 어떻게 번지는지 3D 공장 위에 흐름으로 보여요. 주황은 값이 오르는 연결, 파랑은 내리는 연결이에요.'));
@@ -229,7 +229,7 @@ export async function attachSimLab() {
     presets.append(pr, btn('🧩 인과 퀴즈로 확인하기', () => open('quiz'), 'sl-btn'));
     const controls = el('div', 'sl-box sl-hide'), story = el('div'), detail = el('div'), byProc = el('div'), note = el('p', 'sl-muted');
     panel.append(presets, controls, story, detail, byProc, note);
-    let timer = 0, data = null, first = true, picked = null;
+    let timer = 0, data = null, first = true, picked = startVar;
     async function run() {
       try { data = await api('POST', '/api/lab/causal', input); } catch (e) { story.replaceChildren(el('p', 'sl-bad', e.message)); return; }
       if (first) { first = false; renderControls(); }
@@ -309,10 +309,10 @@ export async function attachSimLab() {
   }
 
   // ── 인과 퀴즈: 원인 → 결과 → 다음 공정 영향을 한 칸씩 묻는다 ──
-  async function causalQuizPanel() {
+  async function causalQuizPanel(process) {
     panel.append(head('🧩 인과 퀴즈'), el('p', 'sl-muted', '한 값을 올리거나 내리면 다음 값, 그다음 공정의 값이 어떻게 될까요? 한 칸씩 고르면 3D에서 그 연결이 흐르며 이유를 알려 줘요.'));
     let chains;
-    try { chains = (await api('GET', `/api/lab/causal/quiz?seed=${Date.now() % 100000}`)).chains; } catch (e) { panel.append(el('p', 'sl-bad', e.message)); return; }
+    try { chains = (await api('GET', `/api/lab/causal/quiz?seed=${Date.now() % 100000}${process ? `&process=${process}` : ''}`)).chains; } catch (e) { panel.append(el('p', 'sl-bad', e.message)); return; }
     const box = el('div', 'sl-box'), scoreLine = el('p', 'sl-muted');
     panel.append(box, scoreLine, btn('🗺 인과 지도로 돌아가기', () => open('map'), 'sl-btn ghost'));
     let qi = 0, right = 0, total = 0;
@@ -513,6 +513,12 @@ export async function attachSimLab() {
       }
       work.append(list);
     }
+  }
+  // 학습 기록의 '오늘의 실습 경로' 링크(?p=공정&lab=map&var=… · lab=quiz&process=… · lab=fault&fault=…)로 들어오면 그 실습을 바로 연다.
+  const qs = new URLSearchParams(location.search), lab = qs.get('lab');
+  if (['map', 'quiz', 'fault', 'whatif'].includes(lab)) {
+    const id = (k) => (/^[a-z0-9_-]{1,40}$/.test(qs.get(k) || '') ? qs.get(k) : undefined);
+    setTimeout(() => open(lab, {}, { var: id('var'), process: id('process'), fault: id('fault') }), 1200);
   }
   const sectionOf = (eqId) => Object.entries(scene.zones || {}).find(([, z]) => (z.eqs || []).some((e) => e.id === eqId))?.[0] || 'ironmaking';
 }

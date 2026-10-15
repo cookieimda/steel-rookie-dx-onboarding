@@ -134,11 +134,12 @@ export function causalChains(): Chain[] {
   return out;
 }
 
-/** 퀴즈 n개: 공정을 넘는 길을 먼저, seed로 섞고 방향(올림/내림)을 정한다. */
-export function causalQuiz(seed = 1, n = 5) {
+/** 퀴즈 n개: 공정을 넘는 길을 먼저, seed로 섞고 방향(올림/내림)을 정한다. process를 주면 그 공정 변수가 든 길을 먼저 낸다(오늘의 실습 경로). */
+export function causalQuiz(seed = 1, n = 5, process?: string) {
   let x = (Math.abs(Math.floor(seed)) % 2147483646) + 1;
   const rand = () => (x = (x * 48271) % 2147483647) / 2147483647;
-  const chains = causalChains().map((c) => ({ c, k: rand() - (c.cross ? 1 : 0) })).sort((a, b) => a.k - b.k).slice(0, n).map((o) => o.c);
+  const has = (c: Chain) => !!process && c.nodes.some((id) => byId.get(id)!.process === process);
+  const chains = causalChains().map((c) => ({ c, k: rand() - (c.cross ? 1 : 0) - (has(c) ? 2 : 0) })).sort((a, b) => a.k - b.k).slice(0, n).map((o) => o.c);
   return chains.map((c) => ({
     id: c.id, dir: rand() < 0.5 ? 1 : -1, cross: c.cross,
     nodes: c.nodes.map((id) => { const d = byId.get(id)!; return { id, label: d.label, process: d.process, equipment_id: d.equipment_id }; }),

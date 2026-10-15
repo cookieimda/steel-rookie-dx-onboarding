@@ -164,3 +164,29 @@ test("3D 실습 통계: 이상 상황 단계별 시도·사고 사례 약한 문
   assert.deepEqual([real.faults[0].attempts, real.causal.answers, real.causal.confusing.length], [1, 2, 0], "시연 계정 기록은 빠지고 헷갈리는 연결은 답 2칸 미만이라 없다");
   assert.equal((await call("GET", "/api/admin/practice-stats")).status, 403, "신입사원은 볼 수 없다");
 });
+
+test("오늘의 실습 경로: 기록이 없으면 제선부터, 틀린 퀴즈·낮은 훈련 점수가 있는 공정을 고르고 틀린 칸의 변수를 먼저 보게 한다", async () => {
+  const { practicePath } = await import("../src/lab/practice-path.js");
+  const { causalQuiz, NODES } = await import("../src/lab/causal.js");
+  const pdb = openDatabase(":memory:"), u = await new UserRepository(pdb).create({ username: "trainee04", password: "password123", name: "다", employee_no: "S4" });
+  const faults = loadFaults().faults, now = new Date().toISOString();
+  const empty = practicePath(pdb, u.id, faults);
+  assert.equal(empty.process, "ironmaking");
+  assert.match(empty.reason, /아직 안 해 봤어요/);
+  assert.deepEqual(empty.steps.map((s) => s.kind), ["map", "quiz", "fault"]);
+  assert.ok(empty.steps.every((s) => s.href.startsWith("/3d-demo/Steel%20Academy%20v4.dc.html?p=ironmaking&lab=")));
+  // 제강이 걸린 칸을 틀리고 제강 훈련 점수가 낮다
+  pdb.prepare("INSERT INTO causal_quiz_answers VALUES(?,?,?,?,?,?)").run("q1", u.id, "coke_rate>hm_temp>scrap_pct", 2, 0, now);
+  const steel = faults.find((f) => f.section === "steelmaking")!;
+  pdb.prepare("INSERT INTO fault_attempts VALUES(?,?,?,?,?,?)").run("f1", u.id, steel.id, "{}", 0.33, now);
+  const path = practicePath(pdb, u.id, faults);
+  assert.equal(path.process, "steelmaking");
+  assert.match(path.steps[0].href, /lab=map&var=scrap_pct$/, "틀린 칸이 지난 제강 변수");
+  assert.match(path.steps[2].href, new RegExp(`lab=fault&fault=${steel.id}$`));
+  assert.match(path.reason, /정답률이 0%/);
+  assert.equal(path.processes.find((p) => p.process === "steelmaking")?.fault_best, 0.33);
+  // 공정을 주면 그 공정 변수가 든 길이 먼저 나온다
+  const rolling = new Set(NODES.filter((n) => n.process === "rolling").map((n) => n.id));
+  assert.ok(causalQuiz(7, 5, "rolling").slice(0, 1).every((c) => c.nodes.some((n) => rolling.has(n.id))));
+  assert.equal((await call("GET", "/api/lab/practice-path")).status, 200);
+});

@@ -4,7 +4,8 @@
 //   GET  /api/lab/notes?equipment_id=   설비 메모(공개 + 내 비공개) · GET /api/lab/notes/summary  설비별 공개 메모 수
 //   POST /api/lab/notes · DELETE /api/lab/notes/:id · POST …/:id/vote · …/:id/replies · …/:id/report
 //   GET  /api/admin/notes/reported · POST /api/admin/notes/:id/hide {hidden}
-//   GET  /api/admin/practice-stats?include_demo=  3D 실습 통계(관리자)
+//   GET  /api/admin/practice-stats?include_demo=  3D 실습 통계(관리자) · GET /api/lab/practice-path  오늘의 실습 경로
+//   GET  /api/lab/causal/quiz?seed=&process=  인과 퀴즈(process를 주면 그 공정 변수가 든 길 먼저)
 //   GET  /api/lab/faults · GET /api/lab/faults/:id · POST /api/lab/faults/:id/check {step, key} · POST /api/lab/faults/:id/complete {tries}  (이상 상황 훈련)
 import { randomUUID } from "node:crypto";
 import express from "express";
@@ -20,6 +21,8 @@ import { maskName } from "./league.js";
 import { whatIf } from "./whatif.js";
 import { NODES, causalQuiz, checkHop, simulateCausal } from "./causal.js";
 import { practiceStats } from "./practice-stats.js";
+import { practicePath } from "./practice-path.js";
+import { SECTION_ORDER, type Section } from "../checkpoint/types.js";
 
 /** 신고가 이만큼 쌓이면 자동으로 숨긴다(관리자가 다시 열 수 있다). */
 export const AUTO_HIDE_REPORTS = 3;
@@ -105,7 +108,12 @@ export function createLabExtrasRouter({ db, auth, deck, incidents, faults = { di
     res.json(simulateCausal(body.data));
   });
 
-  router.get("/api/lab/causal/quiz", login, (req, res) => res.json({ chains: causalQuiz(Number(req.query.seed) || Date.now() % 100000, 5) }));
+  router.get("/api/lab/causal/quiz", login, (req, res) => {
+    const process = SECTION_ORDER.includes(req.query.process as Section) ? String(req.query.process) : undefined;
+    res.json({ chains: causalQuiz(Number(req.query.seed) || Date.now() % 100000, 5, process) });
+  });
+  // 오늘의 실습 경로: 내 3D 실습 기록으로 가장 약한 공정을 골라 인과 지도 → 인과 퀴즈 → 이상 상황 훈련을 권한다.
+  router.get("/api/lab/practice-path", login, (_req, res) => res.json(practicePath(db, me(res).id, faults.faults)));
   router.post("/api/lab/causal/quiz/check", login, express.json(), (req, res) => {
     const body = z.object({ chain_id: z.string().max(120), dir: z.union([z.literal(1), z.literal(-1)]), hop: z.union([z.literal(1), z.literal(2)]), choice: z.enum(["up", "down"]) }).safeParse(req.body);
     if (!body.success) return bad(res, 400, "길·방향·칸·답을 보내 주세요.");

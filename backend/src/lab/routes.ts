@@ -22,6 +22,17 @@ import { addDays, GRADES, MATURE_DAYS, NEW_PER_DAY, nextReview, type Grade, type
 import { actorOf, PRACTICE_KINDS, statementFor, storedStatement, XAPI_VERSION, type PracticeKind, type Statement, type VerbKey } from "./xapi.js";
 import { NODES } from "./causal.js";
 import { loadIncidents } from "./incidents.js";
+import { loadLessons, type LessonDef } from "./lessons.js";
+
+/** 수업 단계 이름(수업 열람 문장 이름). object_id는 "<수업 id>_<단계 번호>". */
+let lessonCache: LessonDef[] | null = null;
+const lessonStepTitle = (id: string) => {
+  const m = /^([a-z0-9-]+)_(\d{1,2})$/.exec(id);
+  if (!m) return undefined;
+  if (!lessonCache) { try { lessonCache = loadLessons(); } catch { lessonCache = []; } }
+  const l = lessonCache.find((x) => x.id === m[1]), s = l?.steps[Number(m[2]) - 1];
+  return l && s ? `${l.title} · ${m[2]}/${l.steps.length} ${s.title}` : undefined;
+};
 
 /** 사고 사례 제목(3D 갈림길 문장 이름). 처음 쓸 때 한 번 읽는다. */
 let incidentTitles: Map<string, string> | null = null;
@@ -153,7 +164,7 @@ export function createLabRouter({ db, auth, deck, llm = null, now = () => new Da
     if (!body.success) return bad(res, "문장 형식이 올바르지 않아요.", "INVALID_STATEMENT");
     if (body.data.practice) {
       const kind = body.data.practice, id = body.data.object_id;
-      const what = kind === "incident-3d" ? incidentTitle(id) : NODES.find((n) => n.id === id)?.label;
+      const what = kind === "incident-3d" ? incidentTitle(id) : kind === "lesson" ? lessonStepTitle(id) : NODES.find((n) => n.id === id)?.label;
       if (!what) return bad(res, "없는 실습 대상이에요.", "UNKNOWN_PRACTICE", 404);
       const user = userOf(res), stamp = now().toISOString();
       const row = repo.addStatement(user.id, { verb: "experienced", object_id: `practice:${kind}:${id}`, object_name: `${PRACTICE_KINDS[kind]} · ${what}`, timestamp: stamp }, stamp);

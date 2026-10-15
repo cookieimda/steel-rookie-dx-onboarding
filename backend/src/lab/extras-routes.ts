@@ -272,7 +272,7 @@ export function createLabExtrasRouter({ db, auth, deck, incidents, faults = { di
   router.get("/api/admin/practice-stats", login, requireAdmin, (req, res) => {
     const v = req.query.include_demo;
     if (v !== undefined && v !== "true" && v !== "false") return bad(res, 400, "include_demo는 true 또는 false여야 해요.");
-    res.json(practiceStats(db, { faults: faults.faults, scenarios: incidents.scenarios }, { includeDemo: v !== "false" }));
+    res.json(practiceStats(db, { faults: faults.faults, scenarios: incidents.scenarios, lessons }, { includeDemo: v !== "false" }));
   });
   router.get("/api/admin/notes/reported", login, requireAdmin, (_req, res) => {
     const rows = db.prepare(`SELECT n.*, COUNT(r.user_id) AS reports, GROUP_CONCAT(r.reason, ' / ') AS reasons FROM equipment_notes n JOIN equipment_note_reports r ON r.note_id=n.id

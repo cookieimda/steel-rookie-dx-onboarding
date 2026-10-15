@@ -5,6 +5,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { NODES } from "./causal.js";
 import type { FaultDrill, Step } from "./faults.js";
 import type { IncidentScenario } from "./incidents.js";
+import type { LessonDef } from "./lessons.js";
 
 const STEPS: Step[] = ["signal", "cause", "action"];
 export const STEP_LABEL: Record<Step, string> = { signal: "이상 신호 찾기", cause: "원인 고르기", action: "조치 고르기" };
@@ -19,7 +20,7 @@ function tableExists(db: DatabaseSync, name: string) {
   return !!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name);
 }
 
-export function practiceStats(db: DatabaseSync, content: { faults: FaultDrill[]; scenarios: IncidentScenario[] }, { includeDemo = true } = {}) {
+export function practiceStats(db: DatabaseSync, content: { faults: FaultDrill[]; scenarios: IncidentScenario[]; lessons?: LessonDef[] }, { includeDemo = true } = {}) {
   const who = includeDemo ? "" : " AND user_id IN (SELECT id FROM users WHERE is_demo = 0)";
   const rows = (table: string, cols: string) => (tableExists(db, table) ? db.prepare(`SELECT ${cols} FROM ${table} WHERE 1 = 1${who}`).all() : []);
 
@@ -81,5 +82,12 @@ export function practiceStats(db: DatabaseSync, content: { faults: FaultDrill[];
     confusing: links.filter((l) => l.rate < 1).slice(0, 5),
   };
 
-  return { faults, incidents, causal, min_link_answers: MIN_LINK_ANSWERS };
+  // ── 수업 모드: 단계를 연 기록(xAPI 3D 살펴봄, object_id practice:lesson:<수업>_<단계>)으로 수업별 사람 수 ──
+  const opened = rows("xapi_statements", "user_id, object_id").filter((r) => String(r.object_id).startsWith("practice:lesson:"));
+  const lessons = (content.lessons ?? []).map((l) => {
+    const mine = opened.map((r) => ({ u: String(r.user_id), m: /^practice:lesson:([a-z0-9-]+)_(\d+)$/.exec(String(r.object_id)) })).filter((x) => x.m && x.m[1] === l.id);
+    const steps = l.steps.map((s, i) => ({ title: s.title, learners: new Set(mine.filter((x) => Number(x.m![2]) === i + 1).map((x) => x.u)).size }));
+    return { id: l.id, title: l.title, steps: l.steps.length, learners: new Set(mine.map((x) => x.u)).size, finished: steps[steps.length - 1]?.learners ?? 0, by_step: steps };
+  });
+  return { faults, incidents, causal, lessons, min_link_answers: MIN_LINK_ANSWERS };
 }

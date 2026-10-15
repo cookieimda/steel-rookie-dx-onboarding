@@ -626,6 +626,7 @@ export async function attachSimLab() {
       else if (s.lab === 'fault') open('fault', {}, { fault: s.fault });
       else if (s.lab === 'incident') open('incident', {}, { scenario: s.scenario, at: s.at, pick: s.pick });
       say(`수업 ${i + 1}단계, ${s.title}. ${s.note}`);
+      experienced('lesson', `${lesson.id}_${i + 1}`);
     }
     go(startStep - 1);
   }

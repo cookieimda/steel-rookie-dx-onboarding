@@ -96,7 +96,7 @@ export function statementFor(e: CardEvent, actor: Statement["actor"], names: Nam
 export interface StoredStatementRow { id: string; verb: string; object_id: string; object_name: string; timestamp: string; stored: string }
 
 /** 3D 실습 살펴봄의 종류(화면이 보냄). 저장할 때 object_id는 practice:<종류>:<id>. */
-export const PRACTICE_KINDS = { "causal-tour": "인과 따라가기", "causal-map-link": "인과 지도 조건 링크", "incident-3d": "사고 사례 갈림길 3D" } as const;
+export const PRACTICE_KINDS = { "causal-tour": "인과 따라가기", "causal-map-link": "인과 지도 조건 링크", "incident-3d": "사고 사례 갈림길 3D", lesson: "수업" } as const;
 export type PracticeKind = keyof typeof PRACTICE_KINDS;
 
 /** 화면이 보낸 문장(설비 살펴봄, 3D 실습 살펴봄) → 문장. */

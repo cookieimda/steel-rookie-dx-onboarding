@@ -291,3 +291,19 @@ test("개념 → 인과 지도 변수: 표의 개념은 final 루브릭에 있�
   assert.equal(Object.keys(res.json.concepts).length, concepts.length, "final 3개 + 시연 9개 모두 연결");
   assert.deepEqual(res.json.concepts.demo_cooling_coiling, { section: "rolling", vars: ["cool_banks", "coiling_temp"] });
 });
+
+test("3D 실습 통계 · 수업: 수업별 연 사람·끝 단계까지 간 사람·단계별 사람 수(xAPI 수업 열람 기록)", async () => {
+  const { practiceStats } = await import("../src/lab/practice-stats.js");
+  const { loadLessons } = await import("../src/lab/lessons.js");
+  const sdb = openDatabase(":memory:"), users = new UserRepository(sdb);
+  const a = await users.create({ username: "trainee07", password: "password123", name: "마", employee_no: "S7" });
+  const b = await users.create({ username: "trainee08", password: "password123", name: "바", employee_no: "S8" });
+  const add = (u: User, step: number) => sdb.prepare("INSERT INTO xapi_statements (id, user_id, verb, object_id, object_name, timestamp, stored) VALUES (?, ?, 'experienced', ?, 'x', ?, ?)")
+    .run(crypto.randomUUID(), u.id, `practice:lesson:causal-101_${step}`, "2026-10-16T00:00:00Z", "2026-10-16T00:00:00Z");
+  for (const s of [1, 2, 3, 4, 5, 6]) add(a, s);
+  add(a, 1); add(b, 1); add(b, 2);
+  const st = practiceStats(sdb, { faults: [], scenarios: [], lessons: loadLessons() });
+  const l = st.lessons.find((x) => x.id === "causal-101")!;
+  assert.deepEqual([l.learners, l.finished, l.by_step.map((x) => x.learners)], [2, 1, [2, 2, 1, 1, 1, 1]]);
+  assert.equal(st.lessons.find((x) => x.id === "diagnose-drill")!.learners, 0);
+});

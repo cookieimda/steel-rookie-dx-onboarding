@@ -260,3 +260,11 @@ test("HTTP xAPI 종류로 거르기: 활동 종류별 개수를 주고 ?kind=로
   const kimReviewed = await call("GET", "/api/me/lab/xapi?verb=reviewed", kim);
   assert.equal(Object.values(kimReviewed.json.kinds as Record<string, number>).reduce((a, b) => a + b, 0), kimReviewed.json.total, "종류 개수는 동사로 거른 뒤의 수");
 });
+
+test("HTTP xAPI 수업 열람: '<수업>_<단계>'로 남기고 이름은 수업·단계 제목, 없는 단계는 404", async () => {
+  const ok = await call("POST", "/api/me/lab/xapi", lee, { verb: "experienced", practice: "lesson", object_id: "causal-101_2" });
+  assert.equal(ok.status, 201);
+  assert.equal(ok.json.object.definition.name["ko-KR"], "수업 · 공정을 잇는 원인과 결과 · 2/6 코크스를 줄이면?");
+  assert.equal((await call("POST", "/api/me/lab/xapi", lee, { verb: "experienced", practice: "lesson", object_id: "causal-101_9" })).status, 404);
+  assert.equal((await call("POST", "/api/me/lab/xapi", lee, { verb: "experienced", practice: "lesson", object_id: "causal-101" })).status, 404);
+});

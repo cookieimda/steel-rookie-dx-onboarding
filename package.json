@@ -8,6 +8,7 @@
     "dev": "npm run start",
     "build": "tsc --noEmit false --outDir .build",
     "start": "npm run build && node --env-file-if-exists=.env .build/backend/src/ironmaking-server.js",
+    "start:gemini": "npm run build && node --env-file-if-exists=.env scripts/start-gemini.mjs",
     "typecheck": "tsc --noEmit",
     "test": "npm run build && node --test .build/backend/test/*.test.js",
     "eval:evaluator": "npm run build && node --env-file-if-exists=.env .build/llm/eval/run-evaluator.js",

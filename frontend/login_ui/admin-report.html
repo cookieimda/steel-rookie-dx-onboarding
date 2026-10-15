@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>신입사원 학습 현황 보고서 · ST-ROOKIE</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+  <!-- 관리자 보고서(그림 버전): 관리자 화면 [PDF 보고서]가 이 페이지를 새 탭으로 연다. 숫자는 /api/admin/trainees·/api/admin/concepts(DB) 그대로이고,
+       브라우저 인쇄의 'PDF로 저장'으로 A4 PDF를 만든다. 인쇄용이라 라이트 색만 쓴다. -->
+  <style>
+    :root { --text: #161617; --muted: #55555c; --dim: #8a8a90; --line: rgba(0,0,0,.12); --panel: #f4f4f5; --ok: #177a42; --mid: #b07800; --bad: #c53030; --act: #3a3a40; --idle: #c9c9ce;
+      --font-ko: "Pretendard", -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; --font-en: "Montserrat", "Pretendard", sans-serif; --mono: "JetBrains Mono", ui-monospace, Consolas, monospace; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: #e9e9ec; color: var(--text); font-family: var(--font-ko); letter-spacing: -0.01em; -webkit-font-smoothing: antialiased; }
+    .bar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 10px; padding: 12px 20px; background: #161617; color: #f2f2f2; font-size: 15px; }
+    .bar .grow { flex: 1; }
+    .bar button { height: 36px; padding: 0 16px; border-radius: 10px; border: 0; background: #f2f2f2; color: #111; font: 700 15px var(--font-ko); cursor: pointer; }
+    .bar button.ghost { background: transparent; color: #c4c4c9; border: 1px solid rgba(255,255,255,.2); }
+    .page { width: 210mm; min-height: 297mm; margin: 20px auto; padding: 16mm 15mm; background: #fff; box-shadow: 0 10px 30px rgba(0,0,0,.12); }
+    header { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 2px solid var(--text); }
+    .eyebrow { font: 500 10px var(--mono); letter-spacing: .3em; color: var(--muted); }
+    h1 { margin: 6px 0 0; font: 800 26px/1.1 var(--font-ko); letter-spacing: -0.02em; }
+    .meta { text-align: right; font-size: 11px; color: var(--muted); line-height: 1.6; }
+    .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; margin: 14px 0 6px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+    .kpi { background: #fff; padding: 10px 12px; }
+    .kpi span { display: block; font-size: 11px; color: var(--muted); }
+    .kpi b { font: 800 24px/1.2 var(--font-en); }
+    .kpi small { font-size: 11px; color: var(--muted); margin-left: 3px; }
+    section { margin-top: 16px; break-inside: avoid; }
+    h2 { margin: 0 0 2px; font-size: 14px; font-weight: 800; }
+    .sub { margin: 0 0 8px; font-size: 11px; color: var(--muted); }
+    svg { display: block; width: 100%; height: auto; font-family: var(--font-ko); }
+    .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px; font-size: 11px; color: var(--muted); }
+    .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+    table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+    th, td { padding: 5px 6px; border-bottom: 1px solid var(--line); text-align: center; white-space: nowrap; }
+    th { font-weight: 700; color: var(--muted); background: var(--panel); }
+    td.name, th.name { text-align: left; }
+    td.name small { color: var(--dim); font-family: var(--mono); margin-left: 4px; }
+    tr { break-inside: avoid; }
+    .tag { display: inline-block; padding: 1px 6px; border-radius: 4px; font-weight: 700; }
+    .note { margin-top: 14px; font-size: 10px; color: var(--dim); line-height: 1.6; }
+    .msg { padding: 40px 0; text-align: center; color: var(--muted); }
+    @page { size: A4; margin: 12mm; }
+    @media print {
+      html, body { background: #fff; }
+      .bar { display: none; }
+      .page { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
+      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+  <script type="module" src="/login_ui/admin-report.js"></script>
+</head>
+<body>
+  <div class="bar"><span>신입사원 학습 현황 보고서</span><span class="grow"></span><button type="button" class="ghost" id="close">닫기</button><button type="button" id="print">PDF로 저장(인쇄)</button></div>
+  <main class="page" id="report"><p class="msg">보고서를 만드는 중이에요…</p></main>
+</body>
+</html>

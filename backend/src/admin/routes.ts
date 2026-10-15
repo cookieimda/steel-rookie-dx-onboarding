@@ -9,6 +9,7 @@ import type { Rubric } from "../rubrics.js";
 import { UsageLimitError } from "../usage.js";
 import { AiSummaryService } from "./ai-summary.js";
 import { conceptStats } from "./concept-stats.js";
+import { traineeReportCsv } from "./report.js";
 import { traineeDetail } from "./trainee-detail.js";
 import { traineeStats } from "./trainee-stats.js";
 
@@ -45,6 +46,15 @@ export function createAdminRouter(db: DatabaseSync, auth: AuthDeps, options: Adm
     const includeDemo = includeDemoParam(req, res);
     if (includeDemo === null) return;
     res.json(traineeStats(db, undefined, { includeDemo }));
+  });
+  // 보고서: 신입사원 통계를 CSV로 내려받는다(엑셀에서 열림). ?include_demo=false면 시연 계정을 뺀다.
+  router.get("/api/admin/report.csv", requireUser(auth), requireAdmin, (req, res) => {
+    const includeDemo = includeDemoParam(req, res);
+    if (includeDemo === null) return;
+    const day = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" }).replace(/-/g, "");
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="trainee-report-${day}.csv"; filename*=UTF-8''${encodeURIComponent(`신입사원_학습현황_${day}.csv`)}`);
+    res.send(traineeReportCsv(traineeStats(db, undefined, { includeDemo })));
   });
   // 신입사원 한 명 상세(표에서 사람을 누르면). 오개념은 개수만 낸다.
   router.get("/api/admin/trainees/:id", requireUser(auth), requireAdmin, (req, res) => {

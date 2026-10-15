@@ -59,3 +59,12 @@ test("최종 검토 반영: 제목띠 문구 중복 없음, 고스트 요소 포
   assert.match(css, /\.dg-acc summary:focus-visible\s*\{\s*outline:\s*2px solid var\(--text\)/);
   assert.match(template, /class="dg-now dg-cut dg-l" role="group" aria-label="지금 공정 상태"|class="dg-now dg-cut dg-l" aria-label="지금 공정 상태" role="group"/);
 });
+
+test("UI 편집 반영: 내 현황·복습 한 줄, 불러오기 오류는 제목띠 한 줄, 튜터 칸 348px", () => {
+  const split = template.slice(template.indexOf('class="dg-split"'), template.indexOf('data-sec="exam"'));
+  assert.ok(split.includes('data-sec="status"') && split.includes('data-sec="review"'), "dg-split 안에 내 현황과 복습");
+  assert.match(css, /\.dg-split\s*\{[^}]*grid-template-columns/);
+  assert.match(template, /class="dg-hero-meta"[\s\S]*role="alert" class="dg-alert"[\s\S]*data-sec="workspace"/);
+  assert.match(page, /\.learn\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) 348px/);
+  assert.match(css, /\.dg-hero\s*\{[^}]*minmax\(0, 1fr\) 348px/);
+});

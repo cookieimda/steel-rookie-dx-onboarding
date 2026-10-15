@@ -73,3 +73,9 @@ test("공장 전체 물류 흐름: 용선 → 용강 → 슬래브 → 코일 �
   for (let i = 1; i < routes.length; i++) assert.equal(routes[i][0], routes[i - 1].at(-1), `${i}번째 물질이 앞 물질 끝에서 시작`);
   assert.ok(src.includes("if (flowOn) { flowOn = false; bPlant.setAttribute('aria-pressed', 'false'); }"), "실습 패널을 열면 흐름 표시 상태를 끈다");
 });
+
+test("3D 이름표 겹침 정리: 아래 이름표부터 놓고 겹치면 위로 올린다(놓인 이름표 수만큼만 다시 본다)", () => {
+  assert.ok(src.includes("shown.sort((a, b) => b.y - a.y)"));
+  assert.ok(src.includes("guard <= placed.length"));
+  assert.ok(src.includes("y = hit.t - 4;"));
+});

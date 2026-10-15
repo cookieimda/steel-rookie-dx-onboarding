@@ -161,11 +161,25 @@ function createFx(scene) {
     for (const g of fx.glows) g.sp.scale.setScalar(g.size * (reduceMotion ? 1 : 0.92 + 0.12 * k));
     // 이름표: 월드 → 화면 좌표(장면 요소 기준). 카메라 뒤이거나 화면 밖이면 숨긴다
     const rect = scene.getBoundingClientRect();
+    const shown = [];
     for (const t of fx.tags) {
       v.copy(t.p).project(scene.camera);
       const hidden = v.z > 1 || v.x < -1.1 || v.x > 1.1 || v.y < -1.1 || v.y > 1.1 || scene._2d;
       t.el.style.display = hidden ? 'none' : '';
-      if (!hidden) { t.el.style.left = `${rect.left + (v.x + 1) / 2 * rect.width}px`; t.el.style.top = `${rect.top + (1 - v.y) / 2 * rect.height}px`; }
+      if (!hidden) shown.push({ t, x: rect.left + (v.x + 1) / 2 * rect.width, y: rect.top + (1 - v.y) / 2 * rect.height });
+    }
+    // 겹침 정리: 아래(가까운) 이름표부터 놓고, 이미 놓인 이름표와 겹치면 그 위로 올린다(이름표는 기준점 위·가운데에 붙는다)
+    const placed = [];
+    for (const s of shown.sort((a, b) => b.y - a.y)) {
+      const w = s.t.el.offsetWidth || 120, h = s.t.el.offsetHeight || 24;
+      let y = s.y;
+      for (let guard = 0; guard <= placed.length; guard++) {
+        const hit = placed.find((p) => s.x - w / 2 < p.r && s.x + w / 2 > p.l && y - h < p.b && y > p.t);
+        if (!hit) break;
+        y = hit.t - 4;
+      }
+      placed.push({ l: s.x - w / 2, r: s.x + w / 2, t: y - h, b: y });
+      s.t.el.style.left = `${s.x}px`; s.t.el.style.top = `${y}px`;
     }
     scene._dirty = true;
   };

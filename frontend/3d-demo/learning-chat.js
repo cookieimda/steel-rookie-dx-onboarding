@@ -59,6 +59,10 @@ export async function runSceneActions(c, actions, { wait = (ms) => new Promise(r
       else if (a.type === 'highlight') { ok = !!c.data.findEquipment(c.state.processId, a.target_id); if (ok) c.setState({ selectedId: a.target_id }); }
       else if (a.type === 'focus') { ok = await until(() => !!c.scene?.()?.focus(a.target_id)); }
       else if (a.type === 'play_animation') { ok = !!c.scene?.()?.play(c.state.speed); }
+      // 설비 작동 보기(3D walk). walk는 투어가 끝날 때 끝나는 Promise를 돌려주므로 기다리지 않고 시작됐는지만 본다. 2D 화면에는 walk가 없어 실패.
+      else if (a.type === 'show_operation') {
+        if (typeof c.scene?.()?.walk === 'function') ok = await until(() => c.scene()?.walk(a.target_id, c.state.speed) !== false);
+      }
     } catch (e) { ok = false; }
     results.push({ type: a.type, target_id: a.target_id, status: ok ? 'succeeded' : 'failed' });
   }
@@ -97,6 +101,16 @@ async function request(method, path, body, onPartial) {
     return finish(done.status, done.body);
   }
   return finish(res.status, await res.json().catch(() => ({})));
+}
+
+/**
+ * 화면 표시 결과를 같은 trace id로 서버에 보낸다(POST /api/chat/trace/:id/ui). 기다리지 않고, 실패해도 화면에는 알리지 않는다.
+ * trace id가 없으면(서버에 닿지 못함) 보내지 않는다.
+ */
+export function reportUi(traceId, report, send = request) {
+  if (!traceId) return;
+  const actions = (report.actions || []).slice(0, 10).map(({ type, target_id, status }) => ({ type, target_id, status }));
+  send('POST', `/api/chat/trace/${encodeURIComponent(traceId)}/ui`, { ...report, actions }).catch(() => {});
 }
 
 const OFFLINE = '서버에 연결하지 못했어요. npm start로 서버를 켠 뒤 http://localhost:3000 에서 열어 주세요.';
@@ -331,7 +345,10 @@ export async function createLearningChat(c, { sfx = tutorSfx, timers = globalThi
       // 답을 기다리는 동안 1초마다 다시 그려 경과 시간을 보여 준다(Gemini가 느리거나 로컬 모델이면 30초 넘게 걸릴 수 있다).
       const tick = setInterval(() => c.setState({ pendingTick: Date.now() }), 1000);
       // 답을 받는 대로 말풍선에 보여 준다(스트리밍). 끝나면 최종 답으로 바꾼다.
-      const onPartial = (text) => { c.setState({ partial: text }); c.scrollChat(); };
+      // 화면 표시 시각(보낸 때부터 첫 글자·최종 답까지)은 trace로 서버에 보낸다(reportUi, docs/agent-observability.md).
+      const sentAt = performance.now();
+      let firstPartialMs = null;
+      const onPartial = (text) => { if (firstPartialMs === null) firstPartialMs = Math.round(performance.now() - sentAt); c.setState({ partial: text }); c.scrollChat(); };
       let message, res;
       try {
         try {
@@ -345,15 +362,16 @@ export async function createLearningChat(c, { sfx = tutorSfx, timers = globalThi
         useSession(res.session_id);
         message = toMessage(res);
       } catch (e) {
-        res = { error: e.message, status: e.status ?? null };
+        res = { error: e.message, status: e.status ?? null, trace_id: e.data?.trace_id ?? null };
         message = { role: 'assistant', text: e.message, mode: 'free_question', evidence: 'error', citations: [], followUp: null };
       }
-      // 학습 모드 API는 아직 화면 조작(scene_actions)을 보내지 않는다(다음 단계).
+      // 튜터가 보낸 화면 조작(scene_actions)을 실행한다.
       const results = await chat.runActions(res.scene_actions);
       clearInterval(tick);
       // 포석호: 답을 다 쓰면 잠깐(holdMs) 설명하는 동작 뒤 대기로, 답을 못 받았으면 아쉬운 표정.
       const reaction = message.evidence === 'error' ? { kind: 'error' } : { kind: 'explanation', then: null };
       c.setState(s => ({ pending: false, pendingSince: null, partial: '', lastRes: res, lastResults: results, messages: [...s.messages, message], tutorReaction: reaction })); c.scrollChat();
+      reportUi(res.trace_id, { client_ms: Math.round(performance.now() - sentAt), first_partial_ms: firstPartialMs, error: message.evidence === 'error', actions: results });
       afterReaction(reaction);
       // 이번 질문에서 오개념이 기록됐을 수 있어 보충학습 후보를 다시 읽는다.
       chat.refreshSupplements(true);

@@ -1,6 +1,5 @@
 // 시연 서버 실행(npm run start:gemini, 이슈 #143). 학습·평가·관리자 요약 모두 Gemini를 쓴다.
-// - LLM_PROVIDER·PRIVATE_LLM_ONLY: 로컬 모델 선택 기능(#126, 보류)이 들어와도 .env에 남은 예전 로컬 설정과 상관없이 Gemini로 고정한다.
-//   지금 dev는 Gemini만 쓰므로 두 값은 읽히지 않는다.
+// - LLM_PROVIDER·PRIVATE_LLM_ONLY: .env에 로컬 모델 설정(LLM_PROVIDER=ollama, docs/llm-providers.md)이 남아 있어도 Gemini로 고정한다.
 // - WARM_ANSWERS: 서버를 켤 때 추천 질문 답을 미리 받는 호출(유료)을 기본으로 끈다. 켜려면 WARM_ANSWERS=on.
 process.env.LLM_PROVIDER = 'gemini';
 process.env.PRIVATE_LLM_ONLY = '0';

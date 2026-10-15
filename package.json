@@ -9,6 +9,7 @@
     "build": "tsc --noEmit false --outDir .build",
     "start": "npm run build && node --env-file-if-exists=.env .build/backend/src/ironmaking-server.js",
     "start:gemini": "npm run build && node --env-file-if-exists=.env scripts/start-gemini.mjs",
+    "start:ollama": "npm run build && node --env-file-if-exists=.env scripts/start-ollama.mjs",
     "typecheck": "tsc --noEmit",
     "test": "npm run build && node --test .build/backend/test/*.test.js",
     "eval:evaluator": "npm run build && node --env-file-if-exists=.env .build/llm/eval/run-evaluator.js",
@@ -17,6 +18,7 @@
     "eval:learning": "npm run build && node --env-file-if-exists=.env .build/llm/eval/run-learning.js",
     "eval:retrieval": "npm run build && node .build/llm/eval/run-retrieval.js",
     "eval:supplement": "npm run build && node --env-file-if-exists=.env .build/llm/eval/run-supplement.js",
+    "trace:report": "npm run build && node --env-file-if-exists=.env .build/llm/eval/trace-report.js",
     "tunnel": "node --env-file-if-exists=.env scripts/tunnel.mjs",
     "db:reset-user": "npm run build && node --env-file-if-exists=.env .build/backend/src/db/reset-user.js",
     "db:seed-demo": "npm run build && node --env-file-if-exists=.env .build/backend/src/db/seed-demo-records.js"

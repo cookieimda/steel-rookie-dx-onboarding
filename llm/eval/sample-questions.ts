@@ -13,10 +13,10 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { LlmUnavailableError } from "../../backend/src/checkpoint/types.js";
 import { loadFinalRubrics, type Rubric, type RubricConcept } from "../../backend/src/rubrics.js";
-import { DEFAULT_GEMINI_MODEL } from "../src/gemini.js";
+import { createLlmClient } from "../src/provider.js";
 import { answerTermsInName, findLeaks, hasLeak, type LeakResult } from "../src/question-check.js";
 import { GeminiTutor, type PolishResult } from "../src/tutor.js";
-import { fingerprint, flag, InfraStreak, isInfraError, MAX_CONSECUTIVE_INFRA, option, openRecordFile, RESULTS_DIR, RetryingGeminiClient, type RunRecord } from "./run-log.js";
+import { evalProvider, fingerprint, flag, InfraStreak, isInfraError, MAX_CONSECUTIVE_INFRA, option, openRecordFile, resultsFile, RetryingLlmClient, type RunRecord } from "./run-log.js";
 
 type Handling = "통과" | "재생성" | "대체 질문";
 type Status = "ok" | "format_error" | "infra_error";
@@ -68,13 +68,12 @@ const show = (r: LeakResult | null) => (!r ? "-" : hasLeak(r) ? [...r.terms, ...
 const cell = (s: string) => s.replace(/\|/g, "\\|").replace(/\n/g, " ");
 const pct = (n: number, d: number) => (d ? `${((n / d) * 100).toFixed(1)}%` : "-");
 
-if (!process.env.GEMINI_API_KEY) {
-  console.error("GEMINI_API_KEY가 없습니다. .env에 키를 넣고 다시 실행하세요.");
-  process.exit(1);
-}
+// 모델은 LLM_PROVIDER를 따른다(기본 Gemini, ollama는 무료).
+const provider = await evalProvider();
+if (!provider) process.exit(1);
 
-const model = process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
-const records = openRecordFile<QuestionRecord>(option("records", join(RESULTS_DIR, "questions.jsonl")), flag("resume"));
+const model = provider.model;
+const records = openRecordFile<QuestionRecord>(option("records", resultsFile("questions", provider.provider)), flag("resume"));
 const prompt = (name: string) => readFileSync(join(process.cwd(), "llm", "prompts", `${name}.md`), "utf8");
 
 let last = 0;
@@ -86,7 +85,7 @@ const throttled = (async (...args: Parameters<typeof fetch>) => {
   calls++;
   return fetch(...args);
 }) as typeof fetch;
-const client = new RetryingGeminiClient({ fetch: throttled });
+const client = new RetryingLlmClient(createLlmClient({ gemini: { fetch: throttled }, ollama: { fetch: throttled } }));
 const tutor = new GeminiTutor(client);
 const streak = new InfraStreak();
 let skipped = 0;

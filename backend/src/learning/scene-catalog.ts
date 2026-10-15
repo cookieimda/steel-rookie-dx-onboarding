@@ -14,7 +14,7 @@ const Processes = z.array(
   z.object({
     id: z.enum(SECTION_ORDER as [Section, ...Section[]]),
     name: z.string().min(1),
-    equipment: z.array(z.object({ id: z.string().regex(/^[a-z0-9_]{1,40}$/), name: z.string().min(1) })).min(1),
+    equipment: z.array(z.object({ id: z.string().regex(/^[a-z0-9_]{1,40}$/), name: z.string().min(1), steps: z.array(z.unknown()).optional() })).min(1),
   }),
 );
 
@@ -31,6 +31,7 @@ export async function loadSceneCatalog(path = SCENE_DATA_PATH): Promise<SceneCat
     seen.add(e.id);
   }
   return {
-    processes: parsed.data.map((p) => ({ id: p.id, name: p.name, equipment: p.equipment.map((e) => ({ id: e.id, name: e.name })) })),
+    // operation: 작동 단계(steps)가 있는 설비만 true. 튜터의 작동 보기(show_operation)는 이 설비만 허용한다.
+    processes: parsed.data.map((p) => ({ id: p.id, name: p.name, equipment: p.equipment.map((e) => ({ id: e.id, name: e.name, ...(e.steps?.length ? { operation: true } : {}) })) })),
   };
 }

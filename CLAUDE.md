@@ -216,7 +216,7 @@ content/
 - 채점 로직은 Node(TypeScript)로 옮겼다. Python 버전은 없다.
 - 로그인: 아이디 + 비밀번호(bcrypt 해시) + JWT.
 - 관리자 통계 화면을 만든다(처음 설계의 "관리자 화면 없음"을 바꿈). 오개념은 개수만 보여 준다.
-- LLM: Gemini를 유지한다. 평가자는 Gemini `responseSchema`로 판정 JSON 형식을 강제한다.
+- LLM: Gemini를 유지한다. 평가자는 Gemini `responseSchema`로 판정 JSON 형식을 강제한다. 로컬 모델(Ollama)은 `LLM_PROVIDER=ollama`(`npm run start:ollama`)로 같은 에이전트를 돌리고, 짧은 학습 프롬프트와 채점 보강을 켠다([docs/llm-providers.md](docs/llm-providers.md)). 시연 기본은 Gemini(`npm run start:gemini`).
 - 체크포인트 결과 차트: 개념별 가로 막대(맞음/부분/틀림) + 전체 이해도 게이지(80% 기준선 표시).
 - 재확인 단계에서 되묻기·힌트 요청은 `wrong`이다(재확인 평가자 스키마에 `assisted` 없음).
 - 재확인에도 맞히지 못하면 핵심 요소 요약(템플릿)을 보여 주고 다음 개념으로 넘어간다.
@@ -265,6 +265,8 @@ content/
 
 - `npm test`: 빌드 후 `backend/test/*.test.ts`를 `node:test`로 실행한다.
 - `npm run typecheck`: 타입 검사.
+- `npm run trace:report`: 서버가 질문마다 남긴 학습 모드 trace(`data/traces/`, `TRACE_LOG=off`면 안 남김)를 요약한다(지연·unverified 원인·LLM 호출과 토큰·서버 검증·근거 겹침, 모델별 비교). 모델을 부르지 않는다. 설계는 [docs/agent-observability.md](docs/agent-observability.md), 계획은 [docs/agent-roadmap.md](docs/agent-roadmap.md).
+- 아래 실제 모델 평가(`eval:*`)는 모두 `LLM_PROVIDER`를 따른다. `LLM_PROVIDER=ollama`면 로컬 모델로 무료로 돌고 결과는 `*-ollama.jsonl`에 따로 쌓인다([docs/llm-providers.md](docs/llm-providers.md)).
 - `npm run eval:evaluator -- --set smoke|hard`: 실제 Gemini로 평가자 정확도를 잰다(기본 smoke). 비용과 요청 제한 때문에 `npm test`에는 넣지 않는다. 케이스 사이 대기는 `EVAL_DELAY_MS`(기본 1000, 무료 등급은 5000 권장).
   - `llm/eval/smoke/`: 회귀 테스트용. 루브릭 표현을 따른 쉬운 케이스라 거의 100%가 정상이고, 평가자 품질의 근거로 쓰지 않는다.
   - `llm/eval/hard/`: 품질 평가용. 공격 케이스(`source: synthetic`)와 사람 답변(`source: human`)을 source별로 따로 집계한다. 형식과 필드는 `llm/eval/README.md`.

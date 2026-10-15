@@ -95,7 +95,10 @@ test("POST /api/chat stream: 답 도중 형식 오류면 done 줄에 502와 오�
   const s = await server({ reply: async (_input, opts) => { opts?.onAnswer?.("토페"); throw new LearningFormatError("x"); } });
   try {
     const got = await lines(await s.post({ question: "토페도카가 뭐야?", stream: true }));
-    assert.deepEqual(got.at(-1), { type: "done", status: 502, body: { error: "답변을 처리하지 못했어요. 다시 시도해 주세요." } });
+    // trace_id는 요청마다 달라서 따로 본다(learning-trace.test.ts).
+    const { trace_id, ...body } = got.at(-1)!.body!;
+    assert.deepEqual({ ...got.at(-1), body }, { type: "done", status: 502, body: { error: "답변을 처리하지 못했어요. 다시 시도해 주세요." } });
+    assert.equal(typeof trace_id, "string");
   } finally {
     s.close();
   }

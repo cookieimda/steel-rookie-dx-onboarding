@@ -1,7 +1,8 @@
 // 보충학습 에이전트 시나리오 평가(docs/supplementary-learning.md): 정해 둔 학습자 답으로 보충학습을 끝까지 돌려
 // 결과(해결 여부)·확인 문제 수·도구 실행·설비 보여 주기·근거 있는 설명·확인 문제 유출을 실행 기록으로 판정한다.
 // 실행: npm run eval:supplement [-- --dry-run] [--resume] [--records 파일.jsonl] [--only id]
-//  - 기본은 실제 Gemini(설명·확인 문제·채점)다. 유료라 npm test에는 넣지 않는다. GEMINI_API_KEY 필요.
+//  - 기본은 실제 모델(설명·확인 문제·채점)이다. LLM_PROVIDER를 따른다: Gemini(유료, GEMINI_API_KEY 필요) 또는 ollama(무료, 결과 supplement-ollama.jsonl).
+//    npm test에는 넣지 않는다.
 //  - --dry-run: 모델 대신 가짜(설명은 근거 조각 첫 문장, 확인 문제는 고정 문장, 채점은 시나리오의 dry_verdicts)로 돌린다.
 //    비용 없이 평가 도구와 엔진 흐름(도구 순서, 상태, 해결 처리, 실행 기록)을 확인할 때 쓴다. 모델 품질은 재지 못한다.
 //  - 시나리오마다 새 메모리 DB에서 서버와 같은 SupplementEngine을 쓴다. 결과는 --records(기본 llm/eval/results/supplement.jsonl)에 바로 기록하고,
@@ -18,12 +19,12 @@ import { SupplementEngine, type SupplementView } from "../../backend/src/learnin
 import { SupplementRepository } from "../../backend/src/learning/supplement-repository.js";
 import { loadFinalRubrics, type Rubric, type RubricConcept } from "../../backend/src/rubrics.js";
 import { GeminiEvaluator } from "../src/evaluator.js";
-import { DEFAULT_GEMINI_MODEL } from "../src/gemini.js";
 import { GeminiLearningAgent, type LearningAgent, type LearningInput } from "../src/learning-agent.js";
+import type { LlmClient } from "../src/llm-client.js";
 import { findLeaks, hasLeak } from "../src/question-check.js";
 import { Retriever } from "../src/retrieval.js";
 import { GeminiTutor, type PracticeQuestion } from "../src/tutor.js";
-import { fingerprint, flag, InfraStreak, isInfraError, MAX_CONSECUTIVE_INFRA, openRecordFile, option, RESULTS_DIR, RetryingGeminiClient, sleep, type RunRecord } from "./run-log.js";
+import { evalProvider, fingerprint, flag, InfraStreak, isInfraError, MAX_CONSECUTIVE_INFRA, openRecordFile, option, RESULTS_DIR, resultsFile, RetryingLlmClient, sleep, type EvalProvider, type RunRecord } from "./run-log.js";
 
 export const SUPPLEMENT_SET_PATH = join(process.cwd(), "llm", "eval", "supplement", "ironmaking.jsonl");
 const VERDICTS = ["correct", "partial", "wrong", "assisted"] as const;
@@ -152,7 +153,7 @@ function dryParts(s: Scenario) {
   return { agent, tutor, evaluator };
 }
 
-export async function runScenario(s: Scenario, deps: { rubrics: Rubric[]; scene: Awaited<ReturnType<typeof loadSceneCatalog>>; dry: boolean; client?: RetryingGeminiClient }) {
+export async function runScenario(s: Scenario, deps: { rubrics: Rubric[]; scene: Awaited<ReturnType<typeof loadSceneCatalog>>; dry: boolean; client?: LlmClient; profile?: EvalProvider["profile"] }) {
   const rubric = deps.rubrics.find((r) => r.concepts.some((c) => c.concept_id === s.concept_id));
   if (!rubric) throw new Error(`${s.id}: 루브릭에 없는 개념 ${s.concept_id}`);
   const concept = rubric.concepts.find((c) => c.concept_id === s.concept_id)!;
@@ -161,7 +162,11 @@ export async function runScenario(s: Scenario, deps: { rubrics: Rubric[]; scene:
   const repo = new SupplementRepository(db);
   const user = "eval-supplement";
   if (s.memo) learningRepo.recordMisconception({ user_id: user, section: rubric.section, concept_id: s.concept_id, answer_text: "(시나리오)", summary: s.memo }, new Date().toISOString());
-  const parts = deps.dry ? dryParts(s) : { agent: new GeminiLearningAgent(deps.client!), tutor: new GeminiTutor(deps.client!), evaluator: new GeminiEvaluator(deps.client!) };
+  // 서버와 같은 provider 설정: 로컬 모델이면 짧은 학습 프롬프트와 채점 보강을 쓴다.
+  const guards = deps.profile?.evaluatorGuards ?? false;
+  const parts = deps.dry
+    ? dryParts(s)
+    : { agent: new GeminiLearningAgent(deps.client!, undefined, deps.profile?.learning ?? "full"), tutor: new GeminiTutor(deps.client!), evaluator: new GeminiEvaluator(deps.client!, { repairFormat: guards, verifyBoundary: guards }) };
   const engine = new SupplementEngine({
     repo, learningRepo, rubrics: deps.rubrics, scene: deps.scene, ...parts,
     retriever: new Retriever({ glossaryFor: (sec) => deps.rubrics.find((r) => r.section === sec)?.glossary ?? [] }),
@@ -192,13 +197,20 @@ async function main(): Promise<void> {
   const scenarios = loadScenarios().filter((s) => !only || s.id === only);
   const rubrics = loadFinalRubrics();
   const scene = await loadSceneCatalog();
-  const model = process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
-  const prompts = ["learning-system", "tutor-question", "tutor-recheck", "tutor-explanation", "tutor-correction", "evaluator"]
-    .map((p) => readFileSync(join(process.cwd(), "llm", "prompts", `${p}.md`), "utf8"));
-  const records = openRecordFile<ScenarioResult>(option("records", join(RESULTS_DIR, dry ? "supplement-dry.jsonl" : "supplement.jsonl")), flag("resume"));
-  const client = dry ? undefined : new RetryingGeminiClient();
+  // 실제 모델은 LLM_PROVIDER를 따른다(기본 Gemini, ollama는 무료).
+  const p = dry ? null : await evalProvider();
+  if (!dry && !p) {
+    process.exitCode = 1;
+    return;
+  }
+  const model = p?.model ?? "dry";
+  const promptNames = ["tutor-question", "tutor-recheck", "tutor-explanation", "tutor-correction", "evaluator",
+    p?.profile.learning === "compact" ? "learning-compact" : "learning-system", ...(p?.profile.evaluatorGuards ? ["evaluator-keypoints"] : [])];
+  const prompts = promptNames.map((n) => readFileSync(join(process.cwd(), "llm", "prompts", `${n}.md`), "utf8"));
+  const records = openRecordFile<ScenarioResult>(option("records", dry ? join(RESULTS_DIR, "supplement-dry.jsonl") : resultsFile("supplement", p!.provider)), flag("resume"));
+  const client = dry ? undefined : new RetryingLlmClient();
   const streak = new InfraStreak();
-  const delay = Number(process.env.EVAL_DELAY_MS ?? 1000);
+  const delay = Number(process.env.EVAL_DELAY_MS ?? (p && p.provider !== "gemini" ? 0 : 1000));
   console.log(`보충학습 시나리오 ${scenarios.length}개 · ${dry ? "가짜 모델(--dry-run, 비용 없음)" : `실제 모델 ${model}`}`);
 
   for (const s of scenarios) {
@@ -206,7 +218,7 @@ async function main(): Promise<void> {
     if (records.done(s.id, fp)) continue;
     process.stdout.write(`- ${s.id} … `);
     try {
-      const r = await runScenario(s, { rubrics, scene, dry, client });
+      const r = await runScenario(s, { rubrics, scene, dry, client, profile: p?.profile });
       const record: ScenarioResult = { key: s.id, fingerprint: fp, infra_error: false, id: s.id, concept_id: s.concept_id, ...r };
       records.append(record);
       const failed = Object.entries(record.checks).filter(([, ok]) => !ok).map(([k]) => k);

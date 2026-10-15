@@ -1,8 +1,9 @@
-// Express 앱 구성. 실행(포트·DB·Gemini 연결)은 ironmaking-server.ts가 한다.
+// Express 앱 구성. 실행(포트·DB·LLM 연결)은 ironmaking-server.ts가 한다.
 // 프론트(frontend/3d-demo)도 이 서버가 같은 출처로 서빙하고, 프론트는 API를 상대 경로(/api/...)로 부른다.
 import express from "express";
 import { join } from "node:path";
-import { DEFAULT_GEMINI_MODEL } from "../../llm/src/gemini.js";
+import { OllamaClient } from "../../llm/src/ollama.js";
+import { providerInfo } from "../../llm/src/provider.js";
 import type { CheckpointEngine } from "./checkpoint/engine.js";
 import { createCheckpointRouter } from "./checkpoint/routes.js";
 import { withRequestUser } from "./request-user.js";
@@ -39,8 +40,15 @@ export function createApp({ engine, usage, webRoot = join(process.cwd(), "fronte
   if (learning) app.use(learning);
   app.use(express.static(webRoot));
 
-  app.get("/api/status", (_req, res) => {
-    res.json({ connected: Boolean(process.env.GEMINI_API_KEY), provider: "Gemini", model: process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL });
+  // 지금 쓰는 LLM(LLM_PROVIDER). Ollama는 서버가 켜져 있고 모델을 받아 두었는지까지 본다(모델은 부르지 않음).
+  app.get("/api/status", async (_req, res) => {
+    const info = providerInfo();
+    if (info.provider === "ollama") {
+      const { connected, reason } = await new OllamaClient().checkConnection();
+      res.json({ connected, reason, provider: "Ollama", model: info.model });
+      return;
+    }
+    res.json({ connected: Boolean(process.env.GEMINI_API_KEY), provider: "Gemini", model: info.model });
   });
 
   // 로그인·마이페이지(frontend/login_ui)는 ../3d-demo/를 상대 경로로 읽으므로 두 폴더를 같은 깊이에 둔다.

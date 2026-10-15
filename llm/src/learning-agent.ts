@@ -11,25 +11,38 @@ import type { GlossaryEntry } from "../../backend/src/rubrics.js";
 import { escapeDelimited, GeminiCallError, renderPrompt, type GenerateRequest, type LlmClient } from "./gemini.js";
 import { politeText } from "./polite.js";
 import type { Retrieved, Screen } from "./retrieval.js";
+import { compactLearningInput } from "./learning-context.js";
+import { currentTrace } from "./trace.js";
 
 const MAX_ATTEMPTS = 2;
 const TEMPERATURE = 0.3;
 const MAX_OUTPUT_TOKENS = 1200;
+/**
+ * 로컬 모델(compact) 출력 상한. 정상 답은 약 200토큰(2026-10-13 qwen2.5:3b 측정 182)이고, 가끔 답을 끝없이 이어 쓰는 경우를
+ * 768토큰까지 기다리면 한 번에 약 90초가 걸려서 450으로 낮춰 빨리 끊고 다시 부른다.
+ */
+export const COMPACT_OUTPUT_TOKENS = 450;
+/** 학습 튜터 프롬프트 설정. compact는 로컬 모델용(llm/prompts/learning-compact.md, learning-context.ts). */
+export type LearningProfile = "full" | "compact";
 const MAX_ANSWER_CHARS = 4000;
 /** 한 답변에 붙이는 화면 조작 수(공정 이동을 끼워 넣은 뒤 기준). */
 export const MAX_SCENE_ACTIONS = 4;
 
-/** 화면(frontend/3d-demo/learning-chat.js의 runActions)이 실행할 수 있는 조작. */
-export const SCENE_ACTION_TYPES = ["goto_process", "highlight", "focus", "play_animation"] as const;
+/**
+ * 화면(frontend/3d-demo/learning-chat.js의 runActions)이 실행할 수 있는 조작.
+ * show_operation: 설비 작동 보기(3D <steel-scene>의 walk, data_v2.js의 작동 단계를 차례로 보여 줌). 2D 화면에는 없어서 실패로 돌아온다.
+ */
+export const SCENE_ACTION_TYPES = ["goto_process", "highlight", "focus", "play_animation", "show_operation"] as const;
 export interface SceneAction {
   type: (typeof SCENE_ACTION_TYPES)[number];
-  /** goto_process·play_animation은 공정 id, highlight·focus는 설비 id. */
+  /** goto_process·play_animation은 공정 id, highlight·focus·show_operation은 설비 id. */
   target_id: string;
 }
 
 /** 튜터가 화면에서 고를 수 있는 공정·설비. 기준은 frontend/3d-demo/data_v2.js(backend/src/learning/scene-catalog.ts가 읽는다). */
 export interface SceneCatalog {
-  processes: { id: Section; name: string; equipment: { id: string; name: string }[] }[];
+  /** operation: 작동 단계가 있어 작동 보기(show_operation)를 할 수 있는 설비. */
+  processes: { id: Section; name: string; equipment: { id: string; name: string; operation?: boolean }[] }[];
 }
 
 /** 근거 없이 grounded라고 답했을 때 대신 보여 줄 답. */
@@ -161,8 +174,8 @@ export function sceneIds(scene: SceneCatalog | undefined): string[] {
   return scene ? scene.processes.flatMap((p) => [p.id, ...p.equipment.map((e) => e.id)]) : [];
 }
 
-export function learningSystemPrompt(input: Pick<LearningInput, "section" | "concepts" | "glossary" | "scene" | "keywordConcepts">): string {
-  return renderPrompt("learning-system", {
+export function learningSystemPrompt(input: Pick<LearningInput, "section" | "concepts" | "glossary" | "scene" | "keywordConcepts">, profile: LearningProfile = "full"): string {
+  return renderPrompt(profile === "compact" ? "learning-compact" : "learning-system", {
     section_name: SECTION_NAMES[input.section],
     concepts: input.concepts.length ? input.concepts.map((c) => `- ${c.concept_id}: ${c.name}`).join("\n") : "(없음: detected_misconception은 항상 null)",
     keyword_concepts: input.keywordConcepts?.length
@@ -170,7 +183,8 @@ export function learningSystemPrompt(input: Pick<LearningInput, "section" | "con
       : "(없음: keyword_card는 항상 null)",
     glossary: input.glossary?.length ? input.glossary.map((g) => `- ${g.term} = ${g.aliases.join(", ")}`).join("\n") : "(없음)",
     scene: input.scene?.processes.length
-      ? input.scene.processes.map((p) => `- 공정 ${p.id} (${p.name}): ${p.equipment.map((e) => `${e.id} (${e.name})`).join(", ")}`).join("\n")
+      // 작동 보기 표시는 full만. 작은 로컬 모델(compact)은 역할 질문에도 작동 보기를 골라서, 작동 질문은 서버가 붙인다(operationTarget).
+      ? input.scene.processes.map((p) => `- 공정 ${p.id} (${p.name}): ${p.equipment.map((e) => `${e.id} (${e.name}${e.operation && profile === "full" ? ", 작동 보기" : ""})`).join(", ")}`).join("\n")
       : "(없음: scene_actions는 항상 빈 배열)",
   });
 }
@@ -226,6 +240,7 @@ export function normalizeSceneActions(raw: { type: string; target_id: string }[]
   if (!scene) return [];
   const processes = new Set<string>(scene.processes.map((p) => p.id));
   const processOf = new Map(scene.processes.flatMap((p) => p.equipment.map((e) => [e.id, p.id] as const)));
+  const operable = new Set(scene.processes.flatMap((p) => p.equipment.filter((e) => e.operation).map((e) => e.id)));
   const out: SceneAction[] = [];
   let at = current;
   // 한 답에서는 한 공정으로만 옮긴다. 제강으로 갔다가 제선으로 돌아오는 식이면 화면이 흔들리므로 처음 옮긴 공정 밖의 조작은 버린다.
@@ -251,9 +266,18 @@ export function normalizeSceneActions(raw: { type: string; target_id: string }[]
       push({ type: a.type, target_id: a.target_id });
       // 카메라만 옮기면 설비 정보가 안 보이므로 focus에는 highlight를 함께 붙인다(모델이 하나만 낼 때가 있다).
       if (a.type === "focus") push({ type: "highlight", target_id: a.target_id });
+    } else if (a.type === "show_operation") {
+      // 작동 보기는 작동 단계가 있는 설비 하나만(3D 투어가 한 번에 하나라서). 설비 정보도 보이게 highlight를 앞에 둔다.
+      const process = processOf.get(a.target_id);
+      if (out.some((x) => x.type === "show_operation") || !operable.has(a.target_id) || !process || !moveTo(process)) continue;
+      push({ type: "highlight", target_id: a.target_id });
+      push({ type: "show_operation", target_id: a.target_id });
     }
   }
-  return out.slice(0, MAX_SCENE_ACTIONS);
+  // 작동 보기가 카메라를 직접 옮기고 단계별로 재생하므로 같은 설비 focus와 공정 애니메이션은 뺀다(둘이 겹치면 화면이 엉킨다).
+  const operating = out.find((x) => x.type === "show_operation")?.target_id;
+  const kept = operating ? out.filter((x) => !(x.type === "focus" && x.target_id === operating) && x.type !== "play_animation") : out;
+  return kept.slice(0, MAX_SCENE_ACTIONS);
 }
 
 /**
@@ -267,6 +291,21 @@ export function namedEquipment(question: string, scene: SceneCatalog | undefined
     .flatMap((part) => (part.endsWith("기") ? [part, part.slice(0, -1)] : [part]));
   const hits = scene.processes.flatMap((p) => p.equipment).filter((e) => words(e.name).some((w) => w.length >= 2 && question.includes(w)));
   return hits.length === 1 ? hits[0].id : null;
+}
+
+/** 설비 하나의 작동 과정을 묻는 말("어떻게 작동해?", "데우는 과정을 보여 줘", "작동 원리"). 역할·정의 질문("무슨 일을 해?")은 아니다. */
+const OPERATION_INTENT = /어떻게\s?(작동|동작|돌아가|움직|운전|만들|데우|굽)|작동\s?(원리|과정|순서|단계|방식)|(과정|단계|원리|순서)[을를]?\s?(보여|알려)|작동하는\s?(모습|거)/;
+
+/**
+ * 작동 과정을 묻는 질문이면 작동 보기를 할 설비 id(작동 단계가 있는 설비만). 대상은 질문이 이름으로 가리킨 설비 → 모델이 보여 준 설비 → 지금 화면의 설비 순서.
+ * 공정 전체 순서("제선 공정 순서를 보여 줘")는 설비가 정해지지 않아 null이다(play_animation 몫).
+ */
+export function operationTarget(question: string, scene: SceneCatalog | undefined, screenEquipment: string | null, actions: SceneAction[]): string | null {
+  if (!scene || !OPERATION_INTENT.test(question)) return null;
+  const operable = new Set(scene.processes.flatMap((p) => p.equipment.filter((e) => e.operation).map((e) => e.id)));
+  const shown = actions.find((a) => a.type === "focus" || a.type === "highlight")?.target_id ?? null;
+  const target = namedEquipment(question, scene) ?? shown ?? screenEquipment;
+  return target && operable.has(target) ? target : null;
 }
 
 /** 형식을 검사하고 허용된 id만 남긴다. 형식이 틀리면 이유 문자열. */
@@ -302,10 +341,37 @@ export function parseLearningReply(
   if (named && named !== input.screen.equipment_id) {
     scene_actions = normalizeSceneActions([{ type: "focus", target_id: named }], input.scene, input.screen.process_id ?? null);
   }
+  // 작동 과정을 묻는데 작동 보기를 내지 않았으면 서버가 붙인다(작은 로컬 모델은 역할 질문과 작동 질문을 자주 거꾸로 고른다).
+  const operating = input.question && !scene_actions.some((a) => a.type === "show_operation") ? operationTarget(input.question, input.scene, input.screen.equipment_id ?? null, scene_actions) : null;
+  if (operating) {
+    scene_actions = normalizeSceneActions([...scene_actions.filter((a) => a.type === "goto_process"), { type: "show_operation", target_id: operating }], input.scene, input.screen.process_id ?? null);
+  }
   // 카드는 근거로 설명한 답을 정리하는 것이라 grounded 답변에만 붙인다.
   const allowedCards = new Set((input.keywordConcepts ?? []).map((c) => c.concept_id));
   const keyword_card = r.status === "grounded" && r.keyword_card && allowedCards.has(r.keyword_card.concept_id) ? { concept_id: r.keyword_card.concept_id } : null;
   return { answer: politeText(r.answer.trim()), status: r.status, source_ids, follow_up, detected_misconception, scene_actions, keyword_card };
+}
+
+/** 서버 검증 전에 모델이 낸 값(trace용). 검증 뒤 값(LearningReply)과 비교해 무엇을 버렸는지 본다. */
+export interface ModelProposal {
+  status: string;
+  source_ids: string[];
+  scene_actions: { type: string; target_id: string }[];
+  misconception: string | null;
+  keyword_card: string | null;
+}
+
+/** 형식 검사를 통과한 응답 원문에서 모델이 낸 값을 꺼낸다. 꺼낼 수 없으면 null. */
+export function modelProposal(raw: string): ModelProposal | null {
+  const r = ReplySchema.safeParse((() => { try { return JSON.parse(raw); } catch { return null; } })());
+  if (!r.success) return null;
+  return {
+    status: r.data.status,
+    source_ids: r.data.source_ids,
+    scene_actions: r.data.scene_actions,
+    misconception: r.data.detected_misconception?.concept_id ?? null,
+    keyword_card: r.data.keyword_card?.concept_id ?? null,
+  };
 }
 
 /** Gemini 과부하(HTTP 503 "high demand")·연결 끊김 때 다시 부르기 전에 기다리는 시간(ms). 길이가 다시 부르는 횟수다. */
@@ -315,39 +381,49 @@ export class GeminiLearningAgent implements LearningAgent {
   constructor(
     private readonly gemini: LlmClient,
     private readonly retryDelaysMs: number[] = OVERLOAD_RETRY_DELAYS_MS,
+    /** full: 기본 프롬프트(Gemini). compact: 로컬 모델용 짧은 프롬프트·줄인 맥락·출력 상한(provider.ts profileFor). */
+    private readonly profile: LearningProfile = "full",
   ) {}
 
   /**
    * 503 과부하와 순간적인 연결 끊김(fetch failed)은 몇 초 사이에도 풀리므로 잠시 뒤 다시 부른다.
    * 시간 초과(이미 오래 기다림)와 그 밖의 HTTP 오류는 그대로 올려 보낸다.
    */
-  private async generate(request: GenerateRequest): Promise<string> {
+  private async generate(request: GenerateRequest, retries: string[]): Promise<string> {
     for (let retry = 0; ; retry++) {
       try {
         return await this.gemini.generate(request);
       } catch (error) {
         const transient = error instanceof GeminiCallError && (error.httpStatus === 503 || error.reason === "network");
         if (!transient || retry >= this.retryDelaysMs.length) throw error;
+        retries.push(error.httpStatus === 503 ? "overload_503" : "network");
         await new Promise((r) => setTimeout(r, this.retryDelaysMs[retry]));
       }
     }
   }
 
   async reply(input: LearningInput, { onAnswer }: { onAnswer?: (text: string) => void } = {}): Promise<LearningReply> {
+    // compact면 근거 조각·대화·메모·화면 목록을 줄인다. 형식 검증도 줄인 입력 기준이라 source_ids·화면 조작은 실제로 보여 준 것 안에서만 남는다.
+    if (this.profile === "compact") input = compactLearningInput(input);
+    // 요청 trace(trace.ts): 다시 부른 이유, 형식 오류, 모델이 낸 제안(서버 검증 전)을 남긴다. 호출별 시간·토큰은 LLM 클라이언트가 남긴다.
+    const trace = currentTrace();
+    const retries: string[] = [];
+    const formatProblems: string[] = [];
     // 스트리밍: 받는 중인 JSON에서 answer만 꺼내 해요체로 바꿔 넘긴다(최종 답은 parseLearningReply 결과).
     let shown = "";
     const onText = onAnswer && ((raw: string) => {
       const text = partialAnswer(raw);
       if (!text?.trim()) return;
+      trace?.once("first_text_ms", trace.elapsed());
       const polite = politeText(text);
       if (polite !== shown) onAnswer((shown = polite));
     });
     const request = {
       ...(onText ? { onText } : {}),
-      system: learningSystemPrompt(input),
+      system: learningSystemPrompt(input, this.profile),
       prompt: learningUserPrompt(input),
       temperature: TEMPERATURE,
-      maxOutputTokens: MAX_OUTPUT_TOKENS,
+      maxOutputTokens: this.profile === "compact" ? COMPACT_OUTPUT_TOKENS : MAX_OUTPUT_TOKENS,
       responseSchema: learningResponseSchema(
         input.chunks.map((c) => c.id),
         input.concepts.map((c) => c.concept_id),
@@ -355,13 +431,27 @@ export class GeminiLearningAgent implements LearningAgent {
         (input.keywordConcepts ?? []).map((c) => c.concept_id),
       ),
     };
-    let problem = "";
+    const record = (proposal: ModelProposal | null) =>
+      trace?.set("agent", { profile: this.profile, prompt_chars: request.system.length + request.prompt.length, retries, format_problems: formatProblems, proposal });
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       // 연결·HTTP 오류(LlmUnavailableError)는 503 과부하만 generate()가 다시 부르고 나머지는 그대로 올려 보낸다. 형식 오류는 여기서 다시 부른다.
-      const result = parseLearningReply(await this.generate(request), input);
-      if (typeof result !== "string") return result;
-      problem = result;
+      // 로컬 모델은 가끔 답을 끝없이 이어 쓰다 출력 상한에서 잘려 JSON이 깨진다. 다시 부를 때는 temperature 0으로 덜 흔들리게 한다.
+      const call = attempt > 1 && this.profile === "compact" ? { ...request, temperature: 0 } : request;
+      let raw: string;
+      try {
+        raw = await this.generate(call, retries);
+      } catch (error) {
+        record(null);
+        throw error;
+      }
+      const result = parseLearningReply(raw, input);
+      if (typeof result !== "string") {
+        record(modelProposal(raw));
+        return result;
+      }
+      formatProblems.push(result);
     }
-    throw new LearningFormatError(`학습 모드 응답 형식 오류(${MAX_ATTEMPTS}회): ${problem}`);
+    record(null);
+    throw new LearningFormatError(`학습 모드 응답 형식 오류(${MAX_ATTEMPTS}회): ${formatProblems.at(-1)}`);
   }
 }

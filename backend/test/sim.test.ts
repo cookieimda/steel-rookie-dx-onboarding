@@ -14,6 +14,7 @@ import { buildDeck } from "../src/lab/deck.js";
 import { createLabExtrasRouter } from "../src/lab/extras-routes.js";
 import { checkStep, faultScore, faultView, loadFaults, FAULTS_PATH } from "../src/lab/faults.js";
 import { loadIncidents } from "../src/lab/incidents.js";
+import { MeRepository } from "../src/me/repository.js";
 import { BASELINE, downstreamOf, effectsOf, simulate, whatIf } from "../src/lab/whatif.js";
 import { readFileSync } from "node:fs";
 
@@ -115,7 +116,12 @@ test("HTTP 이상 상황: 목록 → 보기 → 단계 확인 → 완료 기록�
   assert.equal((await call("GET", "/api/lab/faults/nope")).status, 404);
   const wi = await call("POST", "/api/lab/whatif", { coke_kg: 290, pci_kg: 120 });
   assert.ok(wi.json.effects.length === 2 && wi.json.downstream.length >= 1);
-  assert.ok(deleteUserData(db, kim.id, { origin: "live" }).operations >= 1, "이상 상황 기록도 지운다");
+  // 인과 퀴즈 칸 채점은 기록되고, 사원증 기록(cardEvents)에 맞힌 칸·끝낸 훈련이 들어간다
+  await call("POST", "/api/lab/causal/quiz/check", { chain_id: "coke_rate>hm_temp>scrap_pct", dir: 1, hop: 1, choice: "up" });
+  await call("POST", "/api/lab/causal/quiz/check", { chain_id: "coke_rate>hm_temp>scrap_pct", dir: 1, hop: 2, choice: "down" });
+  const kinds = new MeRepository(db).cardEvents(kim.id).map((e) => e.kind);
+  assert.deepEqual([kinds.filter((k) => k === "causal_correct").length, kinds.filter((k) => k === "fault_drill").length], [1, 1]);
+  assert.ok(deleteUserData(db, kim.id, { origin: "live" }).operations >= 3, "이상 상황·퀴즈 기록도 지운다");
 });
 
 test("사고 사례 갈림길: 사례마다 1개 이상, 갈림길마다 실제 선택 하나와 다른 선택, 다른 선택의 결과는 실제와 다르다", () => {

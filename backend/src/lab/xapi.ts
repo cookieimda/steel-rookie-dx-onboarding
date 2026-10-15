@@ -74,6 +74,9 @@ export function statementFor(e: CardEvent, actor: Statement["actor"], names: Nam
         result: { success: (e.grade ?? 0) >= 3, extensions: { [`${BASE}/xapi/ext/grade`]: GRADE_LABEL[e.grade ?? 0] ?? String(e.grade) } } };
     },
     socratic_reached: () => ({ verb: "mastered", object: equipment(e.object_id), result: { success: true, extensions: { [`${BASE}/xapi/ext/via`]: "소크라테스 모드" } } }),
+    causal_correct: () => ({ verb: "answered", object: activity("causal-link", e.object_id ?? "link", "공정 인과 퀴즈", `${ACT}/interaction`), result: { success: true } }),
+    fault_drill: () => ({ verb: "completed", object: activity("fault-drill", e.object_id ?? "drill", "이상 상황 훈련", `${ACT}/simulation`),
+      result: { completion: true, ...(e.understanding == null ? {} : { score: { scaled: e.understanding } }) } }),
   };
   const m = map[e.kind]?.();
   if (!m) return null;

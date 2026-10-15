@@ -784,8 +784,8 @@ const systemTheme = () => (lightQuery()?.matches ? 'light' : 'dark');
 const DRAW_MODES = { top: ['탑뷰', '위에서 내려다본 실제 모습', '배치 탑뷰', 'T'], plan: ['평면도', '위에서 본 선 도면', '배치 평면도', 'P'], front: ['정면도', '앞에서 본 선 도면', '정면도', 'E'] };
 
 // 사원증 탭(값은 /api/me/dashboard의 employee_card). 배지 그림, XP 얻는 법, 바코드(사번으로 만든 장식).
-const BADGE_ICONS = { first_question: '💬', curious: '🔎', explorer: '🧭', streak_3: '🔥', streak_7: '📅', first_pass: '🎓', perfect: '💯', fixer: '🛠️', supplement: '📘', sketcher: '✏️' };
-const CARD_HOWTO = [['튜터 질문', 10], ['설계도 필기', 10], ['개념 맞힘', 20], ['오개념 해결', 15], ['보충학습 해결', 40], ['이해도 확인 통과', 100]];
+const BADGE_ICONS = { first_question: '💬', curious: '🔎', explorer: '🧭', streak_3: '🔥', streak_7: '📅', first_pass: '🎓', perfect: '💯', fixer: '🛠️', supplement: '📘', sketcher: '✏️', causal_detective: '🧩', field_ready: '🚨' };
+const CARD_HOWTO = [['튜터 질문', 10], ['설계도 필기', 10], ['개념 맞힘', 20], ['오개념 해결', 15], ['보충학습 해결', 40], ['이해도 확인 통과', 100], ['인과 퀴즈 한 칸', 3], ['이상 상황 훈련', 20]];
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 const CONFETTI_COLORS = ['#ff9e64', '#ffd166', '#6fcf97', '#4fb3ff', '#ff4fa3', '#b388ff'];
 // 목걸이 줄 색(카드 밖이라 카드의 data-tier 색을 못 받는다)

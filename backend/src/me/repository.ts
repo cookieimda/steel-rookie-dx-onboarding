@@ -110,6 +110,13 @@ export class MeRepository {
     for (const r of rows("SELECT card_id, grade, reviewed_at FROM sr_reviews WHERE user_id = ?")) {
       events.push({ kind: "sr_review", at: String(r.reviewed_at), object_id: String(r.card_id), grade: Number(r.grade) });
     }
+    // 3D 실습: 인과 퀴즈에서 맞힌 칸(014), 끝낸 이상 상황 훈련(013, score는 0~1)
+    for (const r of rows("SELECT chain_id, hop, created_at FROM causal_quiz_answers WHERE user_id = ? AND correct = 1")) {
+      events.push({ kind: "causal_correct", at: String(r.created_at), object_id: `${r.chain_id}#${r.hop}` });
+    }
+    for (const r of rows("SELECT fault_id, score, created_at FROM fault_attempts WHERE user_id = ?")) {
+      events.push({ kind: "fault_drill", at: String(r.created_at), object_id: String(r.fault_id), understanding: Number(r.score) });
+    }
     for (const r of rows("SELECT section, equipment_id, updated_at FROM socratic_sessions WHERE user_id = ? AND state = 'reached'")) {
       events.push({ kind: "socratic_reached", at: String(r.updated_at), section: String(r.section), object_id: String(r.equipment_id) });
     }

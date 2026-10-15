@@ -15,7 +15,9 @@ export type CardEventKind =
   | "misconception_resolved" // 오개념이 해결됨으로 바뀜
   | "sketch" // 설계도·필기 도면 하나에 필기
   | "sr_review" // 학습 랩 간격 반복 카드 한 장 복습
-  | "socratic_reached"; // 학습 랩 소크라테스 대화에서 스스로 답에 닿음
+  | "socratic_reached" // 학습 랩 소크라테스 대화에서 스스로 답에 닿음
+  | "causal_correct" // 3D 인과 퀴즈에서 한 칸 맞힘
+  | "fault_drill"; // 3D 이상 상황 훈련 하나를 끝냄
 
 export interface CardEvent {
   kind: CardEventKind;
@@ -41,11 +43,13 @@ export const XP: Record<CardEventKind, number> = {
   sketch: 10,
   sr_review: 5,
   socratic_reached: 25,
+  causal_correct: 3,
+  fault_drill: 20,
 };
 /** 질문만 반복해 XP를 쌓지 않게 하루에 XP로 세는 질문 수. 질문 수(배지·미션)는 그대로 센다. */
 export const DAILY_QUESTION_XP_CAP = 10;
 /** 하루에 XP로 세는 개수 상한(같은 일을 반복해 XP를 쌓지 않게). 없는 종류는 상한 없음. */
-export const DAILY_XP_CAPS: Partial<Record<CardEventKind, number>> = { question: DAILY_QUESTION_XP_CAP, sr_review: 20 };
+export const DAILY_XP_CAPS: Partial<Record<CardEventKind, number>> = { question: DAILY_QUESTION_XP_CAP, sr_review: 20, causal_correct: 10, fault_drill: 4 };
 /** 하루 목표 XP(듀오링고 '일일 목표'). */
 export const DAILY_GOAL_XP = 50;
 
@@ -91,7 +95,7 @@ export interface EmployeeCard {
   today: { date: string; xp: number; goal: number };
   missions: CardMission[];
   badges: CardBadge[];
-  counts: { questions: number; sections_asked: number; sections_passed: number; supplements_resolved: number; misconceptions_resolved: number; sketches: number; perfect_checkpoints: number; active_days: number };
+  counts: { questions: number; sections_asked: number; sections_passed: number; supplements_resolved: number; misconceptions_resolved: number; sketches: number; perfect_checkpoints: number; active_days: number; causal_correct: number; fault_kinds: number };
 }
 
 const DAY_MS = 86_400_000;
@@ -154,6 +158,8 @@ export function buildEmployeeCard(events: readonly CardEvent[], now: Date = new 
   const misconceptionsResolved = count("misconception_resolved");
   const sketches = count("sketch");
   const perfect = events.filter((e) => e.kind === "checkpoint_done" && e.understanding === 1).length;
+  const causalCorrect = count("causal_correct");
+  const faultKinds = new Set(events.filter((e) => e.kind === "fault_drill").map((e) => e.object_id)).size;
 
   const badge = (id: string, name: string, description: string, progress: number, goal: number): CardBadge =>
     ({ id, name, description, earned: progress >= goal, progress: Math.min(progress, goal), goal });
@@ -168,6 +174,8 @@ export function buildEmployeeCard(events: readonly CardEvent[], now: Date = new 
     badge("fixer", "오개념 해결사", "오개념 3개 해결", misconceptionsResolved, 3),
     badge("supplement", "보충학습 완주", "보충학습으로 오개념 해결하기", supplementsResolved, 1),
     badge("sketcher", "설계도 필기왕", "도면 3장에 필기하기", sketches, 3),
+    badge("causal_detective", "인과 탐정", "3D 인과 퀴즈에서 30칸 맞히기", causalCorrect, 30),
+    badge("field_ready", "현장 대응", "이상 상황 훈련 4종 모두 해 보기", faultKinds, 4),
   ];
 
   // 오늘의 미션(말해보카 '오늘의 학습'): 오늘 기록만 센다.
@@ -192,6 +200,6 @@ export function buildEmployeeCard(events: readonly CardEvent[], now: Date = new 
     missions,
     badges,
     counts: { questions, sections_asked: sectionsAsked, sections_passed: sectionsPassed, supplements_resolved: supplementsResolved,
-      misconceptions_resolved: misconceptionsResolved, sketches, perfect_checkpoints: perfect, active_days: active.size },
+      misconceptions_resolved: misconceptionsResolved, sketches, perfect_checkpoints: perfect, active_days: active.size, causal_correct: causalCorrect, fault_kinds: faultKinds },
   };
 }

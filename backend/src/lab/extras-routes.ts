@@ -109,6 +109,8 @@ export function createLabExtrasRouter({ db, auth, deck, incidents, faults = { di
     if (!body.success) return bad(res, 400, "길·방향·칸·답을 보내 주세요.");
     const out = checkHop(body.data.chain_id, body.data.dir, body.data.hop, body.data.choice);
     if (!out) return bad(res, 404, "없는 인과 길이에요.");
+    db.prepare("INSERT INTO causal_quiz_answers(id,user_id,chain_id,hop,correct,created_at) VALUES(?,?,?,?,?,?)")
+      .run(randomUUID(), me(res).id, body.data.chain_id, body.data.hop, out.correct ? 1 : 0, new Date().toISOString());
     res.json(out);
   });
 

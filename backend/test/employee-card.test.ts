@@ -92,3 +92,13 @@ test("cardEvents: 본인 기록만, 이해도 확인은 최종 판정 기준으�
   assert.equal(card.xp, XP.question + XP.checkpoint_done + XP.concept_correct + XP.concept_partial + XP.sketch);
   assert.deepEqual(card.streak, { current: 2, longest: 2, today_done: true });
 });
+
+test("3D 실습 XP: 인과 퀴즈는 칸당 3(하루 10칸), 이상 상황 훈련은 20(하루 4번), 배지는 맞힌 칸·훈련 종류로", () => {
+  const quiz: CardEvent[] = Array.from({ length: 14 }, (_, i) => ({ kind: "causal_correct", at: `2026-10-15T01:${String(i).padStart(2, "0")}:00Z`, object_id: `a>b>c#${i % 2 + 1}` }));
+  const drills: CardEvent[] = ["f1", "f2", "f3", "f4", "f1"].map((id, i) => ({ kind: "fault_drill", at: `2026-10-15T02:0${i}:00Z`, object_id: id, understanding: 1 }));
+  const card = buildEmployeeCard([...quiz, ...drills], NOW);
+  assert.equal(card.xp, 10 * XP.causal_correct + 4 * XP.fault_drill);
+  assert.deepEqual([card.counts.causal_correct, card.counts.fault_kinds], [14, 4]);
+  assert.equal(card.badges.find((b) => b.id === "field_ready")?.earned, true);
+  assert.deepEqual(card.badges.find((b) => b.id === "causal_detective"), { id: "causal_detective", name: "인과 탐정", description: "3D 인과 퀴즈에서 30칸 맞히기", earned: false, progress: 14, goal: 30 });
+});

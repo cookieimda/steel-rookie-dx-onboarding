@@ -79,3 +79,10 @@ test("3D 이름표 겹침 정리: 아래 이름표부터 놓고 겹치면 위로
   assert.ok(src.includes("guard <= placed.length"));
   assert.ok(src.includes("y = hit.t - 4;"));
 });
+
+test("수업 막대 배치: 실습 패널은 수업 막대 아래에서 시작하고, 수업을 끝내면 주소에서 수업 표시를 뺀다", () => {
+  assert.match(src, /top: var\(--sl-panel-top, 84px\)/);
+  assert.match(src, /var\(--sl-panel-top, 72px\)/);
+  assert.ok(src.includes("root.style.setProperty('--sl-panel-top'") && src.includes("root.style.removeProperty('--sl-panel-top')"));
+  assert.ok(src.includes("history.replaceState(null, '', `${location.pathname}?p=${scene.process?.id || 'ironmaking'}`)"));
+});

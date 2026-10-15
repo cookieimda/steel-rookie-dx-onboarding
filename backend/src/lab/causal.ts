@@ -115,3 +115,43 @@ export function simulateCausal(raw: Record<string, number> = {}): CausalResult {
   });
   return { nodes, edges, story, note: CAUSAL_NOTE };
 }
+
+// ── 인과 퀴즈: "원인 → 결과 → 다음 공정 영향"을 한 칸씩 묻는 질문 틀 ──
+// 연결 두 개를 잇는 길(노드 3개)을 골라, 첫 변수를 올리거나 내리면 다음 변수·그다음 변수가 어떻게 되는지 차례로 묻는다.
+// 정답은 길 위 계수 부호의 곱(서버가 계산). 채점은 상태 없이 길 id·방향·몇 번째 칸으로 한다.
+
+export interface Chain { id: string; nodes: string[]; cross: boolean }
+
+/** 연결 두 개로 이어지는 모든 길. cross는 공정을 넘는 길인지. */
+export function causalChains(): Chain[] {
+  const out: Chain[] = [];
+  for (const a of EDGES) for (const b of EDGES.filter((e) => e.from === a.to)) {
+    const nodes = [a.from, a.to, b.to];
+    out.push({ id: nodes.join(">"), nodes, cross: new Set(nodes.map((id) => byId.get(id)!.process)).size > 1 });
+  }
+  return out;
+}
+
+/** 퀴즈 n개: 공정을 넘는 길을 먼저, seed로 섞고 방향(올림/내림)을 정한다. */
+export function causalQuiz(seed = 1, n = 5) {
+  let x = (Math.abs(Math.floor(seed)) % 2147483646) + 1;
+  const rand = () => (x = (x * 48271) % 2147483647) / 2147483647;
+  const chains = causalChains().map((c) => ({ c, k: rand() - (c.cross ? 1 : 0) })).sort((a, b) => a.k - b.k).slice(0, n).map((o) => o.c);
+  return chains.map((c) => ({
+    id: c.id, dir: rand() < 0.5 ? 1 : -1, cross: c.cross,
+    nodes: c.nodes.map((id) => { const d = byId.get(id)!; return { id, label: d.label, process: d.process, equipment_id: d.equipment_id }; }),
+  }));
+}
+
+/** 길의 hop번째(1·2) 변수가 어떻게 되는지 채점. */
+export function checkHop(chainId: string, dir: number, hop: number, choice: "up" | "down") {
+  const nodes = chainId.split(">");
+  if (nodes.length !== 3 || (hop !== 1 && hop !== 2) || (dir !== 1 && dir !== -1)) return null;
+  const edges = [0, 1].map((i) => EDGES.find((e) => e.from === nodes[i] && e.to === nodes[i + 1]));
+  if (edges.some((e) => !e)) return null;
+  const sign = edges.slice(0, hop).reduce((s, e) => s * Math.sign(e!.coef), dir);
+  const answer = sign > 0 ? "up" : "down";
+  const edge = edges[hop - 1]!;
+  return { correct: choice === answer, answer, why: edge.why, from: edge.from, to: edge.to,
+    sign_rule: Math.sign(edge.coef) > 0 ? "같은 방향(하나가 오르면 다른 것도 오름)" : "반대 방향(하나가 오르면 다른 것은 내림)" };
+}

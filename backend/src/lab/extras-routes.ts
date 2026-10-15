@@ -17,7 +17,7 @@ import { checkStep, faultScore, faultView, type FaultDrill } from "./faults.js";
 import { gradeIncident, scenarioView, type IncidentScenario } from "./incidents.js";
 import { maskName } from "./league.js";
 import { whatIf } from "./whatif.js";
-import { NODES, simulateCausal } from "./causal.js";
+import { NODES, causalQuiz, checkHop, simulateCausal } from "./causal.js";
 
 /** 신고가 이만큼 쌓이면 자동으로 숨긴다(관리자가 다시 열 수 있다). */
 export const AUTO_HIDE_REPORTS = 3;
@@ -101,6 +101,15 @@ export function createLabExtrasRouter({ db, auth, deck, incidents, faults = { di
     const unknown = Object.keys(body.data).find((k) => !known.has(k));
     if (unknown) return bad(res, 400, `조정할 수 없는 변수예요: ${unknown}`);
     res.json(simulateCausal(body.data));
+  });
+
+  router.get("/api/lab/causal/quiz", login, (req, res) => res.json({ chains: causalQuiz(Number(req.query.seed) || Date.now() % 100000, 5) }));
+  router.post("/api/lab/causal/quiz/check", login, express.json(), (req, res) => {
+    const body = z.object({ chain_id: z.string().max(120), dir: z.union([z.literal(1), z.literal(-1)]), hop: z.union([z.literal(1), z.literal(2)]), choice: z.enum(["up", "down"]) }).safeParse(req.body);
+    if (!body.success) return bad(res, 400, "길·방향·칸·답을 보내 주세요.");
+    const out = checkHop(body.data.chain_id, body.data.dir, body.data.hop, body.data.choice);
+    if (!out) return bad(res, 404, "없는 인과 길이에요.");
+    res.json(out);
   });
 
   // ── What-if ──

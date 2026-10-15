@@ -1,7 +1,7 @@
 // 공정 인과 지도(lab/causal.ts): 위상 순서, 기준 조건, 공정을 넘는 전파, 범위 밖 경고, 설명.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { EDGES, NODES, simulateCausal, topoOrder } from "../src/lab/causal.js";
+import { EDGES, NODES, causalChains, causalQuiz, checkHop, simulateCausal, topoOrder } from "../src/lab/causal.js";
 
 const node = (r: ReturnType<typeof simulateCausal>, id: string) => r.nodes.find((n) => n.id === id)!;
 
@@ -40,4 +40,24 @@ test("인과 지도: 출강 온도↑·주조 속도↑ → 껍질↓ → 브레
   assert.ok(active.includes("center_seg>rolled_defect"));
   // 범위를 벗어난 조정값은 자른다
   assert.equal(node(simulateCausal({ cool_banks: 99 }), "cool_banks").value, 16);
+});
+
+test("인과 퀴즈: 길은 연결 두 개, 공정을 넘는 길이 먼저, 같은 seed는 같은 퀴즈", () => {
+  const chains = causalChains();
+  assert.ok(chains.length >= 8);
+  assert.ok(chains.some((c) => c.id === "superheat>center_seg>rolled_defect" && c.cross));
+  const q = causalQuiz(7);
+  assert.equal(q.length, 5);
+  assert.ok(q.every((c) => c.cross), "공정을 넘는 길이 충분하면 모두 공정을 넘는다");
+  assert.deepEqual(causalQuiz(7), q);
+});
+
+test("인과 퀴즈 채점: 부호의 곱으로 방향을 정한다(코크스↑ → 용선 온도↑ → 고철 여유↑, 출강 온도↓ → 과열도↓ → 껍질↑)", () => {
+  assert.equal(checkHop("coke_rate>hm_temp>scrap_pct", 1, 1, "up")?.correct, true);
+  assert.equal(checkHop("coke_rate>hm_temp>scrap_pct", 1, 2, "up")?.correct, true);
+  assert.equal(checkHop("tap_temp>superheat>shell_mm", -1, 1, "down")?.correct, true);
+  const r = checkHop("tap_temp>superheat>shell_mm", -1, 2, "down")!;
+  assert.deepEqual([r.correct, r.answer], [false, "up"]);
+  assert.match(r.sign_rule, /반대 방향/);
+  assert.equal(checkHop("coke_rate>bof_slag>slopping", 1, 1, "up"), null, "없는 연결");
 });

@@ -26,6 +26,9 @@ const SLIDERS = [
   ['coke_kg', '코크스', 'kg/t', 250, 550, 10], ['pci_kg', '미분탄', 'kg/t', 0, 250, 10],
   ['blast_temp_c', '송풍 온도', '℃', 900, 1300, 10], ['oxygen_pct', '산소 부화', '%p', 0, 10, 0.5], ['limestone_kg', '석회석', 'kg/t', 0, 150, 5],
 ];
+// 조사: 받침이 있으면 이·은, 없으면 가·는(숫자·기호로 끝나면 받침 없음으로 본다)
+const batchim = (w) => { const t = String(w).replace(/\s*\([^)]*\)\s*$/, '').trim(); const c = t.charCodeAt(t.length - 1) - 0xac00; return c >= 0 && c < 11172 && c % 28 !== 0; }; // 끝의 (S)·(Si) 같은 괄호는 빼고 본다
+const iGa = (w) => `${w}${batchim(w) ? '이' : '가'}`, eunNeun = (w) => `${w}${batchim(w) ? '은' : '는'}`;
 const SECTION = { ironmaking: '제선', steelmaking: '제강', continuous_casting: '연주', rolling: '열간압연' };
 const fmt = (n, d = 0) => Number(n).toLocaleString('ko-KR', { maximumFractionDigits: d, minimumFractionDigits: d });
 const signed = (n, d = 0, unit = '') => `${n > 0 ? '+' : n < 0 ? '−' : '±'}${fmt(Math.abs(n), d)}${unit}`;
@@ -188,7 +191,7 @@ export async function attachSimLab() {
     mode = next; fx.clear(); panel.classList.remove('compact');
     bWhatif.setAttribute('aria-pressed', String(mode === 'whatif')); bFault.setAttribute('aria-pressed', String(mode === 'fault')); bMap.setAttribute('aria-pressed', String(mode === 'map'));
     panel.hidden = !mode; panel.replaceChildren();
-    if (mode === 'whatif') void whatifPanel(preset); else if (mode === 'fault') void faultList(); else if (mode === 'map') void causalMap(preset);
+    if (mode === 'whatif') void whatifPanel(preset); else if (mode === 'fault') void faultList(); else if (mode === 'map') void causalMap(preset); else if (mode === 'quiz') void causalQuizPanel();
   }
   const head = (title, foldable = false) => {
     const h = el('h3'); h.append(el('span', '', title));
@@ -219,7 +222,7 @@ export async function attachSimLab() {
     ];
     const pr = el('div'); pr.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;';
     for (const [label, v] of PRESETS) pr.append(btn(label, () => { for (const k of Object.keys(input)) delete input[k]; Object.assign(input, v); void run(); }, 'sl-btn ghost'));
-    presets.append(pr);
+    presets.append(pr, btn('🧩 인과 퀴즈로 확인하기', () => open('quiz'), 'sl-btn'));
     const controls = el('div', 'sl-box sl-hide'), story = el('div'), byProc = el('div'), note = el('p', 'sl-muted');
     panel.append(presets, controls, story, byProc, note);
     let timer = 0, data = null, first = true;
@@ -274,6 +277,56 @@ export async function attachSimLab() {
     }
     plantView();
     await run();
+  }
+
+  // ── 인과 퀴즈: 원인 → 결과 → 다음 공정 영향을 한 칸씩 묻는다 ──
+  async function causalQuizPanel() {
+    panel.append(head('🧩 인과 퀴즈'), el('p', 'sl-muted', '한 값을 올리거나 내리면 다음 값, 그다음 공정의 값이 어떻게 될까요? 한 칸씩 고르면 3D에서 그 연결이 흐르며 이유를 알려 줘요.'));
+    let chains;
+    try { chains = (await api('GET', `/api/lab/causal/quiz?seed=${Date.now() % 100000}`)).chains; } catch (e) { panel.append(el('p', 'sl-bad', e.message)); return; }
+    const box = el('div', 'sl-box'), scoreLine = el('p', 'sl-muted');
+    panel.append(box, scoreLine, btn('🗺 인과 지도로 돌아가기', () => open('map'), 'sl-btn ghost'));
+    let qi = 0, right = 0, total = 0;
+    plantView();
+    const word = (d) => (d > 0 ? '오르면' : '내려가면');
+    function show() {
+      fx.clear();
+      if (qi >= chains.length) {
+        box.replaceChildren(el('b', '', `다 풀었어요 · ${right} / ${total} 칸 맞힘`), el('p', 'sl-muted', '틀린 칸은 "같은 방향/반대 방향" 규칙을 떠올려 보세요. 두 칸을 지나면 방향은 규칙 두 개를 곱한 것과 같아요.'),
+          btn('새 문제로 다시', () => open('quiz'), 'sl-btn'));
+        return;
+      }
+      const c = chains[qi], [a, b, d] = c.nodes;
+      box.replaceChildren(el('small', 'sl-muted', `${qi + 1} / ${chains.length} · ${SECTION[a.process]}${c.cross ? ' → 다른 공정' : ''}`),
+        el('b', '', `${iGa(a.label)} ${word(c.dir)}…`));
+      fx.ring(a.equipment_id, c.dir > 0 ? 0xff7a3d : 0x5aa0ff, true);
+      fx.tag(a.equipment_id, `원인 · ${a.label} ${c.dir > 0 ? '▲' : '▼'}`, c.dir > 0 ? 'hot' : 'cold', 5);
+      ask(c, 1, a, b, () => ask(c, 2, b, d, () => {
+        const next = btn('다음 문제 ▶', () => { qi++; show(); }, 'sl-btn'); box.append(next); next.focus();
+      }));
+    }
+    function ask(c, hop, from, to, done) {
+      const q = el('div'); q.style.cssText = 'display:flex;flex-direction:column;gap:6px;';
+      q.append(el('span', '', `${hop === 1 ? '①' : '②'} ${hop === 2 ? '그러면 ' : ''}${SECTION[to.process]} · ${eunNeun(to.label)}?`));
+      const row = el('div'); row.style.cssText = 'display:flex;gap:6px;';
+      for (const [choice, label] of [['up', '▲ 오른다'], ['down', '▼ 내린다']]) {
+        row.append(btn(label, async () => {
+          for (const x of row.querySelectorAll('button')) x.disabled = true;
+          let r;
+          try { r = await api('POST', '/api/lab/causal/quiz/check', { chain_id: c.id, dir: c.dir, hop, choice }); } catch (e) { q.append(el('p', 'sl-bad', e.message)); return; }
+          total++; if (r.correct) right++;
+          scoreLine.textContent = `지금까지 ${right} / ${total} 칸 맞힘`;
+          const up = r.answer === 'up';
+          q.append(el('p', r.correct ? 'sl-ok' : 'sl-bad', `${r.correct ? '✓ 맞아요' : '✗ 아니에요'} — ${eunNeun(to.label)} ${up ? '올라요 ▲' : '내려가요 ▼'}. ${r.why} (${r.sign_rule})`));
+          // 3D: 이 칸의 연결을 흐르게 하고 결과 이름표
+          if (from.equipment_id !== to.equipment_id) fx.flow(from.equipment_id, to.equipment_id, up ? 0xff7a3d : 0x5aa0ff);
+          fx.tag(to.equipment_id, `${hop === 1 ? '결과' : '다음 영향'} · ${to.label} ${up ? '▲' : '▼'}`, up ? 'hot' : 'cold', hop === 1 ? 7 : 9);
+          done();
+        }, 'sl-opt'));
+      }
+      q.append(row); box.append(q);
+    }
+    show();
   }
 
   // ── ① 조업 실험(What-if) ──

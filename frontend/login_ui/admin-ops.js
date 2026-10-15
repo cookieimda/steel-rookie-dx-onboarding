@@ -253,7 +253,16 @@ async function showPractice(pane) {
     dc.append(row);
   }
   if (!dg?.confusing?.length) dc.append(el('p', 'muted', `헷갈린 원인이 아직 없어요(같은 문제에 답 ${data.min_link_answers}번 이상일 때 보여요).`));
-  wrap.append(top, lc, quiz, dc, ft, it);
+  // 되돌리기 퍼즐: 퍼즐별 푼 비율·부작용 없이 푼 비율·자주 고른 닿지 않는 값
+  const rc = el('div', 'card ops-card');
+  rc.append(el('strong', '', '🧰 되돌리기 퍼즐'), el('span', 'micro', '흔들린 값 때문에 범위 밖이 된 값을 다른 값으로 되돌리는 문제예요. "닿지 않는 값"을 자주 고르면 연결을 아직 모르는 거예요.'));
+  for (const x of data.rebalance ?? []) {
+    const row = el('div', 'pat-row');
+    row.append(el('span', '', `${x.puzzle}${x.common_far ? ` · 자주 고른 닿지 않는 값: ${x.common_far.control}(${x.common_far.times}번)` : ''}`), rateBar(x.solved_rate), el('span', 'micro', `${x.attempts}번 · ${x.learners}명 · 풂 ${pct(x.solved_rate)} · 부작용 없이 ${pct(x.clean_rate)}`));
+    rc.append(row);
+  }
+  if (!data.rebalance?.length) rc.append(el('p', 'muted', '아직 기록이 없어요.'));
+  wrap.append(top, lc, quiz, dc, rc, ft, it);
   pane.replaceChildren(wrap);
 }
 

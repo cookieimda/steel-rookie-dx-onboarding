@@ -2,7 +2,7 @@
 // 사람별 내용은 내지 않고 문항·단계 단위 개수와 비율만 낸다. 점수는 이해도·통과와 상관없는 자가 훈련 점수다.
 // includeDemo: false면 시연 계정(users.is_demo = 1)을 뺀다(?include_demo=false).
 import type { DatabaseSync } from "node:sqlite";
-import { NODES } from "./causal.js";
+import { NODES, controlAncestorsOf } from "./causal.js";
 import type { FaultDrill, Step } from "./faults.js";
 import type { IncidentScenario } from "./incidents.js";
 import type { LessonDef } from "./lessons.js";
@@ -101,5 +101,21 @@ export function practiceStats(db: DatabaseSync, content: { faults: FaultDrill[];
     return { cause: causeLabel(q), answers: list.length, rate: rate(list)!, mistaken_for: top ? causeLabel(top[0]) : null };
   }).filter((x) => x.answers >= MIN_LINK_ANSWERS && x.rate < 1).sort((a, b) => a.rate - b.rate || b.answers - a.answers).slice(0, 5);
   const diagnose = { answers: diagRows.length, learners: new Set(diagRows.map((r) => r.user_id)).size, rate: rate(diagRows), confusing: confusingCauses };
-  return { faults, incidents, causal, lessons, diagnose, min_link_answers: MIN_LINK_ANSWERS };
+  // ── 되돌리기 퍼즐: 퍼즐별 시도·푼 비율·부작용 없이 푼 비율, 자주 고른 닿지 않는 값(목표까지 이어지지 않는 조정 값) ──
+  const rbRows = rows("rebalance_attempts", "user_id, puzzle, control, solved, clean");
+  const byPuzzle = new Map<string, Record<string, unknown>[]>();
+  for (const r of rbRows) byPuzzle.set(String(r.puzzle), [...(byPuzzle.get(String(r.puzzle)) ?? []), r]);
+  const rebalance = [...byPuzzle.entries()].map(([id, list]) => {
+    const [head, target] = id.split(">"), [dv] = head.split("@"), [did, dir] = dv.split(":");
+    const reach = new Set(controlAncestorsOf(target));
+    const far = new Map<string, number>();
+    for (const r of list) if (!reach.has(String(r.control))) far.set(String(r.control), (far.get(String(r.control)) ?? 0) + 1);
+    const topFar = [...far.entries()].sort((a, b) => b[1] - a[1])[0];
+    return {
+      id, puzzle: `${label.get(did) ?? did} ${Number(dir) > 0 ? "▲" : "▼"} → ${label.get(target) ?? target}`, attempts: list.length, learners: new Set(list.map((r) => r.user_id)).size,
+      solved_rate: round(list.filter((r) => Number(r.solved) === 1).length / list.length), clean_rate: round(list.filter((r) => Number(r.clean) === 1).length / list.length),
+      common_far: topFar ? { control: label.get(topFar[0]) ?? topFar[0], times: topFar[1] } : null,
+    };
+  }).sort((a, b) => b.attempts - a.attempts);
+  return { faults, incidents, causal, lessons, diagnose, rebalance, min_link_answers: MIN_LINK_ANSWERS };
 }

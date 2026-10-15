@@ -306,6 +306,7 @@ export function checkLag(fromId: string, toId: string, choice: string) {
 // ── 되돌리기 퍼즐(조치 인과): 한 값이 흔들려(바꿀 수 없음) 하류 값 하나가 범위 밖이 됐을 때, 다른 조정 값 하나로 그 값을 정상 범위로 되돌린다 ──
 // 원인을 바로 고칠 수 없을 때 다른 공정에서 보상하는 판단을 연습한다. 되돌리다 다른 값이 범위 밖이 되면(부작용) 함께 알려 준다.
 /** 이 변수에 닿는(앞쪽에 있는) 조정 변수. */
+export const controlAncestorsOf = (target: string) => controlAncestors(target);
 function controlAncestors(target: string) {
   const seen = new Set<string>(), stack = [target];
   while (stack.length) { const id = stack.pop()!; for (const e of EDGES.filter((x) => x.to === id)) if (!seen.has(e.from)) { seen.add(e.from); stack.push(e.from); } }

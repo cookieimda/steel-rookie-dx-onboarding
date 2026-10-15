@@ -378,3 +378,14 @@ test("되돌리기 퍼즐 기록·사원증: 채점 때 남기고, 부작용 없
   deleteUserData(db, kim.id, { origin: "live" });
   assert.equal(Number(db.prepare("SELECT COUNT(*) AS n FROM rebalance_attempts WHERE user_id = ?").get(kim.id)!.n), 0);
 });
+
+test("3D 실습 통계 · 되돌리기 퍼즐: 퍼즐별 시도·푼 비율·부작용 없이 푼 비율·자주 고른 닿지 않는 값", async () => {
+  const { practiceStats } = await import("../src/lab/practice-stats.js");
+  const sdb = openDatabase(":memory:"), u = await new UserRepository(sdb).create({ username: "trainee09", password: "password123", name: "사", employee_no: "S9" });
+  const add = (control: string, solved: number, clean: number) => sdb.prepare("INSERT INTO rebalance_attempts VALUES(?,?,?,?,?,?,?,?)").run(crypto.randomUUID(), u.id, "cool_banks:-1@8>coiling_temp", control, 1, solved, clean, "2026-10-16T00:00:00Z");
+  add("coke_rate", 0, 0); add("coke_rate", 0, 0); add("reheat_temp", 1, 1); add("reheat_temp", 1, 0);
+  const x = practiceStats(sdb, { faults: [], scenarios: [] }).rebalance[0];
+  assert.equal(x.puzzle, "런아웃 냉각 뱅크 ▼ → 권취 온도");
+  assert.deepEqual([x.attempts, x.learners, x.solved_rate, x.clean_rate], [4, 1, 0.5, 0.25]);
+  assert.deepEqual(x.common_far, { control: "코크스비", times: 2 });
+});

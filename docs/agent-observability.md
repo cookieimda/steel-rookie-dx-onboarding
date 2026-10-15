@@ -90,7 +90,18 @@ npm run trace:report -- [--dir data/traces] [--since 2026-10-15] [--until 2026-1
 - 보고는 기다리지 않고 실패해도 화면에 알리지 않는다.
 - 요약: 화면 표시 p50/p95, 첫 글자 p50, 서버 밖 시간(브라우저 시간 - 서버 `total_ms`: 네트워크·그리기·3D 조작), 3D 조작 종류별 성공률.
 
+## 체크포인트·보충학습·시험 (`checkpoint`·`supplement`·`exam`)
+
+학습 모드 밖에서 모델을 부르는 경로도 같은 sink에 남긴다. 단계별 필드는 없고, 요청(작업) 하나의 시간과 그 안의 LLM 호출(provider·모델·시간·실패·토큰)을 남긴다.
+
+| 종류 | 감싸는 곳 | 추가 필드 |
+|---|---|---|
+| `checkpoint` | `/api/checkpoints` 요청(`traceMiddleware`, `backend/src/app.ts`) | `request.method`·`request.route`(UUID는 `:id`), `http_status`, `outcome`(`ok`·`http_4xx` 등) |
+| `supplement` | `/api/learning/supplements` 요청(`ironmaking-server.ts`) | 위와 같음 |
+| `exam` | 시험 작업 하나(`EducationJobs.run`, 요청은 작업 id만 바로 돌려주고 채점은 대기열에서 돌아서 작업을 감싼다) | `job.id`·`job.kind`·`job.queue_ms`(대기 시간), `outcome`(`succeeded`·`failed`·`cancelled`), `error` |
+
+`trace:report`는 이 셋을 "[종류] 요청 수 · 결과 · 전체 p50/p95 · 경로별 수 · 모델별 호출 수·호출당 p50·토큰"으로 요약한다. 시험 채점 이력(`exam_events`의 metadata)에는 이제 실제 provider·모델과 채점 보강 여부가 남는다(전에는 Ollama로 채점해도 gemini로 남았다).
+
 ## 다음
 
 - 실제 사용 기록이 쌓이면 trace:report로 기준선(지연 p50/p95, 토큰, unverified 원인 비율)을 [agent-roadmap.md](agent-roadmap.md) Stage 3 표에 적는다.
-- 체크포인트·시험·보충학습 경로는 아직 trace를 만들지 않는다(LLM 클라이언트는 trace가 있으면 기록하므로 라우트에서 감싸면 된다).

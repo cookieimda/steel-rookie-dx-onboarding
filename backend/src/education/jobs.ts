@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash, randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import type { LlmClient, GenerateRequest } from "../../../llm/src/llm-client.js";
+import { runWithTrace, Trace, type TraceSink } from "../../../llm/src/trace.js";
 import { CheckpointError, type Evaluator, type Tutor } from "../checkpoint/types.js";
 
 export type JobState = "queued" | "running" | "succeeded" | "failed" | "cancelled";
@@ -42,7 +43,8 @@ export class EducationJobs {
   private controllers = new Map<string, AbortController>();
   private working = false;
   private disposed = false;
-  constructor(private readonly db: DatabaseSync) {
+  /** traceSink: 작업마다 trace(kind exam)를 받는다. 없으면 남기지 않는다. */
+  constructor(private readonly db: DatabaseSync, private readonly traceSink?: TraceSink) {
     db.prepare("UPDATE education_jobs SET state='failed', phase='interrupted', error_json=?, updated_at=? WHERE state IN ('queued','running')")
       .run(JSON.stringify({ status: 503, message: "서버가 다시 시작되어 처리가 중단됐어요. 시험 상태를 확인한 뒤 다시 시도해 주세요." }), new Date().toISOString());
   }
@@ -104,15 +106,27 @@ export class EducationJobs {
         const controller = new AbortController();
         this.controllers.set(item.id, controller);
         this.update(item.id, "running", "preparing");
+        // 작업 하나를 trace(kind exam)로 감싸 채점·문제·설명 호출의 시간·모델·토큰을 남긴다(docs/agent-observability.md).
+        const trace = new Trace("exam");
+        const job = this.get(item.id, item.userId);
+        trace.set("job", { id: item.id, kind: job.kind, queue_ms: Date.now() - Date.parse(job.created_at) });
+        let outcome = "succeeded";
         try {
           const result = await context.run({ userId: item.userId, signal: controller.signal,
             phase: (phase) => { if (!controller.signal.aborted) this.update(item.id, "running", phase); },
-          }, item.task);
+          }, () => runWithTrace(trace, item.task));
           if (!controller.signal.aborted) this.update(item.id, "succeeded", "completed", result);
+          else outcome = "cancelled";
         } catch (error) {
+          outcome = controller.signal.aborted ? "cancelled" : "failed";
           if (!controller.signal.aborted) this.update(item.id, "failed", "failed", null,
             { message: (error as Error).message, status: error instanceof CheckpointError ? error.status : 503 });
-        } finally { this.controllers.delete(item.id); }
+          trace.set("error", { message: (error as Error)?.message ?? String(error) });
+        } finally {
+          this.controllers.delete(item.id);
+          trace.set("outcome", outcome);
+          this.traceSink?.(trace.toRecord());
+        }
       }
     } finally { this.working = false; }
   }

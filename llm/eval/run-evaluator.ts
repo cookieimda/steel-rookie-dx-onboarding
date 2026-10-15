@@ -60,7 +60,9 @@ async function main(): Promise<void> {
   const delayMs = Number(process.env.EVAL_DELAY_MS ?? (p.provider === "gemini" ? 1000 : 0));
   const records = openRecordFile<EvaluatorRecord>(option("records", resultsFile(`evaluator-${set}`, p.provider)), flag("resume"));
   const client = new RetryingLlmClient();
-  const evaluator = new GeminiEvaluator(client, { repairFormat: guards, verifyBoundary: guards });
+  // --verify-misconception: 채점 보강에 오개념 재확인을 더한다(측정용, llm/src/evaluator.ts verifyMisconception).
+  const verifyMisconception = guards && flag("verify-misconception");
+  const evaluator = new GeminiEvaluator(client, { repairFormat: guards, verifyBoundary: guards, verifyMisconception });
   const streak = new InfraStreak();
   const outcomes: Outcome[] = [];
   let total = 0;
@@ -68,7 +70,7 @@ async function main(): Promise<void> {
   let stale = 0;
   let stopped = false;
 
-  console.log(`결과 파일: ${records.path} (모델: ${model}, 채점 보강 ${guards ? "켬" : "끔"})`);
+  console.log(`결과 파일: ${records.path} (모델: ${model}, 채점 보강 ${guards ? "켬" : "끔"}${verifyMisconception ? " + 오개념 재확인" : ""})`);
   for (const rubric of loadFinalRubrics()) {
     const cases = loadEvalSet(set, rubric.section);
     if (!cases.length) continue;
@@ -79,7 +81,7 @@ async function main(): Promise<void> {
       if (!concept) throw new Error(`${where(c)} 루브릭에 없는 개념: ${c.concept_id}`);
       // 모델, 평가자 프롬프트(루브릭·용어집 포함), 질문·답변이 같아야 같은 결과로 본다.
       // 채점 보강을 켜면 다른 결과로 본다(끈 기록은 예전 지문 그대로).
-      const fp = fingerprint(model, evaluatorSystemPrompt(rubric, concept, c.phase), evaluatorUserPrompt(c.question, c.answer), ...(guards ? ["guards"] : []));
+      const fp = fingerprint(model, evaluatorSystemPrompt(rubric, concept, c.phase), evaluatorUserPrompt(c.question, c.answer), ...(guards ? ["guards"] : []), ...(verifyMisconception ? ["verify-misconception"] : []));
       const key = where(c);
       const prior = records.done(key, fp);
       if (prior) {

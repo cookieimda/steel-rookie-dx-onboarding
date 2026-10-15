@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
-import { applyKeyPointCheck, GeminiEvaluator, repairEvaluation, statedKeyPoints } from "../../llm/src/evaluator.js";
+import { applyKeyPointCheck, GeminiEvaluator, knownMisconception, repairEvaluation, statedKeyPoints } from "../../llm/src/evaluator.js";
 import type { GenerateRequest, LlmClient } from "../../llm/src/llm-client.js";
 import type { Rubric } from "../src/rubrics.js";
 
@@ -44,6 +44,14 @@ test("applyKeyPointCheck: 한 단계만 올린다. wrong→partial, partial→co
   assert.equal(applyKeyPointCheck(e("assisted"), [0, 1], 2).evaluation.verdict, "assisted");
 });
 
+test("knownMisconception: 다르면 false, 같으면 인용이 실제 답에 있어야 true, 형식이 틀리거나 인용을 지어내면 null", () => {
+  const answer = "코크스는 불순물을 없애려고 넣어요.";
+  assert.equal(knownMisconception(JSON.stringify({ matches: false, quote: "" }), answer), false);
+  assert.equal(knownMisconception(JSON.stringify({ matches: true, quote: "불순물을 없애려고" }), answer), true);
+  assert.equal(knownMisconception(JSON.stringify({ matches: true, quote: "탄소를 줄여요" }), answer), null);
+  assert.equal(knownMisconception("{", answer), null);
+});
+
 /** 차례로 정해 둔 응답을 돌려주는 가짜 모델. */
 function fake(replies: string[]): LlmClient & { sent: GenerateRequest[] } {
   const sent: GenerateRequest[] = [];
@@ -67,4 +75,23 @@ test("GeminiEvaluator: 재시도까지 어긋나면 보정해 살리고, verifyB
   assert.equal(off.evaluation?.verdict, "wrong", "기본은 재확인하지 않음(호출 1번)");
   const strict = await new GeminiEvaluator(fake([out({ verdict: "assisted" }), out({ verdict: "assisted" })])).evaluateDetailed(input);
   assert.equal(strict.evaluation, null, "기본은 보정하지 않음(Gemini는 지금처럼 형식 오류)");
+});
+
+test("GeminiEvaluator verifyMisconception: 핵심 요소를 다 말했는데 모델이 오개념을 적어 partial이면, 루브릭 오개념과 다를 때만 correct로 올린다", async () => {
+  const answer = "코크스가 열풍과 반응해 일산화탄소를 만들고, 그 일산화탄소가 철광석의 산소를 떼어내요.";
+  const input = { rubric, concept: coke, question: "q", answer, phase: "initial" as const };
+  const allStated = JSON.stringify({ points: [{ index: 0, stated: true, quote: "열풍과 반응해 일산화탄소를 만들고" }, { index: 1, stated: true, quote: "철광석의 산소를 떼어내요" }] });
+  const invented = out({ verdict: "partial", misconception: "CO가 산소를 떼어낸다는 표현이 잘못됨", explain_from: null });
+
+  const client = fake([invented, allStated, JSON.stringify({ matches: false, quote: "" })]);
+  const up = await new GeminiEvaluator(client, { verifyBoundary: true, verifyMisconception: true }).evaluateDetailed(input);
+  assert.deepEqual([up.evaluation?.verdict, up.evaluation?.misconception, up.evaluation?.explain_from], ["correct", null, null]);
+  assert.match(up.adjustments.at(-1)!, /partial→correct/);
+  assert.match(client.sent[2]!.system, /흔한 오개념/);
+
+  const real = await new GeminiEvaluator(fake([invented, allStated, JSON.stringify({ matches: true, quote: "일산화탄소를 만들고" })]), { verifyBoundary: true, verifyMisconception: true }).evaluateDetailed(input);
+  assert.equal(real.evaluation?.verdict, "partial", "루브릭 오개념과 같으면 그대로");
+  const off = fake([invented, allStated]);
+  assert.equal((await new GeminiEvaluator(off, { verifyBoundary: true }).evaluateDetailed(input)).evaluation?.verdict, "partial", "끄면 묻지 않는다");
+  assert.equal(off.sent.length, 2);
 });

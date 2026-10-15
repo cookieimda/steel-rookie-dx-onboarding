@@ -175,6 +175,31 @@ export function applyKeyPointCheck(e: Evaluation, stated: number[], count: numbe
   return { evaluation: e, note: null };
 }
 
+/** 오개념 재확인 응답 스키마: 루브릭 오개념과 같은 뜻인지, 같으면 답에서 옮긴 부분. */
+export function misconceptionCheckSchema(): object {
+  return {
+    type: "OBJECT",
+    properties: { matches: { type: "BOOLEAN" }, quote: { type: "STRING" } },
+    required: ["matches", "quote"],
+    propertyOrdering: ["matches", "quote"],
+  };
+}
+
+/** 오개념 재확인 응답 → 같음(true)·다름(false)·형식 오류(null). matches=true여도 인용이 실제 답에 없으면 형식 오류로 본다(판정을 바꾸지 않음). */
+export function knownMisconception(raw: string, answer: string): boolean | null {
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  const parsed = z.object({ matches: z.boolean(), quote: z.string() }).safeParse(json);
+  if (!parsed.success) return null;
+  if (!parsed.data.matches) return false;
+  const q = compact(parsed.data.quote);
+  return q.length >= 2 && compact(answer).includes(q) ? true : null;
+}
+
 /** 평가 한 번의 상세 결과. formatProblems는 형식 검증에 실패한 시도의 이유(재시도 횟수 = 길이). */
 export interface DetailedEvaluation {
   evaluation: Evaluation | null;
@@ -189,6 +214,11 @@ export interface EvaluatorOptions {
   repairFormat?: boolean;
   /** 경계 재확인(wrong·partial이면 핵심 요소별로 한 번 더 묻기). 작은 로컬 모델의 경계 오판을 줄이려고 둔다. 기본 끔(호출이 늘어서). */
   verifyBoundary?: boolean;
+  /**
+   * 오개념 재확인(verifyBoundary와 함께): 핵심 요소를 모두 맞게 말했는데 오개념 때문에 partial이면 루브릭의 흔한 오개념과 같은지 예/아니오로 묻고,
+   * 다르면 모델이 지어낸 오개념으로 보고 correct로 올린다. 루브릭에 없는 새로운 사실 오류는 놓칠 수 있다. 기본 끔.
+   */
+  verifyMisconception?: boolean;
 }
 
 export class GeminiEvaluator implements Evaluator {
@@ -239,9 +269,34 @@ export class GeminiEvaluator implements Evaluator {
         const { evaluation: next, note } = applyKeyPointCheck(evaluation, checked, concept.key_points.length);
         evaluation = next;
         if (note) adjustments.push(note);
+        // 핵심 요소를 다 맞게 말했는데 오개념 때문에 partial이면, 그 오개념이 지어낸 것인지 루브릭의 흔한 오개념으로 닫힌 질문을 한다.
+        const allStated = checked.length === concept.key_points.length;
+        if (this.options.verifyMisconception && allStated && evaluation.verdict === "partial" && evaluation.misconception?.trim()) {
+          const known = await this.checkKnownMisconception(input);
+          if (known === false) {
+            evaluation = { ...evaluation, verdict: "correct", misconception: null, explain_from: null };
+            adjustments.push("partial→correct(핵심 요소 모두 맞고 루브릭 오개념과 다름: 모델이 적은 오개념을 버림)");
+          }
+        }
       }
     }
     return { evaluation, attempts, formatProblems, adjustments };
+  }
+
+  /**
+   * 학습자 답이 루브릭의 흔한 오개념(concept.wrong)과 같은 뜻인지 예/아니오로 묻는다. 같으면 답에서 그 부분을 글자 그대로 옮겨야 한다.
+   * true: 같음(인용이 실제 답에 있음), false: 다름, null: 형식 오류(판정을 바꾸지 않는다).
+   */
+  private async checkKnownMisconception({ rubric, concept, question, answer }: EvaluateInput): Promise<boolean | null> {
+    const glossary = rubric.glossary?.length ? rubric.glossary.map((g) => `${g.term} = ${g.aliases.join(", ")}`).join("; ") : "(없음)";
+    const raw = await this.gemini.generate({
+      system: renderPrompt("evaluator-misconception", { name: concept.name, wrong: concept.wrong, glossary }),
+      prompt: evaluatorUserPrompt(question, answer),
+      temperature: 0,
+      maxOutputTokens: 200,
+      responseSchema: misconceptionCheckSchema(),
+    });
+    return knownMisconception(raw, answer);
   }
 
   /** 핵심 요소별 재확인. 형식이 틀리면 null(판정을 바꾸지 않는다). */

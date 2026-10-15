@@ -352,3 +352,14 @@ test("수업 '현장 판단': 되돌리기 단계 종류를 받고, 안내의 '�
     assert.deepEqual([sign(input, "shell_mm"), sign(input, "breakout")], [-1, 1], key);
   }
 });
+
+test("변수 → 관련 실습: 주조 속도는 이상 상황 훈련·되돌리기 퍼즐·갈림길·수업 단계에 나오고, 없는 변수는 404", async () => {
+  const r = await call("GET", "/api/lab/causal/related?var=cast_speed");
+  assert.deepEqual(r.json.faults.map((f: any) => f.id), ["casting-breakout-alarm"]);
+  assert.ok(r.json.puzzles.length >= 1 && r.json.puzzles.every((p: any) => ["목표", "흔들림"].includes(p.role)));
+  assert.ok(r.json.branches.some((b: any) => b.scenario === "casting-breakout"));
+  assert.ok(r.json.lessons.some((l: any) => l.lesson === "field-judgment"));
+  assert.equal((await call("GET", "/api/lab/causal/related?var=nope")).status, 404);
+  const coil = await call("GET", "/api/lab/causal/related?var=coiling_temp");
+  assert.ok(coil.json.puzzles.some((p: any) => p.role === "목표"), "권취 온도는 퍼즐의 목표");
+});

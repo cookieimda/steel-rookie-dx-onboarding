@@ -165,7 +165,9 @@ export function createLabExtrasRouter({ db, auth, deck, incidents, faults = { di
   router.get("/api/lab/causal/rebalance", login, (req, res) => {
     // ?level=easy면 부작용 없이 풀리는 퍼즐 중에서
     const every = rebalancePuzzles(), easy = every.filter((x) => x.clean), all = req.query.level === "easy" && easy.length ? easy : every;
-    const seed = Number(req.query.seed) || Date.now(), p = all[Math.abs(Math.floor(seed)) % all.length];
+    const seed = Number(req.query.seed) || Date.now();
+    // ?id=로 특정 퍼즐(변수 카드의 관련 실습에서 연다)
+    const p = (typeof req.query.id === "string" && every.find((x) => x.id === req.query.id)) || all[Math.abs(Math.floor(seed)) % all.length];
     const node = (id: string) => { const n = NODES.find((x) => x.id === id)!; return { id, label: n.label, unit: n.unit, process: n.process, equipment_id: n.equipment_id, normal: n.normal, digits: n.digits, ...(n.control ? { control: n.control, base: n.base } : {}) }; };
     const before = simulateCausal(p.disturb).nodes.find((n) => n.id === p.target)!;
     res.json({ id: p.id, total: all.length, clean: p.clean, disturb: Object.entries(p.disturb).map(([k, v]) => ({ ...node(k), value: v })), target: { ...node(p.target), value: before.value }, controls: p.controls.map(node) });
@@ -176,6 +178,16 @@ export function createLabExtrasRouter({ db, auth, deck, incidents, faults = { di
     const out = checkRebalance(body.data.id, body.data.input);
     if (!out) return bad(res, 400, "이 퍼즐에서 쓸 수 있는 조정 값 하나만 보내 주세요.");
     res.json(out);
+  });
+  // 변수 → 관련 실습(인과 지도 변수 카드): 그 변수를 원인 조건으로 쓰는 이상 상황 훈련·갈림길 선택·수업 단계, 흔들거나 되돌리는 퍼즐
+  router.get("/api/lab/causal/related", login, (req, res) => {
+    const v = String(req.query.var ?? "");
+    if (!NODES.some((n) => n.id === v)) return bad(res, 404, "없는 변수예요.");
+    const faultsOut = faults.faults.filter((f) => f.causal && v in f.causal).map((f) => ({ id: f.id, section: f.section, title: f.title }));
+    const puzzles = rebalancePuzzles().filter((p) => p.target === v || v in p.disturb).map((p) => ({ id: p.id, role: p.target === v ? "목표" : "흔들림", clean: p.clean }));
+    const branches = incidents.scenarios.flatMap((s) => s.timeline.flatMap((t, at) => (t.branch?.options ?? []).flatMap((o, pick) => (o.causal && v in o.causal ? [{ scenario: s.id, section: s.section, title: s.title, at, pick, text: o.text }] : []))));
+    const lessonSteps = lessons.flatMap((l) => l.steps.flatMap((s, i) => (s.set && v in s.set ? [{ lesson: l.id, title: l.title, step: i + 1, step_title: s.title }] : [])));
+    res.json({ faults: faultsOut, puzzles, branches, lessons: lessonSteps });
   });
   // '언제 나타날까?' 시간 질문(인과 퀴즈 끝): 기록하지 않는 자가 점검
   router.get("/api/lab/causal/lag-quiz", login, (req, res) => res.json(lagQuiz(Number(req.query.seed) || Date.now() % 100000)));

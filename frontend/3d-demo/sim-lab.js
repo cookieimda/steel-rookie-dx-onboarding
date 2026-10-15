@@ -259,7 +259,7 @@ export async function attachSimLab() {
     else if (prev && panel.contains(document.activeElement)) launcherOf[prev]?.focus();
     bWhatif.setAttribute('aria-pressed', String(mode === 'whatif')); bFault.setAttribute('aria-pressed', String(mode === 'fault')); bMap.setAttribute('aria-pressed', String(mode === 'map'));
     panel.hidden = !mode; panel.replaceChildren();
-    if (mode === 'whatif') void whatifPanel(preset); else if (mode === 'fault') void (opt.fault ? faultDrill(opt.fault) : faultList()); else if (mode === 'map') void causalMap(preset, opt.var, opt.tour, !!opt.fromLink && Object.keys(preset).length > 0); else if (mode === 'quiz') void causalQuizPanel(opt.process, opt.level); else if (mode === 'diagnose') void diagnosePanel(); else if (mode === 'rebalance') void rebalancePanel(!!opt.easy); else if (mode === 'incident') void incidentPanel(opt.scenario, Number(opt.at), Number(opt.pick));
+    if (mode === 'whatif') void whatifPanel(preset); else if (mode === 'fault') void (opt.fault ? faultDrill(opt.fault) : faultList()); else if (mode === 'map') void causalMap(preset, opt.var, opt.tour, !!opt.fromLink && Object.keys(preset).length > 0); else if (mode === 'quiz') void causalQuizPanel(opt.process, opt.level); else if (mode === 'diagnose') void diagnosePanel(); else if (mode === 'rebalance') void rebalancePanel(!!opt.easy, opt.puzzle || null); else if (mode === 'incident') void incidentPanel(opt.scenario, Number(opt.at), Number(opt.pick));
   }
   const head = (title, foldable = false) => {
     const h = el('h3'); h.append(el('span', '', title)); h.tabIndex = -1;
@@ -361,6 +361,7 @@ export async function attachSimLab() {
     const controls = el('div', 'sl-box sl-hide'), story = el('div'), detail = el('div'), byProc = el('div'), note = el('p', 'sl-muted'), cmp = el('div', 'sl-box sl-hide');
     panel.append(presets, controls, story, cmp, detail, byProc, note);
     let timer = 0, data = null, first = true, picked = startVar, lastCard = null;
+    const relCache = new Map();
     // ── 인과 따라가기: 이야기 줄 순서(원인 → 결과)대로 카메라가 설비를 하나씩 찾아가고, 앞 줄의 원인 설비에서 흐름을 잇는다 ──
     const tour = (() => {
       let token = 0, step = -1, skip = null;
@@ -535,6 +536,20 @@ export async function attachSimLab() {
       links('영향을 주는 값', data.edges.filter((e) => e.to === n.id), (e) => e.from);
       links('영향을 받는 값', data.edges.filter((e) => e.from === n.id), (e) => e.to);
       box.append(btn('3D에서 이 설비 보기', () => goTo(n.process, n.equipment_id), 'sl-btn ghost'));
+      // 이 변수가 나오는 실습(이상 상황 훈련·되돌리기 퍼즐·사고 사례 갈림길·수업 단계)
+      const rel = el('div', 'sl-tour'); box.append(rel);
+      // 카드는 값이 바뀔 때마다 다시 그려지므로 변수별로 한 번만 불러온다
+      if (!relCache.has(n.id)) relCache.set(n.id, api('GET', `/api/lab/causal/related?var=${n.id}`));
+      relCache.get(n.id).then((r) => {
+        if (picked !== n.id) return;
+        const items = [
+          ...r.faults.map((f) => btn(`🚨 ${f.title}`, () => open('fault', {}, { fault: f.id }), 'sl-btn ghost')),
+          ...r.puzzles.slice(0, 3).map((p) => btn(`🧰 되돌리기 퍼즐 · ${p.role}${p.clean ? ' · 쉬움' : ''}`, () => open('rebalance', {}, { puzzle: p.id }), 'sl-btn ghost')),
+          ...r.branches.map((b) => btn(`🔀 ${b.text.length > 24 ? `${b.text.slice(0, 24)}…` : b.text}`, () => open('incident', {}, { scenario: b.scenario, at: b.at, pick: b.pick }), 'sl-btn ghost')),
+          ...r.lessons.map((l) => btn(`🎓 ${l.title} ${l.step}단계`, () => { location.href = `${location.pathname}?p=${n.process}&lab=lesson&lesson=${l.lesson}&step=${l.step}`; }, 'sl-btn ghost')),
+        ];
+        if (items.length) rel.append(el('b', '', '이 값이 나오는 실습'), ...items);
+      }, () => {});
       detail.replaceChildren(box);
     }
     plantView();
@@ -689,10 +704,10 @@ export async function attachSimLab() {
   }
 
   // ── 되돌리기 퍼즐: 흔들린 값(못 바꿈) 때문에 범위 밖이 된 하류 값을, 다른 조정 값 하나로 되돌린다. 부작용도 보여 준다 ──
-  async function rebalancePanel(easy = false) {
+  async function rebalancePanel(easy = false, puzzleId = null) {
     panel.append(head('🧰 되돌리기 퍼즐'), el('p', 'sl-muted', '현장에서는 원인을 바로 고칠 수 없을 때가 많아요. 다른 값 하나를 움직여 문제의 값을 정상 범위로 되돌려 보세요. 다른 값이 범위 밖으로 나가면(부작용) 함께 알려 줘요.'));
     let q;
-    try { q = await api('GET', `/api/lab/causal/rebalance?seed=${Date.now() % 100000}${easy ? '&level=easy' : ''}`); } catch (e) { panel.append(el('p', 'sl-bad', e.message)); return; }
+    try { q = await api('GET', `/api/lab/causal/rebalance?seed=${Date.now() % 100000}${easy ? '&level=easy' : ''}${puzzleId ? `&id=${encodeURIComponent(puzzleId)}` : ''}`); } catch (e) { panel.append(el('p', 'sl-bad', e.message)); return; }
     const unitV = (n, v) => `${fmt(v, n.digits)}${n.unit}`;
     const d = q.disturb[0], t = q.target;
     const intro = el('div', 'sl-box');

@@ -17,6 +17,8 @@
 // - 공정 구역: 제선 → 제강 → 연주 → 열연이 1·2·3·4 순서로 땅에서 솟는다(받침 없음, 지역 클리핑으로 땅 위만 그림). 구역 둘레 발광 테두리·연결선·투광등·물결은 노랑~주황 불빛(0xffa63d·0xffb352·0xffcc66, 2026-10-14 요청), 지금 구역은 15% 물결.
 // - 칩(번호·이름·[들어가기])과 흐름 라벨은 한꺼번에 띄우지 않는다: 구역이 솟을 때 3초만 보이고, 그 구역(또는 칩)에 마우스를 올리면 다시 보인다.
 // - 진행: ▶/⏸, [다음 공정], ← →, 숫자 키, Space. Enter = 지금 구역 들어가기. 수치는 data_v2.js에서만.
+// - 조작 안내(2026-10-15 요청): 들어오면 조작 안내 카드를 먼저 보이고, [시작하기] 뒤 위 연출이 시작된다. 보기 버튼 이름은 '2D | 3D'(2D = 위에서 본 전체 보기).
+//   2D에서 드래그하면 위에서 본 채로 평면 회전만 하고, 위아래로 끌거나 V 키를 누르면 3D로 바뀐다(markView로 위 토글도 같이).
 
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/+esm';
 import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js/+esm';
@@ -341,13 +343,19 @@ function animateTo(to, dur = 1600) { anim = { t0: performance.now(), dur: REDUCE
 
 // ---- 시작 ----------------------------------------------------------------------------------------------------------
 // 여는 장면 없이 바로 밤의 지도. 전체 보기 자리에서 제선 구역으로 다가가며 시작한다
-let started = false;
+// 조작 안내 카드를 먼저 띄우고, [시작하기](또는 Enter·Space·Esc)를 누르면 시작한다(2026-10-15 요청)
+let started = false, guideOpen = false;
 function startMap() {
   if (ambientLights) ambientLights.material.uniforms.uOn.value = 1;
   const all = clampPose(POSE.all); Object.assign(orbit, { yaw: all.yaw, pitch: all.pitch, dist: all.dist }); orbit.target.copy(all.target);
+  guideOpen = true; $('guide').classList.remove('off'); $('guideGo').focus();
+}
+function closeGuide() {
+  if (!guideOpen) return; guideOpen = false; $('guide').classList.add('off');
   setTimeout(() => $('ttl').classList.add('out'), TITLE_MS); // 제목 카드는 잠깐만
   setTimeout(() => { if (!started) { started = true; goTo(0); } }, REDUCED ? 0 : 500);
 }
+$('guideGo').onclick = closeGuide;
 
 // ---- 진행(타임라인) --------------------------------------------------------------------------------------------
 let cur = -1, playing = true, finished = false, hot = null;
@@ -365,18 +373,23 @@ function goTo(i) {
   if (view === '3d') animateTo(zonePose(procs[i]), 1700);
 }
 function finish() { finished = true; pause(); procs.forEach((p) => p.stop.classList.add('up')); } // 멀리 빠지지 않고 마지막 구역 가까이에서 천천히 돈다(전체는 [지도]나 휠로)
-addEventListener('keydown', (e) => { if (e.key === ' ') { e.preventDefault(); playing ? pause() : play(); } else if (e.key === 'ArrowRight') { goTo(Math.min(procs.length - 1, cur + 1)); pause(); } else if (e.key === 'ArrowLeft') { goTo(Math.max(0, cur - 1)); pause(); } else if (e.key === 'Enter' && cur >= 0) enter(procs[cur]); else { const n = parseInt(e.key, 10); if (n >= 1 && n <= procs.length) { goTo(n - 1); pause(); } } });
+addEventListener('keydown', (e) => { if (guideOpen) { if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') { e.preventDefault(); closeGuide(); } return; } if (e.key === ' ') { e.preventDefault(); playing ? pause() : play(); } else if (e.key === 'ArrowRight') { goTo(Math.min(procs.length - 1, cur + 1)); pause(); } else if (e.key === 'ArrowLeft') { goTo(Math.max(0, cur - 1)); pause(); } else if (e.key === 'Enter' && cur >= 0) enter(procs[cur]); else if (e.key === 'v' || e.key === 'V') setView(view === 'map' ? '3d' : 'map'); else { const n = parseInt(e.key, 10); if (n >= 1 && n <= procs.length) { goTo(n - 1); pause(); } } });
 
 // ---- 지도 / 3D ---------------------------------------------------------------------------------------------------
-function setView(v) { view = v; $('v2d').classList.toggle('on', v === 'map'); $('v2d').setAttribute('aria-pressed', String(v === 'map')); $('v3d').classList.toggle('on', v === '3d'); $('v3d').setAttribute('aria-pressed', String(v === '3d')); animateTo(v === 'map' ? overviewPose() : cur >= 0 ? zonePose(procs[cur]) : clampPose(POSE.all), 1400); }
+// 2D(view 'map')에서는 드래그해도 위에서 본 채로 평면 회전만 한다. 위아래로 TILT_PX 넘게 드래그하거나 V 키를 누르면 3D로 바뀐다(위 토글도 같이)
+const TILT_PX = 30;
+function markView(v) { view = v; $('v2d').classList.toggle('on', v === 'map'); $('v2d').setAttribute('aria-pressed', String(v === 'map')); $('v3d').classList.toggle('on', v === '3d'); $('v3d').setAttribute('aria-pressed', String(v === '3d')); }
+function setView(v) { markView(v); animateTo(v === 'map' ? overviewPose() : cur >= 0 ? zonePose(procs[cur]) : clampPose(POSE.all), 1400); }
 $('v2d').onclick = () => setView('map'); $('v3d').onclick = () => setView('3d');
 
 // ---- 입력 ----------------------------------------------------------------------------------------------------------
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); let drag = null;
 function pick(ev) { const r = renderer.domElement.getBoundingClientRect(); ndc.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera); const h = ray.intersectObjects(procs.filter((p) => p.up).map((p) => p.hit), false)[0]; return h ? procs.find((p) => p.hit === h.object) : null; }
 function setHot(p) { if (p === hot) return; const now = performance.now(); if (hot) { hot.hoverZone = false; hot.hoverOff = now; } hot = p; if (p) p.hoverZone = true; renderer.domElement.style.cursor = p ? 'pointer' : 'grab'; }
-renderer.domElement.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, moved: false }; stage.classList.add('dragging'); renderer.domElement.setPointerCapture(e.pointerId); });
-renderer.domElement.addEventListener('pointermove', (e) => { if (drag) { const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true; orbit.yaw -= dx * 0.004; orbit.pitch = Math.min(1.52, Math.max(0.3, orbit.pitch + dy * 0.003)); drag.x = e.clientX; drag.y = e.clientY; anim = null; return; } setHot(pick(e)); });
+renderer.domElement.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, moved: false, tilt: 0 }; stage.classList.add('dragging'); renderer.domElement.setPointerCapture(e.pointerId); });
+renderer.domElement.addEventListener('pointermove', (e) => { if (drag) { const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true; orbit.yaw -= dx * 0.004;
+    if (view === 'map') { drag.tilt += dy; if (Math.abs(drag.tilt) > TILT_PX) markView('3d'); } // 2D: 기울이지 않고, 위아래로 충분히 끌면 3D로
+    else orbit.pitch = Math.min(1.52, Math.max(0.3, orbit.pitch + dy * 0.003)); drag.x = e.clientX; drag.y = e.clientY; anim = null; return; } setHot(pick(e)); });
 renderer.domElement.addEventListener('pointerleave', () => setHot(null));
 renderer.domElement.addEventListener('pointerup', (e) => { const d = drag; drag = null; stage.classList.remove('dragging'); if (!d || d.moved) return; const p = pick(e); if (p) { goTo(p.i); pause(); p.showUntil = performance.now() + SHOW_MS; } });
 renderer.domElement.addEventListener('wheel', (e) => { e.preventDefault(); orbit.dist = Math.min(maxDist(), Math.max(50, orbit.dist * (1 + e.deltaY * 0.0012))); anim = null; }, { passive: false });

@@ -108,3 +108,9 @@ test("3D 실습 첫 안내: 한 번만(브라우저 저장, 실패해도 화면�
   assert.ok(src.includes("if (!hintSeen && !new URLSearchParams(location.search).get('lab'))"));
   assert.ok(src.includes("if (r.top - 10 - hint.offsetHeight < 8) { hint.style.top = '8px';"));
 });
+
+test("터치 크기: 터치·좁은 화면에서 실습 패널·실행 버튼·수업 막대의 누르는 곳은 높이 44px 이상", () => {
+  assert.match(src, /@media \(pointer: coarse\), \(max-width: 740px\) \{/);
+  assert.match(src, /\.sl-btn, \.sl-opt, \.sl-var, \.sl-read, \.sl-launch button, \.sl-lesson button, \.sl-hint-bubble button \{ min-height: 44px; \}/);
+  assert.match(src, /\.sl-panel input\[type="range"\] \{ height: 44px; \}/);
+});

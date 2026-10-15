@@ -93,6 +93,12 @@ function injectStyle() {
     .sl-shake { animation: slShake .35s; } @keyframes slShake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
     /* hidden이어도 display:flex가 이겨 빈 띠가 보이던 문제 */
     .sl-panel[hidden] { display: none !important; }
+    /* 터치·좁은 화면: 누르는 곳은 높이 44px 이상(손가락 크기). 데스크톱 마우스 화면은 그대로 */
+    @media (pointer: coarse), (max-width: 740px) {
+      .sl-btn, .sl-opt, .sl-var, .sl-read, .sl-launch button, .sl-lesson button, .sl-hint-bubble button { min-height: 44px; }
+      .sl-btn.ghost { min-width: 44px; }
+      .sl-panel input[type="range"] { height: 44px; }
+    }
     .sl-panel.folded { bottom: auto; min-height: 0; max-height: none; } .sl-panel.folded > :not(h3) { display: none; }
     /* 좁은 화면: 실행 버튼이 두 줄로 접히므로 패널 아래 끝을 버튼 묶음 위로 맞춘다(--sl-panel-bottom은 버튼 묶음 높이로 계산) */
     @media (max-width: 740px) { .sl-panel { top: auto; bottom: var(--sl-panel-bottom, 150px); max-height: min(55vh, calc(100vh - var(--sl-panel-bottom, 150px) - var(--sl-panel-top, 72px))); } .sl-launch { bottom: 120px; } }`;

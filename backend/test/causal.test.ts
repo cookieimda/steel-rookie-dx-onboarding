@@ -166,3 +166,28 @@ test("'언제 나타날까?' 시간 질문: 공정을 넘는 길, 보기 4개 �
   }
   assert.equal(checkLag("nope", NODES[0].id, "바로"), null);
 });
+
+test("되돌리기 퍼즐: 풀 수 있는 퍼즐만 나오고, 보기는 흔든 값을 뺀 조정 값 전부, 채점은 하나만·닿는지·부작용", async () => {
+  const { rebalancePuzzles, checkRebalance, NODES } = await import("../src/lab/causal.js");
+  const ps = rebalancePuzzles();
+  assert.ok(ps.length >= 4);
+  const controls = NODES.filter((n) => n.control).map((n) => n.id);
+  for (const p of ps) {
+    const [disturbed] = Object.keys(p.disturb);
+    assert.deepEqual([...p.controls].sort(), controls.filter((c) => c !== disturbed).sort());
+    // 풀이가 정말 있는지: 닿는 값 하나를 간격대로 훑어 정상 범위가 되는 값이 있다
+    const solvable = p.controls.some((id) => { const n = NODES.find((x) => x.id === id)!; for (let v = n.control!.min; v <= n.control!.max + 1e-9; v += n.control!.step) if (checkRebalance(p.id, { [id]: Math.round(v * 1e4) / 1e4 })!.solved) return true; return false; });
+    assert.ok(solvable, p.id);
+  }
+  const p = ps.find((x) => x.id === "tap_temp:1>breakout")!;
+  // 출강 온도가 높을 때 주조 속도를 충분히 낮추면 브레이크아웃 위험은 범위 안 — 대신 주조 속도 자체가 정상 범위 아래(생산성)로 내려가는 맞바꿈을 부작용으로 보여 준다
+  const slow = checkRebalance(p.id, { cast_speed: 0.9 })!;
+  assert.equal(slow.solved, true);
+  assert.deepEqual(slow.side_effects.map((x) => x.id), ["cast_speed"]);
+  assert.equal(checkRebalance(p.id, { cast_speed: 1.2 })!.solved, false, "조금 낮추는 것으로는 부족");
+  assert.equal(checkRebalance(p.id, { cast_speed: 1.2 })!.reaches, true);
+  const far = checkRebalance(p.id, { coke_rate: 300 })!;
+  assert.deepEqual([far.solved, far.reaches], [false, false], "제선 코크스비는 이 목표에 닿지 않는다");
+  assert.equal(checkRebalance(p.id, { cast_speed: 1.0, coke_rate: 300 }), null, "조정 값은 하나만");
+  assert.equal(checkRebalance(p.id, { tap_temp: 1640 }), null, "흔든 값은 못 바꾼다");
+});

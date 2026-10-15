@@ -302,3 +302,48 @@ export function checkLag(fromId: string, toId: string, choice: string) {
   const answer = arrivalText(a.process, b.process);
   return { correct: choice === answer, answer, note: LAG_NOTE };
 }
+
+// ── 되돌리기 퍼즐(조치 인과): 한 값이 흔들려(바꿀 수 없음) 하류 값 하나가 범위 밖이 됐을 때, 다른 조정 값 하나로 그 값을 정상 범위로 되돌린다 ──
+// 원인을 바로 고칠 수 없을 때 다른 공정에서 보상하는 판단을 연습한다. 되돌리다 다른 값이 범위 밖이 되면(부작용) 함께 알려 준다.
+/** 이 변수에 닿는(앞쪽에 있는) 조정 변수. */
+function controlAncestors(target: string) {
+  const seen = new Set<string>(), stack = [target];
+  while (stack.length) { const id = stack.pop()!; for (const e of EDGES.filter((x) => x.to === id)) if (!seen.has(e.from)) { seen.add(e.from); stack.push(e.from); } }
+  return NODES.filter((n) => n.control && seen.has(n.id)).map((n) => n.id);
+}
+/** 조정 변수가 가질 수 있는 값(간격대로). */
+const controlValues = (n: NodeDef) => { const out: number[] = []; for (let v = n.control!.min; v <= n.control!.max + 1e-9; v += n.control!.step) out.push(round(v, 4)); return out; };
+
+export interface RebalancePuzzle { id: string; disturb: Record<string, number>; target: string; controls: string[]; solutions: number }
+let puzzleCache: RebalancePuzzle[] | null = null;
+/** 풀 수 있는 퍼즐 목록(흔든 값 → 범위 밖 하류 값, 보상할 수 있는 다른 조정 값이 하나 이상). */
+export function rebalancePuzzles() {
+  if (puzzleCache) return puzzleCache;
+  const out: RebalancePuzzle[] = [];
+  for (const c of NODES.filter((n) => n.control)) for (const d of [1, -1]) {
+    const disturb = diagnoseInput(`${c.id}:${d}`)!, r = simulateCausal(disturb);
+    for (const t of r.nodes.filter((n) => !n.control && n.status === "warn")) {
+      // 보기는 흔든 값을 뺀 조정 값 전부(목표에 닿지 않는 값도 넣어 어느 값이 닿는지 스스로 찾게 한다). 풀이가 있는지는 목표에 닿는 값으로만 본다
+      const controls = NODES.filter((n) => n.control && n.id !== c.id).map((n) => n.id);
+      let solutions = 0;
+      for (const id of controlAncestors(t.id).filter((x) => x !== c.id)) for (const v of controlValues(byId.get(id)!)) {
+        if (simulateCausal({ ...disturb, [id]: v }).nodes.find((n) => n.id === t.id)!.status === "ok") { solutions++; break; }
+      }
+      if (solutions) out.push({ id: `${c.id}:${d}>${t.id}`, disturb, target: t.id, controls, solutions });
+    }
+  }
+  return (puzzleCache = out);
+}
+
+/** 퍼즐 채점: 흔든 값 + 고른 조정 값 하나로 다시 계산. 목표가 정상 범위면 풀림, 새로 범위 밖이 된 값은 부작용. */
+export function checkRebalance(id: string, input: Record<string, number>) {
+  const p = rebalancePuzzles().find((x) => x.id === id);
+  const keys = Object.keys(input);
+  if (!p || keys.length !== 1 || !p.controls.includes(keys[0])) return null;
+  const before = simulateCausal(p.disturb), after = simulateCausal({ ...p.disturb, ...input });
+  const t = after.nodes.find((n) => n.id === p.target)!;
+  const wasWarn = new Set(before.nodes.filter((n) => n.status === "warn").map((n) => n.id));
+  const side = after.nodes.filter((n) => n.status === "warn" && !wasWarn.has(n.id) && n.id !== p.target).map((n) => ({ id: n.id, label: n.label, value: n.value, unit: n.unit, equipment_id: n.equipment_id }));
+  // reaches: 고른 값이 목표에 닿는가(연결을 따라 앞쪽에 있는가). 닿지 않으면 아무리 움직여도 목표는 그대로다
+  return { solved: t.status === "ok", reaches: controlAncestors(p.target).includes(keys[0]), target: { id: t.id, label: t.label, value: t.value, unit: t.unit, normal: t.normal, equipment_id: t.equipment_id }, side_effects: side, story: after.story };
+}

@@ -20,7 +20,7 @@ import { checkStep, faultScore, faultView, type FaultDrill } from "./faults.js";
 import { gradeIncident, scenarioView, type IncidentScenario } from "./incidents.js";
 import { maskName } from "./league.js";
 import { whatIf } from "./whatif.js";
-import { NODES, causalQuiz, checkDiagnose, checkHop, checkLag, conceptVars, diagnoseQuiz, lagQuiz, simulateCausal } from "./causal.js";
+import { NODES, causalQuiz, checkDiagnose, checkHop, checkLag, checkRebalance, conceptVars, diagnoseQuiz, lagQuiz, rebalancePuzzles, simulateCausal } from "./causal.js";
 import { loadFinalRubrics, type Rubric } from "../rubrics.js";
 import { loadDemoSections, type DemoSections } from "../demo-sections.js";
 
@@ -160,6 +160,21 @@ export function createLabExtrasRouter({ db, auth, deck, incidents, faults = { di
       if (!out[c.id] && conceptVars(c.id).length) out[c.id] = { section, vars: conceptVars(c.id) };
     }
     res.json({ concepts: out });
+  });
+  // 되돌리기 퍼즐: 무작위 하나(흔든 값·목표·쓸 수 있는 조정 값), 채점은 조정 값 하나만
+  router.get("/api/lab/causal/rebalance", login, (req, res) => {
+    const all = rebalancePuzzles(), seed = Number(req.query.seed) || Date.now();
+    const p = all[Math.abs(Math.floor(seed)) % all.length];
+    const node = (id: string) => { const n = NODES.find((x) => x.id === id)!; return { id, label: n.label, unit: n.unit, process: n.process, equipment_id: n.equipment_id, normal: n.normal, digits: n.digits, ...(n.control ? { control: n.control, base: n.base } : {}) }; };
+    const before = simulateCausal(p.disturb).nodes.find((n) => n.id === p.target)!;
+    res.json({ id: p.id, total: all.length, disturb: Object.entries(p.disturb).map(([k, v]) => ({ ...node(k), value: v })), target: { ...node(p.target), value: before.value }, controls: p.controls.map(node) });
+  });
+  router.post("/api/lab/causal/rebalance/check", login, express.json(), (req, res) => {
+    const body = z.object({ id: z.string().max(80), input: z.record(z.string(), z.number()) }).safeParse(req.body);
+    if (!body.success) return bad(res, 400, "퍼즐과 조정 값을 보내 주세요.");
+    const out = checkRebalance(body.data.id, body.data.input);
+    if (!out) return bad(res, 400, "이 퍼즐에서 쓸 수 있는 조정 값 하나만 보내 주세요.");
+    res.json(out);
   });
   // '언제 나타날까?' 시간 질문(인과 퀴즈 끝): 기록하지 않는 자가 점검
   router.get("/api/lab/causal/lag-quiz", login, (req, res) => res.json(lagQuiz(Number(req.query.seed) || Date.now() % 100000)));

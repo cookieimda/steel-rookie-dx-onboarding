@@ -103,6 +103,7 @@ const call = async (method: string, path: string, body?: unknown) => {
 test("HTTP 이상 상황: 목록 → 보기 → 단계 확인 → 완료 기록·최고 점수, What-if는 원인별 효과와 다음 공정 영향을 준다", async () => {
   const list = await call("GET", "/api/lab/faults");
   assert.equal(list.json.faults.length, 4);
+  assert.ok(list.json.faults.every((f: any) => f.causal && Object.keys(f.causal).length > 0), "목록에 인과 지도 재현 조건(인과 지도 예시 줄이 쓴다)");
   const id = list.json.faults[1].id;
   const view = await call("GET", `/api/lab/faults/${id}`);
   assert.equal(view.json.fault.readings.length, 4);

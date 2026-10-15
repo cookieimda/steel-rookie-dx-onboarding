@@ -328,7 +328,15 @@ export async function attachSimLab() {
     ];
     const pr = el('div'); pr.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;';
     for (const [label, v] of PRESETS) pr.append(btn(label, () => { for (const k of Object.keys(input)) delete input[k]; Object.assign(input, v); void run(); }, 'sl-btn ghost'));
-    presets.append(pr, btn('🧩 인과 퀴즈로 확인하기', () => open('quiz'), 'sl-btn'), btn('🔍 거꾸로 추론: 증상 → 원인', () => open('diagnose'), 'sl-btn ghost'));
+    // 이상 상황 재현: 이상 상황 훈련 4종의 원인 조건(faults.json causal)을 바로 넣고 따라가기
+    const faultRow = el('div'); faultRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;';
+    api('GET', '/api/lab/faults').then((r) => {
+      const list = r.faults.filter((f) => f.causal);
+      if (!list.length) return;
+      faultRow.append(el('small', 'sl-muted', '🚨 이상 상황 재현'));
+      for (const f of list) faultRow.append(btn(`${SECTION[f.section]} · ${f.title}`, () => { for (const k of Object.keys(input)) delete input[k]; Object.assign(input, f.causal); void run().then(() => tour.start()); }, 'sl-btn ghost'));
+    }, () => {});
+    presets.append(pr, faultRow, btn('🧩 인과 퀴즈로 확인하기', () => open('quiz'), 'sl-btn'), btn('🔍 거꾸로 추론: 증상 → 원인', () => open('diagnose'), 'sl-btn ghost'));
     const controls = el('div', 'sl-box sl-hide'), story = el('div'), detail = el('div'), byProc = el('div'), note = el('p', 'sl-muted'), cmp = el('div', 'sl-box sl-hide');
     panel.append(presets, controls, story, cmp, detail, byProc, note);
     let timer = 0, data = null, first = true, picked = startVar, lastCard = null;

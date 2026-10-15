@@ -110,7 +110,7 @@ export function createLabExtrasRouter({ db, auth, deck, incidents, faults = { di
   router.get("/api/lab/faults", login, (_req, res) => {
     const best = new Map(db.prepare("SELECT fault_id, MAX(score) AS best, COUNT(*) AS n FROM fault_attempts WHERE user_id=? GROUP BY fault_id").all(me(res).id)
       .map((r) => [String(r.fault_id), { best: Number(r.best), attempts: Number(r.n) }]));
-    res.json({ disclaimer: faults.disclaimer, faults: faults.faults.map((f) => ({ id: f.id, section: f.section, title: f.title, equipment_id: f.equipment_id, ...(best.get(f.id) ?? { best: null, attempts: 0 }) })) });
+    res.json({ disclaimer: faults.disclaimer, faults: faults.faults.map((f) => ({ id: f.id, section: f.section, title: f.title, equipment_id: f.equipment_id, causal: f.causal ?? null, ...(best.get(f.id) ?? { best: null, attempts: 0 }) })) });
   });
   router.get("/api/lab/faults/:id", login, (req, res) => {
     const f = fault(String(req.params.id));

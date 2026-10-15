@@ -28,7 +28,7 @@ const SLIDERS = [
 ];
 // 조사: 받침이 있으면 이·은, 없으면 가·는(숫자·기호로 끝나면 받침 없음으로 본다)
 const batchim = (w) => { const t = String(w).replace(/\s*\([^)]*\)\s*$/, '').trim(); const c = t.charCodeAt(t.length - 1) - 0xac00; return c >= 0 && c < 11172 && c % 28 !== 0; }; // 끝의 (S)·(Si) 같은 괄호는 빼고 본다
-const iGa = (w) => `${w}${batchim(w) ? '이' : '가'}`, eunNeun = (w) => `${w}${batchim(w) ? '은' : '는'}`;
+const iGa = (w) => `${w}${batchim(w) ? '이' : '가'}`, eunNeun = (w) => `${w}${batchim(w) ? '은' : '는'}`, eulReul = (w) => `${w}${batchim(w) ? '을' : '를'}`;
 const SECTION = { ironmaking: '제선', steelmaking: '제강', continuous_casting: '연주', rolling: '열간압연' };
 const fmt = (n, d = 0) => Number(n).toLocaleString('ko-KR', { maximumFractionDigits: d, minimumFractionDigits: d });
 const signed = (n, d = 0, unit = '') => `${n > 0 ? '+' : n < 0 ? '−' : '±'}${fmt(Math.abs(n), d)}${unit}`;
@@ -42,7 +42,7 @@ function injectStyle() {
     .sl-launch { position: fixed; right: 16px; bottom: 96px; z-index: 61; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; max-width: min(620px, calc(100vw - 32px)); }
     .sl-launch button { height: 42px; padding: 0 16px; border: 0; border-radius: 999px; background: rgba(14,24,40,.92); color: #eef2f7; font: 600 15px/1 "Pretendard", sans-serif; cursor: pointer; box-shadow: 0 8px 20px rgba(0,0,0,.3); }
     .sl-launch button[aria-pressed="true"] { background: #ff9e64; color: #1a0b03; }
-    .sl-panel { position: fixed; right: 16px; top: 84px; bottom: var(--sl-panel-bottom, 152px); z-index: 62; width: min(340px, calc(100vw - 32px)); overflow-y: auto; padding: 16px; border-radius: 16px; background: rgba(12,20,34,.95); color: #eef2f7; font: 15px/1.55 "Pretendard", sans-serif; box-shadow: 0 18px 40px rgba(0,0,0,.4); display: flex; flex-direction: column; gap: 12px; }
+    .sl-panel { position: fixed; right: 16px; top: 84px; bottom: var(--sl-panel-bottom, 152px); min-height: min(240px, calc(100vh - 100px)); z-index: 62; width: min(340px, calc(100vw - 32px)); overflow-y: auto; padding: 16px; border-radius: 16px; background: rgba(12,20,34,.95); color: #eef2f7; font: 15px/1.55 "Pretendard", sans-serif; box-shadow: 0 18px 40px rgba(0,0,0,.4); display: flex; flex-direction: column; gap: 12px; }
     .sl-panel h3 { margin: 0; font-size: 18px; display: flex; align-items: center; gap: 8px; }
     .sl-panel h3 span { flex: 1; }
     .sl-muted { color: #a9b6c8; font-size: 14px; }
@@ -201,8 +201,10 @@ export async function attachSimLab() {
   const say = (text) => { clearTimeout(sayTimer); live.textContent = ''; sayTimer = setTimeout(() => { live.textContent = text; }, 60); };
   // Esc로 패널을 닫고 연 버튼으로 돌아간다
   panel.addEventListener('keydown', (e) => { if (e.key === 'Escape' && mode) { e.stopPropagation(); open(null); } });
-  const bWhatif = btn('🧪 조업 실험', () => open(mode === 'whatif' ? null : 'whatif'), ''), bFault = btn('🚨 이상 상황 훈련', () => open(mode === 'fault' ? null : 'fault'), '');
-  const bMap = btn('🗺 공정 인과 지도', () => open(mode === 'map' ? null : 'map'), ''), bPlant = btn('🏭 공장 전체 보기', () => plantView(), '');
+  // 튜터에게 묻느라 잠시 숨긴 패널이면, 그 실습 버튼은 진행 중인 패널을 그대로 다시 보인다
+  const toggle = (m, b) => { if (panel.hidden && mode && launcherOf[mode] === b) { panel.hidden = false; b.setAttribute('aria-expanded', 'true'); panel.querySelector('h3')?.focus({ preventScroll: true }); return; } open(mode === m ? null : m); };
+  const bWhatif = btn('🧪 조업 실험', () => toggle('whatif', bWhatif), ''), bFault = btn('🚨 이상 상황 훈련', () => toggle('fault', bFault), '');
+  const bMap = btn('🗺 공정 인과 지도', () => toggle('map', bMap), ''), bPlant = btn('🏭 공장 전체 보기', () => plantView(), '');
   launch.append(bMap, bWhatif, bFault, bPlant);
   launch.setAttribute('role', 'toolbar'); launch.setAttribute('aria-label', '3D 실습 도구');
   for (const b of [bMap, bWhatif, bFault]) b.setAttribute('aria-controls', 'sl-panel');
@@ -233,6 +235,15 @@ export async function attachSimLab() {
     const x = btn('닫기', () => open(null), 'sl-btn ghost'); x.setAttribute('aria-label', `${title.replace(/^\S+\s/, '')} 닫기 (Esc)`);
     h.append(x); return h;
   };
+
+  /** 틀린 연결을 튜터 질문으로: v4 입력창에 질문을 채우고 튜터 패널을 연다(보내기는 학습자가). 3D 실습 패널은 접어 둔다. */
+  function askTutor(text) {
+    document.dispatchEvent(new CustomEvent('steel-tutor-draft', { detail: { text } }));
+    // 튜터 패널과 같은 오른쪽이라 잠시 숨긴다(진행은 그대로, 실습 버튼을 다시 누르면 돌아온다)
+    panel.hidden = true; launcherOf[mode]?.setAttribute('aria-expanded', 'false');
+    say(`튜터 입력창에 질문을 채웠어요. 고쳐서 보내도 돼요. 실습은 ${launcherOf[mode]?.textContent.replace(/^\S+\s/, '') || '실습'} 버튼을 누르면 그대로 돌아와요.`);
+  }
+  const tutorBtn = (text) => btn('🎓 튜터에게 이 연결 묻기', () => askTutor(text), 'sl-btn ghost');
 
   /** 공장 전체 보기: 공정 4개가 한 화면에 들어오는 드론 시점(sleek-overview가 정한 _overviewPose). 공정을 넘는 흐름을 볼 때 쓴다. */
   function plantView() {
@@ -433,6 +444,12 @@ export async function attachSimLab() {
           const up = r.answer === 'up';
           const verdict = `${r.correct ? '✓ 맞아요' : '✗ 아니에요'} — ${eunNeun(to.label)} ${up ? '올라요 ▲' : '내려가요 ▼'}. ${r.why} (${r.sign_rule})`;
           q.append(el('p', r.correct ? 'sl-ok' : 'sl-bad', verdict)); say(verdict.replace(/[▲▼✓✗]/g, ''));
+          if (!r.correct) {
+            const a = c.nodes[0], move = c.dir > 0 ? '오르면' : '내려가면', res = up ? '올라가나요' : '내려가나요';
+            q.append(tutorBtn(hop === 1
+              ? `${iGa(a.label)} ${move} 왜 ${eunNeun(to.label)} ${res}? 두 값이 공정에서 어떻게 이어지는지 설명해 줘.`
+              : `${iGa(a.label)} ${move} ${eulReul(from.label)} 거쳐 왜 ${eunNeun(to.label)} ${res}? 방향이 어떻게 이어지는지 단계별로 설명해 줘.`));
+          }
           // 3D: 이 칸의 연결을 흐르게 하고 결과 이름표
           if (from.equipment_id !== to.equipment_id) fx.flow(from.equipment_id, to.equipment_id, up ? 0xff7a3d : 0x5aa0ff);
           fx.tag(to.equipment_id, `${hop === 1 ? '결과' : '다음 영향'} · ${to.label} ${up ? '▲' : '▼'}`, up ? 'hot' : 'cold', hop === 1 ? 7 : 9);
@@ -643,12 +660,15 @@ export async function attachSimLab() {
           if (!res.correct) {
             b.classList.add('wrong'); b.disabled = true;
             list.querySelector('.sl-hint')?.remove();
-            list.append(el('p', 'sl-hint sl-bad', res.consequence ? `결과: ${res.consequence}` : res.hint)); say(`아니에요. ${res.consequence ? `그렇게 하면 ${res.consequence}` : res.hint}`);
+            list.querySelector('.sl-ask')?.remove();
+            list.append(el('p', 'sl-hint sl-bad', res.consequence ? `결과: ${res.consequence}` : res.hint));
+            const ask = tutorBtn(step === 'cause' ? `'${f.title}' 상황에서 ${iGa(o.text)} 원인이 아닌 이유가 뭐야? 진짜 원인을 찾으려면 어떤 값을 봐야 해?` : `'${f.title}' 상황에서 '${o.text}' 조치는 왜 안 돼? 조치를 고를 때 무엇을 먼저 따져야 해?`);
+            ask.classList.add('sl-ask'); list.append(ask); say(`아니에요. ${res.consequence ? `그렇게 하면 ${res.consequence}` : res.hint}`);
             return;
           }
           b.classList.add('right');
           for (const x of list.querySelectorAll('button')) x.disabled = true;
-          list.querySelector('.sl-hint')?.remove();
+          list.querySelector('.sl-hint')?.remove(); list.querySelector('.sl-ask')?.remove();
           onRight(res);
         }, 'sl-opt');
         list.append(b);

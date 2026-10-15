@@ -39,3 +39,13 @@ test("사고 사례 갈림길 3D 재현: 학습 기록 링크(lab=incident)와 3
   const dash = readFileSync(join(process.cwd(), "frontend", "login_ui", "Trainee Dashboard.dc.html"), "utf8");
   assert.match(dash, /<a class="ic-br-3d" href="\{\{ t\.brHref \}\}">/);
 });
+
+test("틀린 연결 → 튜터 질문: 3D 실습이 steel-tutor-draft를 보내고 v4가 입력창만 채운다(자동으로 보내지 않음)", () => {
+  assert.match(src, /new CustomEvent\('steel-tutor-draft', \{ detail: \{ text \} \}\)/);
+  assert.ok(src.includes("if (!r.correct) {") && src.includes("tutorBtn(hop === 1"), "인과 퀴즈 틀린 칸");
+  assert.ok(src.includes("tutorBtn(step === 'cause'"), "이상 상황 틀린 원인·조치");
+  const v4 = readFileSync(join(process.cwd(), "frontend", "3d-demo", "Steel Academy v4.dc.html"), "utf8");
+  const hook = v4.split("\n").find((l) => l.includes("'steel-tutor-draft'")) ?? "";
+  assert.match(hook, /this\.setState\(\{ input: t \}\); this\.openTutor\(\);/);
+  assert.doesNotMatch(hook, /\.ask\(/, "질문을 바로 보내지 않는다(LLM 호출은 학습자가 보낼 때만)");
+});

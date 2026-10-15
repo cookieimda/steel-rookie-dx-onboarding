@@ -744,6 +744,8 @@ class Component extends DCLogic {
       ...(e.detail.touring && !s.touring ? { expanded: { ...s.expanded, [s.processId]: false } } : {}) }))); // [세련안] 시연을 시작하면 공정 메뉴를 접는다
     document.addEventListener('steel-layout', () => this.setState(s => ({ layoutTick: (s.layoutTick || 0) + 1 })));
     document.addEventListener('steel-tour-end', () => this.setState({ touring: false, tourStep: null }));
+    // 3D 실습(sim-lab.js)에서 틀린 연결을 튜터 질문으로: 입력창에 질문을 채우고 튜터 패널만 연다(보내기는 학습자가 누른다)
+    document.addEventListener('steel-tutor-draft', e => { const t = String(e.detail?.text || '').trim().slice(0, 300); if (t) { this.setState({ input: t }); this.openTutor(); } });
     document.addEventListener('keydown', e => { if (e.key === 'Escape') this.setState({ settingsOpen: false }); });
     if (this.qs('still') === '1') { const st = document.createElement('style'); st.textContent = '*{animation-iteration-count:1 !important}'; document.head.appendChild(st); } // 캡처용: 반복 애니메이션 끔
     this.pingAI(); this.loadMe();

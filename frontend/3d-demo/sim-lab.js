@@ -76,6 +76,9 @@ function injectStyle() {
     .sl-var:hover, .sl-var[aria-pressed="true"] { background: rgba(43,212,180,.14); }
     .sl-var:focus-visible, .sl-opt:focus-visible, .sl-btn:focus-visible { outline: 2px solid #2bd4b4; outline-offset: 2px; }
     .sl-card { border: 1px solid rgba(43,212,180,.5); }
+    .sl-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+    .sl-panel h3:focus { outline: none; } .sl-panel h3:focus-visible, .sl-read:focus-visible, .sl-launch button:focus-visible { outline: 2px solid #2bd4b4; outline-offset: 2px; }
+    @media (prefers-reduced-motion: reduce) { .sl-shake { animation: none !important; } .sl-panel, .sl-panel * { transition: none !important; scroll-behavior: auto !important; } }
     .sl-shake { animation: slShake .35s; } @keyframes slShake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
     @media (max-width: 740px) { .sl-panel { top: auto; bottom: 150px; max-height: 55vh; } .sl-launch { bottom: 120px; } }`;
   document.head.appendChild(s);
@@ -185,22 +188,40 @@ export async function attachSimLab() {
 
   // ── 화면 틀 ──
   const launch = el('div', 'sl-launch');
-  const panel = el('aside', 'sl-panel'); panel.hidden = true; panel.setAttribute('aria-live', 'polite');
+  // 접근성: 패널은 이름 있는 영역(전체를 aria-live로 두면 슬라이더를 움직일 때마다 다 읽는다). 결과·판정은 live 상태 줄(say)로만 읽어 준다.
+  const panel = el('aside', 'sl-panel'); panel.hidden = true; panel.id = 'sl-panel'; panel.setAttribute('role', 'region'); panel.setAttribute('aria-label', '3D 실습');
+  const live = el('div', 'sl-sr'); live.setAttribute('role', 'status'); live.setAttribute('aria-live', 'polite');
+  let sayTimer = 0;
+  const say = (text) => { clearTimeout(sayTimer); live.textContent = ''; sayTimer = setTimeout(() => { live.textContent = text; }, 60); };
+  // Esc로 패널을 닫고 연 버튼으로 돌아간다
+  panel.addEventListener('keydown', (e) => { if (e.key === 'Escape' && mode) { e.stopPropagation(); open(null); } });
   const bWhatif = btn('🧪 조업 실험', () => open(mode === 'whatif' ? null : 'whatif'), ''), bFault = btn('🚨 이상 상황 훈련', () => open(mode === 'fault' ? null : 'fault'), '');
   const bMap = btn('🗺 공정 인과 지도', () => open(mode === 'map' ? null : 'map'), ''), bPlant = btn('🏭 공장 전체 보기', () => plantView(), '');
   launch.append(bMap, bWhatif, bFault, bPlant);
-  document.body.append(launch, panel);
+  launch.setAttribute('role', 'toolbar'); launch.setAttribute('aria-label', '3D 실습 도구');
+  for (const b of [bMap, bWhatif, bFault]) b.setAttribute('aria-controls', 'sl-panel');
+  bPlant.title = '공정 4개가 한 화면에 들어오게 카메라를 물려요';
+  document.body.append(launch, panel, live);
   let mode = null;
+  const TITLES = { map: '공정 인과 지도', whatif: '조업 실험', fault: '이상 상황 훈련', quiz: '인과 퀴즈' };
+  const launcherOf = { map: bMap, whatif: bWhatif, fault: bFault, quiz: bMap };
   function open(next, preset, opt = {}) {
+    const prev = mode;
     mode = next; fx.clear(); panel.classList.remove('compact');
+    for (const b of [bMap, bWhatif, bFault]) b.setAttribute('aria-expanded', String(!!mode && launcherOf[mode] === b));
+    if (mode) panel.setAttribute('aria-label', `3D 실습 · ${TITLES[mode]}`);
+    // 닫으면 그 실습을 연 버튼으로 포커스를 돌려준다(패널 안에 포커스가 있었을 때만)
+    else if (prev && panel.contains(document.activeElement)) launcherOf[prev]?.focus();
     bWhatif.setAttribute('aria-pressed', String(mode === 'whatif')); bFault.setAttribute('aria-pressed', String(mode === 'fault')); bMap.setAttribute('aria-pressed', String(mode === 'map'));
     panel.hidden = !mode; panel.replaceChildren();
     if (mode === 'whatif') void whatifPanel(preset); else if (mode === 'fault') void (opt.fault ? faultDrill(opt.fault) : faultList()); else if (mode === 'map') void causalMap(preset, opt.var); else if (mode === 'quiz') void causalQuizPanel(opt.process);
   }
   const head = (title, foldable = false) => {
-    const h = el('h3'); h.append(el('span', '', title));
+    const h = el('h3'); h.append(el('span', '', title)); h.tabIndex = -1;
+    setTimeout(() => { if (panel.contains(h) && !panel.contains(document.activeElement)) h.focus({ preventScroll: true }); }, 0);
     if (foldable) { const f = btn('결과만 보기', () => { const c = panel.classList.toggle('compact'); f.textContent = c ? '조건 펼치기' : '결과만 보기'; }, 'sl-btn ghost'); h.append(f); }
-    h.append(btn('닫기', () => open(null), 'sl-btn ghost')); return h;
+    const x = btn('닫기', () => open(null), 'sl-btn ghost'); x.setAttribute('aria-label', `${title.replace(/^\S+\s/, '')} 닫기 (Esc)`);
+    h.append(x); return h;
   };
 
   /** 공장 전체 보기: 공정 4개가 한 화면에 들어오는 드론 시점(sleek-overview가 정한 _overviewPose). 공정을 넘는 흐름을 볼 때 쓴다. */
@@ -229,19 +250,20 @@ export async function attachSimLab() {
     presets.append(pr, btn('🧩 인과 퀴즈로 확인하기', () => open('quiz'), 'sl-btn'));
     const controls = el('div', 'sl-box sl-hide'), story = el('div'), detail = el('div'), byProc = el('div'), note = el('p', 'sl-muted');
     panel.append(presets, controls, story, detail, byProc, note);
-    let timer = 0, data = null, first = true, picked = startVar;
+    let timer = 0, data = null, first = true, picked = startVar, lastCard = null;
     async function run() {
       try { data = await api('POST', '/api/lab/causal', input); } catch (e) { story.replaceChildren(el('p', 'sl-bad', e.message)); return; }
       if (first) { first = false; renderControls(); }
-      for (const n of data.nodes.filter((x) => x.control)) { const row = controls.querySelector(`[data-k="${n.id}"]`); if (row) { row.querySelector('input').value = n.value; row.querySelector('b').textContent = `${fmt(n.value, n.digits)}${n.unit}`; } }
+      else { const warn = data.nodes.filter((x) => x.status === 'warn').map((x) => x.label); say(`${data.story.length}개 값이 바뀌었어요.${warn.length ? ` 정상 범위 밖: ${warn.join(', ')}.` : ''}`); }
+      for (const n of data.nodes.filter((x) => x.control)) { const row = controls.querySelector(`[data-k="${n.id}"]`); if (row) { row.querySelector('input').value = n.value; row.querySelector('input').setAttribute('aria-valuetext', `${fmt(n.value, n.digits)}${n.unit}`); row.querySelector('b').textContent = `${fmt(n.value, n.digits)}${n.unit}`; } }
       render();
     }
     function renderControls() {
       controls.replaceChildren(el('b', '', '조정할 수 있는 값'));
       for (const n of data.nodes.filter((x) => x.control)) {
         const row = el('label', 'sl-s'); row.dataset.k = n.id;
-        const range = el('input'); Object.assign(range, { type: 'range', min: n.control.min, max: n.control.max, step: n.control.step, value: n.value }); range.setAttribute('aria-label', n.label);
-        range.addEventListener('input', () => { input[n.id] = Number(range.value); row.querySelector('b').textContent = `${range.value}${n.unit}`; clearTimeout(timer); timer = setTimeout(run, 200); });
+        const range = el('input'); Object.assign(range, { type: 'range', min: n.control.min, max: n.control.max, step: n.control.step, value: n.value }); range.setAttribute('aria-label', n.label); range.setAttribute('aria-valuetext', `${fmt(n.value, n.digits)}${n.unit}`);
+        range.addEventListener('input', () => { input[n.id] = Number(range.value); row.querySelector('b').textContent = `${range.value}${n.unit}`; range.setAttribute('aria-valuetext', `${range.value}${n.unit}`); clearTimeout(timer); timer = setTimeout(run, 200); });
         row.append(el('span', '', `${SECTION[n.process]} · ${n.label}`), range, el('b', '', '')); controls.append(row);
       }
       controls.append(btn('기준 조건으로', () => { for (const k of Object.keys(input)) delete input[k]; void run(); }, 'sl-btn ghost'));
@@ -257,7 +279,8 @@ export async function attachSimLab() {
         for (const n of data.nodes.filter((x) => x.process === sec)) {
           const line = btn('', () => { picked = n.id; renderDetail(); render(); }, 'sl-var'); line.setAttribute('aria-pressed', String(picked === n.id)); line.title = `${n.label} 설명 보기`;
           const v = el('span', n.status === 'warn' ? 'sl-bad' : n.delta ? (n.delta > 0 ? 'sl-up' : 'sl-down') : '', `${fmt(n.value, n.digits)}${n.unit}${n.delta ? ` (${signed(n.delta, n.digits)})` : ''}`);
-          line.append(el('span', '', n.label), v); box.append(line);
+          if (n.status === 'warn') v.append(el('span', 'sl-sr', ' · 정상 범위 밖'));
+          line.dataset.var = n.id; line.append(el('span', '', n.label), v); box.append(line);
         }
         return box;
       }));
@@ -285,10 +308,14 @@ export async function attachSimLab() {
     // 변수 설명 카드: 뜻·단위·정상 범위·지금 값, 영향을 주는 값·받는 값(누르면 그 변수로), 설비로 카메라 이동
     function renderDetail() {
       const n = picked && data?.nodes.find((x) => x.id === picked);
-      if (!n) { detail.replaceChildren(); return; }
+      if (!n) { lastCard = null; detail.replaceChildren(); return; }
       const box = el('div', 'sl-box sl-card'), nameOf = (id) => data.nodes.find((x) => x.id === id);
       const headRow = el('div'); headRow.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:8px;';
-      headRow.append(el('b', '', `🔎 ${n.label}`), btn('✕', () => { picked = null; renderDetail(); render(); }, 'sl-btn ghost'));
+      const title = el('b', '', `🔎 ${n.label}`); title.tabIndex = -1;
+      const close = btn('✕', () => { const id = picked; picked = null; renderDetail(); render(); byProc.querySelector(`[data-var="${id}"]`)?.focus(); }, 'sl-btn ghost'); close.setAttribute('aria-label', `${n.label} 설명 닫기`);
+      headRow.append(title, close);
+      // 카드는 render()에서 한 번 더 그려지므로, 그때 남아 있는 카드 제목에 포커스
+      if (lastCard !== n.id) { lastCard = n.id; setTimeout(() => detail.querySelector('.sl-card b[tabindex]')?.focus(), 0); }
       box.append(headRow, el('small', 'sl-muted', `${SECTION[n.process]}${n.control ? ' · 조정할 수 있는 값' : ''}`), el('div', '', n.desc || ''));
       box.append(el('div', n.status === 'warn' ? 'sl-bad' : '', `지금 ${fmt(n.value, n.digits)}${n.unit} · 기준 ${fmt(n.base, n.digits)}${n.unit} · 정상 ${fmt(n.normal[0], n.digits)}~${fmt(n.normal[1], n.digits)}${n.unit}`));
       const links = (title, list, other) => {
@@ -337,7 +364,7 @@ export async function attachSimLab() {
     function ask(c, hop, from, to, done) {
       const q = el('div'); q.style.cssText = 'display:flex;flex-direction:column;gap:6px;';
       q.append(el('span', '', `${hop === 1 ? '①' : '②'} ${hop === 2 ? '그러면 ' : ''}${SECTION[to.process]} · ${eunNeun(to.label)}?`));
-      const row = el('div'); row.style.cssText = 'display:flex;gap:6px;';
+      const row = el('div'); row.style.cssText = 'display:flex;gap:6px;'; row.setAttribute('role', 'group'); row.setAttribute('aria-label', `${to.label}: 오른다 또는 내린다`);
       for (const [choice, label] of [['up', '▲ 오른다'], ['down', '▼ 내린다']]) {
         row.append(btn(label, async () => {
           for (const x of row.querySelectorAll('button')) x.disabled = true;
@@ -346,7 +373,8 @@ export async function attachSimLab() {
           total++; if (r.correct) right++;
           scoreLine.textContent = `지금까지 ${right} / ${total} 칸 맞힘`;
           const up = r.answer === 'up';
-          q.append(el('p', r.correct ? 'sl-ok' : 'sl-bad', `${r.correct ? '✓ 맞아요' : '✗ 아니에요'} — ${eunNeun(to.label)} ${up ? '올라요 ▲' : '내려가요 ▼'}. ${r.why} (${r.sign_rule})`));
+          const verdict = `${r.correct ? '✓ 맞아요' : '✗ 아니에요'} — ${eunNeun(to.label)} ${up ? '올라요 ▲' : '내려가요 ▼'}. ${r.why} (${r.sign_rule})`;
+          q.append(el('p', r.correct ? 'sl-ok' : 'sl-bad', verdict)); say(verdict.replace(/[▲▼✓✗]/g, ''));
           // 3D: 이 칸의 연결을 흐르게 하고 결과 이름표
           if (from.equipment_id !== to.equipment_id) fx.flow(from.equipment_id, to.equipment_id, up ? 0xff7a3d : 0x5aa0ff);
           fx.tag(to.equipment_id, `${hop === 1 ? '결과' : '다음 영향'} · ${to.label} ${up ? '▲' : '▼'}`, up ? 'hot' : 'cold', hop === 1 ? 7 : 9);
@@ -372,8 +400,8 @@ export async function attachSimLab() {
     };
     for (const [k, label, unit, min, max, step] of SLIDERS) {
       const row = el('label', 'sl-s'); row.dataset.k = k;
-      const range = el('input'); Object.assign(range, { type: 'range', min, max, step }); range.setAttribute('aria-label', label);
-      range.addEventListener('input', () => { input[k] = Number(range.value); row.querySelector('b').textContent = `${range.value}${unit}`; clearTimeout(timer); timer = setTimeout(run, 250); });
+      const range = el('input'); Object.assign(range, { type: 'range', min, max, step }); range.setAttribute('aria-label', label); range.setAttribute('aria-valuetext', `${input[k] ?? ''}${unit}`);
+      range.addEventListener('input', () => { input[k] = Number(range.value); row.querySelector('b').textContent = `${range.value}${unit}`; range.setAttribute('aria-valuetext', `${range.value}${unit}`); clearTimeout(timer); timer = setTimeout(run, 250); });
       row.append(el('span', '', label), range, el('b', '', '')); sliders.append(row);
     }
     sliders.append(btn('기준 조건으로', () => { for (const k of Object.keys(input)) delete input[k]; void run(); }, 'sl-btn ghost'));
@@ -460,13 +488,15 @@ export async function attachSimLab() {
       if (stage !== 'signal') return;
       tries.signal++;
       const res = await api('POST', `/api/lab/faults/${f.id}/check`, { step: 'signal', key: rid });
-      if (!res.correct) { row.classList.add('sl-shake'); setTimeout(() => row.classList.remove('sl-shake'), 400); work.querySelector('.sl-hint')?.remove(); work.append(el('p', 'sl-hint sl-muted', res.hint)); return; }
+      if (!res.correct) { row.classList.add('sl-shake'); setTimeout(() => row.classList.remove('sl-shake'), 400); work.querySelector('.sl-hint')?.remove(); work.append(el('p', 'sl-hint sl-muted', res.hint)); say(`아니에요. ${res.hint}`); return; }
+      say(`맞아요. ${res.explain} 다음, 무엇이 원인일까요?`);
       stage = 'cause';
-      for (const a of res.abnormal) rows.get(a)?.row.classList.add('bad');
+      for (const a of res.abnormal) { const x = rows.get(a); x?.row.classList.add('bad'); x?.row.append(el('span', 'sl-sr', ' · 정상 범위 밖')); }
       for (const { row: x } of rows.values()) x.disabled = true;
       work.replaceChildren(el('p', '', `✓ ${res.explain}`), el('b', '', '② 무엇이 원인일까요?'));
       setStep(1);
       choose(f.cause_options, 'cause', (res2) => {
+        say(`맞아요. ${res2.explain} 원인에서 결과까지: ${res2.chain_text}. 다음, 어떻게 조치할까요?`);
         work.append(el('p', 'sl-ok', `✓ ${res2.explain}`), Object.assign(el('div', 'sl-cause'), { textContent: `원인 → 결과: ${res2.chain_text}` }));
         // 3D: 원인 사슬을 차례로 흐르게(공정 전체가 보이게 카메라를 물린다)
         scene.reset?.();
@@ -475,7 +505,7 @@ export async function attachSimLab() {
         setStep(2); stage = 'action';
         choose(f.action_options, 'action', (res3) => {
           stage = 'done';
-          work.append(el('p', 'sl-ok', `✓ ${res3.explain}`));
+          work.append(el('p', 'sl-ok', `✓ ${res3.explain}`)); say(`맞아요. ${res3.explain} ${res3.downstream.text}`);
           // 값이 정상으로 돌아온다(앞 공정에서 온 값은 그대로 남는다)
           for (const [rid2, v] of Object.entries(res3.fixed)) { const x = rows.get(rid2); if (!x) continue; x.mark.style.left = x.pos(v); x.val.textContent = `${v}${x.r.unit}`; const ok = v >= x.r.normal[0] && v <= x.r.normal[1]; x.row.classList.toggle('bad', !ok); x.row.classList.toggle('fixed', ok); }
           fx.setRingColor(f.equipment_id, 0x3ddc84);
@@ -501,7 +531,7 @@ export async function attachSimLab() {
           if (!res.correct) {
             b.classList.add('wrong'); b.disabled = true;
             list.querySelector('.sl-hint')?.remove();
-            list.append(el('p', 'sl-hint sl-bad', res.consequence ? `결과: ${res.consequence}` : res.hint));
+            list.append(el('p', 'sl-hint sl-bad', res.consequence ? `결과: ${res.consequence}` : res.hint)); say(`아니에요. ${res.consequence ? `그렇게 하면 ${res.consequence}` : res.hint}`);
             return;
           }
           b.classList.add('right');

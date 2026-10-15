@@ -683,6 +683,8 @@ export async function attachSimLab() {
           const tools = el('div'); tools.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;';
           tools.append(btn('연결된 설비 보기', () => goTo(sectionOf(res3.downstream.equipment_id), res3.downstream.equipment_id), 'sl-btn ghost'));
           if (res3.whatif) tools.append(btn('🧪 조업 실험에서 재현해 보기', () => open('whatif', res3.whatif), 'sl-btn'));
+          // 인과 지도 재현: 이 원인을 조정 값으로 넣고 하류 공정까지 따라가기를 바로 시작
+          if (res3.causal) tools.append(btn('🗺 인과 지도에서 하류까지 따라가기', () => open('map', res3.causal, { tour: true }), 'sl-btn'));
           work.append(tools);
           api('POST', `/api/lab/faults/${f.id}/complete`, { tries }).then((r) => work.append(el('p', 'sl-ok', `점수 ${Math.round(r.score * 100)}점 · 시도 ${tries.signal}/${tries.cause}/${tries.action}번`)), () => {});
         });

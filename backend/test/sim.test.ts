@@ -190,3 +190,24 @@ test("오늘의 실습 경로: 기록이 없으면 제선부터, 틀린 퀴즈·
   assert.ok(causalQuiz(7, 5, "rolling").slice(0, 1).every((c) => c.nodes.some((n) => rolling.has(n.id))));
   assert.equal((await call("GET", "/api/lab/practice-path")).status, 200);
 });
+
+test("이상 상황 → 인과 지도 재현: 훈련마다 조정 값이 있고, 그 값으로 인과 지도를 돌리면 그 공정에 정상 범위 밖 값이 생긴다", async () => {
+  const { simulateCausal } = await import("../src/lab/causal.js");
+  for (const f of loadFaults().faults) {
+    assert.ok(f.causal, `${f.id}: causal`);
+    const r = simulateCausal(f.causal);
+    assert.ok(r.nodes.some((n) => n.process === f.section && n.status === "warn"), `${f.id}: ${f.section}에 범위 밖 값`);
+    assert.ok(r.story.length >= 2, `${f.id}: 따라갈 단계가 2개 이상`);
+    const action = checkStep(f, "action", f.action.answer) as { causal: unknown };
+    assert.deepEqual(action.causal, f.causal, "조치를 맞히면 재현 값을 준다");
+  }
+  // 조정할 수 없는 값·범위 밖 값은 파일 검사에서 막는다
+  const raw = JSON.parse(readFileSync(FAULTS_PATH, "utf8"));
+  const dir = mkdtempSync(join(tmpdir(), "faults-causal-"));
+  raw.faults[0].causal = { hm_temp: 1400 };
+  writeFileSync(join(dir, "a.json"), JSON.stringify(raw));
+  assert.throws(() => loadFaults(join(dir, "a.json")), /조정할 수 없는 값/);
+  raw.faults[0].causal = { coke_rate: 999 };
+  writeFileSync(join(dir, "b.json"), JSON.stringify(raw));
+  assert.throws(() => loadFaults(join(dir, "b.json")), /범위/);
+});

@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import { SECTION_ORDER, type Section } from "../checkpoint/types.js";
+import { NODES } from "./causal.js";
 import { shuffledKeys } from "./incidents.js";
 
 const Reading = z.object({ id: z.string(), name: z.string(), unit: z.string(), value: z.number(), normal: z.tuple([z.number(), z.number()]), fixed: z.number() });
@@ -18,6 +19,8 @@ const Fault = z.object({
   action: Choice.extend({ consequences: z.array(z.string().nullable()) }),
   downstream: z.object({ equipment_id: z.string(), text: z.string() }),
   whatif: z.record(z.string(), z.number()).optional(),
+  /** 인과 지도 재현: 이 원인을 인과 지도 조정 값으로(예: {coke_rate: 290}). 훈련을 끝내면 하류 공정 반응까지 따라가 본다. */
+  causal: z.record(z.string(), z.number()).optional(),
 });
 const File = z.object({ disclaimer: z.string(), faults: z.array(Fault).min(1) });
 export type FaultDrill = z.infer<typeof Fault>;
@@ -44,6 +47,11 @@ export function loadFaults(path = FAULTS_PATH, known?: Set<string>) {
     for (const r of f.readings) if (r.fixed < r.normal[0] || r.fixed > r.normal[1]) {
       // 조치로 바로 고칠 수 없는 값(앞 공정에서 온 값)은 고친 뒤에도 범위 밖에 남을 수 있다. 신호 정답이어야 한다.
       if (!f.signal.answer.includes(r.id)) throw new Error(`${where}: ${r.id}의 조치 후 값이 정상 범위 밖인데 신호가 아니에요`);
+    }
+    if (f.causal) for (const [k, v] of Object.entries(f.causal)) {
+      const n = NODES.find((x) => x.id === k);
+      if (!n?.control) throw new Error(`${where}: 인과 지도에 조정할 수 없는 값 ${k}`);
+      if (v < n.control.min || v > n.control.max) throw new Error(`${where}: ${k} 값 ${v}이 인과 지도 범위(${n.control.min}~${n.control.max}) 밖이에요`);
     }
     if (known) for (const id of [f.equipment_id, f.downstream.equipment_id, ...f.cause.chain]) if (!known.has(id)) throw new Error(`${where}: 없는 설비 id ${id}`);
   }
@@ -75,7 +83,7 @@ export function checkStep(f: FaultDrill, step: Step, key: string | number) {
   const k = typeof key === "number" ? key : -1;
   const correct = k === f.action.answer;
   return correct
-    ? { correct, explain: f.action.explain, fixed: Object.fromEntries(f.readings.map((r) => [r.id, r.fixed])), downstream: f.downstream, whatif: f.whatif ?? null }
+    ? { correct, explain: f.action.explain, fixed: Object.fromEntries(f.readings.map((r) => [r.id, r.fixed])), downstream: f.downstream, whatif: f.whatif ?? null, causal: f.causal ?? null }
     : { correct, consequence: f.action.consequences[k] ?? "그 조치로는 원인이 해결되지 않아요." };
 }
 

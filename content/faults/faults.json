@@ -99,6 +99,9 @@
       "whatif": {
         "coke_kg": 300,
         "pci_kg": 140
+      },
+      "causal": {
+        "coke_rate": 290
       }
     },
     {
@@ -196,6 +199,9 @@
       "downstream": {
         "equipment_id": "blast_furnace",
         "text": "넘침의 뿌리 중 하나는 앞 공정(고로)에서 온 높은 규소예요. 고로 노 안이 지나치게 뜨거우면 용선 규소가 오르니, 공정 사이 조건을 함께 맞춰야 해요."
+      },
+      "causal": {
+        "coke_rate": 400
       }
     },
     {
@@ -293,6 +299,10 @@
       "downstream": {
         "equipment_id": "bof_converter",
         "text": "높은 과열도는 앞 공정(제강)의 출강·정련 온도에서 와요. 연주가 안전하려면 제강이 목표 온도를 맞춰 넘겨줘야 해요."
+      },
+      "causal": {
+        "tap_temp": 1690,
+        "cast_speed": 1.6
       }
     },
     {
@@ -389,6 +399,9 @@
       "downstream": {
         "equipment_id": "coiler",
         "text": "권취 온도는 코일을 받는 고객이 느끼는 품질(강도·가공성)로 바로 이어져요. 마지막 공정의 작은 냉각 차이가 제품 규격을 바꿔요."
+      },
+      "causal": {
+        "cool_banks": 15
       }
     }
   ]

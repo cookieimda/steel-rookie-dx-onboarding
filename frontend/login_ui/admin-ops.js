@@ -231,7 +231,18 @@ async function showPractice(pane) {
     t2.append(tr);
   }
   it.append(el('strong', '', '📰 사고 사례'), t2);
-  wrap.append(top, quiz, ft, it);
+  // 수업 모드: 3D 화면에서 수업 막대와 함께 연다(교육 담당자가 화면 공유로 진행)
+  const lessons = await api('GET', '/api/lab/lessons').catch(() => ({ lessons: [] }));
+  const lc = el('div', 'card ops-card');
+  lc.append(el('strong', '', '🎓 수업 모드'), el('span', 'micro', '3D 화면 위쪽 막대로 단계를 넘기며 진행해요. 단계마다 진행자 안내가 있어요.'));
+  for (const l of lessons.lessons) {
+    const row = el('div', 'ops-item'), a = el('a', 'btn sm', '3D에서 수업 열기');
+    a.href = `/3d-demo/Steel%20Academy%20v4.dc.html?p=ironmaking&lab=lesson&lesson=${encodeURIComponent(l.id)}&step=1`; a.target = '_blank'; a.rel = 'noopener';
+    row.append(el('span', '', `${l.title} · ${l.steps}단계 · ${l.minutes}분`), a, el('small', '', l.goal));
+    lc.append(row);
+  }
+  if (!lessons.lessons.length) lc.append(el('p', 'muted', '수업이 없어요.'));
+  wrap.append(top, lc, quiz, ft, it);
   pane.replaceChildren(wrap);
 }
 

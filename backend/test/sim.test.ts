@@ -88,7 +88,7 @@ before(async () => {
   kim = await users.create({ username: "trainee01", password: "password123", name: "김신입", employee_no: "T1" });
   const deck = buildDeck([{ id: "ironmaking", name: "제선", equipment: [{ id: "blast_furnace", name: "고로", role: "용선을 만든다." }] }], () => []);
   const app = express();
-  app.use(createLabExtrasRouter({ db, auth: { users, secret }, deck, incidents: loadIncidents(), faults: loadFaults() }));
+  app.use(createLabExtrasRouter({ db, auth: { users, secret }, deck, incidents: loadIncidents(), faults: loadFaults(), lessons: (await import("../src/lab/lessons.js")).loadLessons() }));
   server = app.listen(0);
   await new Promise((r) => server.once("listening", r));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -243,4 +243,32 @@ test("내 3D 실습 요약: 퀴즈 칸·정답률, 끝낸 훈련 종류·만점,
   const s = practicePath(pdb, u.id, faults, scenarios).summary;
   assert.deepEqual([s.quiz_answers, s.quiz_rate, s.faults_done, s.faults_perfect, s.branches_explored], [2, 0.5, 2, 1, 1]);
   assert.ok(totalOptions >= 16, "사례 4개 × 갈림길 2개 × 선택 2개 이상");
+});
+
+test("수업 모드: 수업 파일의 참조(변수·이상 상황·갈림길)가 맞고, 진행자 안내의 인과 설명이 모델과 맞는다, 잘못된 참조는 막는다", async () => {
+  const { loadLessons, LESSONS_PATH } = await import("../src/lab/lessons.js");
+  const { simulateCausal } = await import("../src/lab/causal.js");
+  const refs = { faults: loadFaults().faults, scenarios: loadIncidents().scenarios };
+  const lessons = loadLessons(undefined, refs);
+  assert.deepEqual(lessons.map((l) => l.id), ["causal-101", "diagnose-drill"]);
+  // 'diagnose-drill' 1·2단계 안내: 재가열 온도↓는 사상압연 출구·권취 온도를 함께 내리고, 냉각 뱅크↑는 권취 온도만 내린다
+  const v = (input: Record<string, number>, id: string) => simulateCausal(input).nodes.find((n) => n.id === id)!.delta;
+  assert.ok(v({ reheat_temp: 1160 }, "fdt") < 0 && v({ reheat_temp: 1160 }, "coiling_temp") < 0);
+  assert.ok(v({ cool_banks: 15 }, "coiling_temp") < 0 && v({ cool_banks: 15 }, "fdt") === 0);
+  const raw = JSON.parse(readFileSync(LESSONS_PATH, "utf8"));
+  const dir = mkdtempSync(join(tmpdir(), "lessons-"));
+  const bad = (mutate: (j: any) => void, re: RegExp) => { const j = structuredClone(raw); mutate(j); const f = join(dir, `${Math.random()}.json`); writeFileSync(f, JSON.stringify(j)); assert.throws(() => loadLessons(f, refs), re); };
+  bad((j) => { j.lessons[0].steps[4].fault = "nope"; }, /없는 이상 상황/);
+  bad((j) => { j.lessons[0].steps[5].pick = 9; }, /없는 사고 사례 갈림길/);
+  bad((j) => { j.lessons[0].steps[1].set = { hm_temp: 1400 }; }, /조정할 수 없는 값/);
+  bad((j) => { delete j.lessons[0].steps[1].set; }, /조건\(set\)/);
+  bad((j) => { j.lessons[1].id = "causal-101"; }, /겹칩니다/);
+});
+
+test("HTTP 수업: 목록은 단계 수만, 하나는 단계 전체, 없는 수업 404", async () => {
+  const list = await call("GET", "/api/lab/lessons");
+  assert.equal(list.json.lessons[0].steps, 6);
+  const one = await call("GET", "/api/lab/lessons/causal-101");
+  assert.equal(one.json.lesson.steps[1].lab, "map");
+  assert.equal((await call("GET", "/api/lab/lessons/nope")).status, 404);
 });

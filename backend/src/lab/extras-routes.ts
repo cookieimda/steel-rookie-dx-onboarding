@@ -6,6 +6,7 @@
 //   GET  /api/admin/notes/reported · POST /api/admin/notes/:id/hide {hidden}
 //   GET  /api/admin/practice-stats?include_demo=  3D 실습 통계(관리자) · GET /api/lab/practice-path  오늘의 실습 경로
 //   GET  /api/lab/causal/quiz?seed=&process=  인과 퀴즈(process를 주면 그 공정 변수가 든 길 먼저)
+//   GET  /api/lab/lessons · GET /api/lab/lessons/:id  수업 모드(3D 실습 단계 묶음)
 //   GET  /api/lab/faults · GET /api/lab/faults/:id · POST /api/lab/faults/:id/check {step, key} · POST /api/lab/faults/:id/complete {tries}  (이상 상황 훈련)
 import { randomUUID } from "node:crypto";
 import express from "express";
@@ -21,6 +22,7 @@ import { maskName } from "./league.js";
 import { whatIf } from "./whatif.js";
 import { NODES, causalQuiz, checkDiagnose, checkHop, diagnoseQuiz, simulateCausal } from "./causal.js";
 import { practiceStats } from "./practice-stats.js";
+import type { LessonDef } from "./lessons.js";
 import { practicePath } from "./practice-path.js";
 import { SECTION_ORDER, type Section } from "../checkpoint/types.js";
 
@@ -32,6 +34,8 @@ export interface ExtrasDeps {
   incidents: { disclaimer: string; scenarios: IncidentScenario[] };
   /** 이상 상황 훈련(content/faults/faults.json). 없으면 그 API만 빈 목록. */
   faults?: { disclaimer: string; faults: FaultDrill[] };
+  /** 수업 모드(content/lessons/lessons.json). 없으면 빈 목록. */
+  lessons?: LessonDef[];
   notifier?: Notifier;
 }
 
@@ -39,7 +43,7 @@ const NoteBody = z.object({ equipment_id: z.string().regex(/^[a-z0-9_]{1,40}$/),
 const Reply = z.object({ text: z.string().trim().min(1).max(300) });
 const Report = z.object({ reason: z.string().trim().min(1).max(200) });
 
-export function createLabExtrasRouter({ db, auth, deck, incidents, faults = { disclaimer: "", faults: [] }, notifier }: ExtrasDeps): express.Router {
+export function createLabExtrasRouter({ db, auth, deck, incidents, faults = { disclaimer: "", faults: [] }, notifier, lessons = [] }: ExtrasDeps): express.Router {
   const router = express.Router(), login = requireUser(auth);
   const me = (res: express.Response) => res.locals.user as User;
   const bad = (res: express.Response, status: number, error: string) => res.status(status).json({ error });
@@ -84,6 +88,14 @@ export function createLabExtrasRouter({ db, auth, deck, incidents, faults = { di
     const explored = Number(db.prepare("SELECT COUNT(*) AS n FROM branch_explorations WHERE user_id=? AND scenario_id=?").get(uid, s.id)?.n ?? 0);
     const total = s.timeline.reduce((n, t) => n + (t.branch?.options.length ?? 0), 0);
     res.status(seen ? 200 : 201).json({ explored, total, new: !seen });
+  });
+
+  // ── 수업 모드: 수업 목록(단계 수만)과 수업 하나(단계 전체) ──
+  router.get("/api/lab/lessons", login, (_req, res) => res.json({ lessons: lessons.map(({ steps, ...l }) => ({ ...l, steps: steps.length })) }));
+  router.get("/api/lab/lessons/:id", login, (req, res) => {
+    const l = lessons.find((x) => x.id === String(req.params.id));
+    if (!l) return bad(res, 404, "없는 수업이에요.");
+    res.json({ lesson: l });
   });
 
   // ── 이상 상황 훈련 ──

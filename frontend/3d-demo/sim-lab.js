@@ -63,6 +63,8 @@ function injectStyle() {
     .sl-tour { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
     .sl-link { width: 100%; box-sizing: border-box; padding: 7px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.06); color: inherit; font: 14px/1.4 ui-monospace, monospace; }
     .sl-cmp { width: 100%; border-collapse: collapse; font-size: 14px; } .sl-cmp th, .sl-cmp td { text-align: left; padding: 4px 6px; border-top: 1px solid rgba(255,255,255,.12); } .sl-cmp th { color: #9aa4b2; font-weight: 600; }
+    .sl-lesson { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 63; width: min(560px, calc(100vw - 32px)); box-sizing: border-box; display: flex; flex-direction: column; gap: 6px; padding: 12px 16px; border-radius: 16px; background: rgba(12,20,34,.95); color: #eef2f7; font: 15px/1.5 "Pretendard", sans-serif; box-shadow: 0 18px 40px rgba(0,0,0,.4); border: 1px solid rgba(43,212,180,.45); }
+    .sl-lesson small { color: #2bd4b4; font-weight: 700; } .sl-lesson p { margin: 0; color: #c9d2de; }
     .sl-scenes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
     .sl-read { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,.06); border: 1px solid transparent; text-align: left; color: inherit; font: inherit; cursor: pointer; }
     .sl-read:disabled { cursor: default; }
@@ -586,6 +588,34 @@ export async function attachSimLab() {
     show();
   }
 
+  // ── 수업 모드: 화면 위쪽 막대에 수업 이름·단계·진행자 안내, [◀ 이전]·[다음 ▶]으로 단계를 넘기면 그 실습이 열린다 ──
+  async function lessonBar(id, startStep) {
+    let lesson;
+    try { lesson = (await api('GET', `/api/lab/lessons/${id}`)).lesson; } catch (e) { say(e.message); return; }
+    const bar = el('section', 'sl-lesson'); bar.setAttribute('aria-label', `수업 · ${lesson.title}`);
+    const title = el('b'), note = el('p'), nav = el('div', 'sl-tour'), fold = btn('안내 접기', () => { const h = note.hidden = !note.hidden; fold.textContent = h ? '안내 펴기' : '안내 접기'; }, 'sl-btn ghost');
+    const prev = btn('◀ 이전', () => go(i - 1), 'sl-btn ghost'), next = btn('다음 ▶', () => go(i + 1), 'sl-btn'), end = btn('수업 끝내기', () => { bar.remove(); open(null); say('수업을 끝냈어요.'); }, 'sl-btn ghost');
+    nav.append(prev, next, fold, end);
+    bar.append(el('small', '', `🎓 수업 · ${lesson.title} · ${lesson.minutes}분`), title, note, nav);
+    document.body.append(bar);
+    let i = 0;
+    function go(n) {
+      i = Math.max(0, Math.min(lesson.steps.length - 1, n));
+      const s = lesson.steps[i];
+      title.textContent = `${i + 1} / ${lesson.steps.length} · ${s.title}`; note.textContent = s.note;
+      prev.disabled = i === 0; next.disabled = i === lesson.steps.length - 1;
+      try { history.replaceState(null, '', `${location.pathname}?p=${scene.process?.id || 'ironmaking'}&lab=lesson&lesson=${lesson.id}&step=${i + 1}`); } catch (e) {}
+      if (s.lab === 'plant') { open(null); if (!flowOn) plantFlow(); else plantView(); }
+      else if (s.lab === 'map') open('map', s.set || {}, { tour: !!s.tour });
+      else if (s.lab === 'quiz') open('quiz', {}, { level: s.level || 1 });
+      else if (s.lab === 'diagnose') open('diagnose');
+      else if (s.lab === 'fault') open('fault', {}, { fault: s.fault });
+      else if (s.lab === 'incident') open('incident', {}, { scenario: s.scenario, at: s.at, pick: s.pick });
+      say(`수업 ${i + 1}단계, ${s.title}. ${s.note}`);
+    }
+    go(startStep - 1);
+  }
+
   // ── 거꾸로 추론(진단형): 하류에서 바뀐 값(증상)을 3D에 보여 주고, 어떤 원인을 어느 쪽으로 바꿨는지 고른다 ──
   async function diagnosePanel() {
     panel.append(head('🔍 거꾸로 추론'), el('p', 'sl-muted', '현장에서는 결과가 먼저 보여요. 3D에 표시된 증상을 보고, 어느 값을 올리거나 내려서 생긴 일인지 골라 보세요.'));
@@ -870,6 +900,7 @@ export async function attachSimLab() {
   }
   // 학습 기록의 '오늘의 실습 경로' 링크(?p=공정&lab=map&var=… · lab=quiz&process=… · lab=fault&fault=…)로 들어오면 그 실습을 바로 연다.
   const qs = new URLSearchParams(location.search), lab = qs.get('lab');
+  if (lab === 'lesson' && /^[a-z0-9-]{1,40}$/.test(qs.get('lesson') || '')) setTimeout(() => void lessonBar(qs.get('lesson'), Number(qs.get('step')) || 1), 1200);
   if (['map', 'quiz', 'fault', 'whatif', 'incident', 'diagnose'].includes(lab)) {
     const id = (k) => (/^[a-z0-9_-]{1,40}$/.test(qs.get(k) || '') ? qs.get(k) : undefined);
     // set=coke_rate:290,cast_speed:1.4 (id는 영문·숫자·_, 값은 숫자만. 범위는 서버가 다시 자른다)

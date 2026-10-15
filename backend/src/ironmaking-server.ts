@@ -18,6 +18,7 @@ import { createLabRouter } from "./lab/routes.js";
 import { createLabExtrasRouter } from "./lab/extras-routes.js";
 import { loadIncidents } from "./lab/incidents.js";
 import { loadFaults } from "./lab/faults.js";
+import { loadLessons } from "./lab/lessons.js";
 import { MeRepository } from "./me/repository.js";
 import { Notifier } from "./notify/service.js";
 import { createNotifyRouter } from "./notify/routes.js";
@@ -153,7 +154,11 @@ app.use(createOpsRouter(auth, db));
 app.use(createHighlightRouter(auth, db, rubrics));
 const knownEquipment = new Set(deck.map((c) => c.equipment_id));
 // 사고 사례·이상 상황 훈련 콘텐츠는 형식·설비 id가 틀리면 서버가 시작하지 않는다
-app.use(createLabExtrasRouter({ db, auth, deck, notifier, incidents: loadIncidents(undefined, knownEquipment), faults: loadFaults(undefined, knownEquipment) }));
+{
+  // 수업 모드는 이상 상황·사고 사례를 가리키므로 같은 내용으로 참조를 검사한다(틀리면 서버가 시작하지 않는다)
+  const incidents = loadIncidents(undefined, knownEquipment), faults = loadFaults(undefined, knownEquipment);
+  app.use(createLabExtrasRouter({ db, auth, deck, notifier, incidents, faults, lessons: loadLessons(undefined, { faults: faults.faults, scenarios: incidents.scenarios }) }));
+}
 // 정기 알림: NOTIFY_INTERVAL_MIN분마다(기본 15, 0이면 끔) 전체 학습자의 알림을 만들고 켠 채널로 발송한다
 const notifyEvery = Number(process.env.NOTIFY_INTERVAL_MIN ?? 15);
 if (notifyEvery > 0) setInterval(() => { try { notifier.generateAll(); void notifier.deliverPending(); } catch (e) { console.warn("정기 알림 실패", e); } }, notifyEvery * 60_000).unref();

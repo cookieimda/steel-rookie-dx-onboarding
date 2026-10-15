@@ -42,7 +42,7 @@ function injectStyle() {
     .sl-launch { position: fixed; right: 16px; bottom: 96px; z-index: 61; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; max-width: min(620px, calc(100vw - 32px)); }
     .sl-launch button { height: 42px; padding: 0 16px; border: 0; border-radius: 999px; background: rgba(14,24,40,.92); color: #eef2f7; font: 600 15px/1 "Pretendard", sans-serif; cursor: pointer; box-shadow: 0 8px 20px rgba(0,0,0,.3); }
     .sl-launch button[aria-pressed="true"] { background: #ff9e64; color: #1a0b03; }
-    .sl-panel { position: fixed; right: 16px; top: 84px; bottom: 152px; z-index: 62; width: min(340px, calc(100vw - 32px)); overflow-y: auto; padding: 16px; border-radius: 16px; background: rgba(12,20,34,.95); color: #eef2f7; font: 15px/1.55 "Pretendard", sans-serif; box-shadow: 0 18px 40px rgba(0,0,0,.4); display: flex; flex-direction: column; gap: 12px; }
+    .sl-panel { position: fixed; right: 16px; top: 84px; bottom: var(--sl-panel-bottom, 152px); z-index: 62; width: min(340px, calc(100vw - 32px)); overflow-y: auto; padding: 16px; border-radius: 16px; background: rgba(12,20,34,.95); color: #eef2f7; font: 15px/1.55 "Pretendard", sans-serif; box-shadow: 0 18px 40px rgba(0,0,0,.4); display: flex; flex-direction: column; gap: 12px; }
     .sl-panel h3 { margin: 0; font-size: 18px; display: flex; align-items: center; gap: 8px; }
     .sl-panel h3 span { flex: 1; }
     .sl-muted { color: #a9b6c8; font-size: 14px; }
@@ -80,7 +80,10 @@ function injectStyle() {
     .sl-panel h3:focus { outline: none; } .sl-panel h3:focus-visible, .sl-read:focus-visible, .sl-launch button:focus-visible { outline: 2px solid #2bd4b4; outline-offset: 2px; }
     @media (prefers-reduced-motion: reduce) { .sl-shake { animation: none !important; } .sl-panel, .sl-panel * { transition: none !important; scroll-behavior: auto !important; } }
     .sl-shake { animation: slShake .35s; } @keyframes slShake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
-    @media (max-width: 740px) { .sl-panel { top: auto; bottom: 150px; max-height: 55vh; } .sl-launch { bottom: 120px; } }`;
+    /* hidden이어도 display:flex가 이겨 빈 띠가 보이던 문제 */
+    .sl-panel[hidden] { display: none !important; }
+    /* 좁은 화면: 실행 버튼이 두 줄로 접히므로 패널 아래 끝을 버튼 묶음 위로 맞춘다(--sl-panel-bottom은 버튼 묶음 높이로 계산) */
+    @media (max-width: 740px) { .sl-panel { top: auto; bottom: var(--sl-panel-bottom, 150px); max-height: min(55vh, calc(100vh - var(--sl-panel-bottom, 150px) - 72px)); } .sl-launch { bottom: 120px; } }`;
   document.head.appendChild(s);
 }
 
@@ -202,6 +205,10 @@ export async function attachSimLab() {
   for (const b of [bMap, bWhatif, bFault]) b.setAttribute('aria-controls', 'sl-panel');
   bPlant.title = '공정 4개가 한 화면에 들어오게 카메라를 물려요';
   document.body.append(launch, panel, live);
+  // 패널 아래 끝 = 실행 버튼 묶음 위 + 10px. 버튼이 줄바꿈되거나 창 크기가 바뀌면 다시 잰다.
+  const fitPanel = () => { const top = launch.getBoundingClientRect().top; if (top > 0) document.documentElement.style.setProperty('--sl-panel-bottom', `${Math.round(innerHeight - top + 10)}px`); };
+  if (typeof ResizeObserver === 'function') new ResizeObserver(fitPanel).observe(launch);
+  addEventListener('resize', fitPanel); fitPanel();
   let mode = null;
   const TITLES = { map: '공정 인과 지도', whatif: '조업 실험', fault: '이상 상황 훈련', quiz: '인과 퀴즈' };
   const launcherOf = { map: bMap, whatif: bWhatif, fault: bFault, quiz: bMap };
@@ -226,7 +233,8 @@ export async function attachSimLab() {
 
   /** 공장 전체 보기: 공정 4개가 한 화면에 들어오는 드론 시점(sleek-overview가 정한 _overviewPose). 공정을 넘는 흐름을 볼 때 쓴다. */
   function plantView() {
-    if (scene._2d) return;
+    // 2D 보기에서는 카메라가 없으므로 아무 일도 안 일어나던 것을 알려 준다
+    if (scene._2d) { say('2D 보기에서는 공장 전체 보기를 쓸 수 없어요. 3D 보기로 돌아온 뒤 눌러 주세요.'); bPlant.animate?.([{ transform: 'translateX(-3px)' }, { transform: 'translateX(3px)' }, { transform: 'none' }], 240); return; }
     const pose = scene._overviewPose?.();
     if (pose && scene._animateTo) scene._animateTo(pose); else scene.overview?.();
     scene._dirty = true;

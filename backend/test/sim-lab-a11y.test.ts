@@ -23,3 +23,10 @@ test("3D 실습 패널: 슬라이더는 단위 붙은 값을 읽고, 색으로�
   assert.match(src, /setAttribute\('aria-label', `\$\{n\.label\} 설명 닫기`\)/, "✕ 버튼에 이름");
   assert.match(src, /prefers-reduced-motion: reduce/);
 });
+
+test("3D 실습 패널 배치: 닫힌 패널은 숨기고(빈 띠 방지), 좁은 화면에서는 패널 아래 끝을 실행 버튼 묶음 위로 맞춘다", () => {
+  assert.match(src, /\.sl-panel\[hidden\] \{ display: none !important; \}/);
+  assert.match(src, /bottom: var\(--sl-panel-bottom, 152px\)/);
+  assert.match(src, /new ResizeObserver\(fitPanel\)\.observe\(launch\)/);
+  assert.match(src, /2D 보기에서는 공장 전체 보기를 쓸 수 없어요/);
+});

@@ -29,6 +29,7 @@
         "소결 공정에서는 어떤 원료로 무엇을 만들고, 그것을 따로 만드는 까닭은 다음 설비와 어떤 관계가 있나요?"
       ],
       "fallback_question": "철광석을 가루 상태 그대로 쓰지 않고 소결 공정을 거치는 이유를 설명해 주세요.",
+      "equipment_ids": ["sinter_plant", "blast_furnace"],
       "source": {
         "file": "backend/data/ironmaking-sources.json",
         "ref": "posco-newsroom-fe-2019"
@@ -60,6 +61,7 @@
         "원료가 철로 바뀌는 화학 변화를 이끄는 물질이 고로 안에서 어떻게 생기는지, 그리고 그 물질이 원료에 하는 일이 무엇인지 설명해 주세요."
       ],
       "fallback_question": "고로 안에서 코크스는 철광석이 철이 되는 데 어떤 역할을 하나요?",
+      "equipment_ids": ["blast_furnace", "hot_stove"],
       "source": {
         "file": "backend/data/ironmaking-sources.json",
         "ref": "posco-newsroom-fe-2019"
@@ -91,6 +93,7 @@
         "철광석과 용선은 무엇이 다르고, 그 차이는 고로 안의 어떤 변화로 생기나요? 만들어진 용선이 다음에 어디로 가서 무엇이 되는지도 설명해 주세요."
       ],
       "fallback_question": "고로 안에서 철광석은 어떤 변화를 거쳐 쇳물로 바뀌고, 그 쇳물은 다음에 어느 공정으로 가나요?",
+      "equipment_ids": ["blast_furnace", "taphole_casthouse", "torpedo_car"],
       "source": {
         "file": "backend/data/ironmaking-sources.json",
         "ref": "posco-brochure-2015"

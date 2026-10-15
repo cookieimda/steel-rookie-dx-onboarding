@@ -211,3 +211,19 @@ test("이상 상황 → 인과 지도 재현: 훈련마다 조정 값이 있고,
   writeFileSync(join(dir, "b.json"), JSON.stringify(raw));
   assert.throws(() => loadFaults(join(dir, "b.json")), /범위/);
 });
+
+test("HTTP 갈림길 탐험: 같은 선택은 한 번만 남고, 실제로 일어난 선택은 사원증 기록에서 빼며, 없는 장면·선택은 404", async () => {
+  const s = loadIncidents().scenarios[0], at = s.timeline.findIndex((t) => t.branch), opts = s.timeline[at].branch!.options;
+  const actual = opts.findIndex((o) => o.actual), other = opts.findIndex((o) => !o.actual);
+  const first = await call("POST", `/api/lab/incidents/${s.id}/branch`, { at, pick: other });
+  assert.deepEqual([first.status, first.json.explored, first.json.new], [201, 1, true]);
+  assert.equal((await call("POST", `/api/lab/incidents/${s.id}/branch`, { at, pick: other })).status, 200, "같은 선택은 다시 세지 않는다");
+  assert.equal((await call("POST", `/api/lab/incidents/${s.id}/branch`, { at, pick: actual })).json.explored, 2);
+  assert.equal((await call("POST", `/api/lab/incidents/${s.id}/branch`, { at: 0, pick: 0 })).status, at === 0 ? 201 : 404);
+  assert.equal((await call("POST", `/api/lab/incidents/${s.id}/branch`, { at, pick: 9 })).status, 404);
+  assert.equal((await call("POST", `/api/lab/incidents/nope/branch`, { at, pick: 0 })).status, 404);
+  const events = new MeRepository(db).cardEvents(kim.id).filter((e) => e.kind === "branch_explored");
+  assert.deepEqual(events.map((e) => e.object_id), [`${s.id}#${at}.${other}`], "실제 선택은 XP·배지에 넣지 않는다");
+  assert.ok(deleteUserData(db, kim.id, { origin: "live" }).operations >= 1);
+  assert.equal(new MeRepository(db).cardEvents(kim.id).filter((e) => e.kind === "branch_explored").length, 0);
+});

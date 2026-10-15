@@ -117,6 +117,10 @@ export class MeRepository {
     for (const r of rows("SELECT fault_id, score, created_at FROM fault_attempts WHERE user_id = ?")) {
       events.push({ kind: "fault_drill", at: String(r.created_at), object_id: String(r.fault_id), understanding: Number(r.score) });
     }
+    // 사고 사례 갈림길에서 처음 골라 본 다른 선택(015, 실제로 일어난 선택은 빼고)
+    for (const r of rows("SELECT scenario_id, at_step, pick, created_at FROM branch_explorations WHERE user_id = ? AND actual = 0")) {
+      events.push({ kind: "branch_explored", at: String(r.created_at), object_id: `${r.scenario_id}#${r.at_step}.${r.pick}` });
+    }
     for (const r of rows("SELECT section, equipment_id, updated_at FROM socratic_sessions WHERE user_id = ? AND state = 'reached'")) {
       events.push({ kind: "socratic_reached", at: String(r.updated_at), section: String(r.section), object_id: String(r.equipment_id) });
     }

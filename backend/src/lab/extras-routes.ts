@@ -69,6 +69,23 @@ export function createLabExtrasRouter({ db, auth, deck, incidents, faults = { di
     res.json(graded);
   });
 
+  // 갈림길 탐험: 고른 선택을 남긴다(같은 선택은 한 번만). 응답은 이 사례에서 골라 본 선택 수와 전체 선택 수.
+  router.post("/api/lab/incidents/:id/branch", login, express.json(), (req, res) => {
+    const s = scenario(String(req.params.id));
+    if (!s) return bad(res, 404, "없는 사례예요.");
+    const body = z.object({ at: z.number().int().min(0).max(50), pick: z.number().int().min(0).max(10) }).safeParse(req.body);
+    if (!body.success) return bad(res, 400, "장면과 선택을 보내 주세요.");
+    const option = s.timeline[body.data.at]?.branch?.options[body.data.pick];
+    if (!option) return bad(res, 404, "없는 갈림길 선택이에요.");
+    const uid = me(res).id;
+    const seen = db.prepare("SELECT 1 FROM branch_explorations WHERE user_id=? AND scenario_id=? AND at_step=? AND pick=?").get(uid, s.id, body.data.at, body.data.pick);
+    if (!seen) db.prepare("INSERT INTO branch_explorations(id,user_id,scenario_id,at_step,pick,actual,created_at) VALUES(?,?,?,?,?,?,?)")
+      .run(randomUUID(), uid, s.id, body.data.at, body.data.pick, option.actual ? 1 : 0, new Date().toISOString());
+    const explored = Number(db.prepare("SELECT COUNT(*) AS n FROM branch_explorations WHERE user_id=? AND scenario_id=?").get(uid, s.id)?.n ?? 0);
+    const total = s.timeline.reduce((n, t) => n + (t.branch?.options.length ?? 0), 0);
+    res.status(seen ? 200 : 201).json({ explored, total, new: !seen });
+  });
+
   // ── 이상 상황 훈련 ──
   const fault = (id: string) => faults.faults.find((f) => f.id === id);
   router.get("/api/lab/faults", login, (_req, res) => {

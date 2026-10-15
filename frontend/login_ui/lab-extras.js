@@ -119,7 +119,7 @@ export function createLabExtras(c, { api, set, S, fail }) {
         return { time: t.time, text: t.text, cls: i === all.length - 1 ? 'now' : '', onShow: () => showOn2d(cur.section, t.equipment_id),
           hasBranch: !!t.branch, brPrompt: t.branch?.prompt || '',
           brOpts: (t.branch?.options || []).map((o, k) => ({ text: o.text, on: pick === k, cls: pick === k ? (o.actual ? 'actual' : 'safe') : '',
-            onClick: () => c.setState(prev => ({ labIncBr: { ...(prev.labIncBr || {}), [i]: k } })) })),
+            onClick: () => { c.setState(prev => ({ labIncBr: { ...(prev.labIncBr || {}), [i]: k } })); api('POST', `/api/lab/incidents/${cur.id}/branch`, { at: i, pick: k }).catch(() => {}); } })),
           // 3D 화면(v4)의 사고 사례 재현: 이 장면까지 설비를 따라가고 고른 선택의 결과를 설비 위에 표시(sim-lab.js)
           brHref: opt ? `/3d-demo/Steel%20Academy%20v4.dc.html?p=${cur.section}&lab=incident&scenario=${cur.id}&at=${i}&pick=${pick}` : '',
           brHasOutcome: !!opt, brOutcome: opt ? `${opt.actual ? '그대로 가면 → ' : '다르게 했다면 → '}${opt.outcome}` : '', brOutCls: opt ? (opt.actual ? 'actual' : 'safe') : '' };

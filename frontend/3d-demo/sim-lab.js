@@ -652,6 +652,7 @@ export async function attachSimLab() {
     const actualIdx = t.branch.options.findIndex((o) => o.actual);
     function show(k) {
       pick = k;
+      api('POST', `/api/lab/incidents/${sc.id}/branch`, { at, pick: k }).catch(() => {});
       opts.replaceChildren(...t.branch.options.map((o, j) => { const b = btn(o.text, () => show(j), 'sl-opt'); b.setAttribute('aria-pressed', String(j === k)); if (j === k) b.classList.add(o.actual ? 'wrong' : 'right'); return b; }));
       const o = t.branch.options[k], after = sc.timeline.slice(at + 1);
       result.replaceChildren();

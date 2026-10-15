@@ -163,7 +163,7 @@ content/
 - 역할은 `trainee`(신입사원)와 `admin`(관리자). 회원가입은 항상 `trainee`. API는 [docs/auth-api.md](docs/auth-api.md), 코드는 `backend/src/auth/`.
 - 시연 계정 `trainee01`~`20`(신입사원 20명), `admin01`은 서버 시작 때 만든다(`DEMO_ACCOUNTS=off`로 끔).
 - 아이디·비밀번호 찾기는 이름 + 사번으로 본인 확인을 한다(메일 발송 없음). 시연·사내용 수준이다.
-- 관리자는 `GET /api/admin/trainees`로 신입사원별 섹션 이해도·통과 여부·시도 횟수·오개념 개수·마지막 학습일을 본다(`backend/src/admin/`). 체크포인트 테이블(`attempts`, `misconceptions`)이 없으면 계정 목록만 준다.
+- 관리자는 `GET /api/admin/trainees`로 신입사원별 섹션 이해도·통과 여부·시도 횟수·오개념 개수·마지막 학습일을 본다(`backend/src/admin/`). 체크포인트 테이블(`attempts`, `misconceptions`)이 없으면 계정 목록만 준다. 같은 숫자를 보고서로 내려받는 것은 `GET /api/admin/report.csv`(관리자 화면 헤더의 [보고서 엑셀(CSV)], `backend/src/admin/report.ts`)이고, 차트·표가 있는 A4 보고서는 `frontend/login_ui/admin-report.html`([보고서 PDF(그림)], 브라우저 인쇄로 PDF 저장)이다.
 - 시연 계정은 `users.is_demo = 1`이다(`trainee02`~`20`, 서버 시작 때 `seedDemoAccounts`가 표시. `006_demo_accounts.sql`은 처음 기준인 11~20만 표시). 관리자 화면은 실제 계정과 섞어 보여 주고 시연 계정 이름 옆에 'demo' 배지를 붙인다. `?include_demo=false`면 실제 계정만 센다(`/api/admin/trainees`, `/api/admin/concepts`).
 - 화면: `frontend/login_ui/My Page.dc.html`, 서버의 `/login`. 관리자로 로그인하면 개인 학습 기록 대신 통계를 보여 준다.
 - `npm run db:seed-demo [seed]`: 시연 기록을 무작위로 다시 만든다(`backend/src/db/demo-records.ts`). 점수는 `scoring.ts` 규칙.

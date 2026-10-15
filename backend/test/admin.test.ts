@@ -5,7 +5,8 @@ import { after, before, test } from "node:test";
 import express from "express";
 import { conceptStats } from "../src/admin/concept-stats.js";
 import { createAdminRouter } from "../src/admin/routes.js";
-import { traineeStats } from "../src/admin/trainee-stats.js";
+import { traineeReportCsv, traineeStatus } from "../src/admin/report.js";
+import { traineeStats, type TraineeStat } from "../src/admin/trainee-stats.js";
 import { signToken } from "../src/auth/tokens.js";
 import { UserRepository, type User } from "../src/auth/users.js";
 import { openDatabase } from "../src/db/database.js";
@@ -240,4 +241,35 @@ test("before → after: 이해도는 엔진과 같은 계산, 오개념은 체�
   assert.deepEqual(l.misconceptions, { open: 1, resolved: 0 });
 
   db.exec("DELETE FROM concept_results; DELETE FROM attempts; DELETE FROM misconceptions;");
+});
+
+test("보고서 CSV: 관리자만 받고, 엑셀용 BOM·첨부 파일 이름·한글 머리줄이 붙는다", async () => {
+  const fetchAs = async (user?: User, q = "") => fetch(`${base}/api/admin/report.csv${q}`, { headers: user ? { authorization: `Bearer ${await signToken(user, secret)}` } : {} });
+  assert.equal((await fetchAs()).status, 401);
+  assert.equal((await fetchAs(kim)).status, 403);
+  assert.equal((await fetchAs(admin, "?include_demo=maybe")).status, 400);
+  const res = await fetchAs(admin);
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get("content-type") ?? "", /^text\/csv; charset=utf-8/);
+  assert.match(res.headers.get("content-disposition") ?? "", /attachment; filename="trainee-report-\d{8}\.csv"/);
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  assert.deepEqual([...bytes.slice(0, 3)], [0xef, 0xbb, 0xbf], "UTF-8 BOM");
+  const lines = new TextDecoder().decode(bytes).replace(/^\uFEFF/, "").trimEnd().split("\r\n");
+  assert.ok(lines[0]!.startsWith("이름,아이디,사번,시연 계정,상태,통과 공정,제선 이해도(%),제선 결과,제선 시도 횟수"));
+  assert.equal(lines.length, 3, "머리줄 + 신입사원 2명(관리자는 빠짐)");
+  assert.ok(lines.some((l) => l.startsWith("김신입,trainee01,T1,아니오,미시작,0/")));
+});
+
+test("보고서 CSV: 섹션별 이해도·결과·시도와 상태, 오개념은 개수만, 수식처럼 보이는 글은 막는다", () => {
+  const empty = { ironmaking: null, steelmaking: null, continuous_casting: null, rolling: null };
+  const base: TraineeStat = { id: "u", username: "trainee09", name: "=HYPERLINK(\"x\")", employee_no: "T9", is_demo: true, created_at: "2026-10-01T00:00:00Z",
+    last_activity: "2026-10-14T06:05:00Z", sections: { ...empty, ironmaking: { understanding: 0.5, passed: false, attempts: 2, unconfirmed_concept_ids: [] } },
+    passed_sections: 0, in_progress_sections: ["steelmaking"], misconceptions: { open: 2, resolved: 1 } };
+  const csv = traineeReportCsv({ checkpoint_data: true, sections: ["ironmaking", "steelmaking"], demo_sections: [], include_demo: true, trainees: [base] });
+  const row = csv.replace(/^\uFEFF/, "").split("\r\n")[1]!;
+  assert.equal(row, `"'=HYPERLINK(""x"")",trainee09,T9,예,재도전 필요,0/2,50,미통과,2,,진행 중,0,2,1,2026-10-14 15:05,2026-10-01`);
+  const passed = { ...base, passed_sections: 2, sections: { ...empty, ironmaking: base.sections.ironmaking!, steelmaking: { understanding: 1, passed: true, attempts: 1, unconfirmed_concept_ids: [] } } };
+  assert.equal(traineeStatus({ ...passed, sections: { ...passed.sections, ironmaking: { ...base.sections.ironmaking!, passed: true } } }, ["ironmaking", "steelmaking"]), "수료");
+  assert.equal(traineeStatus({ ...base, sections: empty }, ["ironmaking", "steelmaking"]), "진행 중");
+  assert.equal(traineeStatus({ ...base, sections: empty, in_progress_sections: [] }, ["ironmaking", "steelmaking"]), "미시작");
 });

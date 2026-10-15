@@ -47,6 +47,8 @@
 - `demo_sections`: final 루브릭이 없어 시연 개념 목록(`content/demo/sections.json`)으로 계산한 섹션. 이 섹션은 시연 기록(`origin = 'seed'`)만 센다.
 - 시연 기록: `npm run db:seed-demo [seed]`가 `trainee02`~`20`의 시연 기록(`seed`)을 지우고 다시 만든다(`trainee01`은 실제 테스트 계정이라 만들지 않음). 관리자 화면에서 골고루 보이게 사람마다 진도를 정해 둔다: 수료 8(03~08·18·19), 진행 중 4(09~12), 재도전 필요 4(13~16), 미시작 2(17·20), 시연용 trainee02는 정해 둔 시나리오(제선 재도전 뒤 통과, 제강 재도전 필요). 상태는 seed와 상관없이 같고, 점수·오개념 같은 세부 기록은 seed가 같으면 같다(예: `npm run db:seed-demo -- 58`).
 
+`GET /api/admin/report.csv?include_demo=false` (토큰 필요, `admin`만): 위 신입사원 통계를 엑셀에서 바로 열리는 CSV(UTF-8 BOM, CRLF)로 내려받는다. 파일 이름은 `신입사원_학습현황_YYYYMMDD.csv`(`filename*`), 한 줄에 한 명: 이름·아이디·사번·시연 계정·상태(수료/재도전 필요/진행 중/미시작, 관리자 화면과 같은 규칙)·통과 공정·공정별 이해도(%)·결과·시도 횟수·미해결/해결 오개념 개념 수·마지막 학습(한국 시간)·가입일. 오개념 내용·답변 원문은 넣지 않는다. `=`·`+`·`-`·`@`로 시작하는 글은 엑셀이 수식으로 읽지 않게 `'`를 붙인다(`backend/src/admin/report.ts`).
+
 `GET /api/admin/trainees/:id` (토큰 필요, `admin`만): 신입사원 한 명 상세. 관리자 화면에서 사람을 누르면 오른쪽 패널로 보여 준다(`backend/src/admin/trainee-detail.ts`). 신입사원이 아니거나 없으면 `404 TRAINEE_NOT_FOUND`.
 
 - `trainee`: `/api/admin/trainees`의 그 사람 항목과 같다(같은 숫자).

@@ -61,6 +61,7 @@ function injectStyle() {
     .sl-next { padding: 10px 12px; border-radius: 10px; background: rgba(255,107,107,.1); border-left: 3px solid #ff6b6b; font-size: 15px; }
     .sl-cause.sl-on, .sl-next.sl-on { box-shadow: 0 0 0 2px #2bd4b4; } .sl-cause.sl-dim, .sl-next.sl-dim { opacity: .45; }
     .sl-tour { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .sl-link { width: 100%; box-sizing: border-box; padding: 7px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.06); color: inherit; font: 14px/1.4 ui-monospace, monospace; }
     .sl-scenes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
     .sl-read { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,.06); border: 1px solid transparent; text-align: left; color: inherit; font: inherit; cursor: pointer; }
     .sl-read:disabled { cursor: default; }
@@ -226,7 +227,7 @@ export async function attachSimLab() {
     else if (prev && panel.contains(document.activeElement)) launcherOf[prev]?.focus();
     bWhatif.setAttribute('aria-pressed', String(mode === 'whatif')); bFault.setAttribute('aria-pressed', String(mode === 'fault')); bMap.setAttribute('aria-pressed', String(mode === 'map'));
     panel.hidden = !mode; panel.replaceChildren();
-    if (mode === 'whatif') void whatifPanel(preset); else if (mode === 'fault') void (opt.fault ? faultDrill(opt.fault) : faultList()); else if (mode === 'map') void causalMap(preset, opt.var); else if (mode === 'quiz') void causalQuizPanel(opt.process); else if (mode === 'incident') void incidentPanel(opt.scenario, Number(opt.at), Number(opt.pick));
+    if (mode === 'whatif') void whatifPanel(preset); else if (mode === 'fault') void (opt.fault ? faultDrill(opt.fault) : faultList()); else if (mode === 'map') void causalMap(preset, opt.var, opt.tour); else if (mode === 'quiz') void causalQuizPanel(opt.process); else if (mode === 'incident') void incidentPanel(opt.scenario, Number(opt.at), Number(opt.pick));
   }
   const head = (title, foldable = false) => {
     const h = el('h3'); h.append(el('span', '', title)); h.tabIndex = -1;
@@ -256,7 +257,7 @@ export async function attachSimLab() {
 
   // ── ⓪ 공정 인과 지도: 조정 변수 6개 → 공정 사이로 퍼지는 반응 ──
   const SECTION_ORDER = ['ironmaking', 'steelmaking', 'continuous_casting', 'rolling'];
-  async function causalMap(preset = {}, startVar = null) {
+  async function causalMap(preset = {}, startVar = null, autoTour = false) {
     const input = { ...preset };
     panel.append(head('🗺 공정 인과 지도', true),
       el('p', 'sl-muted sl-hide', '조정할 수 있는 값 하나를 바꾸면, 그 영향이 다음 공정으로 어떻게 번지는지 3D 공장 위에 흐름으로 보여요. 주황은 값이 오르는 연결, 파랑은 내리는 연결이에요.'));
@@ -314,9 +315,10 @@ export async function attachSimLab() {
         if (!ctl) return;
         ctl.replaceChildren(...(running()
           ? [btn(`다음 ▶ (${step + 1}/${data.story.length})`, () => skip?.(), 'sl-btn ghost'), btn('■ 그만 보기', () => { say('따라가기를 멈췄어요.'); stop(true); }, 'sl-btn ghost')]
-          : data.story.length > 1 ? [btn(`▶ 인과 따라가기 (${data.story.length}단계)`, () => { token++; step = -1; void go(token); }, 'sl-btn')] : []));
+          : data.story.length > 1 ? [btn(`▶ 인과 따라가기 (${data.story.length}단계)`, () => start(), 'sl-btn')] : []));
       }
-      return { stop, controls() { ctl = el('div', 'sl-tour'); refresh(); if (running()) setTimeout(mark, 0); return ctl; }, get running() { return running(); } };
+      const start = () => { if (data?.story.length > 1) { token++; step = -1; void go(token); } };
+      return { stop, start, controls() { ctl = el('div', 'sl-tour'); refresh(); if (running()) setTimeout(mark, 0); return ctl; }, get running() { return running(); } };
     })();
     async function run() {
       tour.stop(false);
@@ -335,6 +337,20 @@ export async function attachSimLab() {
         row.append(el('span', '', `${SECTION[n.process]} · ${n.label}`), range, el('b', '', '')); controls.append(row);
       }
       controls.append(btn('기준 조건으로', () => { for (const k of Object.keys(input)) delete input[k]; void run(); }, 'sl-btn ghost'));
+      // 조건 링크: 기준과 다른 조정 값을 주소(?lab=map&set=id:값,…&tour=1)로 복사한다. 교육 담당자가 같은 실험을 수업 자료로 나눌 때 쓴다.
+      const linkOut = el('input', 'sl-link'); linkOut.readOnly = true; linkOut.hidden = true; linkOut.setAttribute('aria-label', '조건 링크');
+      const copy = async (tourToo) => {
+        const moved = data.nodes.filter((n) => n.control && n.delta), changed = moved.map((n) => `${n.id}:${n.value}`);
+        if (!changed.length) { say('기준 조건과 같아서 담을 값이 없어요. 값을 하나 바꾼 뒤 눌러 주세요.'); return; }
+        const url = `${location.origin}${location.pathname}?p=${moved[0]?.process || 'ironmaking'}&lab=map&set=${changed.join(',')}${tourToo ? '&tour=1' : ''}`;
+        linkOut.value = url; linkOut.hidden = false;
+        let ok = false;
+        try { await navigator.clipboard.writeText(url); ok = true; } catch (e) { linkOut.select(); try { ok = document.execCommand('copy'); } catch (e2) {} }
+        say(ok ? `링크를 복사했어요. 바꾼 값 ${changed.length}개${tourToo ? ', 열면 따라가기가 바로 시작돼요' : ''}.` : '복사하지 못했어요. 아래 칸의 주소를 직접 복사해 주세요.');
+      };
+      const linkRow = el('div', 'sl-tour');
+      linkRow.append(btn('🔗 이 조건 링크 복사', () => void copy(false), 'sl-btn ghost'), btn('🔗 따라가기까지', () => void copy(true), 'sl-btn ghost'));
+      controls.append(linkRow, linkOut);
     }
     function render() {
       // 설명: 위에서 아래로 따라간 인과
@@ -402,6 +418,7 @@ export async function attachSimLab() {
     }
     plantView();
     await run();
+    if (autoTour) tour.start();
   }
 
   // ── 인과 퀴즈: 원인 → 결과 → 다음 공정 영향을 한 칸씩 묻는다 ──
@@ -680,7 +697,9 @@ export async function attachSimLab() {
   const qs = new URLSearchParams(location.search), lab = qs.get('lab');
   if (['map', 'quiz', 'fault', 'whatif', 'incident'].includes(lab)) {
     const id = (k) => (/^[a-z0-9_-]{1,40}$/.test(qs.get(k) || '') ? qs.get(k) : undefined);
-    setTimeout(() => open(lab, {}, { var: id('var'), process: id('process'), fault: id('fault'), scenario: id('scenario'), at: id('at'), pick: id('pick') }), 1200);
+    // set=coke_rate:290,cast_speed:1.4 (id는 영문·숫자·_, 값은 숫자만. 범위는 서버가 다시 자른다)
+    const preset = Object.fromEntries((qs.get('set') || '').split(',').map((kv) => kv.split(':')).filter(([k, v]) => /^[a-z0-9_]{1,40}$/.test(k || '') && Number.isFinite(Number(v)) && v !== '').slice(0, 10).map(([k, v]) => [k, Number(v)]));
+    setTimeout(() => open(lab, preset, { tour: qs.get('tour') === '1', var: id('var'), process: id('process'), fault: id('fault'), scenario: id('scenario'), at: id('at'), pick: id('pick') }), 1200);
   }
   const sectionOf = (eqId) => Object.entries(scene.zones || {}).find(([, z]) => (z.eqs || []).some((e) => e.id === eqId))?.[0] || 'ironmaking';
 }

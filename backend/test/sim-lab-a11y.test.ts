@@ -49,3 +49,10 @@ test("틀린 연결 → 튜터 질문: 3D 실습이 steel-tutor-draft를 보내�
   assert.match(hook, /this\.setState\(\{ input: t \}\); this\.openTutor\(\);/);
   assert.doesNotMatch(hook, /\.ask\(/, "질문을 바로 보내지 않는다(LLM 호출은 학습자가 보낼 때만)");
 });
+
+test("인과 지도 조건 링크: 바꾼 조정 값만 set=id:값으로 담고, 주소를 읽을 때 id·숫자를 검사하고 tour=1이면 따라가기를 시작한다", () => {
+  assert.match(src, /&lab=map&set=\$\{changed\.join\(','\)\}\$\{tourToo \? '&tour=1' : ''\}/);
+  assert.match(src, /\/\^\[a-z0-9_\]\{1,40\}\$\/\.test\(k \|\| ''\) && Number\.isFinite\(Number\(v\)\)/);
+  assert.match(src, /if \(autoTour\) tour\.start\(\);/);
+  assert.match(src, /linkOut\.select\(\)/, "클립보드가 막히면 주소 칸을 보여 주고 선택");
+});

@@ -152,3 +152,17 @@ test("조사 함수: 받침 유무와 ㄹ 받침('으로/로'), 끝 괄호는 �
   assert.deepEqual(["제선", "연주", "레일", "용선 황(S)"].map((w) => josa(w, "으로", "로")), ["제선으로", "연주로", "레일로", "용선 황(S)으로"]);
   assert.equal(josa("BOF", "은", "는"), "BOF는");
 });
+
+test("'언제 나타날까?' 시간 질문: 공정을 넘는 길, 보기 4개 중 정답 하나(공정 사이 시간), 채점은 공정으로 다시 계산", async () => {
+  const { lagQuiz, checkLag, arrivalText, NODES } = await import("../src/lab/causal.js");
+  for (const seed of [1, 5, 77, 1234, 99999]) {
+    const q = lagQuiz(seed);
+    assert.notEqual(q.from.process, q.to.process);
+    assert.equal(q.options.length, 4);
+    assert.equal(new Set(q.options).size, 4);
+    const answer = arrivalText(q.from.process as never, q.to.process as never);
+    assert.ok(q.options.includes(answer));
+    for (const o of q.options) assert.equal(checkLag(q.from.id, q.to.id, o)!.correct, o === answer);
+  }
+  assert.equal(checkLag("nope", NODES[0].id, "바로"), null);
+});

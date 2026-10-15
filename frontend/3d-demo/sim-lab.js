@@ -559,6 +559,7 @@ export async function attachSimLab() {
         box.replaceChildren(el('b', '', `${round > 1 ? `다시 풀기 ${round - 1}회차 끝` : '다 풀었어요'} · ${right} / ${total} 칸 맞힘`),
           el('p', 'sl-muted', misses ? '틀린 칸은 "같은 방향/반대 방향" 규칙을 떠올려 보세요. 두 칸을 지나면 방향은 규칙 두 개를 곱한 것과 같아요.' : (round > 1 ? '틀렸던 칸을 모두 바로잡았어요!' : '모든 칸을 맞혔어요!')), tools);
         say(`${right} / ${total} 칸 맞힘.${misses ? ` 틀린 칸 ${misses}개를 다시 풀 수 있어요.` : ''}`);
+        void lagBox();
         return;
       }
       const c = chains[qi], a = c.nodes[0], hops = c.nodes.length - 1;
@@ -579,6 +580,27 @@ export async function attachSimLab() {
         ask(c, h, from, to, () => step(h + 1));
       };
       step(1);
+    }
+    // ⏱ '언제 나타날까?': 방향 다음은 시간. 원인 공정의 변화가 다른 공정 값에 닿는 때를 고른다(기록하지 않음)
+    async function lagBox() {
+      let q;
+      try { q = await api('GET', `/api/lab/causal/lag-quiz?seed=${Date.now() % 100000}`); } catch (e) { return; }
+      const lb = el('div', 'sl-box');
+      lb.append(el('b', '', '⏱ 언제 나타날까?'), el('div', '', `${SECTION[q.from.process]} · ${eulReul(q.from.label)} 바꾸면, ${SECTION[q.to.process]} · ${eunNeun(q.to.label)} 언제 달라질까요?`), el('small', 'sl-muted', `길: ${q.path.join(' → ')}`));
+      const list = el('div', 'sl-tour'); list.setAttribute('role', 'group'); list.setAttribute('aria-label', '언제 나타날까 보기');
+      for (const t of q.options) {
+        const b = btn(t, async () => {
+          for (const x of list.querySelectorAll('button')) x.disabled = true;
+          let r; try { r = await api('POST', '/api/lab/causal/lag-quiz/check', { from: q.from.id, to: q.to.id, choice: t }); } catch (e) { return; }
+          b.classList.add(r.correct ? 'right' : 'wrong');
+          for (const x of list.querySelectorAll('button')) if (x.textContent === r.answer) x.classList.add('right');
+          const msg = `${r.correct ? '✓ 맞아요' : '✗ 아니에요'} — ${r.answer === '바로' ? '같은 공정이라 거의 바로 나타나요.' : `${r.answer} 나타나요. 물질이 다음 공정까지 옮겨 가야 영향이 보여요.`}`;
+          lb.append(el('p', r.correct ? 'sl-ok' : 'sl-bad', msg), el('small', 'sl-muted', r.note)); say(msg.replace(/[✓✗]/g, ''));
+          fx.clear(); fx.flow(q.from.equipment_id, q.to.equipment_id, 0xffb020); fx.tag(q.to.equipment_id, `⏱ ${r.answer}`, 'hot', 7);
+        }, 'sl-opt');
+        list.append(b);
+      }
+      lb.append(list); box.append(lb);
     }
     function ask(c, hop, from, to, done) {
       const q = el('div'); q.style.cssText = 'display:flex;flex-direction:column;gap:6px;';

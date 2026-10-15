@@ -20,7 +20,7 @@ import { checkStep, faultScore, faultView, type FaultDrill } from "./faults.js";
 import { gradeIncident, scenarioView, type IncidentScenario } from "./incidents.js";
 import { maskName } from "./league.js";
 import { whatIf } from "./whatif.js";
-import { NODES, causalQuiz, checkDiagnose, checkHop, conceptVars, diagnoseQuiz, simulateCausal } from "./causal.js";
+import { NODES, causalQuiz, checkDiagnose, checkHop, checkLag, conceptVars, diagnoseQuiz, lagQuiz, simulateCausal } from "./causal.js";
 import { loadFinalRubrics, type Rubric } from "../rubrics.js";
 import { loadDemoSections, type DemoSections } from "../demo-sections.js";
 
@@ -160,6 +160,16 @@ export function createLabExtrasRouter({ db, auth, deck, incidents, faults = { di
       if (!out[c.id] && conceptVars(c.id).length) out[c.id] = { section, vars: conceptVars(c.id) };
     }
     res.json({ concepts: out });
+  });
+  // '언제 나타날까?' 시간 질문(인과 퀴즈 끝): 기록하지 않는 자가 점검
+  router.get("/api/lab/causal/lag-quiz", login, (req, res) => res.json(lagQuiz(Number(req.query.seed) || Date.now() % 100000)));
+  router.post("/api/lab/causal/lag-quiz/check", login, express.json(), (req, res) => {
+    const id = z.string().regex(/^[a-z0-9_]{1,40}$/);
+    const body = z.object({ from: id, to: id, choice: z.string().max(40) }).safeParse(req.body);
+    if (!body.success) return bad(res, 400, "변수와 고른 답을 보내 주세요.");
+    const out = checkLag(body.data.from, body.data.to, body.data.choice);
+    if (!out) return bad(res, 404, "없는 변수예요.");
+    res.json(out);
   });
   // 거꾸로 추론 퀴즈(진단형): 증상 → 원인 고르기. 기록하지 않는 자가 점검(사원증 XP 없음).
   router.get("/api/lab/causal/diagnose", login, (req, res) => res.json({ questions: diagnoseQuiz(Number(req.query.seed) || Date.now() % 100000, 4) }));

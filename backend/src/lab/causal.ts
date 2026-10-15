@@ -277,3 +277,28 @@ export function checkDiagnose(id: string, choice: string, symptomIds: string[]) 
     nodes: truth.nodes.filter((m) => m.delta).map((m) => ({ id: m.id, equipment_id: m.equipment_id })),
   };
 }
+
+// ── '언제 나타날까?' 시간 질문: 원인 변수 → 다른 공정 변수가 바뀌는 때(공정 사이 시간 지연, LAG_HOURS) ──
+const LAG_CHOICES = ["바로", ...new Set(PROCESS_SEQ.flatMap((a) => PROCESS_SEQ.map((b) => arrivalText(a, b))).filter((t) => t !== "바로"))];
+
+/** 시간 질문 하나: 공정을 넘는 길의 처음과 끝 변수, 보기 4개(정답 포함, 섞음). */
+export function lagQuiz(seed = 1) {
+  let x = (Math.abs(Math.floor(seed)) % 2147483646) + 1;
+  const rand = () => (x = (x * 48271) % 2147483647) / 2147483647;
+  const pool = [...causalChains(3), ...causalChains(4)].filter((c) => byId.get(c.nodes[0])!.process !== byId.get(c.nodes[c.nodes.length - 1])!.process);
+  const c = pool[Math.floor(rand() * pool.length)];
+  const from = byId.get(c.nodes[0])!, to = byId.get(c.nodes[c.nodes.length - 1])!;
+  const answer = arrivalText(from.process, to.process);
+  const others = LAG_CHOICES.filter((t) => t !== answer).map((t) => ({ t, k: rand() })).sort((a, b) => a.k - b.k).slice(0, 3).map((o) => o.t);
+  const options = [answer, ...others].map((t) => ({ t, k: rand() })).sort((a, b) => a.k - b.k).map((o) => o.t);
+  const pick = (n: NodeDef) => ({ id: n.id, label: n.label, process: n.process, equipment_id: n.equipment_id });
+  return { from: pick(from), to: pick(to), path: c.nodes.map((id) => byId.get(id)!.label), options };
+}
+
+/** 시간 질문 채점: 두 변수의 공정으로 정답을 다시 계산한다. */
+export function checkLag(fromId: string, toId: string, choice: string) {
+  const a = byId.get(fromId), b = byId.get(toId);
+  if (!a || !b) return null;
+  const answer = arrivalText(a.process, b.process);
+  return { correct: choice === answer, answer, note: LAG_NOTE };
+}

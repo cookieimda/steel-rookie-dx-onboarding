@@ -63,3 +63,13 @@ test("인과 퀴즈 틀린 칸만 다시 풀기: 틀린 칸을 길·칸으로 �
   assert.ok(src.includes("if (c.only && !c.only.has(1))") && src.includes("(지난번에 맞힌 칸)"));
   assert.ok(src.includes("hop1_up: c.hop1_up"), "둘째 칸만 틀린 길도 첫 칸 방향을 기억");
 });
+
+test("공장 전체 물류 흐름: 용선 → 용강 → 슬래브 → 코일 경로의 설비가 모두 화면 설비 목록(data_v2.js)에 있고, 앞 물질의 끝 설비에서 다음 물질이 시작한다", () => {
+  const data = readFileSync(join(process.cwd(), "frontend", "3d-demo", "data_v2.js"), "utf8");
+  const block = src.slice(src.indexOf("const MATERIAL_FLOW = ["), src.indexOf("let flowOn"));
+  const routes = [...block.matchAll(/route: \[([^\]]+)\]/g)].map((m) => [...m[1].matchAll(/'([a-z_]+)'/g)].map((x) => x[1]));
+  assert.equal(routes.length, 4);
+  for (const id of routes.flat()) assert.ok(data.includes(`id: '${id}'`) || data.includes(`id: "${id}"`), `설비 ${id}`);
+  for (let i = 1; i < routes.length; i++) assert.equal(routes[i][0], routes[i - 1].at(-1), `${i}번째 물질이 앞 물질 끝에서 시작`);
+  assert.ok(src.includes("if (flowOn) { flowOn = false; bPlant.setAttribute('aria-pressed', 'false'); }"), "실습 패널을 열면 흐름 표시 상태를 끈다");
+});

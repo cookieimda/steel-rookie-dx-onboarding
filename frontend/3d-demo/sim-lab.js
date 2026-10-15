@@ -206,11 +206,12 @@ export async function attachSimLab() {
   // 튜터에게 묻느라 잠시 숨긴 패널이면, 그 실습 버튼은 진행 중인 패널을 그대로 다시 보인다
   const toggle = (m, b) => { if (panel.hidden && mode && launcherOf[mode] === b) { panel.hidden = false; b.setAttribute('aria-expanded', 'true'); panel.querySelector('h3')?.focus({ preventScroll: true }); return; } open(mode === m ? null : m); };
   const bWhatif = btn('🧪 조업 실험', () => toggle('whatif', bWhatif), ''), bFault = btn('🚨 이상 상황 훈련', () => toggle('fault', bFault), '');
-  const bMap = btn('🗺 공정 인과 지도', () => toggle('map', bMap), ''), bPlant = btn('🏭 공장 전체 보기', () => plantView(), '');
+  const bMap = btn('🗺 공정 인과 지도', () => toggle('map', bMap), ''), bPlant = btn('🏭 공장 전체 보기', () => plantFlow(), '');
   launch.append(bMap, bWhatif, bFault, bPlant);
   launch.setAttribute('role', 'toolbar'); launch.setAttribute('aria-label', '3D 실습 도구');
   for (const b of [bMap, bWhatif, bFault]) b.setAttribute('aria-controls', 'sl-panel');
-  bPlant.title = '공정 4개가 한 화면에 들어오게 카메라를 물려요';
+  bPlant.title = '공정 4개가 한 화면에 들어오게 카메라를 물리고, 실습이 열려 있지 않으면 용선 → 용강 → 슬래브 → 코일 흐름을 보여 줘요';
+  bPlant.setAttribute('aria-pressed', 'false');
   document.body.append(launch, panel, live);
   // 패널 아래 끝 = 실행 버튼 묶음 위 + 10px. 버튼이 줄바꿈되거나 창 크기가 바뀌면 다시 잰다.
   const fitPanel = () => { const top = launch.getBoundingClientRect().top; if (top > 0) document.documentElement.style.setProperty('--sl-panel-bottom', `${Math.round(innerHeight - top + 10)}px`); };
@@ -222,6 +223,7 @@ export async function attachSimLab() {
   function open(next, preset, opt = {}) {
     const prev = mode;
     mode = next; fx.clear(); panel.classList.remove('compact');
+    if (flowOn) { flowOn = false; bPlant.setAttribute('aria-pressed', 'false'); }
     for (const b of [bMap, bWhatif, bFault]) b.setAttribute('aria-expanded', String(!!mode && launcherOf[mode] === b));
     if (mode) panel.setAttribute('aria-label', `3D 실습 · ${TITLES[mode]}`);
     // 닫으면 그 실습을 연 버튼으로 포커스를 돌려준다(패널 안에 포커스가 있었을 때만)
@@ -249,6 +251,33 @@ export async function attachSimLab() {
     say(`튜터 입력창에 질문을 채웠어요. 고쳐서 보내도 돼요. 실습은 ${launcherOf[mode]?.textContent.replace(/^\S+\s/, '') || '실습'} 버튼을 누르면 그대로 돌아와요.`);
   }
   const tutorBtn = (text) => btn('🎓 튜터에게 이 연결 묻기', () => askTutor(text), 'sl-btn ghost');
+
+  // ── 공장 전체 물류 흐름: 실습 패널이 닫혀 있을 때 공장 전체 보기를 누르면 물질이 공정 사이를 어떻게 넘어가는지 흐름으로 보인다 ──
+  // 설비 사이 구간마다 그 구간을 지나는 물질 색(용선 주황·용강 노랑·슬래브 붉은 주황·코일 청회색), 물질이 바뀌는 설비에 이름표. 다시 누르면 지운다.
+  const MATERIAL_FLOW = [
+    { name: '용선(쇳물)', note: '약 1,500℃', color: 0xff8a3d, route: ['blast_furnace', 'taphole_casthouse', 'torpedo_car', 'hot_metal_pretreatment', 'bof_converter'] },
+    { name: '용강', note: '약 1,640℃', color: 0xffd166, route: ['bof_converter', 'tapping_ladle_crane', 'secondary_refining', 'ladle_transfer', 'ladle_turret', 'tundish', 'cc_mold'] },
+    { name: '슬래브', note: '두께 약 250mm', color: 0xff5a3d, route: ['cc_mold', 'secondary_cooling', 'withdrawal_straightener', 'torch_cutter', 'reheating_furnace'] },
+    { name: '코일', note: '권취 약 600℃', color: 0x9ab4d6, route: ['reheating_furnace', 'descaler', 'roughing_mill', 'finishing_mill', 'runout_table', 'coiler'] },
+  ];
+  let flowOn = false;
+  function plantFlow() {
+    plantView();
+    if (scene._2d || mode) { if (mode) say('공장 전체로 카메라를 물렸어요. 물류 흐름은 실습 패널을 닫으면 볼 수 있어요.'); return; }
+    if (flowOn) { flowOn = false; fx.clear(); bPlant.setAttribute('aria-pressed', 'false'); say('물류 흐름을 지웠어요.'); return; }
+    fx.clear();
+    const known = new Set(Object.values(scene.zones || {}).flatMap((z) => (z.eqs || []).map((e) => e.id)));
+    MATERIAL_FLOW.forEach((m, i) => {
+      // 앵커가 없는 설비는 건너뛰고 이어 붙인다(제강 신규 설비 일부는 앵커가 없다, 이슈 #16)
+      const stops = m.route.filter((id) => known.has(id));
+      stops.forEach((id, j) => { if (j) fx.flow(stops[j - 1], id, m.color, { dots: 6 }); });
+      if (stops.length) fx.tag(stops[0], `${'①②③④'[i]} ${m.name} · ${m.note}`, i === 3 ? 'cold' : 'hot', 9);
+    });
+    const last = MATERIAL_FLOW[3].route.filter((id) => known.has(id)).pop();
+    if (last) fx.ring(last, 0x9ab4d6, true);
+    flowOn = true; bPlant.setAttribute('aria-pressed', 'true');
+    say('공장 전체 물류 흐름이에요. 고로에서 나온 용선이 전로에서 용강이 되고, 연주에서 슬래브로 굳은 뒤, 열간압연에서 코일로 감겨요. 다시 누르면 지워요.');
+  }
 
   /** 공장 전체 보기: 공정 4개가 한 화면에 들어오는 드론 시점(sleek-overview가 정한 _overviewPose). 공정을 넘는 흐름을 볼 때 쓴다. */
   function plantView() {

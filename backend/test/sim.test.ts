@@ -272,3 +272,22 @@ test("HTTP 수업: 목록은 단계 수만, 하나는 단계 전체, 없는 수�
   assert.equal(one.json.lesson.steps[1].lab, "map");
   assert.equal((await call("GET", "/api/lab/lessons/nope")).status, 404);
 });
+
+test("개념 → 인과 지도 변수: 표의 개념은 final 루브릭에 있고 변수는 같은 공정의 인과 지도 변수, API는 개념마다 공정·변수를 준다", async () => {
+  const { CONCEPT_VARS, NODES, conceptVars } = await import("../src/lab/causal.js");
+  const { loadFinalRubrics } = await import("../src/rubrics.js");
+  const { loadDemoSections } = await import("../src/demo-sections.js");
+  const finals = loadFinalRubrics().flatMap((r) => r.concepts.map((c) => ({ id: c.concept_id, section: r.section })));
+  const demos = Object.entries(loadDemoSections()).flatMap(([section, list]) => (list ?? []).map((c) => ({ id: c.id, section })));
+  const concepts = [...finals, ...demos];
+  for (const [cid, vars] of Object.entries(CONCEPT_VARS)) {
+    const c = concepts.find((x) => x.id === cid);
+    assert.ok(c, `${cid}는 final 루브릭 또는 시연 개념`);
+    for (const v of vars) assert.equal(NODES.find((n) => n.id === v)?.process, c!.section, `${cid} → ${v}`);
+  }
+  assert.deepEqual(conceptVars("unknown_concept", ["torpedo_car"]), ["hm_s"], "표에 없으면 같은 설비의 변수");
+  const res = await call("GET", "/api/lab/causal/concepts");
+  assert.deepEqual(res.json.concepts.coke_reduction, { section: "ironmaking", vars: ["coke_rate", "hm_temp"] });
+  assert.equal(Object.keys(res.json.concepts).length, concepts.length, "final 3개 + 시연 9개 모두 연결");
+  assert.deepEqual(res.json.concepts.demo_cooling_coiling, { section: "rolling", vars: ["cool_banks", "coiling_temp"] });
+});

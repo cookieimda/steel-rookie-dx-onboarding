@@ -146,6 +146,8 @@
     /* ── 학습 랩 탭(2026-10-15): 간격 반복·주간 리그·xAPI 기록·세션 리플레이·소크라테스. 로직은 learning-lab.js, 서버는 backend/src/lab/ ── */
     .lb { flex-direction: column; gap: 16px; padding: 20px 22px 22px; min-width: 0; }
     .lb-sub { display: flex; flex-wrap: wrap; gap: 6px; }
+    .dg-mis-map { display: inline-block; margin-top: 6px; font-size: 15px; font-weight: 700; color: var(--orange); text-decoration: none; }
+    .dg-mis-map:hover, .dg-mis-map:focus-visible { text-decoration: underline; }
     /* 오늘의 실습 경로(학습 랩 맨 위): 가장 약한 공정 → 3D 인과 지도·인과 퀴즈·이상 상황 훈련 */
     .lb-path { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: var(--cut); border: 1px solid color-mix(in srgb, var(--orange) 45%, transparent); background: color-mix(in srgb, var(--orange) 8%, var(--panel2)); }
     .lb-path-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
@@ -427,6 +429,7 @@
             <details class="dg-acc">
               <summary><strong>{{ m.name }}</strong><span style="color:{{ m.color }};">{{ m.status }}</span><i aria-hidden="true">+</i></summary>
               <p>{{ m.summary }}</p>
+              <sc-if value="{{ m.hasMap }}" hint-placeholder-val="{{ false }}"><a class="dg-mis-map" href="{{ m.mapHref }}">🗺 인과 지도에서 이 개념 보기 · {{ m.mapVars }}</a></sc-if>
             </details>
           </sc-for>
         </div>
@@ -873,6 +876,7 @@ class Component extends DCLogic {
     if (!auth) { this.setState({ error: '로그인한 뒤 학습 현황을 볼 수 있습니다.' }); return; }
     // 학습 랩(learning-lab.js): 이 화면의 리플레이 기록을 시작한다(본인만 보고 [기록 끄기]로 멈춘다)
     import('./learning-lab.js').then(({ createLearningLab }) => { this.lab = createLearningLab(this); this.lab.track('start', { tab: this.state.moduleTab, process: this.state.processId }); this.lab.startBell(); this.forceUpdate(); });
+    fetch('/api/lab/causal/concepts', { headers: { authorization: 'Bearer ' + auth } }).then(r => (r.ok ? r.json() : null)).then(j => { if (j) this.setState({ causalConcepts: j.concepts }); }).catch(() => {});
     fetch('/api/me/dashboard', { headers: { authorization: 'Bearer ' + auth } })
       .then(async response => { if (!response.ok) throw new Error('학습 현황을 DB에서 불러오지 못했습니다.'); return response.json(); })
       .then(data => { this.setState({ data, loadedAt: new Date() }); this.checkPromotion(data); }, error => this.setState({ error: error.message }));
@@ -1039,8 +1043,10 @@ class Component extends DCLogic {
       reviewCount: D ? String(reviews.length) : '—', reviewCountColor: D && reviews.length ? 'var(--mid)' : 'var(--muted)',
       misCount: D ? String(open) : '—', misCountColor: D && open ? 'var(--bad)' : 'var(--muted)',
       reviews, reviewEmpty: !!D && reviews.length === 0,
-      misconceptions: misconceptions.slice(0, 8).map(m => ({ name: conceptName(m.section, m.concept_id, m.concept_name), summary: m.summary,
-        status: m.resolved ? '해결됨' : m.label, color: m.resolved ? 'var(--ok)' : 'var(--bad)' })),
+      // 인과 지도 연결(/api/lab/causal/concepts): 그 개념의 첫 변수 설명 카드로 3D 인과 지도를 연다
+      misconceptions: misconceptions.slice(0, 8).map(m => { const cv = S.causalConcepts?.[m.concept_id]; return { name: conceptName(m.section, m.concept_id, m.concept_name), summary: m.summary,
+        status: m.resolved ? '해결됨' : m.label, color: m.resolved ? 'var(--ok)' : 'var(--bad)',
+        hasMap: !!cv, mapHref: cv ? `/3d-demo/Steel%20Academy%20v4.dc.html?p=${cv.section}&lab=map&var=${cv.vars[0]}` : '', mapVars: cv ? `${cv.vars.length}개 값` : '' }; }),
       misEmpty: !!D && misconceptions.length === 0,
     };
   }

@@ -20,7 +20,14 @@ import { checkStep, faultScore, faultView, type FaultDrill } from "./faults.js";
 import { gradeIncident, scenarioView, type IncidentScenario } from "./incidents.js";
 import { maskName } from "./league.js";
 import { whatIf } from "./whatif.js";
-import { NODES, causalQuiz, checkDiagnose, checkHop, diagnoseQuiz, simulateCausal } from "./causal.js";
+import { NODES, causalQuiz, checkDiagnose, checkHop, conceptVars, diagnoseQuiz, simulateCausal } from "./causal.js";
+import { loadFinalRubrics, type Rubric } from "../rubrics.js";
+import { loadDemoSections, type DemoSections } from "../demo-sections.js";
+
+/** final 루브릭(개념·설비). 읽지 못하면 빈 목록(이 API만 비고 다른 기능은 그대로). */
+let rubricCache: readonly Rubric[] | null = null, demoCache: DemoSections | null = null;
+const demoConcepts = () => { if (!demoCache) { try { demoCache = loadDemoSections(); } catch { demoCache = {}; } } return demoCache; };
+const conceptRubrics = () => { if (!rubricCache) { try { rubricCache = loadFinalRubrics(); } catch { rubricCache = []; } } return rubricCache; };
 import { practiceStats } from "./practice-stats.js";
 import type { LessonDef } from "./lessons.js";
 import { practicePath } from "./practice-path.js";
@@ -140,6 +147,19 @@ export function createLabExtrasRouter({ db, auth, deck, incidents, faults = { di
   router.get("/api/lab/causal/quiz", login, (req, res) => {
     const process = SECTION_ORDER.includes(req.query.process as Section) ? String(req.query.process) : undefined;
     res.json({ chains: causalQuiz(Number(req.query.seed) || Date.now() % 100000, 5, process, req.query.level === "2" ? 2 : 1) });
+  });
+  // 개념 → 인과 지도 변수(학습 기록 '내 오개념'의 [인과 지도에서 보기]). final 루브릭 개념만.
+  router.get("/api/lab/causal/concepts", login, (_req, res) => {
+    const out: Record<string, { section: string; vars: string[] }> = {};
+    for (const r of conceptRubrics()) for (const c of r.concepts) {
+      const vars = conceptVars(c.concept_id, c.equipment_ids ?? []);
+      if (vars.length) out[c.concept_id] = { section: r.section, vars };
+    }
+    // 시연 개념(final 루브릭이 없는 공정): id·이름만 있으므로 표에 있는 것만
+    for (const [section, list] of Object.entries(demoConcepts())) for (const c of list ?? []) {
+      if (!out[c.id] && conceptVars(c.id).length) out[c.id] = { section, vars: conceptVars(c.id) };
+    }
+    res.json({ concepts: out });
   });
   // 거꾸로 추론 퀴즈(진단형): 증상 → 원인 고르기. 기록하지 않는 자가 점검(사원증 XP 없음).
   router.get("/api/lab/causal/diagnose", login, (req, res) => res.json({ questions: diagnoseQuiz(Number(req.query.seed) || Date.now() % 100000, 4) }));

@@ -198,6 +198,28 @@ export function checkHop(chainId: string, dir: number, hop: number, choice: "up"
     sign_rule: Math.sign(edge.coef) > 0 ? "같은 방향(하나가 오르면 다른 것도 오름)" : "반대 방향(하나가 오르면 다른 것은 내림)" };
 }
 
+// ── 개념 → 인과 지도 변수: 학습 기록 '내 오개념'에서 그 개념을 인과 지도에서 보게 한다 ──
+// 개념의 설비(루브릭 equipment_ids)만으로는 고로 하나에 변수가 여럿이라 뜻이 맞는 변수를 직접 고른다. 첫 변수가 설명 카드로 열린다.
+export const CONCEPT_VARS: Record<string, string[]> = {
+  sinter_purpose: ["basicity", "hm_si"],
+  coke_reduction: ["coke_rate", "hm_temp"],
+  blast_furnace_hot_metal: ["hm_temp", "hm_si", "hm_s"],
+  // 시연 개념(content/demo/sections.json, 제강·연주·압연): 시연 계정의 오개념에도 연결
+  demo_hot_metal_pretreatment: ["desulf_min", "scrap_pct"],
+  demo_bof_decarburization: ["scrap_pct", "bof_slag", "slopping"],
+  demo_secondary_refining: ["tap_temp"],
+  demo_tundish_role: ["superheat"],
+  demo_mold_solidification: ["shell_mm", "breakout", "cast_speed"],
+  demo_slab_cutting: ["center_seg"],
+  demo_reheating_furnace: ["reheat_temp", "fdt"],
+  demo_roughing_finishing: ["fdt", "rolled_defect"],
+  demo_cooling_coiling: ["cool_banks", "coiling_temp"],
+};
+/** 개념의 인과 지도 변수: 표에 있으면 그것, 없으면 개념 설비와 같은 설비의 변수. */
+export function conceptVars(conceptId: string, equipmentIds: string[] = []) {
+  return CONCEPT_VARS[conceptId] ?? NODES.filter((n) => equipmentIds.includes(n.equipment_id)).map((n) => n.id);
+}
+
 // ── 거꾸로 추론(진단형) 퀴즈: 결과(증상)를 보여 주고 원인(조정 변수와 방향)을 고르게 한다 ──
 // 원인 하나를 정상 범위 쪽으로 크게 움직여 바뀐 하류 값 중 증상 2개(범위 밖·다른 공정 우선)를 고른다.
 // 보기는 정답 + 같은 증상 방향을 만들지 않는 다른 원인 3개라서 답이 하나로 정해진다(헷갈리는 보기는 빼고 고른다).

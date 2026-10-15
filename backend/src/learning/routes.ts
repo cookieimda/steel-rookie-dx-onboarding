@@ -40,6 +40,11 @@ const ChatRequest = z.object({
       equipment_id: z.string().regex(/^[a-z0-9_]{1,40}$/).optional().nullable(),
     })
     .optional(),
+  /**
+   * true면 NDJSON으로 답한다: 답을 받는 대로 {"type":"answer","text":지금까지의 답} 줄을 보내고,
+   * 마지막에 {"type":"done","status":HTTP 상태,"body":평소 응답 본문} 한 줄로 끝낸다. 요청 형식 오류·세션 오류(400·404·409)는 평소처럼 JSON으로 답한다.
+   */
+  stream: z.boolean().optional(),
 });
 
 export interface LearningDeps {
@@ -164,12 +169,32 @@ export function createLearningRouter({ repo, retriever, agent, rubrics, scene, s
       return;
     }
     busy.add(sessionId);
+    // 스트리밍(stream: true)이면 여기부터 NDJSON으로 답한다. 오류도 마지막 done 줄의 status로 알린다.
+    const stream = body.data.stream === true;
+    const startStream = () => {
+      if (res.headersSent) return;
+      res.status(200).setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
+      res.setHeader("Cache-Control", "no-cache");
+      res.flushHeaders();
+    };
+    const send = (status: number, payload: object) => {
+      if (!stream) {
+        res.status(status).json(payload);
+        return;
+      }
+      startStream();
+      res.end(`${JSON.stringify({ type: "done", status, body: payload })}\n`);
+    };
+    const onAnswer = stream ? (text: string) => {
+      startStream();
+      res.write(`${JSON.stringify({ type: "answer", text })}\n`);
+    } : undefined;
     try {
       const base = { user_id: userId, session_id: sessionId, section, equipment_id: equipmentId, question };
 
       if (isSafetyQuestion(question)) {
         repo.saveTurn({ ...base, answer: SAFETY_ANSWER, status: "safety_redirect", source_ids: [] }, now());
-        res.json({ answer: SAFETY_ANSWER, status: "safety_redirect", sources: [], follow_up: null, scene_actions: [], keyword_card: null, session_id: sessionId });
+        send(200, { answer: SAFETY_ANSWER, status: "safety_redirect", sources: [], follow_up: null, scene_actions: [], keyword_card: null, session_id: sessionId });
         return;
       }
 
@@ -186,7 +211,7 @@ export function createLearningRouter({ repo, retriever, agent, rubrics, scene, s
       const suggested = isSuggested(processId, equipmentId, question);
       const hit = cache && (generic || suggested) ? cache.get(cacheKey) : null;
       // 추천 질문은 오개념을 단정하는 질문이 아니므로 저장한 답의 오개념 감지는 쓰지 않는다.
-      const reply = hit ? { ...hit, detected_misconception: generic ? hit.detected_misconception : null } : await agent.reply(input);
+      const reply = hit ? { ...hit, detected_misconception: generic ? hit.detected_misconception : null } : await agent.reply(input, { onAnswer });
       if (!hit && generic) cache?.set(cacheKey, reply);
 
       const at = now();
@@ -200,23 +225,24 @@ export function createLearningRouter({ repo, retriever, agent, rubrics, scene, s
       const sources = toSources(cited);
       const card = reply.keyword_card && !progress?.in_progress ? keywordCard(rubric, reply.keyword_card.concept_id) : null;
       const keyword_card = card && { concept_id: card.concept_id, name: card.name, keywords: card.keywords, source: card.source_id ? toSources([card.source_id])[0] ?? null : null };
-      res.json({ answer: reply.answer, status: reply.status, sources, follow_up: reply.follow_up, scene_actions: reply.scene_actions, keyword_card, session_id: sessionId });
+      send(200, { answer: reply.answer, status: reply.status, sources, follow_up: reply.follow_up, scene_actions: reply.scene_actions, keyword_card, session_id: sessionId });
     } catch (error) {
       if (error instanceof UsageLimitError) {
-        res.status(429).json({ error: `오늘 쓸 수 있는 튜터 호출(${error.limit}회)을 다 썼어요.`, code: "USAGE_LIMIT" });
+        send(429, { error: `오늘 쓸 수 있는 튜터 호출(${error.limit}회)을 다 썼어요.`, code: "USAGE_LIMIT" });
       } else if (error instanceof LlmUnavailableError) {
         console.error(`학습 모드 Gemini 오류: ${error.message}`);
-        res.status(error.status).json(
+        send(
+          error.status,
           error.status === 503
             ? { error: "Gemini가 연결되지 않았어요. 서버에 GEMINI_API_KEY를 설정해 주세요.", code: "LLM_NOT_CONFIGURED" }
             : { error: "Gemini 연결 중 오류가 생겼어요. 잠시 후 다시 시도해 주세요." },
         );
       } else if (error instanceof LearningFormatError) {
         console.error(error.message);
-        res.status(502).json({ error: "답변을 처리하지 못했어요. 다시 시도해 주세요." });
+        send(502, { error: "답변을 처리하지 못했어요. 다시 시도해 주세요." });
       } else {
         console.error(error);
-        res.status(500).json({ error: "답변을 처리하지 못했어요. 다시 시도해 주세요." });
+        send(500, { error: "답변을 처리하지 못했어요. 다시 시도해 주세요." });
       }
     } finally {
       busy.delete(sessionId);

@@ -161,6 +161,7 @@
           <sc-if value="{{ pending }}" hint-placeholder-val="{{ false }}">
             <div style="display:flex;align-items:flex-end;gap:8px;margin-top:10px;">
               <div aria-label="튜터가 답을 쓰고 있어요" style="display:flex;gap:4px;padding:13px 16px;border-radius:22px;background:var(--bubble-in);"><span style="width:7px;height:7px;border-radius:50%;background:var(--muted);animation:blink 1s infinite;"></span><span style="width:7px;height:7px;border-radius:50%;background:var(--muted);animation:blink 1s .2s infinite;"></span><span style="width:7px;height:7px;border-radius:50%;background:var(--muted);animation:blink 1s .4s infinite;"></span></div>
+              <span style="font-size:13px;color:var(--dim);">{{ pendingText }}</span>
             </div>
           </sc-if>
         </div>
@@ -482,7 +483,7 @@ class Component extends DCLogic {
       drawTabs: Object.entries(DRAW_MODES).map(([m, [label, tip]]) => { const on = S.drawMode === m;
         return { label, tip, on, bg: on ? 'var(--accent)' : 'transparent', color: on ? 'var(--accent-ink)' : 'var(--muted)', onClick: () => this.setState({ drawMode: m }) }; }),
       bpTitle: `${P?.name || ''} 공정 ${DRAW_MODES[S.drawMode][2]}`, bpNo: `SA-${P?.num || '00'}-${DRAW_MODES[S.drawMode][3]}`,
-      messages: dmMessages(chat.messages), pending: S.pending, chips: chat.chips,
+      messages: dmMessages(chat.messages), pending: chat.pending, pendingText: chat.pendingText || '', chips: chat.chips,
       // 이름 아래: 지금 답하는 기준(공정·설비). AI가 끊겼을 때만 그 사실을 빨간 글씨로
       tutorStatus: S.ai === 'off' ? 'AI 연결 안 됨' : P ? `${P.name}${E ? ` · ${E.name}` : ''}` : '설비를 고르면 그 기준으로 답해요',
       tutorStatusColor: S.ai === 'off' ? 'var(--bad)' : 'var(--muted)',

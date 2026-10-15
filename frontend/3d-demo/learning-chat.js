@@ -20,6 +20,14 @@ const tokenStore = {
   clear() { try { localStorage.removeItem(TOKEN_KEY); sessionStorage.removeItem(TOKEN_KEY); } catch (e) {} },
 };
 
+/** 답을 기다리는 동안 보여 줄 문구. 경과 시간을 초로 보여 주고, 오래 걸리면 기다려 달라고 덧붙인다. */
+export function pendingText(since, now = Date.now()) {
+  const sec = since ? Math.max(0, Math.floor((now - since) / 1000)) : 0;
+  if (sec < 3) return '튜터가 답을 쓰고 있어요…';
+  if (sec < 20) return `튜터가 답을 쓰고 있어요… ${sec}초`;
+  return `튜터가 답을 쓰고 있어요… ${sec}초 · 자료를 살펴보는 중이라 조금 더 걸려요`;
+}
+
 /**
  * 튜터가 보낸 화면 조작(scene_actions)을 차례로 실행하고 결과를 돌려준다. c는 페이지 컴포넌트(state, data, goProcess, setState, scene).
  * - 공정을 옮기면 3D(steel-scene)가 그 공정을 띄울 때까지 기다린다. 전체 화면에서 바로 설비로 가면 아직 설비를 못 찾아 실패했다.
@@ -59,8 +67,9 @@ function unauthorizedMessage(data) {
 /**
  * JSON 요청. 성공하면 응답 본문, 실패하면 서버가 준 문장(없으면 기본 문장)을 담은 Error(err.status, err.data).
  * api-client.js의 request(method, path, body)와 같은 모양이라, 그쪽으로 바꿀 때 이 함수만 바꾸면 된다.
+ * onPartial: 서버가 스트리밍(NDJSON)으로 답하면 받는 대로 부른다(postChat).
  */
-async function request(method, path, body) {
+async function request(method, path, body, onPartial) {
   const headers = body === undefined ? {} : { 'Content-Type': 'application/json' };
   const token = tokenStore.get();
   if (token) headers['Authorization'] = 'Bearer ' + token;
@@ -73,18 +82,60 @@ async function request(method, path, body) {
   try {
     res = await fetch(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   } catch (e) {
-    throw new Error('서버에 연결하지 못했어요. npm start로 서버를 켠 뒤 http://localhost:3000 에서 열어 주세요.');
+    throw new Error(OFFLINE);
   }
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const err = new Error(res.status === 401 ? unauthorizedMessage(data) : data.error || '답변을 받지 못했어요. 다시 질문해 주세요.');
-    err.status = res.status; err.data = data; throw err;
+  if (onPartial && res.body && (res.headers.get('content-type') || '').includes('ndjson')) {
+    const done = await readChatStream(res, onPartial);
+    return finish(done.status, done.body);
   }
-  return data;
+  return finish(res.status, await res.json().catch(() => ({})));
 }
 
-/** POST /api/chat. 404면 err.status = 404(서버에 없는 대화). */
-const postChat = (body) => request('POST', '/api/chat', body);
+const OFFLINE = '서버에 연결하지 못했어요. npm start로 서버를 켠 뒤 http://localhost:3000 에서 열어 주세요.';
+const NO_ANSWER = '답변을 받지 못했어요. 다시 질문해 주세요.';
+
+/** 응답 상태와 본문 → 본문 또는 Error(err.status, err.data). */
+function finish(status, data) {
+  if (status >= 200 && status < 300) return data;
+  const err = new Error(status === 401 ? unauthorizedMessage(data) : data.error || NO_ANSWER);
+  err.status = status; err.data = data; throw err;
+}
+
+/**
+ * 스트리밍 응답(NDJSON, backend/src/learning/routes.ts의 stream)을 읽는다. answer 줄마다 onPartial(지금까지의 답)을 부르고,
+ * 마지막 done 줄({status, body})을 돌려준다. done 없이 끊기면 Error.
+ */
+async function readChatStream(res, onPartial) {
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '', done = null;
+  const onLine = (line) => {
+    if (!line.trim()) return;
+    const msg = JSON.parse(line);
+    if (msg.type === 'answer') onPartial(msg.text);
+    else if (msg.type === 'done') done = msg;
+  };
+  try {
+    for (;;) {
+      const { value, done: end } = await reader.read();
+      if (end) break;
+      buffer += decoder.decode(value, { stream: true });
+      let nl;
+      while ((nl = buffer.indexOf('\n')) >= 0) { onLine(buffer.slice(0, nl)); buffer = buffer.slice(nl + 1); }
+    }
+    onLine(buffer + decoder.decode());
+  } catch (e) {
+    throw new Error(NO_ANSWER);
+  }
+  if (!done) throw new Error(NO_ANSWER);
+  return done;
+}
+
+/**
+ * POST /api/chat. 404면 err.status = 404(서버에 없는 대화).
+ * onPartial이 있으면 스트리밍으로 받아 답을 받는 대로 onPartial(지금까지의 답)을 부른다. 돌려주는 값은 같다.
+ */
+const postChat = (body, onPartial) => request('POST', '/api/chat', onPartial ? { ...body, stream: true } : body, onPartial);
 
 // 새로고침해도 같은 대화를 이어 보이도록 대화 id를 탭(sessionStorage)에 둔다. 대화 내용은 서버 DB에 있다.
 const SESSION_KEY = 'st-rookie:learning-session';
@@ -139,16 +190,20 @@ export async function createLearningChat(c) {
       const section = SECTIONS.includes(c.state.processId) ? c.state.processId : null; // 전체 보기('site')면 서버 기본(제선)
       const screen = { process_id: section, equipment_id: section ? c.state.selectedId : null };
       const req = { question: text, session_id: sessionId || undefined, screen };
-      c.setState(s => ({ messages: [...s.messages, { role: 'user', text }], input: '', pending: true, lastReq: req, tutorOpen: true, devOpen: false })); c.scrollChat();
+      c.setState(s => ({ messages: [...s.messages, { role: 'user', text }], input: '', pending: true, pendingSince: Date.now(), partial: '', lastReq: req, tutorOpen: true, devOpen: false })); c.scrollChat();
+      // 답을 기다리는 동안 1초마다 다시 그려 경과 시간을 보여 준다(Gemini가 느리거나 로컬 모델이면 30초 넘게 걸릴 수 있다).
+      const tick = setInterval(() => c.setState({ pendingTick: Date.now() }), 1000);
+      // 답을 받는 대로 말풍선에 보여 준다(스트리밍). 끝나면 최종 답으로 바꾼다.
+      const onPartial = (text) => { c.setState({ partial: text }); c.scrollChat(); };
       let message, res;
       try {
         try {
-          res = await postChat(req);
+          res = await postChat(req, onPartial);
         } catch (e) {
           // 서버에 없는 대화(예: DB를 지움)면 새 대화로 한 번 다시 묻는다.
           if (e.status !== 404 || !sessionId) throw e;
           useSession(null);
-          res = await postChat({ ...req, session_id: undefined });
+          res = await postChat({ ...req, session_id: undefined }, onPartial);
         }
         useSession(res.session_id);
         message = toMessage(res);
@@ -158,7 +213,8 @@ export async function createLearningChat(c) {
       }
       // 학습 모드 API는 아직 화면 조작(scene_actions)을 보내지 않는다(다음 단계).
       const results = await chat.runActions(res.scene_actions);
-      c.setState(s => ({ pending: false, lastRes: res, lastResults: results, messages: [...s.messages, message] })); c.scrollChat();
+      clearInterval(tick);
+      c.setState(s => ({ pending: false, pendingSince: null, partial: '', lastRes: res, lastResults: results, messages: [...s.messages, message] })); c.scrollChat();
     },
 
     // 새로고침 전 대화를 서버에서 다시 불러와 메시지 앞에 붙인다. 화면 조작은 다시 하지 않는다.
@@ -180,9 +236,12 @@ export async function createLearningChat(c) {
     // 메시지의 키워드 카드는 hasKeywordCard·keywordCard다. 체크포인트 진행 중에는 checkpoint-chat.js의 lockLearning()이 숨긴다(정답 용어가 모여 있어서).
     vals(D) {
       const S = c.state;
+      // 받는 중인 답은 마지막 말풍선으로 보여 주고, 그동안 '답을 쓰고 있어요' 표시는 숨긴다.
+      const streaming = S.pending && !!S.partial;
+      const shown = streaming ? [...S.messages, { role: 'assistant', text: S.partial, mode: 'free_question', evidence: 'streaming', citations: [], followUp: null }] : S.messages;
       return {
-        messages: S.messages.map(m => ({ ...m, isUser: m.role === 'user', isSafety: m.role === 'assistant' && m.mode === 'safety_redirect', isAssistant: m.role === 'assistant' && m.mode !== 'safety_redirect', hasFollowUp: !!m.followUp, askFollowUp: () => chat.ask(m.followUp), hasKeywordCard: !!m.keywordCard, keywordCard: m.keywordCard || NO_CARD })),
-        chatRef: c.chatRef, pending: S.pending, chips: (suggestionsFor(S.processId, S.selectedId) || D.SUGGESTED.filter(t => S.selectedId || !t.startsWith('이 설비'))).map(text => ({ text, onClick: () => chat.ask(text) })),
+        messages: shown.map(m => ({ ...m, isUser: m.role === 'user', isSafety: m.role === 'assistant' && m.mode === 'safety_redirect', isAssistant: m.role === 'assistant' && m.mode !== 'safety_redirect', hasFollowUp: !!m.followUp, askFollowUp: () => chat.ask(m.followUp), hasKeywordCard: !!m.keywordCard, keywordCard: m.keywordCard || NO_CARD })),
+        chatRef: c.chatRef, pending: S.pending && !streaming, pendingText: pendingText(S.pendingSince), chips: (suggestionsFor(S.processId, S.selectedId) || D.SUGGESTED.filter(t => S.selectedId || !t.startsWith('이 설비'))).map(text => ({ text, onClick: () => chat.ask(text) })),
         input: S.input, onInput: e => c.setState({ input: e.target.value }), send: e => { e.preventDefault(); chat.ask(S.input); },
       };
     },

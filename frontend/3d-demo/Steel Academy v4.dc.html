@@ -560,8 +560,9 @@
           </sc-if>
         </sc-for>
         <sc-if value="{{ pending }}" hint-placeholder-val="{{ false }}">
-          <div style="align-self:flex-start;display:flex;gap:4px;padding:12px 14px;background:var(--chrome3);border-radius:10px;">
+          <div style="align-self:flex-start;display:flex;align-items:center;gap:4px;padding:12px 14px;background:var(--chrome3);border-radius:10px;">
             <span style="width:6px;height:6px;border-radius:3px;background:var(--muted);animation:blink 1s infinite;"></span><span style="width:6px;height:6px;border-radius:3px;background:var(--muted);animation:blink 1s .2s infinite;"></span><span style="width:6px;height:6px;border-radius:3px;background:var(--muted);animation:blink 1s .4s infinite;"></span>
+            <span style="margin-left:6px;font-size:12px;color:var(--muted);">{{ pendingText }}</span>
           </div>
         </sc-if>
         <button onClick="{{ showExplain }}" style="display:flex;align-items:center;gap:12px;height:52px;padding:0 16px;border-radius:999px;border:1px solid var(--line2);background:transparent;color:var(--text);font-size:15px;font-weight:700;cursor:pointer;text-align:left;flex:none;" style-hover="border-color:var(--accent);"><img src="{{ ic.book }}" width="24" height="24" alt=""><span style="flex:1;">공정 설명 보기</span><img src="{{ ic.chevR }}" width="16" height="16" alt=""></button>

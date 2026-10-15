@@ -101,3 +101,10 @@ test("모든 실습 패널 접기: 제목 줄만 남기는 [접기]가 공통 �
   assert.ok(src.includes("panel.classList.remove('compact', 'folded')"));
   assert.match(src, /\.sl-panel\.folded > :not\(h3\) \{ display: none; \}/);
 });
+
+test("3D 실습 첫 안내: 한 번만(브라우저 저장, 실패해도 화면은 그대로), 주소로 실습을 바로 열면 띄우지 않고, 낮은 창에서는 화면 안에", () => {
+  assert.ok(src.includes("const HINT_KEY = 'st-rookie:sim-lab-hint';"));
+  assert.ok(src.includes("try { hintSeen = localStorage.getItem(HINT_KEY) === '1'; } catch (e) {}"));
+  assert.ok(src.includes("if (!hintSeen && !new URLSearchParams(location.search).get('lab'))"));
+  assert.ok(src.includes("if (r.top - 10 - hint.offsetHeight < 8) { hint.style.top = '8px';"));
+});

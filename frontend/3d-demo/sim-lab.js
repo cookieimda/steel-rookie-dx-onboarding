@@ -67,6 +67,8 @@ function injectStyle() {
     .sl-cmp { width: 100%; border-collapse: collapse; font-size: 14px; } .sl-cmp th, .sl-cmp td { text-align: left; padding: 4px 6px; border-top: 1px solid rgba(255,255,255,.12); } .sl-cmp th { color: #9aa4b2; font-weight: 600; }
     .sl-lesson { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 63; width: min(560px, calc(100vw - 32px)); box-sizing: border-box; display: flex; flex-direction: column; gap: 6px; padding: 12px 16px; border-radius: 16px; background: rgba(12,20,34,.95); color: #eef2f7; font: 15px/1.5 "Pretendard", sans-serif; box-shadow: 0 18px 40px rgba(0,0,0,.4); border: 1px solid rgba(43,212,180,.45); }
     .sl-lesson small { color: #2bd4b4; font-weight: 700; } .sl-lesson p { margin: 0; color: #c9d2de; }
+    .sl-hint-bubble { position: fixed; right: 16px; z-index: 64; width: min(320px, calc(100vw - 32px)); box-sizing: border-box; padding: 12px 14px; border-radius: 14px; background: rgba(12,20,34,.96); color: #eef2f7; font: 15px/1.5 "Pretendard", sans-serif; border: 1px solid #2bd4b4; box-shadow: 0 14px 30px rgba(0,0,0,.4); display: flex; flex-direction: column; gap: 6px; }
+    .sl-hint-bubble p { margin: 0; color: #c9d2de; } .sl-hint-bubble b { color: #2bd4b4; }
     .sl-scenes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
     .sl-read { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,.06); border: 1px solid transparent; text-align: left; color: inherit; font: inherit; cursor: pointer; }
     .sl-read:disabled { cursor: default; }
@@ -931,6 +933,29 @@ export async function attachSimLab() {
       work.append(list);
     }
   }
+  // ── 처음 온 사람에게 한 번만: 실행 버튼 위 말풍선(닫거나 실습을 열면 다시 안 뜸). 주소로 실습을 바로 연 경우는 띄우지 않는다 ──
+  const HINT_KEY = 'st-rookie:sim-lab-hint';
+  let hintSeen = true;
+  try { hintSeen = localStorage.getItem(HINT_KEY) === '1'; } catch (e) {}
+  if (!hintSeen && !new URLSearchParams(location.search).get('lab')) {
+    const hint = el('div', 'sl-hint-bubble'); hint.setAttribute('role', 'note');
+    const done = () => { hint.remove(); try { localStorage.setItem(HINT_KEY, '1'); } catch (e) {} };
+    hint.append(el('b', '', '새 3D 실습'), el('p', '', '🗺 공정 인과 지도부터 눌러 보세요. 값 하나를 바꾸면 그 영향이 다음 공정까지 어떻게 번지는지 3D 공장 위에 흐름으로 보여요.'));
+    const row = el('div', 'sl-tour');
+    row.append(btn('인과 지도 열기', () => { done(); open('map'); }, 'sl-btn'), btn('닫기', done, 'sl-btn ghost'));
+    hint.append(row);
+    document.body.append(hint);
+    // 실행 버튼 위에 붙이되, 창이 낮아 위로 넘치면 화면 위 8px에 붙인다
+    const place = () => {
+      const r = launch.getBoundingClientRect();
+      if (r.top - 10 - hint.offsetHeight < 8) { hint.style.top = '8px'; hint.style.bottom = 'auto'; }
+      else { hint.style.top = 'auto'; hint.style.bottom = `${Math.round(innerHeight - r.top + 10)}px`; }
+    };
+    place(); addEventListener('resize', place);
+    for (const b of launch.querySelectorAll('button')) b.addEventListener('click', done, { once: true });
+    say('새 3D 실습이 있어요. 공정 인과 지도부터 눌러 보세요.');
+  }
+
   // 학습 기록의 '오늘의 실습 경로' 링크(?p=공정&lab=map&var=… · lab=quiz&process=… · lab=fault&fault=…)로 들어오면 그 실습을 바로 연다.
   const qs = new URLSearchParams(location.search), lab = qs.get('lab');
   if (lab === 'lesson' && /^[a-z0-9-]{1,40}$/.test(qs.get('lesson') || '')) setTimeout(() => void lessonBar(qs.get('lesson'), Number(qs.get('step')) || 1), 1200);

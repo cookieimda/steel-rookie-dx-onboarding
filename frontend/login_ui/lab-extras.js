@@ -57,7 +57,7 @@ export function createLabExtras(c, { api, set, S, fail }) {
   };
 
   // 사고 사례
-  const openIncident = id => api('GET', `/api/lab/incidents/${id}`).then(r => set({ labIncCur: r.scenario, labIncDisc: r.disclaimer, labIncStep: 1, labIncAns: {}, labIncRes: null, labIncRefl: '' }), fail);
+  const openIncident = id => api('GET', `/api/lab/incidents/${id}`).then(r => set({ labIncCur: r.scenario, labIncDisc: r.disclaimer, labIncStep: 1, labIncAns: {}, labIncRes: null, labIncRefl: '', labIncBr: {} }), fail);
   const submitIncident = () => {
     const cur = S().labIncCur;
     if (!cur) return;
@@ -113,7 +113,16 @@ export function createLabExtras(c, { api, set, S, fail }) {
       icList: (list?.scenarios || []).map(x => ({ title: x.title, hazard: x.hazard, section: SECTION_LABEL[x.section], best: x.best == null ? '아직 안 풀었어요' : `최고 ${Math.round(x.best * 100)}점 · ${x.attempts}번`, on: cur?.id === x.id, onClick: () => openIncident(x.id) })),
       icDisclaimer: list?.disclaimer || '', icHas: !!cur, icNone: !cur,
       icTitle: cur?.title || '', icHazard: cur?.hazard || '', icSummary: cur?.summary || '',
-      icSteps: (cur?.timeline || []).slice(0, step).map((t, i, all) => ({ time: t.time, text: t.text, cls: i === all.length - 1 ? 'now' : '', onShow: () => showOn2d(cur.section, t.equipment_id) })),
+      icSteps: (cur?.timeline || []).slice(0, step).map((t, i, all) => {
+        // 갈림길: "여기서 다르게 했다면?" 고른 선택의 결과(안전한 결과는 초록, 실제로 일어난 일은 빨강)
+        const pick = (s.labIncBr || {})[i], opt = t.branch && pick != null ? t.branch.options[pick] : null;
+        return { time: t.time, text: t.text, cls: i === all.length - 1 ? 'now' : '', onShow: () => showOn2d(cur.section, t.equipment_id),
+          hasBranch: !!t.branch, brPrompt: t.branch?.prompt || '',
+          brOpts: (t.branch?.options || []).map((o, k) => ({ text: o.text, on: pick === k, cls: pick === k ? (o.actual ? 'actual' : 'safe') : '',
+            onClick: () => c.setState(prev => ({ labIncBr: { ...(prev.labIncBr || {}), [i]: k } })) })),
+          brHasOutcome: !!opt, brOutcome: opt ? `${opt.actual ? '그대로 가면 → ' : '다르게 했다면 → '}${opt.outcome}` : '', brOutCls: opt ? (opt.actual ? 'actual' : 'safe') : '' };
+      }),
+      icBranchCount: cur ? `다르게 해 본 갈림길 ${Object.keys(s.labIncBr || {}).length} / ${cur.timeline.filter(t => t.branch).length}` : '',
       icMoreSteps: !!cur && step < cur.timeline.length, icNext: () => set({ labIncStep: step + 1 }), icAllSteps: () => set({ labIncStep: cur.timeline.length }),
       icShowQs: !!cur && step >= cur.timeline.length,
       icQs: (cur?.questions || []).map((q, qi) => {

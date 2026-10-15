@@ -117,3 +117,17 @@ test("HTTP 이상 상황: 목록 → 보기 → 단계 확인 → 완료 기록�
   assert.ok(wi.json.effects.length === 2 && wi.json.downstream.length >= 1);
   assert.ok(deleteUserData(db, kim.id, { origin: "live" }).operations >= 1, "이상 상황 기록도 지운다");
 });
+
+test("사고 사례 갈림길: 사례마다 1개 이상, 갈림길마다 실제 선택 하나와 다른 선택, 다른 선택의 결과는 실제와 다르다", () => {
+  const file = loadIncidents();
+  for (const s of file.scenarios) {
+    const branches = s.timeline.filter((t) => t.branch);
+    assert.ok(branches.length >= 1, s.id);
+    for (const t of branches) {
+      const opts = t.branch!.options;
+      assert.equal(opts.filter((o) => o.actual).length, 1);
+      assert.ok(opts.some((o) => !o.actual));
+      assert.ok(opts.filter((o) => !o.actual).every((o) => !o.outcome.startsWith("실제로")));
+    }
+  }
+});

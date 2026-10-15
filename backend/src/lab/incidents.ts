@@ -11,7 +11,12 @@ const Question = z.object({ id: z.string(), prompt: z.string(), options: z.array
   .refine((q) => q.answer < q.options.length, "정답 번호가 보기 수보다 커요.");
 const Scenario = z.object({
   id: z.string().regex(/^[a-z0-9-]+$/), section: z.enum(SECTION_ORDER as [Section, ...Section[]]), title: z.string(), hazard: z.string(), summary: z.string(),
-  timeline: z.array(z.object({ time: z.string(), text: z.string(), equipment_id: z.string() })).min(1),
+  timeline: z.array(z.object({
+    time: z.string(), text: z.string(), equipment_id: z.string(),
+    /** 갈림길: "여기서 다르게 했다면?" 실제로 일어난 선택(actual) 하나와 다른 선택들, 고르면 결과(outcome)를 보여 준다. */
+    branch: z.object({ prompt: z.string(), options: z.array(z.object({ text: z.string(), outcome: z.string(), actual: z.boolean().optional() })).min(2) })
+      .refine((b) => b.options.filter((o) => o.actual).length === 1, "갈림길에는 실제로 일어난 선택(actual)이 하나 있어야 해요").optional(),
+  })).min(1),
   questions: z.array(Question).min(1), reflection: z.string(),
 });
 const File = z.object({ disclaimer: z.string(), scenarios: z.array(Scenario).min(1) });

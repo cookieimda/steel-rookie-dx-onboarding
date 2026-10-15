@@ -60,8 +60,8 @@ test("인과 지도 조건 링크: 바꾼 조정 값만 set=id:값으로 담고,
 test("인과 퀴즈 틀린 칸만 다시 풀기: 틀린 칸을 길·칸으로 모으고, 다시 풀 때 맞힌 첫 칸은 답을 보여 주고 건너뛴다", () => {
   assert.ok(src.includes("↻ 틀린 칸만 다시 풀기 (${misses}칸)"));
   assert.match(src, /chains = \[\.\.\.wrong\.values\(\)\]\.map\(\(w\) => \(\{ \.\.\.w\.c, only: new Set\(w\.hops\) \}\)\)/);
-  assert.ok(src.includes("if (c.only && !c.only.has(1))") && src.includes("(지난번에 맞힌 칸)"));
-  assert.ok(src.includes("hop1_up: c.hop1_up"), "둘째 칸만 틀린 길도 첫 칸 방향을 기억");
+  assert.ok(src.includes("if (c.only && !c.only.has(h) && c.ups[h] !== undefined)") && src.includes("(지난번에 맞힌 칸)"));
+  assert.ok(src.includes("c.ups[hop] = r.answer === 'up';"), "칸마다 방향을 기억해 다시 풀 때 맞힌 칸은 답만 보여 준다");
 });
 
 test("공장 전체 물류 흐름: 용선 → 용강 → 슬래브 → 코일 경로의 설비가 모두 화면 설비 목록(data_v2.js)에 있고, 앞 물질의 끝 설비에서 다음 물질이 시작한다", () => {

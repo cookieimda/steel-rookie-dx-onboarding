@@ -120,3 +120,28 @@ test("공정 사이 시간 지연: 같은 공정은 바로, 뒤 공정일수록 
   assert.ok(simulateCausal({ tap_temp: 1690 }).story.every((s) => s.arrive === "바로" || s.arrive.startsWith("약 1~2시간") || s.arrive.startsWith("약 9~26시간")));
   assert.match(r.note, /대략값/);
 });
+
+test("세 칸 인과 퀴즈(심화): 길은 변수 4개, 공정 3개 이상을 넘는 길이 먼저, 칸 3의 방향은 세 연결 부호의 곱", async () => {
+  const { causalChains, causalQuiz, checkHop, EDGES } = await import("../src/lab/causal.js");
+  const deep = causalChains(4);
+  assert.ok(deep.length > 0 && deep.every((c) => c.nodes.length === 4));
+  const qs = causalQuiz(3, 5, undefined, 2);
+  assert.equal(qs.length, 5);
+  assert.ok(qs.every((q) => q.nodes.length === 4));
+  assert.ok(qs[0].processes >= 3, "공정 3개 이상을 넘는 길 먼저");
+  for (const q of qs) {
+    const sign = q.nodes.slice(0, -1).reduce((s, n, i) => s * Math.sign(EDGES.find((e) => e.from === n.id && e.to === q.nodes[i + 1].id)!.coef), q.dir);
+    assert.equal(checkHop(q.id, q.dir, 3, sign > 0 ? "up" : "down")!.correct, true, q.id);
+  }
+  assert.equal(checkHop(qs[0].id, 1, 4, "up"), null, "칸 4는 없다");
+  assert.equal(checkHop("coke_rate>hm_temp>scrap_pct", 1, 3, "up"), null, "두 칸 길에 칸 3은 없다");
+  assert.equal(causalQuiz(3, 5).every((q) => q.nodes.length === 3), true, "기본은 두 칸");
+});
+
+test("마이그레이션 016: 인과 퀴즈 답이 칸 3을 받고 예전 답은 그대로", async () => {
+  const { openDatabase } = await import("../src/db/database.js");
+  const db = openDatabase(":memory:");
+  db.prepare("INSERT INTO causal_quiz_answers VALUES(?,?,?,?,?,?)").run("a", "u", "a>b>c>d", 3, 1, "2026-10-16T00:00:00Z");
+  assert.throws(() => db.prepare("INSERT INTO causal_quiz_answers VALUES(?,?,?,?,?,?)").run("b", "u", "a>b>c>d", 4, 1, "2026-10-16T00:00:00Z"));
+  assert.equal(Number(db.prepare("SELECT COUNT(*) AS n FROM causal_quiz_answers").get()!.n), 1);
+});

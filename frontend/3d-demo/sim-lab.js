@@ -244,7 +244,7 @@ export async function attachSimLab() {
     else if (prev && panel.contains(document.activeElement)) launcherOf[prev]?.focus();
     bWhatif.setAttribute('aria-pressed', String(mode === 'whatif')); bFault.setAttribute('aria-pressed', String(mode === 'fault')); bMap.setAttribute('aria-pressed', String(mode === 'map'));
     panel.hidden = !mode; panel.replaceChildren();
-    if (mode === 'whatif') void whatifPanel(preset); else if (mode === 'fault') void (opt.fault ? faultDrill(opt.fault) : faultList()); else if (mode === 'map') void causalMap(preset, opt.var, opt.tour, !!opt.fromLink && Object.keys(preset).length > 0); else if (mode === 'quiz') void causalQuizPanel(opt.process); else if (mode === 'diagnose') void diagnosePanel(); else if (mode === 'incident') void incidentPanel(opt.scenario, Number(opt.at), Number(opt.pick));
+    if (mode === 'whatif') void whatifPanel(preset); else if (mode === 'fault') void (opt.fault ? faultDrill(opt.fault) : faultList()); else if (mode === 'map') void causalMap(preset, opt.var, opt.tour, !!opt.fromLink && Object.keys(preset).length > 0); else if (mode === 'quiz') void causalQuizPanel(opt.process, opt.level); else if (mode === 'diagnose') void diagnosePanel(); else if (mode === 'incident') void incidentPanel(opt.scenario, Number(opt.at), Number(opt.pick));
   }
   const head = (title, foldable = false) => {
     const h = el('h3'); h.append(el('span', '', title)); h.tabIndex = -1;
@@ -504,10 +504,10 @@ export async function attachSimLab() {
   }
 
   // ── 인과 퀴즈: 원인 → 결과 → 다음 공정 영향을 한 칸씩 묻는다 ──
-  async function causalQuizPanel(process) {
-    panel.append(head('🧩 인과 퀴즈'), el('p', 'sl-muted', '한 값을 올리거나 내리면 다음 값, 그다음 공정의 값이 어떻게 될까요? 한 칸씩 고르면 3D에서 그 연결이 흐르며 이유를 알려 줘요.'));
+  async function causalQuizPanel(process, level = 1) {
+    panel.append(head(level === 2 ? '🧩 인과 퀴즈 · 심화(세 칸)' : '🧩 인과 퀴즈'), el('p', 'sl-muted', level === 2 ? '세 칸을 이어서 따라가요. 공정 세 개를 넘는 길도 있어요. 방향은 칸마다 "같은/반대 방향"을 곱해 가면 돼요.' : '한 값을 올리거나 내리면 다음 값, 그다음 공정의 값이 어떻게 될까요? 한 칸씩 고르면 3D에서 그 연결이 흐르며 이유를 알려 줘요.'));
     let chains;
-    try { chains = (await api('GET', `/api/lab/causal/quiz?seed=${Date.now() % 100000}${process ? `&process=${process}` : ''}`)).chains; } catch (e) { panel.append(el('p', 'sl-bad', e.message)); return; }
+    try { chains = (await api('GET', `/api/lab/causal/quiz?seed=${Date.now() % 100000}${process ? `&process=${process}` : ''}${level === 2 ? '&level=2' : ''}`)).chains; } catch (e) { panel.append(el('p', 'sl-bad', e.message)); return; }
     const box = el('div', 'sl-box'), scoreLine = el('p', 'sl-muted');
     panel.append(box, scoreLine, btn('🗺 인과 지도로 돌아가기', () => open('map'), 'sl-btn ghost'));
     let qi = 0, right = 0, total = 0, round = 1;
@@ -527,29 +527,35 @@ export async function attachSimLab() {
           scoreLine.textContent = ''; show();
           box.querySelector('button')?.focus();
         }, 'sl-btn'));
-        tools.append(btn('새 문제로 다시', () => open('quiz'), misses ? 'sl-btn ghost' : 'sl-btn'), btn('🔍 거꾸로 추론해 보기', () => open('diagnose'), 'sl-btn ghost'));
+        tools.append(btn('새 문제로 다시', () => open('quiz', {}, { level }), misses ? 'sl-btn ghost' : 'sl-btn'), btn('🔍 거꾸로 추론해 보기', () => open('diagnose'), 'sl-btn ghost'));
+        if (level === 1 && !misses) tools.append(btn('⬆ 심화: 세 칸 퀴즈', () => open('quiz', {}, { level: 2 }), 'sl-btn'));
         box.replaceChildren(el('b', '', `${round > 1 ? `다시 풀기 ${round - 1}회차 끝` : '다 풀었어요'} · ${right} / ${total} 칸 맞힘`),
           el('p', 'sl-muted', misses ? '틀린 칸은 "같은 방향/반대 방향" 규칙을 떠올려 보세요. 두 칸을 지나면 방향은 규칙 두 개를 곱한 것과 같아요.' : (round > 1 ? '틀렸던 칸을 모두 바로잡았어요!' : '모든 칸을 맞혔어요!')), tools);
         say(`${right} / ${total} 칸 맞힘.${misses ? ` 틀린 칸 ${misses}개를 다시 풀 수 있어요.` : ''}`);
         return;
       }
-      const c = chains[qi], [a, b, d] = c.nodes;
+      const c = chains[qi], a = c.nodes[0], hops = c.nodes.length - 1;
+      c.ups = c.ups || {};
       box.replaceChildren(el('small', 'sl-muted', `${round > 1 ? '다시 풀기 · ' : ''}${qi + 1} / ${chains.length} · ${SECTION[a.process]}${c.cross ? ' → 다른 공정' : ''}`),
         el('b', '', `${iGa(a.label)} ${word(c.dir)}…`));
       fx.ring(a.equipment_id, c.dir > 0 ? 0xff7a3d : 0x5aa0ff, true);
       fx.tag(a.equipment_id, `원인 · ${a.label} ${c.dir > 0 ? '▲' : '▼'}`, c.dir > 0 ? 'hot' : 'cold', 5);
       const finish = () => { const next = btn('다음 문제 ▶', () => { qi++; show(); }, 'sl-btn'); box.append(next); next.focus(); };
-      const second = () => (c.only && !c.only.has(2) ? finish() : ask(c, 2, b, d, finish));
-      if (c.only && !c.only.has(1)) {
-        // 첫 칸은 지난번에 맞혔다: 답(방향 = 원인 방향 × 연결 방향)을 보여 주고 둘째 칸으로
-        const up1 = c.hop1_up;
-        box.append(el('p', 'sl-ok', `① ${SECTION[b.process]} · ${eunNeun(b.label)} ${dirWord(up1)} (지난번에 맞힌 칸)`));
-        second();
-      } else ask(c, 1, a, b, second);
+      // 칸 h를 묻는다(다시 풀기에서 맞혔던 칸은 기억한 답만 보여 주고 넘어간다)
+      const step = (h) => {
+        if (h > hops) return finish();
+        const from = c.nodes[h - 1], to = c.nodes[h];
+        if (c.only && !c.only.has(h) && c.ups[h] !== undefined) {
+          box.append(el('p', 'sl-ok', `${'①②③'[h - 1]} ${SECTION[to.process]} · ${eunNeun(to.label)} ${dirWord(c.ups[h])} (지난번에 맞힌 칸)`));
+          return step(h + 1);
+        }
+        ask(c, h, from, to, () => step(h + 1));
+      };
+      step(1);
     }
     function ask(c, hop, from, to, done) {
       const q = el('div'); q.style.cssText = 'display:flex;flex-direction:column;gap:6px;';
-      q.append(el('span', '', `${hop === 1 ? '①' : '②'} ${hop === 2 ? '그러면 ' : ''}${SECTION[to.process]} · ${eunNeun(to.label)}?`));
+      q.append(el('span', '', `${'①②③'[hop - 1]} ${hop > 1 ? '그러면 ' : ''}${SECTION[to.process]} · ${eunNeun(to.label)}?`));
       const row = el('div'); row.style.cssText = 'display:flex;gap:6px;'; row.setAttribute('role', 'group'); row.setAttribute('aria-label', `${to.label}: 오른다 또는 내린다`);
       for (const [choice, label] of [['up', '▲ 오른다'], ['down', '▼ 내린다']]) {
         row.append(btn(label, async () => {
@@ -557,9 +563,8 @@ export async function attachSimLab() {
           let r;
           try { r = await api('POST', '/api/lab/causal/quiz/check', { chain_id: c.id, dir: c.dir, hop, choice }); } catch (e) { q.append(el('p', 'sl-bad', e.message)); return; }
           total++; if (r.correct) right++;
-          if (hop === 1) c.hop1_up = r.answer === 'up';
-          if (!r.correct) { const w = wrong.get(c.id) || { c: { id: c.id, dir: c.dir, cross: c.cross, nodes: c.nodes, hop1_up: c.hop1_up }, hops: new Set() }; w.hops.add(hop); wrong.set(c.id, w); }
-          else if (hop === 1) { const w = wrong.get(c.id); if (w) w.c.hop1_up = c.hop1_up; }
+          c.ups[hop] = r.answer === 'up';
+          if (!r.correct) { const w = wrong.get(c.id) || { c: { id: c.id, dir: c.dir, cross: c.cross, nodes: c.nodes, ups: c.ups }, hops: new Set() }; w.hops.add(hop); wrong.set(c.id, w); }
           scoreLine.textContent = `지금까지 ${right} / ${total} 칸 맞힘`;
           const up = r.answer === 'up';
           const verdict = `${r.correct ? '✓ 맞아요' : '✗ 아니에요'} — ${eunNeun(to.label)} ${up ? '올라요 ▲' : '내려가요 ▼'}. ${r.why} (${r.sign_rule})`;
@@ -568,11 +573,11 @@ export async function attachSimLab() {
             const a = c.nodes[0], move = c.dir > 0 ? '오르면' : '내려가면', res = up ? '올라가나요' : '내려가나요';
             q.append(tutorBtn(hop === 1
               ? `${iGa(a.label)} ${move} 왜 ${eunNeun(to.label)} ${res}? 두 값이 공정에서 어떻게 이어지는지 설명해 줘.`
-              : `${iGa(a.label)} ${move} ${eulReul(from.label)} 거쳐 왜 ${eunNeun(to.label)} ${res}? 방향이 어떻게 이어지는지 단계별로 설명해 줘.`));
+              : `${iGa(a.label)} ${move} ${eulReul(c.nodes.slice(1, hop).map((n) => n.label).join('·'))} 거쳐 왜 ${eunNeun(to.label)} ${res}? 방향이 어떻게 이어지는지 단계별로 설명해 줘.`));
           }
           // 3D: 이 칸의 연결을 흐르게 하고 결과 이름표
           if (from.equipment_id !== to.equipment_id) fx.flow(from.equipment_id, to.equipment_id, up ? 0xff7a3d : 0x5aa0ff);
-          fx.tag(to.equipment_id, `${hop === 1 ? '결과' : '다음 영향'} · ${to.label} ${up ? '▲' : '▼'}`, up ? 'hot' : 'cold', hop === 1 ? 7 : 9);
+          fx.tag(to.equipment_id, `${hop === 1 ? '결과' : '다음 영향'} · ${to.label} ${up ? '▲' : '▼'}`, up ? 'hot' : 'cold', 5 + hop * 2);
           done();
         }, 'sl-opt'));
       }
@@ -869,7 +874,7 @@ export async function attachSimLab() {
     const id = (k) => (/^[a-z0-9_-]{1,40}$/.test(qs.get(k) || '') ? qs.get(k) : undefined);
     // set=coke_rate:290,cast_speed:1.4 (id는 영문·숫자·_, 값은 숫자만. 범위는 서버가 다시 자른다)
     const preset = Object.fromEntries((qs.get('set') || '').split(',').map((kv) => kv.split(':')).filter(([k, v]) => /^[a-z0-9_]{1,40}$/.test(k || '') && Number.isFinite(Number(v)) && v !== '').slice(0, 10).map(([k, v]) => [k, Number(v)]));
-    setTimeout(() => open(lab, preset, { fromLink: !!qs.get('set'), tour: qs.get('tour') === '1', var: id('var'), process: id('process'), fault: id('fault'), scenario: id('scenario'), at: id('at'), pick: id('pick') }), 1200);
+    setTimeout(() => open(lab, preset, { level: qs.get('level') === '2' ? 2 : 1, fromLink: !!qs.get('set'), tour: qs.get('tour') === '1', var: id('var'), process: id('process'), fault: id('fault'), scenario: id('scenario'), at: id('at'), pick: id('pick') }), 1200);
   }
   const sectionOf = (eqId) => Object.entries(scene.zones || {}).find(([, z]) => (z.eqs || []).some((e) => e.id === eqId))?.[0] || 'ironmaking';
 }

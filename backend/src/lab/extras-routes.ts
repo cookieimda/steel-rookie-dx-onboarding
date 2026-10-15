@@ -127,7 +127,7 @@ export function createLabExtrasRouter({ db, auth, deck, incidents, faults = { di
 
   router.get("/api/lab/causal/quiz", login, (req, res) => {
     const process = SECTION_ORDER.includes(req.query.process as Section) ? String(req.query.process) : undefined;
-    res.json({ chains: causalQuiz(Number(req.query.seed) || Date.now() % 100000, 5, process) });
+    res.json({ chains: causalQuiz(Number(req.query.seed) || Date.now() % 100000, 5, process, req.query.level === "2" ? 2 : 1) });
   });
   // 거꾸로 추론 퀴즈(진단형): 증상 → 원인 고르기. 기록하지 않는 자가 점검(사원증 XP 없음).
   router.get("/api/lab/causal/diagnose", login, (req, res) => res.json({ questions: diagnoseQuiz(Number(req.query.seed) || Date.now() % 100000, 4) }));
@@ -142,7 +142,7 @@ export function createLabExtrasRouter({ db, auth, deck, incidents, faults = { di
   // 오늘의 실습 경로: 내 3D 실습 기록으로 가장 약한 공정을 골라 인과 지도 → 인과 퀴즈 → 이상 상황 훈련을 권한다.
   router.get("/api/lab/practice-path", login, (_req, res) => res.json(practicePath(db, me(res).id, faults.faults, incidents.scenarios)));
   router.post("/api/lab/causal/quiz/check", login, express.json(), (req, res) => {
-    const body = z.object({ chain_id: z.string().max(120), dir: z.union([z.literal(1), z.literal(-1)]), hop: z.union([z.literal(1), z.literal(2)]), choice: z.enum(["up", "down"]) }).safeParse(req.body);
+    const body = z.object({ chain_id: z.string().max(160), dir: z.union([z.literal(1), z.literal(-1)]), hop: z.union([z.literal(1), z.literal(2), z.literal(3)]), choice: z.enum(["up", "down"]) }).safeParse(req.body);
     if (!body.success) return bad(res, 400, "길·방향·칸·답을 보내 주세요.");
     const out = checkHop(body.data.chain_id, body.data.dir, body.data.hop, body.data.choice);
     if (!out) return bad(res, 404, "없는 인과 길이에요.");

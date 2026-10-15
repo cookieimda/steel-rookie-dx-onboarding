@@ -153,32 +153,35 @@ export function simulateCausal(raw: Record<string, number> = {}): CausalResult {
 export interface Chain { id: string; nodes: string[]; cross: boolean }
 
 /** 연결 두 개로 이어지는 모든 길. cross는 공정을 넘는 길인지. */
-export function causalChains(): Chain[] {
-  const out: Chain[] = [];
-  for (const a of EDGES) for (const b of EDGES.filter((e) => e.from === a.to)) {
-    const nodes = [a.from, a.to, b.to];
-    out.push({ id: nodes.join(">"), nodes, cross: new Set(nodes.map((id) => byId.get(id)!.process)).size > 1 });
-  }
-  return out;
+export function causalChains(length = 3): Chain[] {
+  // length = 변수 수(3: 두 칸, 4: 세 칸). 연결을 이어 붙여 만든 모든 길.
+  let paths: string[][] = EDGES.map((e) => [e.from, e.to]);
+  while (paths[0] && paths[0].length < length) paths = paths.flatMap((p) => EDGES.filter((e) => e.from === p[p.length - 1]).map((e) => [...p, e.to]));
+  return paths.map((nodes) => ({ id: nodes.join(">"), nodes, cross: new Set(nodes.map((id) => byId.get(id)!.process)).size > 1 }));
 }
 
+/** 세 칸 길이 지나는 공정 수(심화 퀴즈는 공정 3개 이상을 넘는 길을 먼저). */
+const processCount = (c: Chain) => new Set(c.nodes.map((id) => byId.get(id)!.process)).size;
+
 /** 퀴즈 n개: 공정을 넘는 길을 먼저, seed로 섞고 방향(올림/내림)을 정한다. process를 주면 그 공정 변수가 든 길을 먼저 낸다(오늘의 실습 경로). */
-export function causalQuiz(seed = 1, n = 5, process?: string) {
+export function causalQuiz(seed = 1, n = 5, process?: string, level: 1 | 2 = 1) {
   let x = (Math.abs(Math.floor(seed)) % 2147483646) + 1;
   const rand = () => (x = (x * 48271) % 2147483647) / 2147483647;
   const has = (c: Chain) => !!process && c.nodes.some((id) => byId.get(id)!.process === process);
-  const chains = causalChains().map((c) => ({ c, k: rand() - (c.cross ? 1 : 0) - (has(c) ? 2 : 0) })).sort((a, b) => a.k - b.k).slice(0, n).map((o) => o.c);
+  // level 2(심화): 세 칸 길, 공정 3개 이상을 넘는 길을 먼저
+  const pool = level === 2 ? causalChains(4) : causalChains();
+  const chains = pool.map((c) => ({ c, k: rand() - (c.cross ? 1 : 0) - (has(c) ? 2 : 0) - (level === 2 && processCount(c) >= 3 ? 3 : 0) })).sort((a, b) => a.k - b.k).slice(0, n).map((o) => o.c);
   return chains.map((c) => ({
-    id: c.id, dir: rand() < 0.5 ? 1 : -1, cross: c.cross,
+    id: c.id, dir: rand() < 0.5 ? 1 : -1, cross: c.cross, processes: processCount(c),
     nodes: c.nodes.map((id) => { const d = byId.get(id)!; return { id, label: d.label, process: d.process, equipment_id: d.equipment_id }; }),
   }));
 }
 
-/** 길의 hop번째(1·2) 변수가 어떻게 되는지 채점. */
+/** 길의 hop번째(두 칸 길은 1·2, 세 칸 길은 1~3) 변수가 어떻게 되는지 채점. */
 export function checkHop(chainId: string, dir: number, hop: number, choice: "up" | "down") {
   const nodes = chainId.split(">");
-  if (nodes.length !== 3 || (hop !== 1 && hop !== 2) || (dir !== 1 && dir !== -1)) return null;
-  const edges = [0, 1].map((i) => EDGES.find((e) => e.from === nodes[i] && e.to === nodes[i + 1]));
+  if ((nodes.length !== 3 && nodes.length !== 4) || !Number.isInteger(hop) || hop < 1 || hop > nodes.length - 1 || (dir !== 1 && dir !== -1)) return null;
+  const edges = nodes.slice(0, -1).map((id, i) => EDGES.find((e) => e.from === id && e.to === nodes[i + 1]));
   if (edges.some((e) => !e)) return null;
   const sign = edges.slice(0, hop).reduce((s, e) => s * Math.sign(e!.coef), dir);
   const answer = sign > 0 ? "up" : "down";

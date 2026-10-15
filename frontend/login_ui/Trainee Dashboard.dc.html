@@ -155,7 +155,12 @@
     .lb-path a:hover, .lb-path a:focus-visible { outline: 2px solid var(--orange); outline-offset: 1px; }
     .lb-path a .lb-k { color: var(--orange); font-weight: 700; }
     .lb-path a span:last-child { color: var(--muted); }
-    @media (max-width: 900px) { .lb-path ol { grid-template-columns: 1fr; } }
+    .lb-pstats { display: flex; flex-wrap: wrap; gap: 6px; }
+    .lb-pprocs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+    .lb-pproc { display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border-radius: var(--cut-s); background: var(--panel); font-size: 15px; }
+    .lb-pproc.weak { box-shadow: inset 0 0 0 2px var(--orange); }
+    .lb-pbar { height: 6px; border-radius: var(--cut-s); background: var(--line); overflow: hidden; } .lb-pbar i { display: block; height: 100%; background: var(--orange); }
+    @media (max-width: 900px) { .lb-path ol { grid-template-columns: 1fr; } .lb-pprocs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     .lb-sub button { height: 36px; padding: 0 14px; border: 1px solid var(--line); border-radius: var(--cut-s); background: transparent; color: var(--muted); font-size: 15px; font-weight: 600; cursor: pointer; }
     .lb-sub button[aria-selected="true"] { background: var(--orange); border-color: var(--orange); color: var(--orange-ink); }
     .lb-pane { flex-direction: column; gap: 14px; min-width: 0; }
@@ -493,6 +498,9 @@
           <nav class="lb-path" aria-label="오늘의 실습 경로">
             <div class="lb-path-head"><b>🗺 오늘의 실습 경로 · {{ ppName }}</b><span class="lb-muted">{{ ppReason }}</span></div>
             <ol><sc-for list="{{ ppSteps }}" as="x" hint-placeholder-count="3"><li><a href="{{ x.href }}"><span class="lb-k">{{ x.n }}</span><b>{{ x.title }}</b><span>{{ x.why }}</span></a></li></sc-for></ol>
+            <!-- 내 3D 실습 요약: 인과 퀴즈·이상 상황 훈련·갈림길 탐험 숫자와 공정별 막대(막대가 짧을수록 약한 공정) -->
+            <div class="lb-pstats" aria-label="내 3D 실습 요약"><sc-for list="{{ ppStats }}" as="x" hint-placeholder-count="3"><span class="lb-chip">{{ x.k }} · <b>{{ x.v }}</b></span></sc-for></div>
+            <div class="lb-pprocs"><sc-for list="{{ ppProcs }}" as="x" hint-placeholder-count="4"><div class="lb-pproc {{ x.weak }}"><b>{{ x.name }}</b><span class="lb-pbar"><i style="width:{{ x.w }};"></i></span><span class="lb-muted">{{ x.quiz }} · {{ x.fault }}</span></div></sc-for></div>
           </nav>
         </sc-if>
         <div role="tablist" aria-label="학습 랩" class="lb-sub">

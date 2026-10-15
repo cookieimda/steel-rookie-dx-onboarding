@@ -140,7 +140,7 @@ export function createLabExtrasRouter({ db, auth, deck, incidents, faults = { di
     res.json(out);
   });
   // 오늘의 실습 경로: 내 3D 실습 기록으로 가장 약한 공정을 골라 인과 지도 → 인과 퀴즈 → 이상 상황 훈련을 권한다.
-  router.get("/api/lab/practice-path", login, (_req, res) => res.json(practicePath(db, me(res).id, faults.faults)));
+  router.get("/api/lab/practice-path", login, (_req, res) => res.json(practicePath(db, me(res).id, faults.faults, incidents.scenarios)));
   router.post("/api/lab/causal/quiz/check", login, express.json(), (req, res) => {
     const body = z.object({ chain_id: z.string().max(120), dir: z.union([z.literal(1), z.literal(-1)]), hop: z.union([z.literal(1), z.literal(2)]), choice: z.enum(["up", "down"]) }).safeParse(req.body);
     if (!body.success) return bad(res, 400, "길·방향·칸·답을 보내 주세요.");

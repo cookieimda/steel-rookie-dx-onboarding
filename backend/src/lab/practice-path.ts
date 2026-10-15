@@ -5,6 +5,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { SECTION_ORDER, type Section } from "../checkpoint/types.js";
 import { NODES } from "./causal.js";
 import type { FaultDrill } from "./faults.js";
+import type { IncidentScenario } from "./incidents.js";
 
 const NAME: Record<Section, string> = { ironmaking: "제선", steelmaking: "제강", continuous_casting: "연주", rolling: "열간압연" };
 /** 한 번도 안 해 본 실습은 이만큼 약하다고 본다(해 본 실습에서 반쯤 틀린 것보다 조금 앞에 둔다). */
@@ -19,7 +20,7 @@ function tableExists(db: DatabaseSync, name: string) {
   return !!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name);
 }
 
-export function practicePath(db: DatabaseSync, userId: string, faults: FaultDrill[]) {
+export function practicePath(db: DatabaseSync, userId: string, faults: FaultDrill[], scenarios: IncidentScenario[] = []) {
   const quiz = tableExists(db, "causal_quiz_answers") ? db.prepare("SELECT chain_id, hop, correct FROM causal_quiz_answers WHERE user_id = ?").all(userId) : [];
   const tries = tableExists(db, "fault_attempts") ? db.prepare("SELECT fault_id, MAX(score) AS best FROM fault_attempts WHERE user_id = ? GROUP BY fault_id").all(userId) : [];
   const best = new Map(tries.map((r) => [String(r.fault_id), Number(r.best)]));
@@ -62,5 +63,12 @@ export function practicePath(db: DatabaseSync, userId: string, faults: FaultDril
     kind: "fault", title: `이상 상황 훈련: ${pick.fault_title}`, why: pick.fault_best == null ? "이상 신호 → 원인 → 조치를 직접 골라 봐요." : `최고 점수 ${pct(pick.fault_best)}. 한 번에 맞히면 100%예요.`,
     href: url(`lab=fault&fault=${pick.fault_id}`), done: pick.fault_best === 1,
   });
-  return { process: p, name: pick.name, reason, steps, processes: processes.map(({ missed: _m, ...rest }) => rest) };
+  // 내 3D 실습 요약(학습 기록 카드): 인과 퀴즈 칸·정답률, 끝낸 이상 상황 훈련 종류, 골라 본 갈림길 선택
+  const branches = tableExists(db, "branch_explorations") ? Number(db.prepare("SELECT COUNT(*) AS n FROM branch_explorations WHERE user_id = ?").get(userId)?.n ?? 0) : 0;
+  const summary = {
+    quiz_answers: quiz.length, quiz_rate: quiz.length ? Math.round((quiz.filter((r) => Number(r.correct) === 1).length / quiz.length) * 100) / 100 : null,
+    faults_done: best.size, faults_total: faults.length, faults_perfect: [...best.values()].filter((v) => v === 1).length,
+    branches_explored: branches, branches_total: scenarios.reduce((n, s) => n + s.timeline.reduce((m, t) => m + (t.branch?.options.length ?? 0), 0), 0),
+  };
+  return { process: p, name: pick.name, reason, steps, processes: processes.map(({ missed: _m, ...rest }) => rest), summary };
 }

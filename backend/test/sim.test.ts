@@ -227,3 +227,20 @@ test("HTTP 갈림길 탐험: 같은 선택은 한 번만 남고, 실제로 일�
   assert.ok(deleteUserData(db, kim.id, { origin: "live" }).operations >= 1);
   assert.equal(new MeRepository(db).cardEvents(kim.id).filter((e) => e.kind === "branch_explored").length, 0);
 });
+
+test("내 3D 실습 요약: 퀴즈 칸·정답률, 끝낸 훈련 종류·만점, 골라 본 갈림길 수와 전체 선택 수", async () => {
+  const { practicePath } = await import("../src/lab/practice-path.js");
+  const pdb = openDatabase(":memory:"), u = await new UserRepository(pdb).create({ username: "trainee06", password: "password123", name: "라", employee_no: "S6" });
+  const faults = loadFaults().faults, scenarios = loadIncidents().scenarios, now = new Date().toISOString();
+  const empty = practicePath(pdb, u.id, faults, scenarios).summary;
+  const totalOptions = scenarios.reduce((n, s) => n + s.timeline.reduce((m, t) => m + (t.branch?.options.length ?? 0), 0), 0);
+  assert.deepEqual(empty, { quiz_answers: 0, quiz_rate: null, faults_done: 0, faults_total: 4, faults_perfect: 0, branches_explored: 0, branches_total: totalOptions });
+  pdb.prepare("INSERT INTO causal_quiz_answers VALUES(?,?,?,?,?,?)").run("a", u.id, "coke_rate>hm_temp>scrap_pct", 1, 1, now);
+  pdb.prepare("INSERT INTO causal_quiz_answers VALUES(?,?,?,?,?,?)").run("b", u.id, "coke_rate>hm_temp>scrap_pct", 2, 0, now);
+  pdb.prepare("INSERT INTO fault_attempts VALUES(?,?,?,?,?,?)").run("f1", u.id, faults[0].id, "{}", 1, now);
+  pdb.prepare("INSERT INTO fault_attempts VALUES(?,?,?,?,?,?)").run("f2", u.id, faults[1].id, "{}", 0.5, now);
+  pdb.prepare("INSERT INTO branch_explorations VALUES(?,?,?,?,?,?,?)").run("x", u.id, scenarios[0].id, 1, 1, 0, now);
+  const s = practicePath(pdb, u.id, faults, scenarios).summary;
+  assert.deepEqual([s.quiz_answers, s.quiz_rate, s.faults_done, s.faults_perfect, s.branches_explored], [2, 0.5, 2, 1, 1]);
+  assert.ok(totalOptions >= 16, "사례 4개 × 갈림길 2개 × 선택 2개 이상");
+});

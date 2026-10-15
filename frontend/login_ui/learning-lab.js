@@ -201,6 +201,14 @@ export function createLearningLab(c) {
     const P = s.labPath, ICON = { map: '🗺', quiz: '🧩', fault: '🚨' };
     Object.assign(v, {
       ppHas: !!P?.steps?.length, ppName: P?.name || '', ppReason: P?.reason || '',
+      // 내 3D 실습 요약: 숫자 칩 + 공정별(퀴즈 정답률·훈련 최고 점수) 막대
+      ppStats: P?.summary ? [
+        ['인과 퀴즈', P.summary.quiz_answers ? `${Math.round(P.summary.quiz_rate * 100)}% · ${P.summary.quiz_answers}칸` : '아직 없음'],
+        ['이상 상황 훈련', `${P.summary.faults_done} / ${P.summary.faults_total}종${P.summary.faults_perfect ? ` · 만점 ${P.summary.faults_perfect}` : ''}`],
+        ['갈림길 탐험', `${P.summary.branches_explored} / ${P.summary.branches_total}`],
+      ].map(([k, val]) => ({ k, v: val })) : [],
+      ppProcs: (P?.processes || []).map(x => ({ name: x.name, quiz: x.quiz_rate == null ? '퀴즈 —' : `퀴즈 ${Math.round(x.quiz_rate * 100)}%`, fault: x.fault_best == null ? '훈련 —' : `훈련 ${Math.round(x.fault_best * 100)}점`,
+        w: `${Math.round((1 - x.weakness) * 100)}%`, weak: x.process === P.process ? 'weak' : '' })),
       ppSteps: (P?.steps || []).map((x, i) => ({ n: `${i + 1}단계 ${ICON[x.kind] || ''}${x.done ? ' · 완료' : ''}`, title: x.title, why: x.why, href: x.href })),
     });
 

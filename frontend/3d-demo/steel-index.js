@@ -242,7 +242,7 @@ function renderPanel() {
         <div class="lv l2"><div class="lvh">핵심 수치 · 현장 포인트</div>
           ${rng ? `<div class="heat"><div class="bg" style="background:radial-gradient(circle at 30% 55%, ${hA} 0%, transparent 55%), radial-gradient(circle at 75% 35%, ${hB} 0%, transparent 50%)"></div>
             <span class="lab">해당 영역의 온도(예시)</span><span class="val" style="color:${hC}">${esc(st.temp || lay?.temp || '')}</span>
-            <div><div class="bar"></div><div class="fill" style="left:${pct(rng[0])};width:calc(${pct(rng[1])} - ${pct(rng[0])});box-shadow:0 0 6px ${hA}"></div><div class="scale"><span>0℃</span><span>500</span><span>1,000</span><span>1,500</span><span>2,000℃</span></div></div>
+            <div class="hbar-wrap"><div class="hbar"></div><div class="fill" style="left:${pct(rng[0])};width:calc(${pct(rng[1])} - ${pct(rng[0])});box-shadow:0 0 6px ${hA}"></div><div class="scale"><span>0℃</span><span>500</span><span>1,000</span><span>1,500</span><span>2,000℃</span></div></div>
             ${lay?.label ? `<span class="lab" style="line-height:1.5">${esc(lay.label)}</span>` : ''}
             <span class="note2">원본 예시값 · 검증 필요 · 교육용 개념 표현으로, 실제 운전 조건과 다를 수 있습니다.</span></div>` : ''}
           ${kpi ? `<div class="kpi"><b>${esc(kpi.v)}</b><span>${esc(kpi.k)}</span><small>출처 · ${esc(kpi.src || '-')}</small></div>` : ''}

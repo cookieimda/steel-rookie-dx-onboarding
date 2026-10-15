@@ -29,6 +29,8 @@ const SLIDERS = [
 // 조사: 받침이 있으면 이·은, 없으면 가·는(숫자·기호로 끝나면 받침 없음으로 본다)
 const batchim = (w) => { const t = String(w).replace(/\s*\([^)]*\)\s*$/, '').trim(); const c = t.charCodeAt(t.length - 1) - 0xac00; return c >= 0 && c < 11172 && c % 28 !== 0; }; // 끝의 (S)·(Si) 같은 괄호는 빼고 본다
 const iGa = (w) => `${w}${batchim(w) ? '이' : '가'}`, eunNeun = (w) => `${w}${batchim(w) ? '은' : '는'}`, eulReul = (w) => `${w}${batchim(w) ? '을' : '를'}`;
+/** '으로/로': 받침이 없거나 ㄹ 받침이면 '로'(연주로·제선으로·열간압연으로). */
+const euRo = (w) => { const t = String(w).replace(/\s*\([^)]*\)\s*$/, '').trim(), c = t.charCodeAt(t.length - 1) - 0xac00, j = c >= 0 && c < 11172 ? c % 28 : 0; return `${w}${j && j !== 8 ? '으로' : '로'}`; };
 const SECTION = { ironmaking: '제선', steelmaking: '제강', continuous_casting: '연주', rolling: '열간압연' };
 const fmt = (n, d = 0) => Number(n).toLocaleString('ko-KR', { maximumFractionDigits: d, minimumFractionDigits: d });
 const signed = (n, d = 0, unit = '') => `${n > 0 ? '+' : n < 0 ? '−' : '±'}${fmt(Math.abs(n), d)}${unit}`;
@@ -777,7 +779,7 @@ export async function attachSimLab() {
         box.append(el('b', '', `${e.label} (${ch})`), el('div', '', e.why), el('div', 'sl-muted', `이것만 바꾸면 → 용선 온도 ${signed(d.hot_metal_temp_c, 0, '℃')} · 슬래그 ${signed(d.slag_kg, 0, 'kg/t')} · 염기도 ${signed(d.basicity, 2)} · CO2 ${signed(d.co2_kg, 0, 'kg/t')}`));
         return box;
       }) : [el('p', 'sl-muted', '슬라이더를 움직여 보세요. 바꾼 조건마다 무엇이 왜 달라졌는지 여기에 나와요.')]));
-      next.replaceChildren(...data.downstream.map((d) => { const box = el('div', 'sl-next'); box.append(el('b', '', `다음 공정 영향 · ${SECTION[d.process]}`), el('div', '', d.text), btn(`${SECTION[d.process]}으로 따라가 보기`, () => goTo(d.process, d.equipment_id), 'sl-btn ghost')); return box; }));
+      next.replaceChildren(...data.downstream.map((d) => { const box = el('div', 'sl-next'); box.append(el('b', '', `다음 공정 영향 · ${SECTION[d.process]}`), el('div', '', d.text), btn(`${euRo(SECTION[d.process])} 따라가 보기`, () => goTo(d.process, d.equipment_id), 'sl-btn ghost')); return box; }));
       warn.replaceChildren(...r.warnings.map((w) => el('p', 'sl-bad', `⚠ ${w}`)));
       // 3D: 흐름·빛·이름표·링
       fx.clear();

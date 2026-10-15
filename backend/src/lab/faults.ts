@@ -51,7 +51,7 @@ export function loadFaults(path = FAULTS_PATH, known?: Set<string>) {
     if (f.causal) for (const [k, v] of Object.entries(f.causal)) {
       const n = NODES.find((x) => x.id === k);
       if (!n?.control) throw new Error(`${where}: 인과 지도에 조정할 수 없는 값 ${k}`);
-      if (v < n.control.min || v > n.control.max) throw new Error(`${where}: ${k} 값 ${v}이 인과 지도 범위(${n.control.min}~${n.control.max}) 밖이에요`);
+      if (v < n.control.min || v > n.control.max) throw new Error(`${where}: ${k} = ${v}, 인과 지도 범위(${n.control.min}~${n.control.max}) 밖이에요`);
     }
     if (known) for (const id of [f.equipment_id, f.downstream.equipment_id, ...f.cause.chain]) if (!known.has(id)) throw new Error(`${where}: 없는 설비 id ${id}`);
   }

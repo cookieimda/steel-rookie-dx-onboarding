@@ -32,7 +32,7 @@ export function loadLessons(path = LESSONS_PATH, refs?: { faults: FaultDrill[]; 
       for (const [k, v] of Object.entries(s.set ?? {})) {
         const n = NODES.find((x) => x.id === k);
         if (!n?.control) throw new Error(`${where}: 인과 지도에 조정할 수 없는 값 ${k}`);
-        if (v < n.control.min || v > n.control.max) throw new Error(`${where}: ${k} 값 ${v}이 범위 밖이에요`);
+        if (v < n.control.min || v > n.control.max) throw new Error(`${where}: ${k} = ${v}, 범위 밖이에요`);
       }
       if (s.lab === "map" && !s.set) throw new Error(`${where}: 인과 지도 단계에는 조건(set)이 있어야 해요`);
       if (!refs) return;

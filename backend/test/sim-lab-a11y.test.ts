@@ -86,3 +86,10 @@ test("수업 막대 배치: 실습 패널은 수업 막대 아래에서 시작�
   assert.ok(src.includes("root.style.setProperty('--sl-panel-top'") && src.includes("root.style.removeProperty('--sl-panel-top')"));
   assert.ok(src.includes("history.replaceState(null, '', `${location.pathname}?p=${scene.process?.id || 'ironmaking'}`)"));
 });
+
+test("화면 문구 조사: 공정 이름 뒤에 고정 조사를 붙이지 않는다(연주으로·연주이 같은 오류 방지)", () => {
+  assert.ok(!src.includes("${SECTION[d.process]}으로"), "euRo로 붙인다");
+  assert.ok(src.includes("${euRo(SECTION[d.process])} 따라가 보기"));
+  const path = readFileSync(join(process.cwd(), "backend", "src", "lab", "practice-path.ts"), "utf8");
+  assert.ok(!path.includes("${pick.name}이 "), "josa로 붙인다");
+});

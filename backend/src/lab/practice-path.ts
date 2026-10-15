@@ -3,7 +3,7 @@
 // 점수·통과와 상관없는 추천이다. 링크는 3D 화면(v4)의 ?p=공정&lab=…로 바로 연다(sim-lab.js가 읽는다).
 import type { DatabaseSync } from "node:sqlite";
 import { SECTION_ORDER, type Section } from "../checkpoint/types.js";
-import { NODES } from "./causal.js";
+import { NODES, josa } from "./causal.js";
 import type { FaultDrill } from "./faults.js";
 import type { IncidentScenario } from "./incidents.js";
 
@@ -50,7 +50,7 @@ export function practicePath(db: DatabaseSync, userId: string, faults: FaultDril
 
   const reason = pick.quiz_rate == null && pick.fault_best == null
     ? `${pick.name}의 3D 실습을 아직 안 해 봤어요.`
-    : [pick.quiz_rate != null && pick.quiz_rate < 1 ? `${pick.name}이 걸린 인과 퀴즈 정답률이 ${pct(pick.quiz_rate)}` : null,
+    : [pick.quiz_rate != null && pick.quiz_rate < 1 ? `${josa(pick.name, "이", "가")} 걸린 인과 퀴즈 정답률이 ${pct(pick.quiz_rate)}` : null,
        pick.fault_best != null && pick.fault_best < 1 ? `이상 상황 훈련 최고 점수가 ${pct(pick.fault_best)}` : null,
        pick.quiz_rate == null ? "인과 퀴즈는 아직 안 풀었어요" : null,
        pick.fault_id && pick.fault_best == null ? "이상 상황 훈련은 아직 안 해 봤어요" : null].filter(Boolean).join(", ") + ".";

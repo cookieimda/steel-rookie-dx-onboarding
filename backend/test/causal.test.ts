@@ -145,3 +145,10 @@ test("마이그레이션 016: 인과 퀴즈 답이 칸 3을 받고 예전 답은
   assert.throws(() => db.prepare("INSERT INTO causal_quiz_answers VALUES(?,?,?,?,?,?)").run("b", "u", "a>b>c>d", 4, 1, "2026-10-16T00:00:00Z"));
   assert.equal(Number(db.prepare("SELECT COUNT(*) AS n FROM causal_quiz_answers").get()!.n), 1);
 });
+
+test("조사 함수: 받침 유무와 ㄹ 받침('으로/로'), 끝 괄호는 빼고 본다", async () => {
+  const { josa } = await import("../src/lab/causal.js");
+  assert.deepEqual(["제선", "제강", "연주", "열간압연"].map((w) => josa(w, "이", "가")), ["제선이", "제강이", "연주가", "열간압연이"]);
+  assert.deepEqual(["제선", "연주", "레일", "용선 황(S)"].map((w) => josa(w, "으로", "로")), ["제선으로", "연주로", "레일로", "용선 황(S)으로"]);
+  assert.equal(josa("BOF", "은", "는"), "BOF는");
+});

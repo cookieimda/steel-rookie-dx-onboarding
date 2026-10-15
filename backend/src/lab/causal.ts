@@ -86,12 +86,19 @@ export interface CausalResult {
   note: string;
 }
 
-/** 받침에 따라 '을/를'. 끝의 괄호(예: '용선 황(S)')는 빼고 본다. */
-export function eulReul(word: string) {
+/** 마지막 글자의 받침: 0이면 없음, 8이면 ㄹ. 끝의 괄호(예: '용선 황(S)')는 빼고 본다. 한글이 아니면 L·M·N·R로 끝날 때만 받침으로 본다. */
+function finalJong(word: string) {
   const w = word.replace(/\s*\([^)]*\)\s*$/, ""), c = w.charCodeAt(w.length - 1);
-  const batchim = c >= 0xac00 && c <= 0xd7a3 ? (c - 0xac00) % 28 !== 0 : /[0-9LMNRlmnr]$/.test(w);
-  return `${word}${batchim ? "을" : "를"}`;
+  if (c >= 0xac00 && c <= 0xd7a3) return (c - 0xac00) % 28;
+  return /[LMNRlmnr]$/.test(w) ? (/[Ll]$/.test(w) ? 8 : 4) : 0;
 }
+/** 받침에 따라 조사를 붙인다: josa('연주', '이', '가') → '연주가'. '으로/로'는 ㄹ 받침도 '로'. */
+export function josa(word: string, withFinal: string, withoutFinal: string) {
+  const j = finalJong(word);
+  const has = withFinal === "으로" ? j !== 0 && j !== 8 : j !== 0;
+  return `${word}${has ? withFinal : withoutFinal}`;
+}
+export const eulReul = (word: string) => josa(word, "을", "를");
 
 // ── 공정 사이 시간 지연: 바꾼 값의 영향은 물질이 다음 공정에 닿아야 나타난다(교육용 대략값, 실제 물류·일정마다 다르다) ──
 const PROCESS_SEQ: ProcessId[] = ["ironmaking", "steelmaking", "continuous_casting", "rolling"];
@@ -137,7 +144,8 @@ export function simulateCausal(raw: Record<string, number> = {}): CausalResult {
     if (!n.delta) return [];
     // id·설비·원인 변수: 3D '인과 따라가기'가 이 순서대로 카메라를 옮기고 원인 설비 → 이 설비로 흐름을 그린다
     const at = { id, equipment_id: n.equipment_id, process: n.process, status: n.status, arrive: arrivalText(start, n.process) };
-    if (n.control) return [{ ...at, causes: [], text: `${eulReul(n.label)} ${fmt(n)}로 바꿨어요.` }];
+    // 숫자 뒤 조사(으로/로)는 읽는 법에 따라 달라 피한다
+    if (n.control) return [{ ...at, causes: [], text: `${eulReul(n.label)} 바꿨어요: ${fmt(n)}.` }];
     const active = edges.filter((e) => e.to === id && e.active);
     const causes = active.map((e) => nodeOf.get(e.from)!.label);
     const why = edges.filter((e) => e.to === id && e.active).map((e) => e.why).join(" ");

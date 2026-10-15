@@ -91,6 +91,7 @@ function injectStyle() {
     .sl-shake { animation: slShake .35s; } @keyframes slShake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
     /* hidden이어도 display:flex가 이겨 빈 띠가 보이던 문제 */
     .sl-panel[hidden] { display: none !important; }
+    .sl-panel.folded { bottom: auto; min-height: 0; max-height: none; } .sl-panel.folded > :not(h3) { display: none; }
     /* 좁은 화면: 실행 버튼이 두 줄로 접히므로 패널 아래 끝을 버튼 묶음 위로 맞춘다(--sl-panel-bottom은 버튼 묶음 높이로 계산) */
     @media (max-width: 740px) { .sl-panel { top: auto; bottom: var(--sl-panel-bottom, 150px); max-height: min(55vh, calc(100vh - var(--sl-panel-bottom, 150px) - var(--sl-panel-top, 72px))); } .sl-launch { bottom: 120px; } }`;
   document.head.appendChild(s);
@@ -242,7 +243,7 @@ export async function attachSimLab() {
   const launcherOf = { map: bMap, whatif: bWhatif, fault: bFault, quiz: bMap, incident: bFault, diagnose: bMap };
   function open(next, preset, opt = {}) {
     const prev = mode;
-    mode = next; fx.clear(); panel.classList.remove('compact');
+    mode = next; fx.clear(); panel.classList.remove('compact', 'folded');
     if (flowOn) { flowOn = false; bPlant.setAttribute('aria-pressed', 'false'); }
     for (const b of [bMap, bWhatif, bFault]) b.setAttribute('aria-expanded', String(!!mode && launcherOf[mode] === b));
     if (mode) panel.setAttribute('aria-label', `3D 실습 · ${TITLES[mode]}`);
@@ -256,6 +257,10 @@ export async function attachSimLab() {
     const h = el('h3'); h.append(el('span', '', title)); h.tabIndex = -1;
     setTimeout(() => { if (panel.contains(h) && !panel.contains(document.activeElement)) h.focus({ preventScroll: true }); }, 0);
     if (foldable) { const f = btn('결과만 보기', () => { const c = panel.classList.toggle('compact'); f.textContent = c ? '조건 펼치기' : '결과만 보기'; }, 'sl-btn ghost'); h.append(f); }
+    // 접기: 제목 줄만 남기고 3D를 넓게 본다(모든 실습 패널 공통, 진행은 그대로)
+    // 패널을 다시 그릴 때(훈련 목록 → 훈련 등) 접힌 상태를 이어받는다
+    const fold = btn(panel.classList.contains('folded') ? '펴기' : '접기', () => { const f = panel.classList.toggle('folded'); fold.textContent = f ? '펴기' : '접기'; fold.setAttribute('aria-expanded', String(!f)); }, 'sl-btn ghost');
+    fold.setAttribute('aria-expanded', String(!panel.classList.contains('folded'))); fold.setAttribute('aria-label', '실습 패널 접기·펴기'); h.append(fold);
     const x = btn('닫기', () => open(null), 'sl-btn ghost'); x.setAttribute('aria-label', `${title.replace(/^\S+\s/, '')} 닫기 (Esc)`);
     h.append(x); return h;
   };

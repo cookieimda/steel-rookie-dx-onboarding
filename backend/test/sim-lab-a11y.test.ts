@@ -94,3 +94,10 @@ test("화면 문구 조사: 공정 이름 뒤에 고정 조사를 붙이지 않�
   const path = readFileSync(join(process.cwd(), "backend", "src", "lab", "practice-path.ts"), "utf8");
   assert.ok(!path.includes("${pick.name}이 "), "josa로 붙인다");
 });
+
+test("모든 실습 패널 접기: 제목 줄만 남기는 [접기]가 공통 머리에 있고, 다시 그려도 상태를 이어받고, 다른 실습을 열면 푼다", () => {
+  assert.ok(src.includes("panel.classList.toggle('folded')"));
+  assert.ok(src.includes("btn(panel.classList.contains('folded') ? '펴기' : '접기'"));
+  assert.ok(src.includes("panel.classList.remove('compact', 'folded')"));
+  assert.match(src, /\.sl-panel\.folded > :not\(h3\) \{ display: none; \}/);
+});

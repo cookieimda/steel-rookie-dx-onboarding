@@ -311,7 +311,9 @@ test("3D 실습 통계 · 수업: 수업별 연 사람·끝 단계까지 간 사
   add(a, 1); add(b, 1); add(b, 2);
   const st = practiceStats(sdb, { faults: [], scenarios: [], lessons: loadLessons() });
   const l = st.lessons.find((x) => x.id === "causal-101")!;
-  assert.deepEqual([l.learners, l.finished, l.by_step.map((x) => x.learners)], [2, 1, [2, 2, 1, 1, 1, 1]]);
+  assert.deepEqual([l.learners, l.reached_last, l.finished, l.by_step.map((x) => x.learners)], [2, 1, 0, [2, 2, 1, 1, 1, 1]], "마지막 단계까지 1명, 마치기는 아직 0명");
+  sdb.prepare("INSERT INTO xapi_statements (id, user_id, verb, object_id, object_name, timestamp, stored) VALUES (?, ?, 'experienced', 'practice:lesson:causal-101_done', 'x', ?, ?)").run(crypto.randomUUID(), a.id, "2026-10-16T00:00:00Z", "2026-10-16T00:00:00Z");
+  assert.equal(practiceStats(sdb, { faults: [], scenarios: [], lessons: loadLessons() }).lessons.find((x) => x.id === "causal-101")!.finished, 1);
   assert.equal(st.lessons.find((x) => x.id === "diagnose-drill")!.learners, 0);
 });
 

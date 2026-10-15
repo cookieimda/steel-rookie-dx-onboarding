@@ -87,7 +87,9 @@ export function practiceStats(db: DatabaseSync, content: { faults: FaultDrill[];
   const lessons = (content.lessons ?? []).map((l) => {
     const mine = opened.map((r) => ({ u: String(r.user_id), m: /^practice:lesson:([a-z0-9-]+)_(\d+)$/.exec(String(r.object_id)) })).filter((x) => x.m && x.m[1] === l.id);
     const steps = l.steps.map((s, i) => ({ title: s.title, learners: new Set(mine.filter((x) => Number(x.m![2]) === i + 1).map((x) => x.u)).size }));
-    return { id: l.id, title: l.title, steps: l.steps.length, learners: new Set(mine.map((x) => x.u)).size, finished: steps[steps.length - 1]?.learners ?? 0, by_step: steps };
+    // 끝까지 간 사람: [수업 마치기]를 누른 사람(practice:lesson:<id>_done)
+    const finished = new Set(opened.filter((r) => String(r.object_id) === `practice:lesson:${l.id}_done`).map((r) => String(r.user_id))).size;
+    return { id: l.id, title: l.title, steps: l.steps.length, learners: new Set(mine.map((x) => x.u)).size, reached_last: steps[steps.length - 1]?.learners ?? 0, finished, by_step: steps };
   });
   // ── 거꾸로 추론: 정답률과 헷갈리는 원인(가장 많이 틀린 문제와 그때 가장 많이 고른 다른 원인) ──
   const diagRows = rows("diagnose_answers", "user_id, question, choice, correct");

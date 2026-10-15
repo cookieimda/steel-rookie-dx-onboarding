@@ -675,7 +675,14 @@ export async function attachSimLab() {
       // 새로 고침해도 수업이 다시 열리지 않게 주소에서 수업 표시를 뺀다
       try { history.replaceState(null, '', `${location.pathname}?p=${scene.process?.id || 'ironmaking'}`); } catch (e) {}
     }, 'sl-btn ghost');
-    nav.append(prev, next, fold, end);
+    // 마지막 단계에서는 [다음] 대신 [수업 마치기]: 단계 요약과 목표를 보여 주고 '마침'을 기록
+    const finish = btn('🎓 수업 마치기', () => {
+      experienced('lesson', `${lesson.id}_done`);
+      title.textContent = `수업을 마쳤어요 · ${lesson.title}`;
+      note.hidden = false; note.textContent = `오늘 본 것: ${lesson.steps.map((s, k) => `${k + 1}. ${s.title}`).join(' · ')}. 목표 — ${lesson.goal}`;
+      finish.disabled = true; say(`수업을 마쳤어요. ${lesson.goal}`);
+    }, 'sl-btn');
+    nav.append(prev, next, finish, fold, end);
     bar.append(el('small', '', `🎓 수업 · ${lesson.title} · ${lesson.minutes}분`), title, note, nav);
     document.body.append(bar);
     // 실습 패널은 수업 막대 아래에서 시작한다(좁은 화면에서 겹치지 않게). 좁은 화면은 안내를 접어 두고 시작.
@@ -689,6 +696,7 @@ export async function attachSimLab() {
       const s = lesson.steps[i];
       title.textContent = `${i + 1} / ${lesson.steps.length} · ${s.title}`; note.textContent = s.note;
       prev.disabled = i === 0; next.disabled = i === lesson.steps.length - 1;
+      const last = i === lesson.steps.length - 1; next.hidden = last; finish.hidden = !last; finish.disabled = false;
       try { history.replaceState(null, '', `${location.pathname}?p=${scene.process?.id || 'ironmaking'}&lab=lesson&lesson=${lesson.id}&step=${i + 1}`); } catch (e) {}
       if (s.lab === 'plant') { open(null); if (!flowOn) plantFlow(); else plantView(); }
       else if (s.lab === 'map') open('map', s.set || {}, { tour: !!s.tour });

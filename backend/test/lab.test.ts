@@ -268,3 +268,9 @@ test("HTTP xAPI 수업 열람: '<수업>_<단계>'로 남기고 이름은 수업
   assert.equal((await call("POST", "/api/me/lab/xapi", lee, { verb: "experienced", practice: "lesson", object_id: "causal-101_9" })).status, 404);
   assert.equal((await call("POST", "/api/me/lab/xapi", lee, { verb: "experienced", practice: "lesson", object_id: "causal-101" })).status, 404);
 });
+
+test("HTTP xAPI 수업 마침: '<수업>_done'은 '수업 · 제목 · 마침', 없는 수업은 404", async () => {
+  const ok = await call("POST", "/api/me/lab/xapi", lee, { verb: "experienced", practice: "lesson", object_id: "field-judgment_done" });
+  assert.equal(ok.json.object.definition.name["ko-KR"], "수업 · 원인을 못 고칠 때의 현장 판단 · 마침");
+  assert.equal((await call("POST", "/api/me/lab/xapi", lee, { verb: "experienced", practice: "lesson", object_id: "nope_done" })).status, 404);
+});

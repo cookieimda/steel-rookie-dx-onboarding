@@ -27,9 +27,12 @@ import { loadLessons, type LessonDef } from "./lessons.js";
 /** 수업 단계 이름(수업 열람 문장 이름). object_id는 "<수업 id>_<단계 번호>". */
 let lessonCache: LessonDef[] | null = null;
 const lessonStepTitle = (id: string) => {
+  if (!lessonCache) { try { lessonCache = loadLessons(); } catch { lessonCache = []; } }
+  // "<수업 id>_done": 수업을 끝까지 마침
+  const done = /^([a-z0-9-]+)_done$/.exec(id);
+  if (done) { const l = lessonCache.find((x) => x.id === done[1]); return l ? `${l.title} · 마침` : undefined; }
   const m = /^([a-z0-9-]+)_(\d{1,2})$/.exec(id);
   if (!m) return undefined;
-  if (!lessonCache) { try { lessonCache = loadLessons(); } catch { lessonCache = []; } }
   const l = lessonCache.find((x) => x.id === m[1]), s = l?.steps[Number(m[2]) - 1];
   return l && s ? `${l.title} · ${m[2]}/${l.steps.length} ${s.title}` : undefined;
 };

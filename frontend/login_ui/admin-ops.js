@@ -240,7 +240,7 @@ async function showPractice(pane) {
     a.href = `/3d-demo/Steel%20Academy%20v4.dc.html?p=ironmaking&lab=lesson&lesson=${encodeURIComponent(l.id)}&step=1`; a.target = '_blank'; a.rel = 'noopener';
     const st = (data.lessons || []).find((x) => x.id === l.id);
     row.append(el('span', '', `${l.title} · ${l.steps}단계 · ${l.minutes}분`), a, el('small', '', l.goal));
-    if (st) row.append(el('small', '', `연 사람 ${st.learners}명 · 끝 단계까지 ${st.finished}명 · 단계별 ${st.by_step.map((x, k) => `${k + 1}:${x.learners}`).join(' ')}`));
+    if (st) row.append(el('small', '', `연 사람 ${st.learners}명 · 마지막 단계까지 ${st.reached_last}명 · 수업 마침 ${st.finished}명 · 단계별 ${st.by_step.map((x, k) => `${k + 1}:${x.learners}`).join(' ')}`));
     lc.append(row);
   }
   if (!lessons.lessons.length) lc.append(el('p', 'muted', '수업이 없어요.'));

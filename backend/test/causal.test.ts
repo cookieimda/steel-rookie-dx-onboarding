@@ -170,7 +170,9 @@ test("'언제 나타날까?' 시간 질문: 공정을 넘는 길, 보기 4개 �
 test("되돌리기 퍼즐: 풀 수 있는 퍼즐만 나오고, 보기는 흔든 값을 뺀 조정 값 전부, 채점은 하나만·닿는지·부작용", async () => {
   const { rebalancePuzzles, checkRebalance, NODES } = await import("../src/lab/causal.js");
   const ps = rebalancePuzzles();
-  assert.ok(ps.length >= 4);
+  assert.ok(ps.length >= 8, "흔드는 크기 3단계로 퍼즐이 늘어난다");
+  assert.ok(ps[0].clean && ps.some((x) => !x.clean), "쉬운 것(부작용 없이 풀림)이 먼저");
+  assert.ok(new Set(ps.map((x) => x.id)).size === ps.length);
   const controls = NODES.filter((n) => n.control).map((n) => n.id);
   for (const p of ps) {
     const [disturbed] = Object.keys(p.disturb);
@@ -179,7 +181,7 @@ test("되돌리기 퍼즐: 풀 수 있는 퍼즐만 나오고, 보기는 흔든 
     const solvable = p.controls.some((id) => { const n = NODES.find((x) => x.id === id)!; for (let v = n.control!.min; v <= n.control!.max + 1e-9; v += n.control!.step) if (checkRebalance(p.id, { [id]: Math.round(v * 1e4) / 1e4 })!.solved) return true; return false; });
     assert.ok(solvable, p.id);
   }
-  const p = ps.find((x) => x.id === "tap_temp:1>breakout")!;
+  const p = ps.find((x) => x.id === "tap_temp:1@1680>breakout")!;
   // 출강 온도가 높을 때 주조 속도를 충분히 낮추면 브레이크아웃 위험은 범위 안 — 대신 주조 속도 자체가 정상 범위 아래(생산성)로 내려가는 맞바꿈을 부작용으로 보여 준다
   const slow = checkRebalance(p.id, { cast_speed: 0.9 })!;
   assert.equal(slow.solved, true);

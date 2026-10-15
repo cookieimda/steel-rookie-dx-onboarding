@@ -314,25 +314,46 @@ function controlAncestors(target: string) {
 /** 조정 변수가 가질 수 있는 값(간격대로). */
 const controlValues = (n: NodeDef) => { const out: number[] = []; for (let v = n.control!.min; v <= n.control!.max + 1e-9; v += n.control!.step) out.push(round(v, 4)); return out; };
 
-export interface RebalancePuzzle { id: string; disturb: Record<string, number>; target: string; controls: string[]; solutions: number }
+export interface RebalancePuzzle { id: string; disturb: Record<string, number>; target: string; controls: string[]; solutions: number; /** 부작용 없이 되돌릴 수 있으면 쉬움 */ clean: boolean }
+
+/** 흔드는 크기: 기준에서 끝 쪽으로 frac만큼(간격에 맞춤). */
+function disturbInput(id: string, dir: number, frac: number) {
+  const n = byId.get(id)!, { min, max, step } = n.control!;
+  const raw = n.base + (dir > 0 ? max - n.base : n.base - min) * frac * dir;
+  return { [id]: round(Math.round(raw / step) * step, 4) };
+}
+/** 흔드는 크기 단계. */
+export const DISTURB_LEVELS = [0.5, 0.8, 1];
 let puzzleCache: RebalancePuzzle[] | null = null;
 /** 풀 수 있는 퍼즐 목록(흔든 값 → 범위 밖 하류 값, 보상할 수 있는 다른 조정 값이 하나 이상). */
 export function rebalancePuzzles() {
   if (puzzleCache) return puzzleCache;
   const out: RebalancePuzzle[] = [];
-  for (const c of NODES.filter((n) => n.control)) for (const d of [1, -1]) {
-    const disturb = diagnoseInput(`${c.id}:${d}`)!, r = simulateCausal(disturb);
+  for (const c of NODES.filter((n) => n.control)) for (const d of [1, -1]) for (const frac of DISTURB_LEVELS) {
+    const disturb = disturbInput(c.id, d, frac), r = simulateCausal(disturb);
     for (const t of r.nodes.filter((n) => !n.control && n.status === "warn")) {
       // 보기는 흔든 값을 뺀 조정 값 전부(목표에 닿지 않는 값도 넣어 어느 값이 닿는지 스스로 찾게 한다). 풀이가 있는지는 목표에 닿는 값으로만 본다
       const controls = NODES.filter((n) => n.control && n.id !== c.id).map((n) => n.id);
-      let solutions = 0;
-      for (const id of controlAncestors(t.id).filter((x) => x !== c.id)) for (const v of controlValues(byId.get(id)!)) {
-        if (simulateCausal({ ...disturb, [id]: v }).nodes.find((n) => n.id === t.id)!.status === "ok") { solutions++; break; }
+      let solutions = 0, clean = false;
+      const warnBefore = new Set(r.nodes.filter((n) => n.status === "warn").map((n) => n.id));
+      for (const id of controlAncestors(t.id).filter((x) => x !== c.id)) {
+        let found = false;
+        for (const v of controlValues(byId.get(id)!)) {
+          const after = simulateCausal({ ...disturb, [id]: v });
+          if (after.nodes.find((n) => n.id === t.id)!.status !== "ok") continue;
+          found = true;
+          // 부작용 없이: 새로 범위 밖이 된 값이 없다(조치한 값 자체 포함)
+          if (!after.nodes.some((n) => n.status === "warn" && !warnBefore.has(n.id))) clean = true;
+        }
+        if (found) solutions++;
       }
-      if (solutions) out.push({ id: `${c.id}:${d}>${t.id}`, disturb, target: t.id, controls, solutions });
+      // 같은 흔들림·목표가 다른 크기에서 이미 나왔으면 건너뛴다(흔든 값이 같으면 같은 퍼즐)
+      const id = `${c.id}:${d}@${disturb[c.id]}>${t.id}`;
+      if (solutions && !out.some((x) => x.id === id)) out.push({ id, disturb, target: t.id, controls, solutions, clean });
     }
   }
-  return (puzzleCache = out);
+  // 쉬운 것(부작용 없이 풀림)부터
+  return (puzzleCache = out.sort((a, b) => Number(b.clean) - Number(a.clean)));
 }
 
 /** 퍼즐 채점: 흔든 값 + 고른 조정 값 하나로 다시 계산. 목표가 정상 범위면 풀림, 새로 범위 밖이 된 값은 부작용. */

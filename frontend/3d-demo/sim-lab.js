@@ -259,7 +259,7 @@ export async function attachSimLab() {
     else if (prev && panel.contains(document.activeElement)) launcherOf[prev]?.focus();
     bWhatif.setAttribute('aria-pressed', String(mode === 'whatif')); bFault.setAttribute('aria-pressed', String(mode === 'fault')); bMap.setAttribute('aria-pressed', String(mode === 'map'));
     panel.hidden = !mode; panel.replaceChildren();
-    if (mode === 'whatif') void whatifPanel(preset); else if (mode === 'fault') void (opt.fault ? faultDrill(opt.fault) : faultList()); else if (mode === 'map') void causalMap(preset, opt.var, opt.tour, !!opt.fromLink && Object.keys(preset).length > 0); else if (mode === 'quiz') void causalQuizPanel(opt.process, opt.level); else if (mode === 'diagnose') void diagnosePanel(); else if (mode === 'rebalance') void rebalancePanel(); else if (mode === 'incident') void incidentPanel(opt.scenario, Number(opt.at), Number(opt.pick));
+    if (mode === 'whatif') void whatifPanel(preset); else if (mode === 'fault') void (opt.fault ? faultDrill(opt.fault) : faultList()); else if (mode === 'map') void causalMap(preset, opt.var, opt.tour, !!opt.fromLink && Object.keys(preset).length > 0); else if (mode === 'quiz') void causalQuizPanel(opt.process, opt.level); else if (mode === 'diagnose') void diagnosePanel(); else if (mode === 'rebalance') void rebalancePanel(!!opt.easy); else if (mode === 'incident') void incidentPanel(opt.scenario, Number(opt.at), Number(opt.pick));
   }
   const head = (title, foldable = false) => {
     const h = el('h3'); h.append(el('span', '', title)); h.tabIndex = -1;
@@ -689,14 +689,14 @@ export async function attachSimLab() {
   }
 
   // ── 되돌리기 퍼즐: 흔들린 값(못 바꿈) 때문에 범위 밖이 된 하류 값을, 다른 조정 값 하나로 되돌린다. 부작용도 보여 준다 ──
-  async function rebalancePanel() {
+  async function rebalancePanel(easy = false) {
     panel.append(head('🧰 되돌리기 퍼즐'), el('p', 'sl-muted', '현장에서는 원인을 바로 고칠 수 없을 때가 많아요. 다른 값 하나를 움직여 문제의 값을 정상 범위로 되돌려 보세요. 다른 값이 범위 밖으로 나가면(부작용) 함께 알려 줘요.'));
     let q;
-    try { q = await api('GET', `/api/lab/causal/rebalance?seed=${Date.now() % 100000}`); } catch (e) { panel.append(el('p', 'sl-bad', e.message)); return; }
+    try { q = await api('GET', `/api/lab/causal/rebalance?seed=${Date.now() % 100000}${easy ? '&level=easy' : ''}`); } catch (e) { panel.append(el('p', 'sl-bad', e.message)); return; }
     const unitV = (n, v) => `${fmt(v, n.digits)}${n.unit}`;
     const d = q.disturb[0], t = q.target;
     const intro = el('div', 'sl-box');
-    intro.append(el('b', '', '상황'), el('div', '', `${SECTION[d.process]} · ${eulReul(d.label)} ${euRo(unitV(d, d.value))} 바꿀 수밖에 없었어요(지금은 못 되돌려요).`),
+    intro.append(el('b', '', `상황 · ${q.clean ? '쉬움(부작용 없이 되돌릴 수 있어요)' : '맞바꿈(되돌리면 다른 값이 범위 밖으로 나가요)'}`), el('div', '', `${SECTION[d.process]} · ${eulReul(d.label)} ${euRo(unitV(d, d.value))} 바꿀 수밖에 없었어요(지금은 못 되돌려요).`),
       el('div', 'sl-bad', `그 결과 ${SECTION[t.process]} · ${iGa(t.label)} ${unitV(t, t.value)} — 정상 범위 ${fmt(t.normal[0], t.digits)}~${fmt(t.normal[1], t.digits)}${t.unit} 밖이에요.`));
     const pickBox = el('div', 'sl-box'), result = el('div');
     pickBox.append(el('b', '', '어느 값을 움직일까요? (하나만)'));
@@ -719,7 +719,7 @@ export async function attachSimLab() {
       list.append(b);
     }
     pickBox.append(list, slot);
-    panel.append(intro, pickBox, result, btn('다른 퍼즐', () => open('rebalance'), 'sl-btn ghost'), btn('🗺 인과 지도로 돌아가기', () => open('map'), 'sl-btn ghost'));
+    panel.append(intro, pickBox, result, btn('다른 퍼즐', () => open('rebalance'), 'sl-btn ghost'), btn('쉬운 퍼즐', () => { open(null); open('rebalance', {}, { easy: true }); }, 'sl-btn ghost'), btn('🗺 인과 지도로 돌아가기', () => open('map'), 'sl-btn ghost'));
     function mark() {
       fx.ring(t.equipment_id, 0xff4d4d, true); fx.tag(t.equipment_id, `범위 밖 · ${t.label}`, 'warn', 6);
       fx.ring(d.equipment_id, 0xffb020, false); fx.tag(d.equipment_id, `흔들림 · ${d.label}`, 'hot', 4);

@@ -163,11 +163,12 @@ export function createLabExtrasRouter({ db, auth, deck, incidents, faults = { di
   });
   // 되돌리기 퍼즐: 무작위 하나(흔든 값·목표·쓸 수 있는 조정 값), 채점은 조정 값 하나만
   router.get("/api/lab/causal/rebalance", login, (req, res) => {
-    const all = rebalancePuzzles(), seed = Number(req.query.seed) || Date.now();
-    const p = all[Math.abs(Math.floor(seed)) % all.length];
+    // ?level=easy면 부작용 없이 풀리는 퍼즐 중에서
+    const every = rebalancePuzzles(), easy = every.filter((x) => x.clean), all = req.query.level === "easy" && easy.length ? easy : every;
+    const seed = Number(req.query.seed) || Date.now(), p = all[Math.abs(Math.floor(seed)) % all.length];
     const node = (id: string) => { const n = NODES.find((x) => x.id === id)!; return { id, label: n.label, unit: n.unit, process: n.process, equipment_id: n.equipment_id, normal: n.normal, digits: n.digits, ...(n.control ? { control: n.control, base: n.base } : {}) }; };
     const before = simulateCausal(p.disturb).nodes.find((n) => n.id === p.target)!;
-    res.json({ id: p.id, total: all.length, disturb: Object.entries(p.disturb).map(([k, v]) => ({ ...node(k), value: v })), target: { ...node(p.target), value: before.value }, controls: p.controls.map(node) });
+    res.json({ id: p.id, total: all.length, clean: p.clean, disturb: Object.entries(p.disturb).map(([k, v]) => ({ ...node(k), value: v })), target: { ...node(p.target), value: before.value }, controls: p.controls.map(node) });
   });
   router.post("/api/lab/causal/rebalance/check", login, express.json(), (req, res) => {
     const body = z.object({ id: z.string().max(80), input: z.record(z.string(), z.number()) }).safeParse(req.body);

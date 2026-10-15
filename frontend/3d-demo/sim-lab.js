@@ -175,7 +175,9 @@ function createFx(scene) {
     // 겹침 정리: 아래(가까운) 이름표부터 놓고, 이미 놓인 이름표와 겹치면 그 위로 올린다(이름표는 기준점 위·가운데에 붙는다)
     const placed = [];
     for (const s of shown.sort((a, b) => b.y - a.y)) {
-      const w = s.t.el.offsetWidth || 120, h = s.t.el.offsetHeight || 24;
+      // 이름표 글은 만든 뒤 바뀌지 않으므로 크기는 처음 보일 때 한 번만 잰다(매 프레임 재면 위치를 쓸 때마다 레이아웃을 다시 계산)
+      if (!s.t.w) { s.t.w = s.t.el.offsetWidth; s.t.h = s.t.el.offsetHeight; }
+      const w = s.t.w || 120, h = s.t.h || 24;
       let y = s.y;
       for (let guard = 0; guard <= placed.length; guard++) {
         const hit = placed.find((p) => s.x - w / 2 < p.r && s.x + w / 2 > p.l && y - h < p.b && y > p.t);

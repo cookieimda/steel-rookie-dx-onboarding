@@ -77,6 +77,7 @@ test("공장 전체 물류 흐름: 용선 → 용강 → 슬래브 → 코일 �
 test("3D 이름표 겹침 정리: 아래 이름표부터 놓고 겹치면 위로 올린다(놓인 이름표 수만큼만 다시 본다)", () => {
   assert.ok(src.includes("shown.sort((a, b) => b.y - a.y)"));
   assert.ok(src.includes("guard <= placed.length"));
+  assert.ok(src.includes("if (!s.t.w) { s.t.w = s.t.el.offsetWidth; s.t.h = s.t.el.offsetHeight; }"), "크기는 처음 한 번만 잰다");
   assert.ok(src.includes("y = hit.t - 4;"));
 });
 

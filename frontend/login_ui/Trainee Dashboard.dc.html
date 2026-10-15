@@ -373,13 +373,13 @@ class Component extends DCLogic {
     // 섹션 목록과 순서는 서버 응답(/api/me/dashboard의 sections)을 그대로 쓴다.
     const secs = D?.sections || [];
     const process = section => S.processes.find(p => p.id === section) || { num: '', name: section, equipment: [] };
-    const conceptName = (section, id) => process(section).equipment.find(e => e.id === id)?.name || id;
+    const conceptName = (section, id, name) => name || process(section).equipment.find(e => e.id === id)?.name || `${process(section).name} 관련 개념`;
     const stats = secs.map(section => T?.sections[section]).filter(Boolean);
     const avg = stats.length ? stats.reduce((sum, s) => sum + s.understanding, 0) / stats.length : null;
     const misconceptions = D?.misconceptions || [];
     const open = misconceptions.filter(m => !m.resolved).length;
     const reviews = (D?.review_concepts || []).map(r => ({
-      name: conceptName(r.section, r.concept_id), section: process(r.section).name,
+      name: conceptName(r.section, r.concept_id, r.concept_name), section: process(r.section).name,
       date: r.updated_at.slice(0, 10), verdict: r.recheck_verdict === 'partial' || r.verdict === 'partial' ? '부분 이해' : r.verdict === 'assisted' ? '도움 받음' : '재확인 필요',
       color: r.verdict === 'wrong' || r.recheck_verdict === 'wrong' ? 'var(--bad)' : 'var(--mid)',
     }));
@@ -439,7 +439,7 @@ class Component extends DCLogic {
         width: info ? pct(info.understanding) : '0%', attempts: info ? `${info.attempts}회 응시` : '아직 이해도 확인 전',
       }; }),
       reviews, reviewEmpty: !!D && reviews.length === 0,
-      misconceptions: misconceptions.slice(0, 8).map(m => ({ name: conceptName(m.section, m.concept_id), summary: m.summary,
+      misconceptions: misconceptions.slice(0, 8).map(m => ({ name: conceptName(m.section, m.concept_id, m.concept_name), summary: m.summary,
         status: m.resolved ? '해결됨' : m.label, color: m.resolved ? 'var(--ok)' : 'var(--bad)' })),
       misEmpty: !!D && misconceptions.length === 0,
     };

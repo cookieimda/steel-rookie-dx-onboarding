@@ -7,6 +7,8 @@
 // - 크기는 노드 변환을 포함한 바운딩 박스(Box3.setFromObject)로 맞춘다(quantize한 모델은 배율·위치가 노드에 있다).
 // - 화면에 안 보이면 그리기를 멈추고, 엘리먼트가 빠지면 정리한다. prefers-reduced-motion이면 움직이지 않는다.
 // - 이벤트: cp-character-ready { renderer: 'gltf' | 'image', clips }, cp-character-fallback { reason }.
+// - 선택 속성(학습 기록 튜터 머리, 2026-10-15): framing="face"면 카메라를 얼굴 가까이 두어 눈·코·입을 크게 보인다.
+//   gaze가 있으면 눈동자가 마우스를 따라 보고 고개도 살짝 그쪽으로 돌린다(움직임 줄이기 설정이면 하지 않는다). 둘 다 없으면 지금과 같다.
 // - 얼굴·감정(cp-face.js): 모델에 새겨진 눈·코·입은 울퉁불퉁해서, 얼굴 위에 매끈한 판을 덮고 표정을 그린다(이름표마다 표정, 대기 중 깜빡임).
 //   감정이 바뀌면 몸이 '톡' 커졌다 돌아오고(popAt), 캐릭터 뒤 효과 층(.fx)에 감정 배경(빛·반짝이·꽃가루·빗방울·물음표)을 띄운다.
 
@@ -120,8 +122,9 @@ class ImageRenderer {
 
 /** 3D 렌더러: 클립이 있으면 클립, 없으면 몸 전체 움직임. scene_v3.js와 별도의 캔버스·WebGL 렌더러를 쓴다. */
 class GltfRenderer {
-  constructor(root, modelUrl, { reducedMotion }) {
-    this.root = root; this.modelUrl = modelUrl; this.reducedMotion = reducedMotion; this.kind = 'gltf';
+  constructor(root, modelUrl, { reducedMotion, framing = null }) {
+    this.root = root; this.modelUrl = modelUrl; this.reducedMotion = reducedMotion; this.framing = framing; this.kind = 'gltf';
+    this.gaze = null; // { x, y } -1~1, 따라 볼 방향(없으면 정면)
     this.clips = []; this.visible = true; this.raf = 0; this.disposed = false; this.ready = false;
     this.motion = { kind: 'procedural', name: 'idle' }; this.started = 0; this.from = { ...REST }; this.last = { ...REST };
     // 얼굴(cp-face.js): 요청한 이름표의 표정, 깜빡임 시각, 마지막으로 그린 얼굴.
@@ -173,8 +176,14 @@ class GltfRenderer {
     }
 
     this.camera = new THREE.PerspectiveCamera(30, 1, 0.05, 50);
-    this.camera.position.set(0, 0.55, 2.7);
-    this.camera.lookAt(0, 0.48, 0);
+    if (this.framing === 'face') {
+      // 얼굴 가까이: 머리 위쪽부터 턱 아래까지(높이 1 기준 머리는 대략 0.5~1.0)
+      this.camera.position.set(0, 0.76, 1.2);
+      this.camera.lookAt(0, 0.75, 0);
+    } else {
+      this.camera.position.set(0, 0.55, 2.7);
+      this.camera.lookAt(0, 0.48, 0);
+    }
     this.clock = new THREE.Clock();
     this.root.append(canvas);
     this.canvas = canvas;
@@ -239,7 +248,9 @@ class GltfRenderer {
     // 감정이 바뀌는 순간 '톡' 커졌다 돌아온다.
     const pop = !this.reducedMotion && POP_MOTIONS.has(this.requested) ? popAt(t) : 1;
     this.body.position.y = pose.y;
-    this.body.rotation.set(pose.rx, pose.ry, pose.rz);
+    // 따라 보기: 고개(몸 전체)를 마우스 쪽으로 살짝 돌린다
+    const g = this.gaze && !this.reducedMotion ? this.gaze : { x: 0, y: 0 };
+    this.body.rotation.set(pose.rx + g.y * 0.06, pose.ry + g.x * 0.16, pose.rz);
     this.body.scale.set(pop, pose.sy * pop, pop);
     this.updateFace(now);
     this.renderer.render(this.scene, this.camera);
@@ -253,10 +264,11 @@ class GltfRenderer {
     const expression = EXPRESSION_BY_MOTION[this.requested] ?? 'neutral';
     if (now >= this.blinkAt + BLINK_SECONDS) this.blinkAt = now + nextBlinkIn();
     const blink = !this.reducedMotion && now >= this.blinkAt && now < this.blinkAt + BLINK_SECONDS;
-    const key = `${expression}|${blink}`;
+    const gaze = this.gaze && !this.reducedMotion ? { x: Math.round(this.gaze.x * 10) / 10, y: Math.round(this.gaze.y * 10) / 10 } : null;
+    const key = `${expression}|${blink}|${gaze ? `${gaze.x},${gaze.y}` : ''}`;
     if (key === this.faceKey) return;
     this.faceKey = key;
-    drawFace(this.face.ctx, { expression, blink, skin: this.face.skin });
+    drawFace(this.face.ctx, { expression, blink, skin: this.face.skin, gaze });
     this.face.texture.needsUpdate = true;
   }
 
@@ -343,7 +355,7 @@ const Base = globalThis.HTMLElement ?? class {};
 
 /** <cp-character motion="ask" model="models/character/tutor.glb" fallback="images/character/idle.png"> */
 export class CpCharacter extends Base {
-  static observedAttributes = ['motion', 'model', 'fallback'];
+  static observedAttributes = ['motion', 'model', 'fallback', 'framing', 'gaze'];
 
   connectedCallback() {
     if (!this.shadowRoot) {
@@ -358,9 +370,18 @@ export class CpCharacter extends Base {
     this.visibilityObserver = new IntersectionObserver(([e]) => this.renderer?.setVisible(e.isIntersecting));
     this.visibilityObserver.observe(this);
     this.mount();
+    // 따라 보기(gaze): 마우스 위치를 캐릭터 가운데 기준 -1~1로 바꿔 렌더러에 넘긴다(300px 떨어지면 끝까지 본다)
+    this.onPointer = (e) => {
+      if (!this.hasAttribute('gaze') || !this.renderer) return;
+      const r = this.getBoundingClientRect();
+      const clamp = (v) => Math.max(-1, Math.min(1, v));
+      this.renderer.gaze = { x: clamp((e.clientX - (r.left + r.width / 2)) / 300), y: clamp((e.clientY - (r.top + r.height / 2)) / 300) };
+    };
+    globalThis.addEventListener?.('pointermove', this.onPointer);
   }
 
   disconnectedCallback() {
+    globalThis.removeEventListener?.('pointermove', this.onPointer);
     this.resizeObserver?.disconnect();
     this.visibilityObserver?.disconnect();
     this.renderer?.dispose();
@@ -373,6 +394,7 @@ export class CpCharacter extends Base {
       this.renderer?.play(value || 'idle');
       this.showMood(value || 'idle');
     }
+    else if (name === 'gaze') { if (value == null && this.renderer) this.renderer.gaze = null; }
     else this.mount();
   }
 
@@ -413,7 +435,7 @@ export class CpCharacter extends Base {
     const model = this.getAttribute('model');
     let reason = model ? null : 'no-model';
     if (model) {
-      const r = new GltfRenderer(this.stage, model, { reducedMotion });
+      const r = new GltfRenderer(this.stage, model, { reducedMotion, framing: this.getAttribute('framing') });
       this.renderer = r;
       try {
         let timer;

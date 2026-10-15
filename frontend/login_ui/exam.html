@@ -31,16 +31,21 @@
         <h1>TEST YOUR METAL.</h1>
         <span class="lead" id="profile">내 시험</span>
       </div>
-      <!-- 통과 기준과 진행 요약: 학습 기록의 통계 카드 모양 -->
+      <!-- 통과 기준과 진행 요약(2026-10-15): 그림으로 — 기준선 그래프 · 공정 로드맵 · 응시 가능 네모 칸(GitHub 잔디처럼). 그리는 것은 exam-visuals.js -->
       <div class="kpis" aria-label="시험 기준과 진행 요약">
-        <div class="kpi"><span class="kpi-label">통과 기준</span><span class="kpi-value"><b>80</b><span>%</span></span><span class="kpi-sub">개념별 점수의 평균이 기준 이상이면 통과</span></div>
-        <div class="kpi" id="kpi-passed-card"><span class="kpi-label">통과한 공정</span><span class="kpi-value"><b id="kpi-passed">—</b><span id="kpi-passed-unit">/ 4</span></span><span class="kpi-sub">통과하면 다음 공정이 열려요</span></div>
-        <div class="kpi"><span class="kpi-label">응시 가능</span><span class="kpi-value"><b id="kpi-open">—</b><span>개</span></span><span class="kpi-sub">지금 바로 응시할 수 있는 공정</span></div>
+        <div class="kpi"><span class="kpi-label">통과 기준 <b class="kpi-inline">80%</b></span><div id="kpi-chart" class="kpi-art"></div><span class="kpi-sub">공정별 이해도 · 점선을 넘으면 통과</span></div>
+        <div class="kpi" id="kpi-passed-card"><span class="kpi-label">공정 로드맵 <b class="kpi-inline"><span id="kpi-passed">—</span><span id="kpi-passed-unit">/ 4</span></b></span><div id="roadmap" class="kpi-art"></div><span class="kpi-sub">통과하면 다음 공정이 열려요</span></div>
+        <div class="kpi"><span class="kpi-label">응시 가능 <b class="kpi-inline"><span id="kpi-open">—</span>개</b></span><div id="open-squares" class="kpi-art"></div><span class="kpi-sub">칸이 진할수록 해낸 개념이에요</span></div>
       </div>
     </section>
     <div id="notice" class="notice card" role="alert" hidden></div>
-    <!-- 공정 4개: 학습 기록의 공정 카드 모양(번호 · 이름 · 상태 칩 · 이해도 · 막대) -->
-    <section class="process-grid" id="sections" aria-label="공정별 시험"><p class="muted">시험 목록을 불러오고 있어요.</p></section>
+    <!-- 공정 4개를 시험지 한 묶음으로(2026-10-15): 좌우로 넘기면 시험지가 넘어간다(버튼 · 키보드 ←→ · 끌어 넘기기). 아래 아이콘으로 바로 고른다 -->
+    <section class="deck" aria-label="공정별 시험지" aria-roledescription="carousel">
+      <button type="button" class="deck-nav" id="deck-prev" aria-label="이전 공정 시험지">‹</button>
+      <div class="deck-stage" id="sections" tabindex="0" aria-live="polite"><p class="muted">시험 목록을 불러오고 있어요.</p></div>
+      <button type="button" class="deck-nav" id="deck-next" aria-label="다음 공정 시험지">›</button>
+      <div class="deck-tabs" id="deck-tabs" role="tablist" aria-label="공정 고르기"></div>
+    </section>
     <div class="work-grid">
       <section class="card exam-panel" id="exam-content" aria-label="평가 시험 문제">
         <div class="exam-head">
@@ -66,18 +71,18 @@
         </div>
         <!-- 응시 전 안내(진행 순서). 시도를 열면 exam.js가 이 자리를 문제·결과로 바꾼다 -->
         <div class="exam-body" id="exam-body">
-          <ol class="steps" aria-label="진행 순서">
-            <li><b>1</b><span>공정 선택</span><small>응시 가능한 공정의 [시험 응시]를 눌러요</small></li>
-            <li><b>2</b><span>자신의 말로 답하기</span><small>개념마다 포석호가 질문해요</small></li>
-            <li><b>3</b><span>설명과 추가 확인</span><small>놓친 부분은 설명 뒤 한 번 더 물어요</small></li>
-            <li><b>4</b><span>결과 확인</span><small>이해도 80% 이상이면 다음 공정이 열려요</small></li>
-          </ol>
+          <!-- 진행 순서 4단계(아이콘): exam-visuals.js의 renderSteps가 그린다 -->
         </div>
       </section>
-      <aside class="aside-stack" aria-label="나의 학습 안내">
-        <section class="card aside-card"><div class="aside-head"><span class="aside-title">나의 복습 일정</span><span class="n" id="review-count" hidden></span></div><div id="reviews" class="list"><p class="muted">평가 결과에 따라 복습 일정을 정해요.</p></div></section>
-        <section class="card aside-card"><div class="aside-head"><span class="aside-title">배정된 시험</span></div><div id="assignments" class="list"><p class="muted">배정된 시험을 확인하고 있어요.</p></div></section>
-        <section class="card aside-card"><div class="aside-head"><span class="aside-title">최근 평가 기록</span></div><div id="history" class="list"><p class="muted">완료한 평가 결과가 여기에 쌓여요.</p></div></section>
+      <!-- 학습 캘린더(2026-10-15): 복습 일정 · 배정된 시험 · 최근 평가 기록을 한 달력에. 날을 고르면 그날 할 일, 아래는 다가오는 일정 -->
+      <aside class="aside-stack" aria-label="나의 학습 캘린더">
+        <section class="card aside-card cal-card">
+          <div class="aside-head"><span class="aside-title">학습 캘린더</span><span class="n" id="review-count" hidden></span></div>
+          <div class="cal-sum" id="cal-sum"></div>
+          <div id="calendar"><p class="muted">일정을 불러오고 있어요.</p></div>
+          <div class="cal-pick"><strong id="cal-pick-title"></strong><div id="cal-list" class="list"></div></div>
+          <div class="cal-pick"><strong>다가오는 일정</strong><div id="cal-upcoming" class="list"></div></div>
+        </section>
       </aside>
     </div>
   </main>

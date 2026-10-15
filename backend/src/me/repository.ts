@@ -2,6 +2,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { Section } from "../checkpoint/types.js";
 import { MISCONCEPTION_SOURCE_LABEL, type MisconceptionSource } from "../learning/labels.js";
+import type { CardEvent } from "./employee-card.js";
 
 export interface MyMisconception {
   id: string;
@@ -68,6 +69,51 @@ export class MeRepository {
         resolved_at: row.resolved_at == null ? null : String(row.resolved_at),
       };
     });
+  }
+
+  /** 사원증(me/employee-card.ts) 계산용 학습 기록. 테이블이 없으면(마이그레이션 전) 그 기록만 빼고 준다. */
+  cardEvents(userId: string): CardEvent[] {
+    const rows = (sql: string): Record<string, unknown>[] => {
+      try {
+        return this.db.prepare(sql).all(userId) as Record<string, unknown>[];
+      } catch {
+        return [];
+      }
+    };
+    const events: CardEvent[] = [];
+    for (const r of rows("SELECT section, equipment_id, created_at FROM learning_turns WHERE user_id = ? AND status <> 'safety_redirect'")) {
+      events.push({ kind: "question", at: String(r.created_at), section: r.section == null ? null : String(r.section), object_id: r.equipment_id == null ? null : String(r.equipment_id) });
+    }
+    for (const r of rows(`SELECT a.section, c.concept_id, c.verdict, c.recheck_verdict, c.updated_at
+                            FROM concept_results c JOIN attempts a ON a.id = c.attempt_id
+                           WHERE a.user_id = ? AND a.state = 'completed'`)) {
+      const final = r.verdict === "correct" ? "correct" : r.recheck_verdict;
+      if (final === "correct" || final === "partial") {
+        events.push({ kind: final === "correct" ? "concept_correct" : "concept_partial", at: String(r.updated_at), section: String(r.section), object_id: String(r.concept_id) });
+      }
+    }
+    for (const r of rows("SELECT section, understanding, unlocked, completed_at, updated_at FROM attempts WHERE user_id = ? AND state = 'completed'")) {
+      const at = String(r.completed_at ?? r.updated_at);
+      events.push({ kind: "checkpoint_done", at, section: String(r.section), understanding: r.understanding == null ? null : Number(r.understanding) });
+      if (Number(r.unlocked) === 1) events.push({ kind: "section_passed", at, section: String(r.section) });
+    }
+    for (const r of rows("SELECT section, concept_id, outcome, updated_at FROM learning_supplements WHERE user_id = ? AND state = 'completed'")) {
+      events.push({ kind: r.outcome === "resolved" ? "supplement_resolved" : "supplement_done", at: String(r.updated_at), section: String(r.section), object_id: String(r.concept_id) });
+    }
+    for (const r of rows("SELECT section, concept_id, resolved_at FROM misconceptions WHERE user_id = ? AND resolved = 1 AND resolved_at IS NOT NULL")) {
+      events.push({ kind: "misconception_resolved", at: String(r.resolved_at), section: String(r.section), object_id: String(r.concept_id) });
+    }
+    for (const r of rows("SELECT process_id, draw_mode, updated_at FROM learner_sketches WHERE user_id = ?")) {
+      events.push({ kind: "sketch", at: String(r.updated_at), section: String(r.process_id), object_id: `${r.process_id}:${r.draw_mode}` });
+    }
+    // 학습 랩(011): 간격 반복 복습, 소크라테스 대화에서 스스로 답에 닿음
+    for (const r of rows("SELECT card_id, grade, reviewed_at FROM sr_reviews WHERE user_id = ?")) {
+      events.push({ kind: "sr_review", at: String(r.reviewed_at), object_id: String(r.card_id), grade: Number(r.grade) });
+    }
+    for (const r of rows("SELECT section, equipment_id, updated_at FROM socratic_sessions WHERE user_id = ? AND state = 'reached'")) {
+      events.push({ kind: "socratic_reached", at: String(r.updated_at), section: String(r.section), object_id: String(r.equipment_id) });
+    }
+    return events;
   }
 
   /** 마이페이지 '설계도·필기'의 펜 필기. 공정 하나의 도면별 획 목록(JSON 문자열 그대로). 008_learner_sketches.sql이 없으면 빈 객체. */

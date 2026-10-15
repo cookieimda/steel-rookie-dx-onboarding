@@ -42,6 +42,10 @@
   <script type="module">import { attachNightLights } from './night-lights.js'; attachNightLights();</script>
   <!-- 학습 상태 HUD(설비 이름표 핀·다시 보기 링·도착 연출)와 다크 모드 블룸. scene_v3.js를 고치지 않고 바깥에서 붙는다: learn-hud.js, 설계 노트는 저장소 밖에 둔다 -->
   <script type="module">import { attachLearnHud } from './learn-hud.js'; attachLearnHud();</script>
+  <!-- 설비 메모 공유: 고른 설비에 동기들이 남긴 질문·메모를 떠 있는 카드로(equipment-notes.js, 서버 /api/lab/notes). scene_v3.js는 고치지 않는다 -->
+  <script type="module">import { attachEquipmentNotes } from './equipment-notes.js'; attachEquipmentNotes();</script>
+  <!-- 3D 시뮬레이션 실습: 조업 실험(What-if)·이상 상황 훈련. 원인 → 결과를 3D 위에 흐름·빛·이름표로 보여 준다(sim-lab.js, 서버 /api/lab/whatif·/api/lab/faults) -->
+  <script type="module">import { attachSimLab } from './sim-lab.js'; attachSimLab();</script>
   <style>
     /* [UI 시안] 화면 틀(상단바·좌측 메뉴·우측 패널·하단 바)은 항상 어두운 남색, 3D 영역만 밝은 스튜디오 톤 */
     html, body { margin: 0; height: 100%; overflow: hidden; font-family: "IBM Plex Sans KR", sans-serif; }

@@ -13,6 +13,19 @@ import { createAuthRouter } from "./auth/routes.js";
 import { jwtSecret } from "./auth/tokens.js";
 import { UserRepository } from "./auth/users.js";
 import { createMeRouter } from "./me/routes.js";
+import { loadDeck } from "./lab/deck.js";
+import { createLabRouter } from "./lab/routes.js";
+import { createLabExtrasRouter } from "./lab/extras-routes.js";
+import { loadIncidents } from "./lab/incidents.js";
+import { loadFaults } from "./lab/faults.js";
+import { MeRepository } from "./me/repository.js";
+import { Notifier } from "./notify/service.js";
+import { createNotifyRouter } from "./notify/routes.js";
+import { createOpsRouter, registerOpsJobs } from "./ops/routes.js";
+import { createHighlightRouter } from "./education/highlights.js";
+import { createJobRouter } from "./education/job-routes.js";
+import { MaterialWorkflow } from "./education/workflow.js";
+import { createWorkflowRouter } from "./education/workflow-routes.js";
 import { CheckpointEngine } from "./checkpoint/engine.js";
 import { CheckpointRepository } from "./checkpoint/repository.js";
 import type { Section } from "./checkpoint/types.js";
@@ -121,6 +134,29 @@ app.use(createAuthRouter(auth));
 // 관리자 AI 요약도 같은 LLM 클라이언트로 관리자 계정의 하루 호출 수를 센다.
 app.use(createAdminRouter(db, auth, { summarizer: new GeminiAdminSummarizer(llm) }));
 app.use(createMeRouter(db, auth));
+// 학습 랩(학습 기록 화면의 '학습 랩' 탭): 간격 반복·주간 리그·xAPI 기록·세션 리플레이·소크라테스 모드. 소크라테스 모드는 같은 LLM 클라이언트로 호출 수를 센다.
+const deck = await loadDeck();
+app.use(createLabRouter({ db, auth, deck, llm }));
+// 운영 기능(012): 알림 · 자료 검수 워크플로 · 작업 대기열 일반화 · 오답 패턴 · 채점 근거 하이라이트 · 사고 사례 · What-if · 설비 주석 공유
+const meRepo = new MeRepository(db);
+const notifier = new Notifier({ db, cardEvents: (id) => meRepo.cardEvents(id),
+  passed: (userId, section) => { try { return engine.sectionProgress(userId, section as Section).unlocked; } catch { return false; } } });
+const workflow = new MaterialWorkflow(db);
+registerOpsJobs(jobs, { db, notifier, workflow });
+// 시험이 아닌 작업이 끝나면 넣은 사람에게 알린다
+jobs.onSettled = (job) => { notifier.notify(job.user_id, "job_done", `${job.state === "succeeded" ? "작업 완료" : "작업 실패"} · ${String(job.metadata.label ?? job.kind)}`,
+  job.state === "succeeded" ? "결과를 확인해 주세요." : job.error?.message ?? "처리하지 못했어요.", "/login_ui/admin-ops.html#jobs", `job_done:${job.id}`); };
+app.use(createJobRouter(auth, jobs));
+app.use(createWorkflowRouter({ auth, jobs, notifier }, workflow));
+app.use(createNotifyRouter(auth, notifier));
+app.use(createOpsRouter(auth, db));
+app.use(createHighlightRouter(auth, db, rubrics));
+const knownEquipment = new Set(deck.map((c) => c.equipment_id));
+// 사고 사례·이상 상황 훈련 콘텐츠는 형식·설비 id가 틀리면 서버가 시작하지 않는다
+app.use(createLabExtrasRouter({ db, auth, deck, notifier, incidents: loadIncidents(undefined, knownEquipment), faults: loadFaults(undefined, knownEquipment) }));
+// 정기 알림: NOTIFY_INTERVAL_MIN분마다(기본 15, 0이면 끔) 전체 학습자의 알림을 만들고 켠 채널로 발송한다
+const notifyEvery = Number(process.env.NOTIFY_INTERVAL_MIN ?? 15);
+if (notifyEvery > 0) setInterval(() => { try { notifier.generateAll(); void notifier.deliverPending(); } catch (e) { console.warn("정기 알림 실패", e); } }, notifyEvery * 60_000).unref();
 // 평가 시험 API(/api/exams, /api/exam-jobs, /api/me/reviews·assignments·exam-history, /api/admin/education). 승인 자료가 바뀌면 검색·저장한 답을 다시 만든다.
 app.use(createEducationRouter({ auth, engine, jobs, repo: education,
   onMaterialsChanged: (section) => { retriever.invalidate(section); answerCache.clear(); },

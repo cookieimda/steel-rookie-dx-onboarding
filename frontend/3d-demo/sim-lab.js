@@ -1,0 +1,355 @@
+// 3D 시뮬레이션 실습(v4 화면): ① 조업 실험(What-if)과 ② 이상 상황 훈련. 원인과 결과를 3D 위에 같이 보여 준다.
+// <steel-scene>(scene_v3.js)을 고치지 않고 바깥에서 붙는다(learn-hud.js와 같은 방식: el.scene·el.zones·el._frame).
+// - 조업 실험: 조건을 바꾸면 원인 설비 → 고로 → 출선구로 흐르는 입자, 출선구 쇳물 빛(온도 색), 값 이름표, 경고 링, 다음 공정(제강)으로 이어지는 흐름.
+//   서버 POST /api/lab/whatif가 원인별 효과(effects)와 다음 공정 영향(downstream)을 준다(교육용 간이 모델).
+// - 이상 상황 훈련: 설비에 이상 징후(붉은 링·계기 값) → ① 범위를 벗어난 값 찾기 → ② 원인(맞히면 원인 → 결과 사슬이 3D에 흐른다)
+//   → ③ 조치(맞히면 값이 정상으로 돌아오고 링이 초록, 다음 공정 영향 흐름). 서버는 /api/lab/faults(content/faults/faults.json).
+// 로그인 토큰이 없으면 붙지 않는다.
+
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/+esm';
+
+const TOKEN_KEY = 'st-rookie-token';
+const token = () => { try { return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+async function api(method, path, body) {
+  const res = await fetch(path, { method, headers: { authorization: `Bearer ${token()}`, ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `요청 실패(${res.status})`);
+  return data;
+}
+const el = (tag, cls = '', text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = String(text); return n; };
+const btn = (text, onClick, cls = 'sl-btn') => { const b = el('button', cls, text); b.type = 'button'; b.addEventListener('click', onClick); return b; };
+
+const SLIDERS = [
+  ['sinter_pct', '소결광 비율', '%', 0, 100, 5], ['pellet_pct', '펠릿 비율', '%', 0, 100, 5], ['lump_pct', '괴광 비율', '%', 0, 100, 5],
+  ['coke_kg', '코크스', 'kg/t', 250, 550, 10], ['pci_kg', '미분탄', 'kg/t', 0, 250, 10],
+  ['blast_temp_c', '송풍 온도', '℃', 900, 1300, 10], ['oxygen_pct', '산소 부화', '%p', 0, 10, 0.5], ['limestone_kg', '석회석', 'kg/t', 0, 150, 5],
+];
+const SECTION = { ironmaking: '제선', steelmaking: '제강', continuous_casting: '연주', rolling: '열간압연' };
+const fmt = (n, d = 0) => Number(n).toLocaleString('ko-KR', { maximumFractionDigits: d, minimumFractionDigits: d });
+const signed = (n, d = 0, unit = '') => `${n > 0 ? '+' : n < 0 ? '−' : '±'}${fmt(Math.abs(n), d)}${unit}`;
+/** 용선 온도 → 빛 색(어두운 빨강 → 주황 → 밝은 노랑). */
+const tempColor = (t) => { const k = Math.min(1, Math.max(0, (t - 1380) / 180)); return new THREE.Color().setHSL(0.02 + 0.12 * k, 1, 0.35 + 0.3 * k); };
+
+function injectStyle() {
+  if (document.getElementById('sl-style')) return;
+  const s = document.createElement('style'); s.id = 'sl-style';
+  s.textContent = `
+    .sl-launch { position: fixed; right: 16px; bottom: 96px; z-index: 61; display: flex; flex-direction: column; gap: 8px; }
+    .sl-launch button { height: 42px; padding: 0 16px; border: 0; border-radius: 999px; background: rgba(14,24,40,.92); color: #eef2f7; font: 600 15px/1 "Pretendard", sans-serif; cursor: pointer; box-shadow: 0 8px 20px rgba(0,0,0,.3); }
+    .sl-launch button[aria-pressed="true"] { background: #ff9e64; color: #1a0b03; }
+    .sl-panel { position: fixed; right: 16px; top: 84px; bottom: 200px; z-index: 62; width: min(340px, calc(100vw - 32px)); overflow-y: auto; padding: 16px; border-radius: 16px; background: rgba(12,20,34,.95); color: #eef2f7; font: 15px/1.55 "Pretendard", sans-serif; box-shadow: 0 18px 40px rgba(0,0,0,.4); display: flex; flex-direction: column; gap: 12px; }
+    .sl-panel h3 { margin: 0; font-size: 18px; display: flex; align-items: center; gap: 8px; }
+    .sl-panel h3 span { flex: 1; }
+    .sl-muted { color: #a9b6c8; font-size: 14px; }
+    .sl-panel.compact .sl-hide { display: none; }
+    .sl-box { padding: 12px; border-radius: 12px; background: rgba(255,255,255,.06); display: flex; flex-direction: column; gap: 8px; }
+    .sl-btn { border: 0; border-radius: 10px; height: 36px; padding: 0 14px; background: #ff9e64; color: #1a0b03; font: 700 15px/1 "Pretendard", sans-serif; cursor: pointer; }
+    .sl-btn.ghost { background: rgba(255,255,255,.1); color: #eef2f7; font-weight: 600; }
+    .sl-s { display: grid; grid-template-columns: 82px 1fr 70px; gap: 8px; align-items: center; font-size: 14px; }
+    .sl-s input { width: 100%; accent-color: #ff9e64; }
+    .sl-s b { text-align: right; font-family: "JetBrains Mono", monospace; font-size: 13px; }
+    .sl-out { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+    .sl-out div { padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.06); display: flex; flex-direction: column; }
+    .sl-out small { color: #a9b6c8; } .sl-out b { font-size: 18px; } .sl-out i { font-style: normal; font-size: 13px; }
+    .sl-up { color: #ff8a65; } .sl-down { color: #7fb2ff; } .sl-ok { color: #6fcf97; } .sl-bad { color: #ff6b6b; }
+    .sl-cause { padding: 10px 12px; border-radius: 10px; background: rgba(255,158,100,.1); border-left: 3px solid #ff9e64; font-size: 14px; }
+    .sl-next { padding: 10px 12px; border-radius: 10px; background: rgba(255,107,107,.1); border-left: 3px solid #ff6b6b; font-size: 14px; }
+    .sl-read { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,.06); border: 1px solid transparent; text-align: left; color: inherit; font: inherit; cursor: pointer; }
+    .sl-read:disabled { cursor: default; }
+    .sl-read.bad { border-color: #ff6b6b; background: rgba(255,107,107,.12); } .sl-read.fixed { border-color: #6fcf97; }
+    .sl-read b { font-family: "JetBrains Mono", monospace; }
+    .sl-gauge { grid-column: 1 / -1; position: relative; height: 8px; border-radius: 4px; background: rgba(255,255,255,.12); }
+    .sl-gauge .band { position: absolute; top: 0; bottom: 0; background: rgba(111,207,151,.45); border-radius: 4px; }
+    .sl-gauge .mark { position: absolute; top: -4px; width: 4px; height: 16px; margin-left: -2px; border-radius: 2px; background: #fff; transition: left 1.2s ease; }
+    .sl-opt { text-align: left; padding: 9px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,.18); background: transparent; color: inherit; font: inherit; cursor: pointer; }
+    .sl-opt.wrong { border-color: #ff6b6b; opacity: .7; } .sl-opt.right { border-color: #6fcf97; background: rgba(111,207,151,.14); }
+    .sl-steps { display: flex; gap: 6px; } .sl-steps span { flex: 1; text-align: center; padding: 6px; border-radius: 8px; background: rgba(255,255,255,.06); font-size: 13px; color: #a9b6c8; }
+    .sl-steps span.on { background: #ff9e64; color: #1a0b03; font-weight: 700; } .sl-steps span.done { color: #6fcf97; }
+    .sl-tag { position: fixed; z-index: 55; transform: translate(-50%, -100%); padding: 4px 9px; border-radius: 8px; font: 700 13px/1.3 "Pretendard", sans-serif; color: #fff; background: rgba(14,24,40,.88); border: 1px solid rgba(255,255,255,.25); pointer-events: none; white-space: nowrap; }
+    .sl-tag.warn { border-color: #ff6b6b; color: #ffd0d0; } .sl-tag.ok { border-color: #6fcf97; color: #d6ffe6; } .sl-tag.hot { border-color: #ff9e64; color: #ffe0c2; } .sl-tag.cold { border-color: #7fb2ff; color: #d8e7ff; }
+    .sl-shake { animation: slShake .35s; } @keyframes slShake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+    @media (max-width: 740px) { .sl-panel { top: auto; bottom: 150px; max-height: 55vh; } .sl-launch { bottom: 120px; } }`;
+  document.head.appendChild(s);
+}
+
+/** 3D 효과 층: 링·흐름 입자·빛·이름표. 모두 월드 좌표(설비 focus)에 둔다. */
+function createFx(scene) {
+  const fx = { rings: [], flows: [], glows: [], tags: [] };
+  const allEqs = () => Object.values(scene.zones || {}).flatMap((z) => z.eqs || []);
+  const eq = (id) => allEqs().find((e) => e.id === id);
+  const posOf = (id, lift = 0) => { const e = eq(id); return e ? e.focus.clone().add(new THREE.Vector3(0, lift, 0)) : null; };
+  const own = (obj) => { obj.raycast = () => {}; obj.renderOrder = 10; scene.scene.add(obj); return obj; };
+  // 흐름 입자: 화면에서 늘 같은 크기(가까이 가도 커지지 않게)로 그리는 점
+  const dotTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 32; const g = c.getContext('2d'), gr = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.5, 'rgba(255,255,255,.7)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 32, 32); return new THREE.CanvasTexture(c); })();
+  const nameOf = (id) => eq(id)?.data?.name || id;
+  fx.nameOf = nameOf;
+
+  fx.ring = (id, color, pulse = true) => {
+    const e = eq(id); if (!e) return;
+    const m = own(new THREE.Mesh(new THREE.RingGeometry(0.84, 1, 64), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.6, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false })));
+    m.rotation.x = -Math.PI / 2; m.position.set(e.focus.x, 0.12, e.focus.z);
+    fx.rings.push({ m, r: Math.max(3, (e.dist || 20) * 0.22), pulse, id });
+  };
+  fx.setRingColor = (id, color) => { for (const r of fx.rings) if (r.id === id) r.m.material.color.set(color); };
+  /** 원인 → 결과 흐름: 두 설비 사이 호를 따라 흐르는 빛 입자와 옅은 선. */
+  fx.flow = (fromId, toId, color = 0xff9e64) => {
+    const a = posOf(fromId, 1), b = posOf(toId, 1); if (!a || !b) return;
+    const mid = a.clone().lerp(b, 0.5); mid.y += 6 + a.distanceTo(b) * 0.18;
+    const curve = new THREE.QuadraticBezierCurve3(a, mid, b);
+    const line = own(new THREE.Line(new THREE.BufferGeometry().setFromPoints(curve.getPoints(48)), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.6, depthWrite: false, fog: false })));
+    const n = 8, geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+    const points = own(new THREE.Points(geo, new THREE.PointsMaterial({ color, size: 11, sizeAttenuation: false, map: dotTex, transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, fog: false })));
+    fx.flows.push({ curve, line, points, n, t0: performance.now() });
+  };
+  /** 출선구 쇳물 빛: 온도 색과 크기. */
+  fx.glow = (id, color, size = 6) => {
+    const p = posOf(id, 0.5); if (!p) return;
+    const c = document.createElement('canvas'); c.width = c.height = 64;
+    const g = c.getContext('2d'), grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, 'rgba(255,255,255,1)'); grad.addColorStop(0.35, 'rgba(255,255,255,.6)'); grad.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grad; g.fillRect(0, 0, 64, 64);
+    const sp = own(new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false })));
+    sp.position.copy(p); sp.scale.setScalar(size);
+    fx.glows.push({ sp, size });
+  };
+  fx.tag = (id, text, tone = '', lift = 6) => {
+    const p = posOf(id, lift); if (!p) return;
+    const t = el('div', `sl-tag ${tone}`, text); document.body.appendChild(t);
+    fx.tags.push({ el: t, p });
+  };
+  fx.clear = () => {
+    for (const r of fx.rings) { scene.scene.remove(r.m); r.m.geometry.dispose(); r.m.material.dispose(); }
+    for (const f of fx.flows) { for (const o of [f.line, f.points]) { scene.scene.remove(o); o.geometry.dispose(); o.material.dispose(); } }
+    for (const g of fx.glows) { scene.scene.remove(g.sp); g.sp.material.map.dispose(); g.sp.material.dispose(); }
+    for (const t of fx.tags) t.el.remove();
+    fx.rings = []; fx.flows = []; fx.glows = []; fx.tags = [];
+    scene._dirty = true;
+  };
+  fx.active = () => fx.rings.length + fx.flows.length + fx.glows.length + fx.tags.length > 0;
+  const v = new THREE.Vector3();
+  fx.tick = (now) => {
+    if (!fx.active()) return;
+    const k = (Math.sin(now / 1000 * Math.PI * 2 / 1.4) + 1) / 2;
+    for (const r of fx.rings) { r.m.scale.setScalar(r.r * (r.pulse && !reduceMotion ? 1 + 0.12 * k : 1)); r.m.material.opacity = r.pulse ? 0.3 + 0.5 * k : 0.6; }
+    for (const f of fx.flows) {
+      const t = reduceMotion ? 0 : ((now - f.t0) / 2200) % 1;
+      const arr = f.points.geometry.attributes.position;
+      for (let i = 0; i < f.n; i++) { const p = f.curve.getPoint((t + i / f.n) % 1); arr.setXYZ(i, p.x, p.y, p.z); }
+      arr.needsUpdate = true;
+    }
+    for (const g of fx.glows) g.sp.scale.setScalar(g.size * (reduceMotion ? 1 : 0.92 + 0.12 * k));
+    // 이름표: 월드 → 화면 좌표(장면 요소 기준). 카메라 뒤이거나 화면 밖이면 숨긴다
+    const rect = scene.getBoundingClientRect();
+    for (const t of fx.tags) {
+      v.copy(t.p).project(scene.camera);
+      const hidden = v.z > 1 || v.x < -1.1 || v.x > 1.1 || v.y < -1.1 || v.y > 1.1 || scene._2d;
+      t.el.style.display = hidden ? 'none' : '';
+      if (!hidden) { t.el.style.left = `${rect.left + (v.x + 1) / 2 * rect.width}px`; t.el.style.top = `${rect.top + (1 - v.y) / 2 * rect.height}px`; }
+    }
+    scene._dirty = true;
+  };
+  return fx;
+}
+
+export async function attachSimLab() {
+  if (!token()) return;
+  let scene = null;
+  while (!(scene = document.querySelector('steel-scene'))) await sleep(150);
+  while (!scene.scene || !scene.zones || !scene.camera || typeof scene._frame !== 'function') await sleep(150);
+  if (scene.__simLab) return;
+  scene.__simLab = true;
+  injectStyle();
+  const fx = createFx(scene);
+  const frame = scene._frame.bind(scene);
+  scene._frame = function (now) { const r = frame(now); try { fx.tick(now); } catch (e) { console.warn('시뮬레이션 효과 실패', e); } return r; };
+
+  /** 공정을 옮기고(v4의 steel-goto) 장면이 그 공정이 되면 설비로 카메라를 옮긴다. */
+  async function goTo(section, equipmentId) {
+    if (scene.process?.id !== section) {
+      document.dispatchEvent(new CustomEvent('steel-goto', { detail: { process: section } }));
+      for (let i = 0; i < 40 && scene.process?.id !== section; i++) await sleep(100);
+      await sleep(400);
+    }
+    if (equipmentId) scene.focus?.(equipmentId); else scene.reset?.();
+  }
+
+  // ── 화면 틀 ──
+  const launch = el('div', 'sl-launch');
+  const panel = el('aside', 'sl-panel'); panel.hidden = true; panel.setAttribute('aria-live', 'polite');
+  const bWhatif = btn('🧪 조업 실험', () => open(mode === 'whatif' ? null : 'whatif'), ''), bFault = btn('🚨 이상 상황 훈련', () => open(mode === 'fault' ? null : 'fault'), '');
+  launch.append(bWhatif, bFault);
+  document.body.append(launch, panel);
+  let mode = null;
+  function open(next, preset) {
+    mode = next; fx.clear(); panel.classList.remove('compact');
+    bWhatif.setAttribute('aria-pressed', String(mode === 'whatif')); bFault.setAttribute('aria-pressed', String(mode === 'fault'));
+    panel.hidden = !mode; panel.replaceChildren();
+    if (mode === 'whatif') void whatifPanel(preset); else if (mode === 'fault') void faultList();
+  }
+  const head = (title, foldable = false) => {
+    const h = el('h3'); h.append(el('span', '', title));
+    if (foldable) { const f = btn('결과만 보기', () => { const c = panel.classList.toggle('compact'); f.textContent = c ? '조건 펼치기' : '결과만 보기'; }, 'sl-btn ghost'); h.append(f); }
+    h.append(btn('닫기', () => open(null), 'sl-btn ghost')); return h;
+  };
+
+  // ── ① 조업 실험(What-if) ──
+  async function whatifPanel(preset = {}) {
+    const input = { ...preset };
+    panel.append(head('🧪 조업 실험 · 고로', true), el('p', 'sl-muted sl-hide', '조건을 바꾸면 3D에서 원인 설비 → 고로 → 출선구로 영향이 흐르고, 쇳물 빛과 값이 바뀌어요. 교육용 간이 모델이라 실제 조업 값이 아니에요.'));
+    const sliders = el('div', 'sl-box sl-hide'), out = el('div', 'sl-out'), causes = el('div'), next = el('div'), warn = el('div');
+    panel.append(sliders, out, causes, next, warn);
+    let timer = 0, data = null;
+    const run = async () => {
+      try { data = await api('POST', '/api/lab/whatif', input); } catch (e) { warn.replaceChildren(el('p', 'sl-bad', e.message)); return; }
+      for (const [k] of SLIDERS) { const row = sliders.querySelector(`[data-k="${k}"]`); if (row) { row.querySelector('input').value = data.input[k]; row.querySelector('b').textContent = `${fmt(data.input[k], k === 'oxygen_pct' ? 1 : 0)}${SLIDERS.find((s) => s[0] === k)[2]}`; } }
+      render();
+    };
+    for (const [k, label, unit, min, max, step] of SLIDERS) {
+      const row = el('label', 'sl-s'); row.dataset.k = k;
+      const range = el('input'); Object.assign(range, { type: 'range', min, max, step }); range.setAttribute('aria-label', label);
+      range.addEventListener('input', () => { input[k] = Number(range.value); row.querySelector('b').textContent = `${range.value}${unit}`; clearTimeout(timer); timer = setTimeout(run, 250); });
+      row.append(el('span', '', label), range, el('b', '', '')); sliders.append(row);
+    }
+    sliders.append(btn('기준 조건으로', () => { for (const k of Object.keys(input)) delete input[k]; void run(); }, 'sl-btn ghost'));
+    function render() {
+      const r = data.result, b = data.baseline;
+      const tile = (label, now, base, unit, d = 0, upGood = false) => {
+        const t = el('div'), diff = now - base, cls = Math.abs(diff) < 10 ** -d / 2 ? '' : (diff > 0) === upGood ? 'sl-ok' : diff > 0 ? 'sl-up' : 'sl-down';
+        t.append(el('small', '', label), el('b', '', `${fmt(now, d)}${unit}`), el('i', cls, cls ? signed(diff, d) : '기준과 같음')); return t;
+      };
+      out.replaceChildren(tile('용선 온도', r.hot_metal_temp_c, b.hot_metal_temp_c, '℃', 0, true), tile('슬래그', r.slag_kg, b.slag_kg, 'kg/t', 0), tile('염기도', r.basicity, b.basicity, '', 2), tile('CO2(상한)', r.co2_kg, b.co2_kg, 'kg/t', 0));
+      // 원인별 설명(조건 하나만 바꿨을 때의 효과)
+      causes.replaceChildren(...(data.effects.length ? data.effects.map((e) => {
+        const box = el('div', 'sl-cause'), ch = e.changes.map((c) => `${fmt(c.from)}→${fmt(c.to)}`).join(', '), d = e.deltas;
+        box.append(el('b', '', `${e.label} (${ch})`), el('div', '', e.why), el('div', 'sl-muted', `이것만 바꾸면 → 용선 온도 ${signed(d.hot_metal_temp_c, 0, '℃')} · 슬래그 ${signed(d.slag_kg, 0, 'kg/t')} · 염기도 ${signed(d.basicity, 2)} · CO2 ${signed(d.co2_kg, 0, 'kg/t')}`));
+        return box;
+      }) : [el('p', 'sl-muted', '슬라이더를 움직여 보세요. 바꾼 조건마다 무엇이 왜 달라졌는지 여기에 나와요.')]));
+      next.replaceChildren(...data.downstream.map((d) => { const box = el('div', 'sl-next'); box.append(el('b', '', `다음 공정 영향 · ${SECTION[d.process]}`), el('div', '', d.text), btn(`${SECTION[d.process]}으로 따라가 보기`, () => goTo(d.process, d.equipment_id), 'sl-btn ghost')); return box; }));
+      warn.replaceChildren(...r.warnings.map((w) => el('p', 'sl-bad', `⚠ ${w}`)));
+      // 3D: 흐름·빛·이름표·링
+      fx.clear();
+      for (const e of data.effects) {
+        const color = e.deltas.hot_metal_temp_c > 0 ? 0xff7a3d : e.deltas.hot_metal_temp_c < 0 ? 0x5aa0ff : 0xffd166;
+        if (e.equipment_id !== 'blast_furnace') fx.flow(e.equipment_id, 'blast_furnace', color);
+        fx.tag(e.equipment_id, `${e.label} ${signed(e.deltas.hot_metal_temp_c, 0, '℃')}`, e.deltas.hot_metal_temp_c >= 0 ? 'hot' : 'cold', 4);
+        fx.ring(e.equipment_id, color, false);
+      }
+      if (data.effects.length) fx.flow('blast_furnace', 'taphole_casthouse', 0xffffff);
+      fx.glow('taphole_casthouse', tempColor(r.hot_metal_temp_c), 4 + (r.hot_metal_temp_c - 1380) / 30);
+      const dt = r.hot_metal_temp_c - b.hot_metal_temp_c;
+      fx.tag('taphole_casthouse', `용선 ${fmt(r.hot_metal_temp_c)}℃${dt ? ` (${signed(dt)})` : ''}`, dt > 0 ? 'hot' : dt < 0 ? 'cold' : '');
+      fx.tag('blast_furnace', `슬래그 ${fmt(r.slag_kg)}kg/t · 염기도 ${fmt(r.basicity, 2)}`, r.warnings.length ? 'warn' : '', 9);
+      if (r.warnings.length) fx.ring('blast_furnace', 0xff4d4d, true);
+      for (const d of data.downstream) { fx.flow('taphole_casthouse', 'torpedo_car', 0xff6b6b); fx.flow('torpedo_car', d.equipment_id, 0xff6b6b); fx.ring(d.equipment_id, 0xff4d4d, true); fx.tag(d.equipment_id, '⚠ 다음 공정 영향', 'warn'); }
+      scene._dirty = true;
+    }
+    await goTo('ironmaking');
+    await run();
+  }
+
+  // ── ② 이상 상황 훈련 ──
+  async function faultList() {
+    panel.append(head('🚨 이상 상황 훈련'));
+    try {
+      const data = await api('GET', '/api/lab/faults');
+      panel.append(el('p', 'sl-muted', data.disclaimer));
+      for (const f of data.faults) {
+        const b = btn(`${SECTION[f.section]} · ${f.title}`, () => void faultDrill(f.id), 'sl-opt');
+        b.append(el('div', 'sl-muted', f.best == null ? '아직 안 해 봤어요' : `최고 ${Math.round(f.best * 100)}점 · ${f.attempts}번`));
+        panel.append(b);
+      }
+    } catch (e) { panel.append(el('p', 'sl-bad', e.message)); }
+  }
+  async function faultDrill(id) {
+    fx.clear(); panel.replaceChildren(head('🚨 이상 상황 훈련'));
+    let f;
+    try { f = (await api('GET', `/api/lab/faults/${id}`)).fault; } catch (e) { panel.append(el('p', 'sl-bad', e.message)); return; }
+    const tries = { signal: 0, cause: 0, action: 0 };
+    const steps = el('div', 'sl-steps'), names = ['① 이상 값 찾기', '② 원인', '③ 조치'];
+    const setStep = (i) => steps.replaceChildren(...names.map((n, j) => el('span', j === i ? 'on' : j < i ? 'done' : '', n)));
+    const situation = el('div', 'sl-box'); situation.append(el('b', '', `${SECTION[f.section]} · ${f.title}`), el('div', '', f.situation));
+    const reads = el('div', 'sl-box'), work = el('div', 'sl-box');
+    panel.append(steps, situation, reads, work, btn('목록으로', () => { fx.clear(); panel.replaceChildren(); void faultList(); }, 'sl-btn ghost'));
+    setStep(0);
+    // 3D: 이상 징후
+    await goTo(f.section, f.equipment_id);
+    fx.ring(f.equipment_id, 0xff3b3b, true);
+    fx.tag(f.equipment_id, '⚠ 이상 징후', 'warn');
+    // 계기 값: 정상 범위(초록 띠)와 지금 값(흰 막대)
+    const rows = new Map();
+    for (const r of f.readings) {
+      const lo = Math.min(r.normal[0], r.value) - Math.abs(r.normal[1] - r.normal[0]) * 0.6, hi = Math.max(r.normal[1], r.value) + Math.abs(r.normal[1] - r.normal[0]) * 0.6;
+      const pos = (x) => `${((x - lo) / (hi - lo)) * 100}%`;
+      const row = btn('', () => void pickSignal(r.id, row), 'sl-read'), gauge = el('div', 'sl-gauge'), band = el('i', 'band'), mark = el('i', 'mark');
+      band.style.left = pos(r.normal[0]); band.style.width = `calc(${pos(r.normal[1])} - ${pos(r.normal[0])})`; mark.style.left = pos(r.value);
+      gauge.append(band, mark);
+      const val = el('b', '', `${r.value}${r.unit}`);
+      row.append(el('span', '', `${r.name}`), val, el('span', 'sl-muted', `정상 ${r.normal[0]}~${r.normal[1]}${r.unit}`), el('span'), gauge);
+      rows.set(r.id, { row, val, mark, pos, r });
+      reads.append(row);
+    }
+    work.append(el('b', '', '① 정상 범위를 벗어난 값을 하나 골라 보세요'), el('p', 'sl-muted', '초록 띠가 정상 범위, 흰 막대가 지금 값이에요.'));
+    let stage = 'signal';
+    async function pickSignal(rid, row) {
+      if (stage !== 'signal') return;
+      tries.signal++;
+      const res = await api('POST', `/api/lab/faults/${f.id}/check`, { step: 'signal', key: rid });
+      if (!res.correct) { row.classList.add('sl-shake'); setTimeout(() => row.classList.remove('sl-shake'), 400); work.querySelector('.sl-hint')?.remove(); work.append(el('p', 'sl-hint sl-muted', res.hint)); return; }
+      stage = 'cause';
+      for (const a of res.abnormal) rows.get(a)?.row.classList.add('bad');
+      for (const { row: x } of rows.values()) x.disabled = true;
+      work.replaceChildren(el('p', '', `✓ ${res.explain}`), el('b', '', '② 무엇이 원인일까요?'));
+      setStep(1);
+      choose(f.cause_options, 'cause', (res2) => {
+        work.append(el('p', 'sl-ok', `✓ ${res2.explain}`), Object.assign(el('div', 'sl-cause'), { textContent: `원인 → 결과: ${res2.chain_text}` }));
+        // 3D: 원인 사슬을 차례로 흐르게(공정 전체가 보이게 카메라를 물린다)
+        scene.reset?.();
+        res2.chain.forEach((id, i, all) => { if (i) fx.flow(all[i - 1], id, 0xff5a3d); fx.tag(id, `${i === 0 ? '원인' : i === all.length - 1 ? '결과' : '경로'} ${'①②③④⑤'[i]} ${fx.nameOf(id)}`, 'warn', 3); });
+        work.append(el('b', '', '③ 어떻게 조치할까요?'));
+        setStep(2); stage = 'action';
+        choose(f.action_options, 'action', (res3) => {
+          stage = 'done';
+          work.append(el('p', 'sl-ok', `✓ ${res3.explain}`));
+          // 값이 정상으로 돌아온다(앞 공정에서 온 값은 그대로 남는다)
+          for (const [rid2, v] of Object.entries(res3.fixed)) { const x = rows.get(rid2); if (!x) continue; x.mark.style.left = x.pos(v); x.val.textContent = `${v}${x.r.unit}`; const ok = v >= x.r.normal[0] && v <= x.r.normal[1]; x.row.classList.toggle('bad', !ok); x.row.classList.toggle('fixed', ok); }
+          fx.setRingColor(f.equipment_id, 0x3ddc84);
+          fx.tag(f.equipment_id, '✓ 정상화', 'ok', 9);
+          const nb = el('div', 'sl-next'); nb.append(el('b', '', '다음·앞 공정과의 연결'), el('div', '', res3.downstream.text));
+          work.append(nb);
+          fx.flow(f.equipment_id, res3.downstream.equipment_id, 0xffb020); fx.ring(res3.downstream.equipment_id, 0xffb020, true);
+          const tools = el('div'); tools.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;';
+          tools.append(btn('연결된 설비 보기', () => goTo(sectionOf(res3.downstream.equipment_id), res3.downstream.equipment_id), 'sl-btn ghost'));
+          if (res3.whatif) tools.append(btn('🧪 조업 실험에서 재현해 보기', () => open('whatif', res3.whatif), 'sl-btn'));
+          work.append(tools);
+          api('POST', `/api/lab/faults/${f.id}/complete`, { tries }).then((r) => work.append(el('p', 'sl-ok', `점수 ${Math.round(r.score * 100)}점 · 시도 ${tries.signal}/${tries.cause}/${tries.action}번`)), () => {});
+        });
+      });
+    }
+    function choose(options, step, onRight) {
+      const list = el('div'); list.style.cssText = 'display:flex;flex-direction:column;gap:6px;';
+      for (const o of options) {
+        const b = btn(o.text, async () => {
+          if (b.disabled) return;
+          tries[step]++;
+          const res = await api('POST', `/api/lab/faults/${f.id}/check`, { step, key: o.key });
+          if (!res.correct) {
+            b.classList.add('wrong'); b.disabled = true;
+            list.querySelector('.sl-hint')?.remove();
+            list.append(el('p', 'sl-hint sl-bad', res.consequence ? `결과: ${res.consequence}` : res.hint));
+            return;
+          }
+          b.classList.add('right');
+          for (const x of list.querySelectorAll('button')) x.disabled = true;
+          list.querySelector('.sl-hint')?.remove();
+          onRight(res);
+        }, 'sl-opt');
+        list.append(b);
+      }
+      work.append(list);
+    }
+  }
+  const sectionOf = (eqId) => Object.entries(scene.zones || {}).find(([, z]) => (z.eqs || []).some((e) => e.id === eqId))?.[0] || 'ironmaking';
+}

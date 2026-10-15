@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>운영 콘솔 · ST-ROOKIE</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Montserrat:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+  <!-- 색·버튼·칩·판은 평가 시험 화면(exam.css)과 같은 체계를 쓴다. 이 화면 배치만 아래에 둔다 -->
+  <link rel="stylesheet" href="/login_ui/exam.css">
+  <style>
+    .ops-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+    .ops-tabs button { height: 40px; padding: 0 16px; border-radius: 10px; background: var(--panel); color: var(--muted); font-weight: 700; }
+    .ops-tabs button[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
+    .ops-pane { display: flex; flex-direction: column; gap: 16px; }
+    .ops-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 16px; align-items: start; }
+    .ops-card { padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+    .ops-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .ops-list { display: flex; flex-direction: column; gap: 6px; }
+    .ops-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; padding: 10px 12px; border-radius: 12px; background: var(--panel2); text-align: left; color: var(--text); }
+    .ops-item[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--accent); }
+    .ops-item small { grid-column: 1 / -1; color: var(--muted); font-size: 15px; }
+    .ops-field { display: flex; flex-direction: column; gap: 4px; font-size: 15px; }
+    .ops-field input, .ops-field select, .ops-field textarea { padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel2); font: inherit; color: var(--text); }
+    .ops-body { white-space: pre-wrap; padding: 12px; border-radius: 10px; background: var(--panel2); max-height: 260px; overflow-y: auto; font-size: 15px; }
+    .ops-events { list-style: none; margin: 0; padding: 0 0 0 14px; border-left: 2px solid var(--line); display: flex; flex-direction: column; gap: 8px; font-size: 15px; }
+    .ops-events li span { color: var(--muted); }
+    .ops-events li p { margin: 2px 0 0; white-space: pre-wrap; color: var(--text); }
+    .diff { font-family: var(--mono); font-size: 15px; border-radius: 10px; overflow: hidden; }
+    .diff div { padding: 1px 10px; white-space: pre-wrap; }
+    .diff .add { background: color-mix(in srgb, var(--ok) 18%, transparent); } .diff .del { background: color-mix(in srgb, var(--bad) 16%, transparent); text-decoration: line-through; }
+    .stat-tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+    .stat-tiles div { padding: 12px 14px; border-radius: 12px; background: var(--panel2); display: flex; flex-direction: column; }
+    .stat-tiles b { font: 700 26px/1.1 var(--font-en); }
+    table.ops { width: 100%; border-collapse: collapse; font-size: 15px; }
+    table.ops th, table.ops td { text-align: left; padding: 8px 10px; border-top: 1px solid var(--line); vertical-align: top; }
+    table.ops th { color: var(--muted); font-weight: 600; }
+    .pbar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; min-width: 80px; }
+    .pbar i { display: block; height: 100%; background: var(--accent); }
+    .pat-row { display: grid; grid-template-columns: minmax(0, 1fr) 160px auto; gap: 10px; align-items: center; font-size: 15px; }
+    .pat-bar { height: 10px; border-radius: 5px; background: var(--accent); }
+    .kw { display: inline-block; margin-right: 6px; font-weight: 700; color: var(--accent-text); }
+    @media (max-width: 1000px) { .ops-grid { grid-template-columns: 1fr; } .stat-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  </style>
+  <script type="module" src="/login_ui/admin-ops.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/login_ui/home-sleek.html"><span class="brand-mark" aria-hidden="true"></span>ST-ROOKIE</a>
+    <span class="role">OPERATIONS</span>
+    <span class="grow"></span>
+    <nav class="top-nav" aria-label="주 메뉴">
+      <button type="button" class="icon-button" id="theme" aria-label="테마 전환">☀</button>
+      <a class="btn secondary" href="/login">관리자 통계</a>
+    </nav>
+  </header>
+  <main>
+    <section class="hero"><div class="hero-text"><span class="eyebrow">[ ADMIN ]</span><h1>RUN THE MILL.</h1><span class="lead" id="who">운영 콘솔</span></div></section>
+    <div id="notice" class="notice card" role="alert" hidden></div>
+    <div class="ops-tabs" role="tablist" aria-label="운영 메뉴" id="tabs"></div>
+    <section class="ops-pane" id="pane"></section>
+  </main>
+</body>
+</html>

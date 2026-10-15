@@ -10,6 +10,10 @@ export interface DeletedCounts {
   learning_turns: number;
   learner_sketches: number;
   learning_supplements: number;
+  /** 학습 랩(011): 간격 반복 카드·복습, 화면 xAPI 문장, 세션 리플레이, 소크라테스 대화. 행 수 합. */
+  learning_lab: number;
+  /** 운영 기능(012): 알림·알림 설정, 사고 사례 풀이, 설비 메모(내 메모와 거기 달린 공감·답글·신고, 남의 메모에 단 내 공감·답글·신고). 행 수 합. */
+  operations: number;
   exam_events: number;
   review_tasks: number;
   education_jobs: number;
@@ -48,6 +52,31 @@ export function deleteUserData(db: DatabaseSync, userId: string, { origin = "all
       learning_supplements: origin === "seed" ? 0
         : (db.prepare("DELETE FROM learning_supplement_steps WHERE supplement_id IN (SELECT id FROM learning_supplements WHERE user_id = ?)").run(userId),
           Number(db.prepare("DELETE FROM learning_supplements WHERE user_id = ?").run(userId).changes)),
+      // 학습 랩(011). 시연 기록이 없으므로 live·all일 때만 지운다. 대화·이벤트가 세션을 참조하므로 먼저 지운다.
+      learning_lab: origin === "seed" ? 0 : [
+        "DELETE FROM socratic_turns WHERE session_id IN (SELECT id FROM socratic_sessions WHERE user_id = ?)",
+        "DELETE FROM socratic_sessions WHERE user_id = ?",
+        "DELETE FROM replay_events WHERE session_id IN (SELECT id FROM replay_sessions WHERE user_id = ?)",
+        "DELETE FROM replay_sessions WHERE user_id = ?",
+        "DELETE FROM xapi_statements WHERE user_id = ?",
+        "DELETE FROM sr_reviews WHERE user_id = ?",
+        "DELETE FROM sr_cards WHERE user_id = ?",
+      ].reduce((n, sql) => n + Number(db.prepare(sql).run(userId).changes), 0),
+      operations: origin === "seed" ? 0 : [
+        "DELETE FROM notification_deliveries WHERE notification_id IN (SELECT id FROM notifications WHERE user_id = ?)",
+        "DELETE FROM notifications WHERE user_id = ?",
+        "DELETE FROM notification_prefs WHERE user_id = ?",
+        "DELETE FROM incident_attempts WHERE user_id = ?",
+        // 이상 상황 훈련(013)
+        "DELETE FROM fault_attempts WHERE user_id = ?",
+        "DELETE FROM equipment_note_votes WHERE note_id IN (SELECT id FROM equipment_notes WHERE user_id = ?)",
+        "DELETE FROM equipment_note_replies WHERE note_id IN (SELECT id FROM equipment_notes WHERE user_id = ?)",
+        "DELETE FROM equipment_note_reports WHERE note_id IN (SELECT id FROM equipment_notes WHERE user_id = ?)",
+        "DELETE FROM equipment_notes WHERE user_id = ?",
+        "DELETE FROM equipment_note_votes WHERE user_id = ?",
+        "DELETE FROM equipment_note_replies WHERE user_id = ?",
+        "DELETE FROM equipment_note_reports WHERE user_id = ?",
+      ].reduce((n, sql) => n + Number(db.prepare(sql).run(userId).changes), 0),
     };
     db.exec("COMMIT");
     return counts;

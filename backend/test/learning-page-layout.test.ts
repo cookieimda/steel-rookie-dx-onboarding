@@ -70,11 +70,11 @@ test("UI 편집 반영: 튜터 칸 348px", () => {
   assert.match(page, /\.learn\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) 348px/);
 });
 
-test("복습·내 오개념은 학습 모듈 탭에서 연다(내 현황 탭 없음)", () => {
-  assert.match(page, /\['steps', '작동 단계'\], \['blueprint', '설계도·필기'\], \['review', '복습'\], \['mis', '내 오개념'\]\]/);
+test("복습·내 오개념·사원증·학습 랩은 학습 모듈 탭에서 연다(내 현황 탭 없음)", () => {
+  assert.match(page, /\['steps', '작동 단계'\], \['blueprint', '설계도·필기'\], \['review', '복습'\], \['mis', '내 오개념'\], \['card', '사원증'\], \['lab', '학습 랩'\]\]/);
   assert.doesNotMatch(template, /data-sec="status"/);
   const learn = template.slice(template.indexOf('data-sec="workspace"'), template.indexOf('<div class="side">'));
-  for (const k of ["review", "misconceptions"]) assert.ok(learn.includes(`data-sec="${k}"`), `학습 모듈 안에 ${k}`);
+  for (const k of ["review", "misconceptions", "card", "lab"]) assert.ok(learn.includes(`data-sec="${k}"`), `학습 모듈 안에 ${k}`);
   assert.doesNotMatch(template, /dg-split/);
 });
 

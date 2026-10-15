@@ -46,6 +46,235 @@
       .side { margin-top: 0; }
       .side > .tutor { flex: none; height: clamp(420px, calc(100dvh - 140px), 620px); }
     }
+    /* ── 사원증 탭(2026-10-15): 공부할수록 직급·재질이 올라가는 카드 + 연속 학습일·오늘의 미션·배지(말해보카·듀오링고 참고). 값은 /api/me/dashboard의 employee_card(backend/src/me/employee-card.ts) ── */
+    .ec { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 22px; padding: 22px; align-items: start; }
+    .ec-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+    .ec-box { background: var(--panel2); border-radius: var(--cut); padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+    .ec-box h3 { margin: 0; font-size: 15px; font-weight: 700; display: flex; align-items: baseline; gap: 8px; }
+    .ec-box h3 small { font-weight: 500; color: var(--muted); font-size: 15px; }
+    /* 카드: 목걸이 줄 + 세로 사원증. 마우스를 따라 기울고(--rx·--ry), 직급(data-tier)마다 재질이 바뀐다 */
+    .ec-hang { display: flex; flex-direction: column; align-items: center; perspective: 900px; padding-top: 4px; }
+    .ec-strap { width: 34px; height: 46px; border-radius: 4px 4px 0 0; background: var(--tier-strap, var(--orange)); position: relative;
+      background-image: repeating-linear-gradient(90deg, rgba(255,255,255,.18) 0 2px, transparent 2px 6px); }
+    .ec-strap::after { content: ""; position: absolute; left: 50%; bottom: -10px; width: 22px; height: 14px; transform: translateX(-50%); border-radius: 3px; background: linear-gradient(#d9dde2, #8d949c); box-shadow: 0 1px 2px rgba(0,0,0,.4); }
+    .ec-card { --rx: 0deg; --ry: 0deg; --mx: 50%; --my: 30%; position: relative; width: 300px; aspect-ratio: 54 / 86; margin-top: 6px; border-radius: var(--cut-l); overflow: hidden;
+      transform: rotateX(var(--rx)) rotateY(var(--ry)); transform-style: preserve-3d; transition: transform .25s ease-out, box-shadow .25s; cursor: default;
+      box-shadow: 0 18px 40px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,.08) inset; color: var(--tier-text, #f4f1ee); font-family: var(--font-ko); }
+    .ec-card.ec-moving { transition: transform .06s linear; }
+    .ec-card::before { content: ""; position: absolute; inset: 0; background: var(--tier-bg); z-index: 0; }
+    /* 빛 반사: 마우스 위치에 하이라이트. 스테인리스부터는 무지개 홀로그램이 함께 돈다 */
+    .ec-card::after { content: ""; position: absolute; inset: 0; z-index: 3; pointer-events: none; mix-blend-mode: overlay;
+      background: radial-gradient(circle at var(--mx) var(--my), rgba(255,255,255,.5), transparent 45%), var(--tier-holo, none); background-size: 100% 100%, 300% 300%; animation: ec-holo 6s linear infinite; }
+    @keyframes ec-holo { from { background-position: 0 0, 0% 50%; } to { background-position: 0 0, 300% 50%; } }
+    .ec-in { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; padding: 22px 20px 18px; gap: 10px; }
+    .ec-slot { align-self: center; width: 46px; height: 8px; border-radius: var(--cut-s); background: rgba(0,0,0,.45); box-shadow: 0 1px 0 rgba(255,255,255,.2); margin-top: -8px; }
+    .ec-brand { display: flex; justify-content: space-between; align-items: center; gap: 8px; white-space: nowrap; font-size: 15px; letter-spacing: .02em; font-weight: 800; opacity: .9; }
+    .ec-brand b { display: flex; align-items: center; gap: 6px; }
+    .ec-brand b::before { content: ""; width: 10px; height: 10px; border-radius: 3px; background: var(--tier-accent, var(--orange)); }
+    .ec-photo { align-self: center; width: 112px; height: 132px; border-radius: var(--cut); margin-top: 6px; display: grid; place-items: center; position: relative;
+      background: rgba(0,0,0,.22); box-shadow: 0 0 0 3px var(--tier-accent, var(--orange)), 0 8px 18px rgba(0,0,0,.3); font-size: 44px; font-weight: 800; letter-spacing: -.02em; }
+    .ec-photo .ec-lv { position: absolute; bottom: -11px; padding: 3px 10px; border-radius: var(--cut-s); font-size: 15px; font-weight: 800; letter-spacing: .04em; background: var(--tier-accent, var(--orange)); color: var(--tier-accent-ink, #1a0b03); white-space: nowrap; }
+    .ec-name { text-align: center; margin-top: 10px; display: flex; flex-direction: column; gap: 2px; }
+    .ec-name strong { font-size: 26px; font-weight: 800; letter-spacing: -.01em; }
+    .ec-name em { font-style: normal; font-size: 15px; opacity: .8; }
+    .ec-rows { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 15px; margin-top: auto; }
+    .ec-rows dt { opacity: .65; margin: 0; } .ec-rows dd { margin: 0; text-align: right; font-weight: 600; font-family: var(--mono); }
+    .ec-bar { display: flex; align-items: flex-end; gap: 1px; height: 30px; padding: 4px 6px; border-radius: var(--cut-s); background: rgba(255,255,255,.85); }
+    .ec-bar i { display: block; height: 100%; background: #141414; }
+    /* 직급(재질)별 색 */
+    .ec-card[data-tier="ore"] { --tier-bg: radial-gradient(circle at 20% 15%, rgba(255,255,255,.08) 0 2px, transparent 3px) 0 0 / 18px 18px, radial-gradient(circle at 70% 60%, rgba(0,0,0,.18) 0 2px, transparent 3px) 0 0 / 23px 23px, linear-gradient(150deg, #7a6656, #3f332b); --tier-accent: #c99a6b; --tier-strap: #8a6b52; }
+    .ec-card[data-tier="pig"] { --tier-bg: linear-gradient(0deg, rgba(255,110,40,.35), transparent 22%), linear-gradient(150deg, #55595f, #212327); --tier-accent: #ff8a3d; --tier-strap: #d0602a; }
+    .ec-card[data-tier="steel"] { --tier-bg: repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0 1px, transparent 1px 3px), linear-gradient(150deg, #a8b1bb, #59626c); --tier-accent: #4fb3ff; --tier-strap: #2f7fc1; --tier-accent-ink: #04121f; }
+    .ec-card[data-tier="stainless"] { --tier-bg: repeating-linear-gradient(90deg, rgba(255,255,255,.18) 0 1px, transparent 1px 4px), linear-gradient(150deg, #f3f6f9, #a3aeba 55%, #dfe5eb); --tier-text: #1b2128; --tier-accent: #2bb6a3; --tier-strap: #1f8f80;
+      --tier-holo: linear-gradient(115deg, transparent 20%, rgba(255,120,200,.35), rgba(120,220,255,.35), rgba(255,240,120,.35), transparent 80%); }
+    .ec-card[data-tier="special"] { --tier-bg: repeating-linear-gradient(90deg, rgba(255,255,255,.1) 0 1px, transparent 1px 4px), linear-gradient(150deg, #fbe7a1, #c8962f 55%, #f2d27a); --tier-text: #2b1c03; --tier-accent: #7b3fe4; --tier-accent-ink: #fff; --tier-strap: #5d2fb0;
+      --tier-holo: linear-gradient(115deg, transparent 15%, rgba(255,255,255,.55), rgba(255,170,90,.4), transparent 70%); }
+    .ec-card[data-tier="damascus"] { --tier-bg: repeating-radial-gradient(ellipse at 30% 120%, #2a2d33 0 6px, #4a4f57 6px 9px, #1b1d21 9px 14px), linear-gradient(#000, #000); --tier-accent: #ff4fa3; --tier-strap: #111;
+      --tier-holo: linear-gradient(115deg, rgba(255,0,128,.45), rgba(0,200,255,.45), rgba(120,255,120,.45), rgba(255,220,0,.45), rgba(255,0,128,.45)); }
+    /* 연속 학습일·주간 점 */
+    .ec-streak { display: flex; align-items: center; gap: 14px; }
+    .ec-flame { font-size: 40px; line-height: 1; filter: grayscale(1) opacity(.45); }
+    .ec-flame.on { filter: none; animation: ec-flicker 1.6s ease-in-out infinite; }
+    @keyframes ec-flicker { 0%, 100% { transform: scale(1) rotate(-2deg); } 50% { transform: scale(1.08) rotate(2deg); } }
+    .ec-big { font-size: 30px; font-weight: 800; line-height: 1; }
+    .ec-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+    .ec-day { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 15px; color: var(--muted); }
+    .ec-day b { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 15px; background: var(--panel2); border: 2px solid var(--line); color: var(--muted); }
+    .ec-day.on b { background: var(--orange); border-color: var(--orange); color: var(--orange-ink); }
+    .ec-day.today b { box-shadow: 0 0 0 3px color-mix(in srgb, var(--orange) 35%, transparent); }
+    /* 직급 사다리와 XP 막대 */
+    .ec-xpbar { height: 12px; border-radius: var(--cut-s); background: var(--panel2); overflow: hidden; }
+    .ec-xpbar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--orange), #ffd166); transition: width .8s cubic-bezier(.2,.8,.2,1); }
+    .ec-ladder { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+    .ec-step { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 15px; color: var(--dim); text-align: center; }
+    .ec-step i { width: 100%; height: 6px; border-radius: 3px; background: var(--panel2); }
+    .ec-step.got { color: var(--text); } .ec-step.got i { background: var(--orange); }
+    .ec-step.now { font-weight: 800; color: var(--orange-text); }
+    /* 오늘의 목표 고리 + 미션 */
+    .ec-today { display: flex; gap: 18px; align-items: center; }
+    .ec-ring { --p: 0; position: relative; width: 86px; height: 86px; flex: none; display: grid; place-items: center; }
+    .ec-ring::before { content: ""; position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(var(--ok) calc(var(--p) * 1%), var(--line) 0);
+      -webkit-mask: radial-gradient(closest-side, transparent 76%, #000 77%); mask: radial-gradient(closest-side, transparent 76%, #000 77%); }
+    .ec-ring .ec-ring-t { position: relative; font-size: 15px; color: var(--muted); text-align: center; line-height: 1.2; } .ec-ring b { display: block; font-size: 20px; color: var(--text); }
+    .ec-missions { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+    .ec-missions li { display: flex; align-items: center; gap: 10px; font-size: 15px; }
+    .ec-missions li > b { width: 22px; height: 22px; flex: none; border-radius: 7px; display: grid; place-items: center; border: 2px solid var(--line); font-size: 15px; color: transparent; }
+    .ec-missions li.done > b { background: var(--ok); border-color: var(--ok); color: #fff; }
+    .ec-missions li.done .ec-m { color: var(--muted); text-decoration: line-through; }
+    .ec-missions small { margin-left: auto; color: var(--orange-text); font-weight: 700; white-space: nowrap; }
+    /* 배지(도장) */
+    .ec-badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 10px; }
+    .ec-badge { display: flex; flex-direction: column; align-items: center; gap: 5px; text-align: center; padding: 10px 6px; border-radius: var(--cut-s); background: var(--panel2); }
+    .ec-badge b { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; font-size: 24px; border: 2px dashed var(--line); filter: grayscale(1); opacity: .5; }
+    .ec-badge.got b { border: 2px solid var(--orange); background: color-mix(in srgb, var(--orange) 16%, transparent); filter: none; opacity: 1; transform: rotate(-8deg); }
+    .ec-badge strong { font-size: 15px; } .ec-badge small { font-size: 15px; color: var(--muted); line-height: 1.3; }
+    .ec-howto { display: flex; flex-wrap: wrap; gap: 6px; }
+    .ec-howto .ec-how { font-size: 15px; padding: 4px 10px; border-radius: var(--cut-s); background: var(--panel2); color: var(--muted); }
+    .ec-howto b { color: var(--orange-text); }
+    /* 승진 축하(직급이 오르면 한 번) */
+    .ec-promo { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: rgba(0,0,0,.55); backdrop-filter: blur(4px); overflow: hidden; }
+    .ec-promo-box { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 28px 34px; border-radius: var(--cut-l); background: var(--glass-strong, #222); color: var(--text); text-align: center; animation: ec-pop .5s cubic-bezier(.2,1.4,.4,1); max-width: calc(100vw - 32px); }
+    .ec-promo-box h2 { margin: 0; font-size: 26px; } .ec-promo-box p { margin: 0; color: var(--muted); font-size: 15px; }
+    @keyframes ec-pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .ec-confetti i { position: absolute; top: -20px; width: 9px; height: 14px; border-radius: 2px; animation: ec-fall linear forwards; }
+    @keyframes ec-fall { to { transform: translateY(110vh) rotate(720deg); } }
+    /* 헤더의 불꽃·직급 칩(듀오링고 상단 막대처럼). 누르면 사원증 탭 */
+    .ec-chip { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
+    .ec-chip em { font-style: normal; color: var(--muted); font-weight: 600; }
+    @media (max-width: 900px) { .ec { grid-template-columns: 1fr; } }
+    @media (prefers-reduced-motion: reduce) { .ec-card, .ec-card::after, .ec-flame.on, .ec-promo-box, .ec-confetti i { animation: none !important; transition: none !important; } }
+    /* ── 학습 랩 탭(2026-10-15): 간격 반복·주간 리그·xAPI 기록·세션 리플레이·소크라테스. 로직은 learning-lab.js, 서버는 backend/src/lab/ ── */
+    .lb { flex-direction: column; gap: 16px; padding: 20px 22px 22px; min-width: 0; }
+    .lb-sub { display: flex; flex-wrap: wrap; gap: 6px; }
+    .lb-sub button { height: 36px; padding: 0 14px; border: 1px solid var(--line); border-radius: var(--cut-s); background: transparent; color: var(--muted); font-size: 15px; font-weight: 600; cursor: pointer; }
+    .lb-sub button[aria-selected="true"] { background: var(--orange); border-color: var(--orange); color: var(--orange-ink); }
+    .lb-pane { flex-direction: column; gap: 14px; min-width: 0; }
+    .lb-box { background: var(--panel2); border-radius: var(--cut); padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    .lb-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .lb-muted { color: var(--muted); font-size: 15px; }
+    .lb-btn { height: 38px; padding: 0 16px; border: 0; border-radius: var(--cut-s); background: var(--orange); color: var(--orange-ink); font-size: 15px; font-weight: 700; cursor: pointer; }
+    .lb-btn.ghost { background: transparent; border: 1px solid var(--line); color: var(--text); }
+    .lb-btn:disabled { cursor: default; background: var(--panel2); color: var(--muted); }
+    .lb-err { color: var(--bad); font-size: 15px; }
+    /* 간격 반복 */
+    .lb-stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+    .lb-stat { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: var(--cut-s); background: var(--panel2); }
+    .lb-stat b { font-size: 20px; } .lb-stat .lb-k { font-size: 15px; color: var(--muted); }
+    .lb-fc { display: flex; align-items: flex-end; gap: 8px; height: 90px; }
+    .lb-fc .lb-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; height: 100%; font-size: 15px; color: var(--muted); }
+    .lb-fc i { display: block; width: 100%; max-width: 34px; min-height: 3px; max-height: 50px; border-radius: 4px 4px 0 0; background: var(--orange); }
+    .lb-flash { position: relative; min-height: 230px; border-radius: var(--cut-l); padding: 24px 26px; display: flex; flex-direction: column; gap: 14px; background: linear-gradient(160deg, color-mix(in srgb, var(--orange) 16%, var(--panel2)), var(--panel2)); border: 1px solid var(--line); animation: lb-in .35s ease; }
+    @keyframes lb-in { from { transform: translateY(8px) scale(.98); opacity: 0; } to { transform: none; opacity: 1; } }
+    .lb-flash h3 { margin: 0; font-size: 24px; line-height: 1.35; }
+    .lb-chip { align-self: flex-start; font-size: 15px; padding: 3px 10px; border-radius: var(--cut-s); background: var(--panel2); color: var(--muted); }
+    .lb-back { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px dashed var(--line); font-size: 16px; line-height: 1.6; animation: lb-in .3s ease; }
+    .lb-memo { font-size: 15px; color: var(--muted); padding: 10px 12px; border-radius: var(--cut-s); background: var(--panel2); }
+    .lb-grades { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+    .lb-grades button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px; border-radius: var(--cut-s); border: 2px solid var(--line); background: transparent; color: var(--text); font-size: 16px; font-weight: 700; cursor: pointer; }
+    .lb-grades button span { font-size: 15px; font-weight: 500; color: var(--muted); }
+    .lb-grades .bad { border-color: var(--bad); } .lb-grades .mid { border-color: var(--mid); } .lb-grades .ok { border-color: var(--ok); } .lb-grades .easy { border-color: #4fb3ff; }
+    /* 주간 리그 */
+    .lb-league { display: flex; align-items: center; gap: 16px; }
+    .lb-shield { width: 64px; height: 72px; flex: none; display: grid; place-items: center; font-size: 30px; border-radius: var(--cut) var(--cut) 50% 50%; background: #b07a4f; }
+    .lb-shield[data-l="silver"] { background: #b8c0c8; } .lb-shield[data-l="gold"] { background: #f2c14e; } .lb-shield[data-l="sapphire"] { background: #3d7be0; }
+    .lb-shield[data-l="ruby"] { background: #e0435c; } .lb-shield[data-l="diamond"] { background: linear-gradient(135deg, #8ff0ff, #b388ff); }
+    .lb-board { display: flex; flex-direction: column; gap: 4px; }
+    .lb-rank { display: grid; grid-template-columns: 40px 1fr auto; gap: 10px; align-items: center; padding: 9px 12px; border-radius: var(--cut-s); font-size: 16px; }
+    .lb-rank b { font-size: 16px; text-align: center; }
+    .lb-rank.promote b { color: var(--ok); } .lb-rank.demote b { color: var(--bad); }
+    .lb-rank.me { background: color-mix(in srgb, var(--orange) 18%, transparent); font-weight: 700; }
+    .lb-zone { font-size: 15px; color: var(--muted); text-align: center; border-top: 1px dashed var(--line); padding-top: 6px; margin-top: 4px; }
+    .lb-hist { display: flex; flex-wrap: wrap; gap: 6px; }
+    .lb-hist span { font-size: 15px; padding: 4px 10px; border-radius: var(--cut-s); background: var(--panel2); }
+    .lb-hist .up { color: var(--ok); } .lb-hist .down { color: var(--bad); }
+    /* xAPI */
+    .lb-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .lb-chips button { height: 32px; padding: 0 12px; border-radius: var(--cut-s); border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 15px; cursor: pointer; }
+    .lb-chips button[aria-pressed="true"] { border-color: var(--orange); color: var(--orange-text); font-weight: 700; }
+    .lb-xa { display: flex; flex-direction: column; gap: 4px; max-height: 460px; overflow-y: auto; }
+    .lb-xa details { border-radius: var(--cut-s); background: var(--panel2); }
+    .lb-xa summary { display: grid; grid-template-columns: 96px 92px 1fr auto; gap: 10px; padding: 9px 12px; font-size: 15px; cursor: pointer; list-style: none; }
+    .lb-xa summary::-webkit-details-marker { display: none; }
+    .lb-xa pre { margin: 0; padding: 10px 12px; font-family: var(--mono); font-size: 15px; white-space: pre-wrap; word-break: break-all; color: var(--muted); border-top: 1px solid var(--line); }
+    /* 리플레이 */
+    .lb-rp { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 14px; }
+    .lb-list { display: flex; flex-direction: column; gap: 6px; max-height: 520px; overflow-y: auto; }
+    .lb-list button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px; border-radius: var(--cut-s); border: 1px solid var(--line); background: transparent; color: var(--text); font-size: 15px; text-align: left; cursor: pointer; }
+    .lb-list button span { color: var(--muted); font-size: 15px; }
+    .lb-list button[aria-pressed="true"] { border-color: var(--orange); background: color-mix(in srgb, var(--orange) 12%, transparent); }
+    .lb-list .reached span { color: var(--ok); } .lb-list .revealed span { color: var(--mid); }
+    .lb-screen { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: var(--cut); border: 1px solid var(--line); background: var(--panel2); }
+    .lb-mini { display: flex; flex-wrap: wrap; gap: 4px; }
+    .lb-mini span { font-size: 15px; padding: 3px 9px; border-radius: var(--cut-s); background: var(--panel2); color: var(--dim); transition: background .2s, color .2s; }
+    .lb-mini span.on { background: var(--orange); color: var(--orange-ink); font-weight: 700; }
+    .lb-bubble { max-width: 90%; padding: 8px 12px; border-radius: var(--cut-s); font-size: 15px; line-height: 1.5; }
+    .lb-bubble.user { align-self: flex-end; background: var(--orange); color: var(--orange-ink); }
+    .lb-bubble.tutor { align-self: flex-start; background: var(--bubble-in); }
+    .lb-seek { width: 100%; accent-color: var(--orange); }
+    .lb-ev { display: flex; flex-direction: column; gap: 2px; max-height: 220px; overflow-y: auto; }
+    .lb-ev button { display: grid; grid-template-columns: 52px 1fr; gap: 8px; padding: 5px 8px; border: 0; border-radius: var(--cut-s); background: transparent; color: var(--dim); font-size: 15px; text-align: left; cursor: pointer; }
+    .lb-ev button.past { color: var(--muted); } .lb-ev button.now { color: var(--text); background: color-mix(in srgb, var(--orange) 16%, transparent); font-weight: 700; }
+    /* 소크라테스 */
+    .lb-soc { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 14px; }
+    .lb-select { height: 38px; padding: 0 10px; border-radius: var(--cut-s); border: 1px solid var(--line); background: var(--panel2); color: var(--text); font-size: 15px; width: 100%; }
+    .lb-chat { display: flex; flex-direction: column; gap: 8px; min-height: 240px; max-height: 420px; overflow-y: auto; padding: 4px; }
+    .lb-chat .lb-bubble { white-space: pre-wrap; font-size: 16px; }
+    .lb-hints { display: inline-flex; gap: 4px; align-items: center; }
+    .lb-hints i { width: 10px; height: 10px; border-radius: 50%; background: var(--line); } .lb-hints i.on { background: var(--mid); }
+    .lb-banner { padding: 10px 14px; border-radius: var(--cut-s); background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); font-weight: 700; font-size: 16px; animation: lb-in .4s ease; }
+    .lb-input { display: flex; gap: 8px; }
+    .lb-input input { flex: 1; min-width: 0; height: 40px; padding: 0 12px; border-radius: var(--cut-s); border: 1px solid var(--line); background: var(--panel2); color: var(--text); font-size: 15px; }
+    @media (max-width: 900px) { .lb-rp, .lb-soc { grid-template-columns: 1fr; } .lb-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .lb-xa summary { grid-template-columns: 1fr 1fr; } }
+    @media (prefers-reduced-motion: reduce) { .lb-flash, .lb-back, .lb-banner { animation: none !important; } }
+    /* ── 학습 랩 추가(2026-10-15): 사고 사례 · What-if · 설비 메모 · 내 오답 유형 · 알림 벨(lab-extras.js) ── */
+    .lb-area { width: 100%; padding: 10px 12px; border-radius: var(--cut-s); border: 1px solid var(--line); background: var(--panel2); color: var(--text); font-size: 15px; font-family: inherit; resize: vertical; }
+    .ic-time { list-style: none; margin: 0; padding: 0 0 0 14px; border-left: 3px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
+    .ic-time li { position: relative; display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 10px; align-items: start; font-size: 15px; line-height: 1.55; animation: lb-in .35s ease; }
+    .ic-time li::before { content: ""; position: absolute; left: -22px; top: 6px; width: 12px; height: 12px; border-radius: 50%; background: var(--line); }
+    .ic-time li.now::before { background: var(--bad); box-shadow: 0 0 0 4px color-mix(in srgb, var(--bad) 25%, transparent); }
+    .ic-time li b { font-family: var(--mono); color: var(--muted); }
+    .ic-time .lb-btn { height: 32px; padding: 0 10px; }
+    .ic-q { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: var(--cut-s); background: var(--panel2); font-size: 15px; }
+    .ic-q.ok { box-shadow: inset 3px 0 0 var(--ok); } .ic-q.bad { box-shadow: inset 3px 0 0 var(--bad); }
+    .ic-opts { display: flex; flex-direction: column; gap: 6px; }
+    .ic-opts button { text-align: left; padding: 9px 12px; border-radius: var(--cut-s); border: 1px solid var(--line); background: transparent; color: var(--text); font-size: 15px; cursor: pointer; }
+    .ic-opts button[aria-pressed="true"] { border-color: var(--orange); background: color-mix(in srgb, var(--orange) 12%, transparent); }
+    .ic-opts button.right { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
+    .ic-opts button.wrong { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 12%, transparent); }
+    .ic-explain { color: var(--muted); line-height: 1.55; }
+    .wi { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 14px; }
+    .wi-s { display: grid; grid-template-columns: 96px minmax(0, 1fr) 76px; gap: 8px; align-items: center; font-size: 15px; }
+    .wi-s input { accent-color: var(--orange); width: 100%; }
+    .wi-s b { text-align: right; font-family: var(--mono); font-size: 15px; }
+    .wi-out { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .wi-d { font-size: 15px; color: var(--muted); } .wi-d.up { color: var(--bad); } .wi-d.down { color: var(--ok); }
+    .wi-out .lb-stat:first-child .wi-d.up { color: var(--ok); } .wi-out .lb-stat:first-child .wi-d.down { color: var(--bad); }
+    .wi-temp { position: relative; height: 14px; border-radius: 7px; background: linear-gradient(90deg, #4f86e0, #e8c25a 50%, #ff6b3d); }
+    .wi-temp i { position: absolute; top: -5px; width: 6px; height: 24px; margin-left: -3px; border-radius: 3px; background: var(--text); transition: left .3s; }
+    .wi-slag { display: flex; height: 22px; border-radius: 6px; overflow: hidden; }
+    .wi-slag span { display: block; height: 100%; transition: width .3s; }
+    .wi-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; }
+    .wi-warn { color: var(--bad); font-size: 15px; }
+    details.lb-box > summary { cursor: pointer; list-style: none; }
+    .no-kind { font-size: 15px; font-weight: 700; padding: 2px 8px; border-radius: var(--cut-s); background: var(--panel2); }
+    .no-kind.question { color: #4f86e0; } .no-kind.memo { color: var(--muted); } .no-kind.tip { color: var(--ok); }
+    .no-vote { height: 32px; padding: 0 12px; border-radius: var(--cut-s); border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 15px; cursor: pointer; }
+    .no-vote.on { color: #e0435c; border-color: #e0435c; }
+    .no-reply { font-size: 15px; padding: 6px 10px; border-radius: var(--cut-s); background: var(--panel2); }
+    .pa-k { font-size: 15px; font-weight: 700; color: var(--orange-text); }
+    .pa-item { font-size: 15px; line-height: 1.6; }
+    .pa-ok { color: var(--ok); } .pa-bad { color: var(--bad); }
+    /* 알림 벨(헤더) */
+    .nt { position: relative; }
+    .nt-badge { position: absolute; top: -6px; right: -6px; min-width: 22px; height: 22px; padding: 0 5px; border-radius: var(--cut-s); background: var(--bad); color: #fff; font-size: 15px; font-weight: 800; display: grid; place-items: center; }
+    .nt-panel { position: absolute; right: 0; top: calc(100% + 8px); z-index: 40; width: min(380px, calc(100vw - 32px)); max-height: 70vh; overflow-y: auto; padding: 14px; border-radius: var(--cut); background: var(--ink-panel); color: var(--text); box-shadow: 0 18px 40px rgba(0,0,0,.3); display: flex; flex-direction: column; gap: 8px; text-align: left; }
+    body[data-theme="light"] .nt-panel { background: #fffaf6; }
+    .nt-item { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: var(--cut-s); background: var(--panel2); border: 0; color: var(--text); text-align: left; font-size: 15px; cursor: pointer; }
+    .nt-item.read { opacity: .6; }
+    .nt-item small { color: var(--muted); font-size: 15px; }
+    .nt-prefs { display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: var(--cut-s); background: var(--panel2); font-size: 15px; }
+    .nt-prefs label { display: flex; align-items: center; gap: 8px; }
+    @media (max-width: 900px) { .wi { grid-template-columns: 1fr; } .wi-out { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ic-time li { grid-template-columns: 48px minmax(0, 1fr); } .ic-time .lb-btn { grid-column: 2; justify-self: start; } }
     /* 좁은 화면: 고정 헤더를 화면 폭에 붙이고 버튼을 줄인다 */
     @media (max-width: 600px) {
       .dashboard-header { top: 0 !important; width: 100% !important; margin-top: 0 !important; padding: 8px 12px !important; gap: 6px !important; }
@@ -63,6 +292,32 @@
     <span class="dg-label">LEARN &amp; ASK</span>
     <div style="flex:1;"></div>
     <nav class="dg-nav">
+      <!-- 알림 벨: 복습·시험 마감·연속 학습일·메모 답글(lab-extras.js). 눌러서 알림함과 받는 방법(브라우저·메신저·메일)을 고른다 -->
+      <span class="nt">
+        <button type="button" onClick="{{ ntToggle }}" aria-label="알림 {{ ntCount }}개" aria-expanded="{{ ntOpen }}" class="dg-btn dg-btn-plain dg-cut dg-s" style="width:40px;padding:0;">🔔</button>
+        <sc-if value="{{ ntHasCount }}" hint-placeholder-val="{{ false }}"><span class="nt-badge" aria-hidden="true">{{ ntCount }}</span></sc-if>
+        <sc-if value="{{ ntOpen }}" hint-placeholder-val="{{ false }}">
+          <div class="nt-panel" role="dialog" aria-label="알림">
+            <div class="lb-row" style="justify-content:space-between;"><strong>알림</strong><span class="lb-row" style="gap:6px;"><button type="button" class="lb-btn ghost" onClick="{{ ntReadAll }}">모두 읽음</button><button type="button" class="lb-btn ghost" onClick="{{ ntTogglePrefs }}">받는 방법</button><button type="button" class="lb-btn ghost" onClick="{{ ntClose }}" aria-label="닫기">✕</button></span></div>
+            <sc-if value="{{ ntShowPrefs }}" hint-placeholder-val="{{ false }}">
+              <div class="nt-prefs">
+                <label><input type="checkbox" checked="{{ ntBrowser }}" onChange="{{ ntSetBrowser }}"> 브라우저 알림 <span class="lb-muted">· {{ ntPermText }}</span></label>
+                <sc-if value="{{ ntNeedPerm }}" hint-placeholder-val="{{ false }}"><button type="button" class="lb-btn ghost" onClick="{{ ntAskPerm }}" style="align-self:flex-start;">브라우저에 허용 요청</button></sc-if>
+                <label><input type="checkbox" checked="{{ ntMessenger }}" onChange="{{ ntSetMessenger }}"> 사내 메신저</label>
+                <label><input type="checkbox" checked="{{ ntEmail }}" onChange="{{ ntSetEmail }}"> 메일</label>
+                <div class="lb-input"><input value="{{ ntEmailAddr }}" onChange="{{ ntSetEmailAddr }}" placeholder="받을 메일 주소" aria-label="메일 주소"><button type="button" class="lb-btn ghost" onClick="{{ ntSaveEmail }}">저장</button></div>
+                <sc-if value="{{ ntHasPrefErr }}" hint-placeholder-val="{{ false }}"><span class="lb-err">{{ ntPrefErr }}</span></sc-if>
+                <span class="lb-muted">받을 알림</span>
+                <sc-for list="{{ ntKinds }}" as="k" hint-placeholder-count="6"><label><input type="checkbox" checked="{{ k.on }}" onChange="{{ k.onChange }}"> {{ k.label }}</label></sc-for>
+              </div>
+            </sc-if>
+            <sc-if value="{{ ntEmpty }}" hint-placeholder-val="{{ false }}"><span class="lb-muted">새 알림이 없어요.</span></sc-if>
+            <sc-for list="{{ ntItems }}" as="n" hint-placeholder-count="0"><button type="button" class="nt-item {{ n.cls }}" onClick="{{ n.onClick }}"><strong>{{ n.title }}</strong><span>{{ n.body }}</span><small>{{ n.kind }} · {{ n.when }}</small></button></sc-for>
+          </div>
+        </sc-if>
+      </span>
+      <!-- 사원증 칩: 연속 학습일과 직급. 누르면 학습 모듈의 사원증 탭을 연다 -->
+      <sc-if value="{{ hasCard }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ openCard }}" title="내 사원증 보기" class="dg-btn dg-btn-plain dg-cut dg-s ec-chip"><span aria-hidden="true">{{ chipFlame }}</span>{{ streakNow }}일 <em>· {{ rankTitle }}</em></button></sc-if>
       <button type="button" onClick="{{ toggleTheme }}" aria-label="테마 전환" class="dg-btn dg-btn-plain dg-cut dg-s" style="width:40px;padding:0;">{{ themeIcon }}</button>
       <button type="button" onClick="{{ logout }}" class="dg-btn dg-btn-plain dg-cut dg-s">로그아웃</button>
       <a href="/3d-demo/steel-index.html" target="_top" class="dg-btn dg-btn-soft dg-cut dg-s">3D 공정 화면</a>
@@ -149,6 +404,268 @@
           </sc-for>
         </div>
       </section>
+      <!-- 사원증: 왼쪽 카드(직급·재질이 공부할수록 올라감), 오른쪽 연속 학습일·직급 사다리·오늘의 미션·배지 -->
+      <section class="dg-mframe dg-pane dg-pop" data-sec="card" aria-label="사원증" style="display:{{ cardDisplay }};padding:0;">
+        <sc-if value="{{ cardMissing }}" hint-placeholder-val="{{ false }}"><span class="dg-empty" style="padding:22px;">{{ cardMissingText }}</span></sc-if>
+        <sc-if value="{{ hasCard }}" hint-placeholder-val="{{ true }}">
+        <div class="ec">
+          <div class="ec-hang">
+            <div class="ec-strap" style="--tier-strap:{{ tierStrap }};"></div>
+            <div class="ec-card" data-tier="{{ tierKey }}" onMouseMove="{{ tiltCard }}" onMouseLeave="{{ untiltCard }}" role="img" aria-label="{{ cardLabel }}">
+              <div class="ec-in">
+                <span class="ec-slot" aria-hidden="true"></span>
+                <div class="ec-brand"><b>ST-ROOKIE</b><span>STEEL ACADEMY</span></div>
+                <div class="ec-photo" aria-hidden="true">{{ initials }}<span class="ec-lv">Lv.{{ rankLevel }} {{ rankMaterial }}</span></div>
+                <div class="ec-name"><strong>{{ traineeName }}</strong><em>{{ rankTitle }} · 신입사원 교육과정</em></div>
+                <dl class="ec-rows">
+                  <dt>사번</dt><dd>{{ employeeNo }}</dd>
+                  <dt>발급일</dt><dd>{{ issuedAt }}</dd>
+                  <dt>누적 XP</dt><dd>{{ xpTotal }}</dd>
+                </dl>
+                <div class="ec-bar" aria-hidden="true"><sc-for list="{{ barcode }}" as="b" hint-placeholder-count="20"><i style="width:{{ b.w }}px;margin-right:{{ b.gap }}px;"></i></sc-for></div>
+              </div>
+            </div>
+          </div>
+          <div class="ec-col">
+            <div class="ec-box">
+              <div class="ec-streak">
+                <span class="ec-flame {{ flameClass }}" aria-hidden="true">🔥</span>
+                <div style="display:flex;flex-direction:column;gap:4px;"><span class="ec-big">{{ streakNow }}일 연속</span><span style="font-size:15px;color:var(--muted);">{{ streakText }}</span></div>
+              </div>
+              <div class="ec-week">
+                <sc-for list="{{ week }}" as="d" hint-placeholder-count="7"><span class="ec-day {{ d.cls }}" title="{{ d.title }}"><b>{{ d.mark }}</b>{{ d.label }}</span></sc-for>
+              </div>
+            </div>
+            <div class="ec-box">
+              <h3>{{ rankTitle }} <small>{{ rankNextText }}</small></h3>
+              <div class="ec-xpbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ rankPct }}" aria-label="다음 직급까지"><i style="width:{{ rankPct }}%;"></i></div>
+              <div class="ec-ladder">
+                <sc-for list="{{ ladder }}" as="r" hint-placeholder-count="6"><span class="ec-step {{ r.cls }}" title="{{ r.tip }}"><i></i>{{ r.title }}</span></sc-for>
+              </div>
+            </div>
+            <div class="ec-box">
+              <h3>오늘의 미션 <small>{{ todayDate }}</small></h3>
+              <div class="ec-today">
+                <div class="ec-ring" style="--p:{{ todayPct }};"><span class="ec-ring-t"><b>{{ todayXp }}</b>/ {{ todayGoal }} XP</span></div>
+                <ul class="ec-missions">
+                  <sc-for list="{{ missions }}" as="m" hint-placeholder-count="3"><li class="{{ m.cls }}"><b aria-hidden="true">✓</b><span class="ec-m">{{ m.label }} ({{ m.progress }}/{{ m.goal }})</span><small>+{{ m.xp }} XP</small></li></sc-for>
+                </ul>
+              </div>
+              <div class="ec-howto"><sc-for list="{{ howto }}" as="h" hint-placeholder-count="5"><span class="ec-how">{{ h.label }} <b>+{{ h.xp }}</b></span></sc-for></div>
+            </div>
+            <div class="ec-box">
+              <h3>배지 <small>{{ badgeCount }}</small></h3>
+              <div class="ec-badges">
+                <sc-for list="{{ badges }}" as="b" hint-placeholder-count="10"><div class="ec-badge {{ b.cls }}" title="{{ b.description }}"><b aria-hidden="true">{{ b.icon }}</b><strong>{{ b.name }}</strong><small>{{ b.sub }}</small></div></sc-for>
+              </div>
+            </div>
+          </div>
+        </div>
+        </sc-if>
+      </section>
+      <!-- 학습 랩: 간격 반복·주간 리그·xAPI 기록·세션 리플레이·소크라테스(learning-lab.js, 서버 backend/src/lab/) -->
+      <section class="dg-mframe dg-pane dg-pop lb" data-sec="lab" aria-label="학습 랩" style="display:{{ labDisplay }};">
+        <div class="dg-section-head"><span class="dg-label">[ LEARNING LAB ]</span><h2 class="dg-h2">학습 랩</h2><span class="dg-sub">복습 일정·리그·학습 기록을 한곳에서</span></div>
+        <div role="tablist" aria-label="학습 랩" class="lb-sub">
+          <sc-for list="{{ labSubtabs }}" as="t" hint-placeholder-count="5"><button type="button" role="tab" aria-selected="{{ t.on }}" onClick="{{ t.onClick }}">{{ t.label }}</button></sc-for>
+        </div>
+        <sc-if value="{{ hasLabError }}" hint-placeholder-val="{{ false }}"><span role="alert" class="lb-err">{{ labError }}</span></sc-if>
+
+        <!-- ① 간격 반복: 설비 카드 앞면 → 답 보기 → 기억 정도(다시·어려움·보통·쉬움). 다음 복습일은 서버가 SM-2로 정한다 -->
+        <div class="lb-pane" style="display:{{ labShowReview }};">
+          <div class="lb-stats"><sc-for list="{{ srStats }}" as="x" hint-placeholder-count="5"><div class="lb-stat"><span class="lb-k">{{ x.k }}</span><b>{{ x.v }}</b></div></sc-for></div>
+          <sc-if value="{{ srHasCard }}" hint-placeholder-val="{{ true }}">
+            <div class="lb-flash" aria-live="polite">
+              <div class="lb-row" style="justify-content:space-between;"><span class="lb-chip">{{ srSection }} · {{ srTag }}</span><span class="lb-muted">{{ srLeft }}</span></div>
+              <h3>{{ srFront }}</h3>
+              <sc-if value="{{ srHidden }}" hint-placeholder-val="{{ true }}"><button type="button" class="lb-btn" onClick="{{ srReveal }}" style="align-self:flex-start;">답 보기</button></sc-if>
+              <sc-if value="{{ srRevealed }}" hint-placeholder-val="{{ false }}">
+                <div class="lb-back">
+                  <span>{{ srRole }}</span>
+                  <sc-if value="{{ srHasMemo }}" hint-placeholder-val="{{ false }}"><span class="lb-memo">근거 · {{ srMemoTitle }}<br>{{ srMemoText }}</span></sc-if>
+                  <span class="lb-muted">얼마나 잘 기억났나요?</span>
+                  <div class="lb-grades"><sc-for list="{{ srOptions }}" as="o" hint-placeholder-count="4"><button type="button" class="{{ o.tone }}" onClick="{{ o.onClick }}">{{ o.label }}<span>{{ o.after }}</span></button></sc-for></div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-if>
+          <sc-if value="{{ srDone }}" hint-placeholder-val="{{ false }}"><div class="lb-box"><strong style="font-size:18px;">🎉 {{ srDoneText }}</strong></div></sc-if>
+          <sc-if value="{{ srHasLast }}" hint-placeholder-val="{{ false }}"><span class="lb-muted">방금 · {{ srLast }}</span></sc-if>
+          <div class="lb-box"><strong>앞으로 7일 복습 예보</strong>
+            <div class="lb-fc"><sc-for list="{{ srForecast }}" as="f" hint-placeholder-count="7"><div class="lb-col"><span>{{ f.count }}</span><i style="height:{{ f.h }}%;"></i><span>{{ f.label }}</span></div></sc-for></div>
+          </div>
+        </div>
+
+        <!-- ② 주간 리그: 이번 주 XP로 같은 리그 동기끼리 순위(다른 사람 이름은 가린다). 위쪽은 승급, 아래쪽은 강등 -->
+        <div class="lb-pane" style="display:{{ labShowLeague }};">
+          <div class="lb-box">
+            <div class="lb-league"><span class="lb-shield" data-l="{{ lgKey }}" aria-hidden="true">🏆</span>
+              <div style="display:flex;flex-direction:column;gap:4px;"><strong style="font-size:22px;">{{ lgName }}</strong><span class="lb-muted">{{ lgWeek }}</span><span style="font-size:16px;font-weight:700;">{{ lgMe }}</span></div></div>
+            <span class="lb-muted">{{ lgHint }}</span>
+          </div>
+          <div class="lb-box"><strong>이번 주 순위</strong>
+            <div class="lb-board"><sc-for list="{{ lgBoard }}" as="r" hint-placeholder-count="5">
+              <sc-if value="{{ r.hasLine }}" hint-placeholder-val="{{ false }}"><span class="lb-zone">{{ r.line }}</span></sc-if>
+              <div class="lb-rank {{ r.cls }}"><b>{{ r.rank }}</b><span>{{ r.name }}</span><span>{{ r.xp }}</span></div>
+            </sc-for></div>
+            <span class="lb-muted">XP는 사원증과 같아요(튜터 질문·복습·필기·이해도 확인 등). 월요일 0시(한국 시간)에 새 주가 시작돼요.</span>
+          </div>
+          <div class="lb-box"><strong>지난 주 결과</strong>
+            <sc-if value="{{ lgNoHistory }}" hint-placeholder-val="{{ false }}"><span class="lb-muted">아직 끝난 주가 없어요.</span></sc-if>
+            <div class="lb-hist"><sc-for list="{{ lgHistory }}" as="h" hint-placeholder-count="0"><span class="{{ h.cls }}">{{ h.mark }} {{ h.text }}</span></sc-for></div>
+          </div>
+        </div>
+
+        <!-- ③ xAPI 기록: 내 학습 기록을 xAPI 1.0.3 문장으로. 사내 LMS·LRS로 옮길 수 있다 -->
+        <div class="lb-pane" style="display:{{ labShowXapi }};">
+          <div class="lb-row" style="justify-content:space-between;"><span class="lb-muted">xAPI 1.0.3 형식 · {{ xaTotal }} · 줄을 누르면 문장(JSON)이 보여요</span><button type="button" class="lb-btn ghost" onClick="{{ xaDownload }}">JSON 내려받기</button></div>
+          <div class="lb-chips"><sc-for list="{{ xaVerbs }}" as="c" hint-placeholder-count="4"><button type="button" aria-pressed="{{ c.on }}" onClick="{{ c.onClick }}">{{ c.label }}</button></sc-for></div>
+          <sc-if value="{{ xaEmpty }}" hint-placeholder-val="{{ false }}"><span class="lb-muted">아직 기록이 없어요. 튜터에게 질문하거나 복습하면 문장이 생겨요.</span></sc-if>
+          <div class="lb-xa"><sc-for list="{{ xaRows }}" as="x" hint-placeholder-count="5">
+            <details><summary><span class="lb-muted">{{ x.when }}</span><strong>{{ x.verb }}</strong><span>{{ x.obj }}</span><span class="lb-muted">{{ x.res }}</span></summary><pre>{{ x.json }}</pre></details>
+          </sc-for></div>
+        </div>
+
+        <!-- ④ 세션 리플레이: 이 화면에서 한 조작을 다시 재생(본인만). 기록은 끌 수 있다 -->
+        <div class="lb-pane" style="display:{{ labShowReplay }};">
+          <div class="lb-row" style="justify-content:space-between;"><span class="lb-muted">이 화면에서 한 탭 이동·설비 선택·질문을 기록해 다시 볼 수 있어요. 본인만 볼 수 있어요.</span><button type="button" class="lb-btn ghost" onClick="{{ rpToggleRec }}">{{ rpRecLabel }}</button></div>
+          <div class="lb-rp">
+            <div class="lb-list">
+              <sc-if value="{{ rpEmpty }}" hint-placeholder-val="{{ false }}"><span class="lb-muted">아직 기록이 없어요. 화면을 조금 둘러본 뒤 다시 열어 보세요.</span></sc-if>
+              <sc-for list="{{ rpSessions }}" as="x" hint-placeholder-count="3"><button type="button" aria-pressed="{{ x.on }}" onClick="{{ x.onClick }}">{{ x.label }}<span>{{ x.sub }}</span></button></sc-for>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px;min-width:0;">
+              <sc-if value="{{ rpNoReplay }}" hint-placeholder-val="{{ true }}"><div class="lb-box"><span class="lb-muted">왼쪽에서 기록을 고르면 재생해요.</span></div></sc-if>
+              <sc-if value="{{ rpHasReplay }}" hint-placeholder-val="{{ false }}">
+                <div class="lb-screen" aria-label="재생 화면">
+                  <div class="lb-mini"><sc-for list="{{ rpTabs }}" as="t" hint-placeholder-count="6"><span class="{{ t.cls }}">{{ t.label }}</span></sc-for></div>
+                  <div class="lb-mini"><sc-for list="{{ rpProcs }}" as="p" hint-placeholder-count="4"><span class="{{ p.cls }}">{{ p.label }}</span></sc-for></div>
+                  <strong style="font-size:18px;">{{ rpEquipment }}</strong>
+                  <sc-if value="{{ rpHasAsk }}" hint-placeholder-val="{{ false }}"><span class="lb-bubble user">{{ rpAsk }}</span></sc-if>
+                  <sc-if value="{{ rpHasAnswer }}" hint-placeholder-val="{{ false }}"><span class="lb-bubble tutor">{{ rpAnswer }}</span></sc-if>
+                </div>
+                <div class="lb-row"><button type="button" class="lb-btn" onClick="{{ rpPlay }}">{{ rpPlayLabel }}</button>
+                  <div class="lb-chips"><sc-for list="{{ rpSpeeds }}" as="x" hint-placeholder-count="4"><button type="button" aria-pressed="{{ x.on }}" onClick="{{ x.onClick }}">{{ x.label }}</button></sc-for></div>
+                  <span class="lb-muted" style="margin-left:auto;font-family:var(--mono);">{{ rpTime }}</span></div>
+                <input type="range" class="lb-seek" min="0" max="{{ rpTotal }}" step="100" value="{{ rpPos }}" onChange="{{ rpSeek }}" aria-label="재생 위치">
+                <div class="lb-ev"><sc-for list="{{ rpEvents }}" as="e" hint-placeholder-count="5"><button type="button" class="{{ e.cls }}" onClick="{{ e.onClick }}"><span style="font-family:var(--mono);">{{ e.t }}</span><span>{{ e.text }}</span></button></sc-for></div>
+                <button type="button" class="lb-btn ghost" onClick="{{ rpDelete }}" style="align-self:flex-start;">이 기록 지우기</button>
+              </sc-if>
+            </div>
+          </div>
+        </div>
+
+        <!-- ⑤ 소크라테스: 답 대신 질문으로 이끈다. LLM이 없으면 서버의 오프라인 튜터가 이어 간다 -->
+        <div class="lb-pane" style="display:{{ labShowSocratic }};">
+          <span class="lb-muted">포석호가 답을 바로 알려 주지 않고 질문으로 이끌어요. 설비가 하는 일을 내 말로 설명하면 성공(+25 XP)이에요. {{ soOfflineText }}</span>
+          <div class="lb-soc">
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <select class="lb-select" value="{{ soEq }}" onChange="{{ soPick }}" aria-label="설비"><sc-for list="{{ soEquipment }}" as="o" hint-placeholder-count="4"><option value="{{ o.value }}">{{ o.label }}</option></sc-for></select>
+              <button type="button" class="lb-btn" onClick="{{ soStart }}" disabled="{{ soBusy }}">새 대화 시작</button>
+              <div class="lb-list"><sc-for list="{{ soSessions }}" as="x" hint-placeholder-count="0"><button type="button" class="{{ x.cls }}" aria-pressed="{{ x.on }}" onClick="{{ x.onClick }}">{{ x.label }}<span>{{ x.sub }}</span></button></sc-for></div>
+            </div>
+            <div class="lb-box" style="min-width:0;">
+              <sc-if value="{{ soNone }}" hint-placeholder-val="{{ true }}"><span class="lb-muted">설비를 고르고 [새 대화 시작]을 눌러 보세요.</span></sc-if>
+              <sc-if value="{{ soHas }}" hint-placeholder-val="{{ false }}">
+                <div class="lb-row" style="justify-content:space-between;"><strong>{{ soTitle }}</strong><span class="lb-row" style="gap:8px;"><span class="lb-muted">힌트</span><span class="lb-hints"><sc-for list="{{ soHints }}" as="h" hint-placeholder-count="3"><i class="{{ h.cls }}"></i></sc-for></span><span class="lb-chip">{{ soState }}</span></span></div>
+                <sc-if value="{{ soHasBanner }}" hint-placeholder-val="{{ false }}"><div class="lb-banner">{{ soBanner }}</div></sc-if>
+                <div class="lb-chat" aria-live="polite"><sc-for list="{{ soTurns }}" as="t" hint-placeholder-count="2"><div class="lb-bubble {{ t.cls }}">{{ t.text }}</div></sc-for></div>
+                <form class="lb-input" onSubmit="{{ soSend }}">
+                  <input value="{{ soInput }}" onChange="{{ soOnInput }}" placeholder="내 생각을 적어 보세요" aria-label="답" disabled="{{ soClosed }}">
+                  <button type="submit" class="lb-btn" disabled="{{ soCantSend }}">보내기</button>
+                </form>
+                <div class="lb-row"><button type="button" class="lb-btn ghost" onClick="{{ soReveal }}" disabled="{{ soClosed }}">정답 보기</button><sc-if value="{{ soSuggestReveal }}" hint-placeholder-val="{{ false }}"><span class="lb-muted">많이 고민했어요. 정답을 보고 정리해도 괜찮아요.</span></sc-if></div>
+              </sc-if>
+            </div>
+          </div>
+        </div>
+
+        <!-- ⑥ 사고 사례: 교육용 가상 사례를 한 단계씩 보고 원인 분석 문제를 푼다(lab-extras.js) -->
+        <div class="lb-pane" style="display:{{ labShowIncident }};">
+          <span class="lb-muted">⚠ {{ icDisclaimer }}</span>
+          <div class="lb-soc">
+            <div class="lb-list"><sc-for list="{{ icList }}" as="x" hint-placeholder-count="4"><button type="button" aria-pressed="{{ x.on }}" onClick="{{ x.onClick }}">{{ x.title }}<span>{{ x.section }} · {{ x.hazard }}</span><span>{{ x.best }}</span></button></sc-for></div>
+            <div class="lb-box" style="min-width:0;">
+              <sc-if value="{{ icNone }}" hint-placeholder-val="{{ true }}"><span class="lb-muted">왼쪽에서 사례를 고르면 사고가 일어난 과정을 한 단계씩 보여 줘요.</span></sc-if>
+              <sc-if value="{{ icHas }}" hint-placeholder-val="{{ false }}">
+                <div class="lb-row" style="justify-content:space-between;"><strong style="font-size:18px;">{{ icTitle }}</strong><span class="lb-chip">위험 · {{ icHazard }}</span></div>
+                <span>{{ icSummary }}</span>
+                <ol class="ic-time"><sc-for list="{{ icSteps }}" as="t" hint-placeholder-count="2"><li class="{{ t.cls }}"><b>{{ t.time }}</b><span>{{ t.text }}</span><button type="button" class="lb-btn ghost" onClick="{{ t.onShow }}">설비 보기</button></li></sc-for></ol>
+                <sc-if value="{{ icMoreSteps }}" hint-placeholder-val="{{ true }}"><div class="lb-row"><button type="button" class="lb-btn" onClick="{{ icNext }}">다음 장면 ▶</button><button type="button" class="lb-btn ghost" onClick="{{ icAllSteps }}">끝까지 보기</button></div></sc-if>
+                <sc-if value="{{ icShowQs }}" hint-placeholder-val="{{ false }}">
+                  <strong>원인 분석</strong>
+                  <sc-for list="{{ icQs }}" as="q" hint-placeholder-count="2">
+                    <div class="ic-q {{ q.cls }}"><span><b>Q{{ q.n }}.</b> {{ q.prompt }}</span>
+                      <div class="ic-opts"><sc-for list="{{ q.options }}" as="o" hint-placeholder-count="4"><button type="button" class="{{ o.cls }}" aria-pressed="{{ o.on }}" onClick="{{ o.onClick }}">{{ o.text }}</button></sc-for></div>
+                      <sc-if value="{{ q.hasExplain }}" hint-placeholder-val="{{ false }}"><span class="ic-explain">{{ q.explain }}</span></sc-if>
+                    </div>
+                  </sc-for>
+                  <label class="lb-muted" for="icRefl">{{ icReflection }}</label>
+                  <textarea id="icRefl" class="lb-area" rows="3" value="{{ icRefl }}" onChange="{{ icOnRefl }}" placeholder="채점하지 않아요. 내 생각을 정리해 보세요."></textarea>
+                  <div class="lb-row"><button type="button" class="lb-btn" onClick="{{ icSubmit }}" disabled="{{ icCantSubmit }}">채점하기</button>
+                    <sc-if value="{{ icHasScore }}" hint-placeholder-val="{{ false }}"><strong>{{ icScore }}</strong><button type="button" class="lb-btn ghost" onClick="{{ icRetry }}">다시 풀기</button></sc-if></div>
+                </sc-if>
+              </sc-if>
+            </div>
+          </div>
+        </div>
+
+        <!-- ⑦ What-if: 고로 조건을 바꾸면 결과가 어떻게 달라지는지(교육용 간이 모델) -->
+        <div class="lb-pane" style="display:{{ labShowWhatif }};">
+          <span class="lb-muted">고로에 넣는 원료·연료·바람을 바꿔 보세요. 실제 조업 계산이 아니라 경향을 보는 교육용 간이 모델이에요(아래 가정 참고).</span>
+          <div class="wi">
+            <div class="lb-box"><strong>조건</strong>
+              <sc-for list="{{ wiSliders }}" as="x" hint-placeholder-count="8"><label class="wi-s"><span>{{ x.label }}</span><input type="range" min="{{ x.min }}" max="{{ x.max }}" step="{{ x.step }}" value="{{ x.value }}" onChange="{{ x.onChange }}"><b>{{ x.shown }}</b></label></sc-for>
+              <span class="lb-muted">{{ wiShare }}</span>
+              <button type="button" class="lb-btn ghost" onClick="{{ wiReset }}" style="align-self:flex-start;">기준 조건으로</button>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:12px;min-width:0;">
+              <div class="wi-out"><sc-for list="{{ wiOut }}" as="o" hint-placeholder-count="6"><div class="lb-stat"><span class="lb-k">{{ o.label }}</span><b>{{ o.value }}</b><span class="wi-d {{ o.cls }}">{{ o.delta }}</span></div></sc-for></div>
+              <div class="lb-box"><strong>용선 온도</strong><div class="wi-temp"><i style="left:{{ wiTempPct }}%;"></i></div><div class="lb-row" style="justify-content:space-between;"><span class="lb-muted">1,380℃</span><span class="lb-muted">1,560℃</span></div></div>
+              <div class="lb-box"><strong>슬래그 성분</strong><div class="wi-slag"><sc-for list="{{ wiSlag }}" as="p" hint-placeholder-count="4"><span style="width:{{ p.w }};background:{{ p.col }};" title="{{ p.label }}"></span></sc-for></div>
+                <div class="lb-row"><sc-for list="{{ wiSlag }}" as="p" hint-placeholder-count="4"><span class="lb-muted"><i class="wi-dot" style="background:{{ p.col }};"></i>{{ p.label }}kg</span></sc-for></div></div>
+              <div class="lb-box"><strong>알아둘 점</strong>
+                <sc-if value="{{ wiNoWarn }}" hint-placeholder-val="{{ false }}"><span class="lb-muted">눈에 띄는 문제가 없는 조건이에요.</span></sc-if>
+                <sc-for list="{{ wiWarnings }}" as="w" hint-placeholder-count="0"><span class="wi-warn">⚠ {{ w.text }}</span></sc-for></div>
+              <details class="lb-box"><summary><strong>계산 가정</strong></summary><sc-for list="{{ wiAssumptions }}" as="a" hint-placeholder-count="0"><span class="lb-muted">· {{ a.text }}</span></sc-for></details>
+            </div>
+          </div>
+        </div>
+
+        <!-- ⑧ 설비 메모: 설비에 남긴 질문·메모·팁을 동기들과 공유 -->
+        <div class="lb-pane" style="display:{{ labShowNotes }};">
+          <div class="lb-row"><select class="lb-select" style="max-width:360px;" value="{{ noEq }}" onChange="{{ noPick }}" aria-label="설비"><sc-for list="{{ noEquipment }}" as="o" hint-placeholder-count="4"><option value="{{ o.value }}">{{ o.label }}</option></sc-for></select>
+            <sc-if value="{{ noHasSelected }}" hint-placeholder-val="{{ false }}"><button type="button" class="lb-btn ghost" onClick="{{ noUseSelected }}">2D에서 고른 설비</button></sc-if></div>
+          <form class="lb-box" onSubmit="{{ noPost }}">
+            <div class="lb-chips"><sc-for list="{{ noKinds }}" as="k" hint-placeholder-count="3"><button type="button" aria-pressed="{{ k.on }}" onClick="{{ k.onClick }}">{{ k.label }}</button></sc-for></div>
+            <textarea class="lb-area" rows="2" value="{{ noText }}" onChange="{{ noOnText }}" placeholder="이 설비에 대해 궁금한 점이나 알게 된 점을 남겨 보세요(500자)." aria-label="메모"></textarea>
+            <div class="lb-row" style="justify-content:space-between;"><label class="lb-muted"><input type="checkbox" checked="{{ noPrivate }}" onChange="{{ noOnPrivate }}"> 나만 보기</label><button type="submit" class="lb-btn" disabled="{{ noCantPost }}">남기기</button></div>
+          </form>
+          <strong>{{ noTitle }}</strong>
+          <sc-if value="{{ noEmpty }}" hint-placeholder-val="{{ false }}"><span class="lb-muted">아직 메모가 없어요. 첫 메모를 남겨 보세요.</span></sc-if>
+          <sc-for list="{{ noList }}" as="n" hint-placeholder-count="2">
+            <div class="lb-box no-card">
+              <div class="lb-row" style="justify-content:space-between;"><span class="lb-row" style="gap:8px;"><span class="no-kind {{ n.kindCls }}">{{ n.kind }}</span><strong>{{ n.author }}</strong><span class="lb-muted">{{ n.when }}</span><sc-if value="{{ n.priv }}" hint-placeholder-val="{{ false }}"><span class="lb-chip">나만 보기</span></sc-if><sc-if value="{{ n.hidden }}" hint-placeholder-val="{{ false }}"><span class="lb-chip">숨겨짐</span></sc-if></span>
+                <span class="lb-row" style="gap:6px;"><button type="button" class="no-vote {{ n.voteCls }}" onClick="{{ n.onVote }}">{{ n.votes }}</button>
+                  <sc-if value="{{ n.mine }}" hint-placeholder-val="{{ false }}"><button type="button" class="lb-btn ghost" onClick="{{ n.onDelete }}">지우기</button></sc-if>
+                  <sc-if value="{{ n.notMine }}" hint-placeholder-val="{{ true }}"><button type="button" class="lb-btn ghost" onClick="{{ n.onReport }}">신고</button></sc-if></span></div>
+              <span style="white-space:pre-wrap;">{{ n.text }}</span>
+              <sc-for list="{{ n.replies }}" as="r" hint-placeholder-count="0"><span class="no-reply"><b>{{ r.author }}</b> {{ r.text }}</span></sc-for>
+              <form class="lb-input" onSubmit="{{ n.sendReply }}"><input value="{{ n.reply }}" onChange="{{ n.onReply }}" placeholder="답글 달기" aria-label="답글"><button type="submit" class="lb-btn ghost">답글</button></form>
+            </div>
+          </sc-for>
+        </div>
+
+        <!-- ⑨ 내 오답 유형: 내 오개념 설명을 비슷한 것끼리 묶어 본다(본인만) -->
+        <div class="lb-pane" style="display:{{ labShowPatterns }};">
+          <span class="lb-muted">비슷한 오개념끼리 묶었어요. 같은 묶음이 여러 번 나오면 그 부분을 집중해서 복습해 보세요.</span>
+          <sc-if value="{{ paEmpty }}" hint-placeholder-val="{{ false }}"><span class="lb-muted">아직 기록된 오개념이 없어요.</span></sc-if>
+          <sc-for list="{{ paList }}" as="p" hint-placeholder-count="2">
+            <div class="lb-box"><div class="lb-row"><sc-for list="{{ p.keywords }}" as="k" hint-placeholder-count="3"><span class="pa-k">#{{ k.k }}</span></sc-for><span class="lb-muted" style="margin-left:auto;">{{ p.count }} · <span class="pa-{{ p.openCls }}">{{ p.open }}</span></span></div>
+              <sc-for list="{{ p.items }}" as="i" hint-placeholder-count="2"><span class="pa-item"><span class="pa-{{ i.cls }}">●</span> {{ i.summary }} <span class="lb-muted">· {{ i.concept }} · {{ i.status }}</span></span></sc-for></div>
+          </sc-for>
+        </div>
+      </section>
       </div>
 
       <div class="side">
@@ -210,6 +727,18 @@
     </div>
 
   </main>
+  <!-- 승진 축하: 직급이 지난번에 본 것보다 오르면 한 번 띄운다(본 직급은 이 브라우저에만 저장) -->
+  <sc-if value="{{ hasPromo }}" hint-placeholder-val="{{ false }}">
+    <div class="ec-promo" role="dialog" aria-modal="true" aria-label="승진 축하" onClick="{{ closePromo }}">
+      <div class="ec-confetti" aria-hidden="true"><sc-for list="{{ confetti }}" as="c" hint-placeholder-count="0"><i style="left:{{ c.left }}%;background:{{ c.color }};animation-duration:{{ c.dur }}s;animation-delay:{{ c.delay }}s;"></i></sc-for></div>
+      <div class="ec-promo-box">
+        <span style="font-size:48px;" aria-hidden="true">🎉</span>
+        <h2>{{ promoTitle }}</h2>
+        <p>{{ promoText }}</p>
+        <button type="button" onClick="{{ viewPromoCard }}" class="dg-btn dg-btn-primary dg-cut dg-s" style="margin-top:6px;">새 사원증 보기</button>
+      </div>
+    </div>
+  </sc-if>
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script>
@@ -239,6 +768,26 @@ const systemTheme = () => (lightQuery()?.matches ? 'light' : 'dark');
 
 // 설계도·필기 탭의 도면: 3D 화면(v4) 2D 뷰와 같은 이름·도면 번호 기호. [탭 이름, 설명, 표제란 도면명, 기호]
 const DRAW_MODES = { top: ['탑뷰', '위에서 내려다본 실제 모습', '배치 탑뷰', 'T'], plan: ['평면도', '위에서 본 선 도면', '배치 평면도', 'P'], front: ['정면도', '앞에서 본 선 도면', '정면도', 'E'] };
+
+// 사원증 탭(값은 /api/me/dashboard의 employee_card). 배지 그림, XP 얻는 법, 바코드(사번으로 만든 장식).
+const BADGE_ICONS = { first_question: '💬', curious: '🔎', explorer: '🧭', streak_3: '🔥', streak_7: '📅', first_pass: '🎓', perfect: '💯', fixer: '🛠️', supplement: '📘', sketcher: '✏️' };
+const CARD_HOWTO = [['튜터 질문', 10], ['설계도 필기', 10], ['개념 맞힘', 20], ['오개념 해결', 15], ['보충학습 해결', 40], ['이해도 확인 통과', 100]];
+const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+const CONFETTI_COLORS = ['#ff9e64', '#ffd166', '#6fcf97', '#4fb3ff', '#ff4fa3', '#b388ff'];
+// 목걸이 줄 색(카드 밖이라 카드의 data-tier 색을 못 받는다)
+const CARD_STRAPS = { ore: '#8a6b52', pig: '#d0602a', steel: '#2f7fc1', stainless: '#1f8f80', special: '#5d2fb0', damascus: '#1b1b1f' };
+const CARD_LEVEL_KEY = id => `st-rookie-card-level:${id}`;
+function barcode(text) {
+  const bars = [];
+  for (const ch of `*${text || 'ST'}*`) {
+    const c = ch.charCodeAt(0);
+    for (let i = 0; i < 6; i++) bars.push({ w: (c >> i) & 1 ? 3 : 1, gap: (c >> (i + 1)) & 1 ? 2 : 1 });
+  }
+  return bars;
+}
+// 조사 '로/으로': 받침이 없거나 ㄹ 받침이면 '로'(대리로, 명장으로)
+const withRo = word => { const c = (word || '').charCodeAt(word.length - 1) - 0xac00, b = c >= 0 && c < 11172 ? c % 28 : 0; return b === 0 || b === 8 ? '로' : '으로'; };
+const initialsOf = name => { const s = (name || '').trim(); return /[가-힣]/.test(s) ? s.slice(-2) : s.split(/\s+/).map(w => w[0] || '').join('').slice(0, 2).toUpperCase() || '?'; };
 
 class Component extends DCLogic {
   state = { data: null, processes: [], error: null, theme: savedTheme() || systemTheme(), loadedAt: null, ai: null, sideTab: 'ask',
@@ -274,12 +823,27 @@ class Component extends DCLogic {
     };
     watchModule();
     // 2D 모듈에서 공정·설비를 고르면 튜터 질문의 화면 정보(process_id·equipment_id)가 따라간다
-    document.addEventListener('process-select', e => { const d = e.detail || {}; if (d.process) this.setState({ processId: d.process, selectedId: d.id || null }); });
+    document.addEventListener('process-select', e => { const d = e.detail || {}; if (!d.process) return; this.setState({ processId: d.process, selectedId: d.id || null });
+      // 학습 랩: 리플레이 기록과 xAPI '살펴봄'
+      this.lab?.track('select', { process: d.process, equipment: d.id || null, name: d.id ? this.data?.findEquipment(d.process, d.id)?.name || d.id : null }); if (d.id) this.lab?.experienced(d.id); });
     const auth = token();
     if (!auth) { this.setState({ error: '로그인한 뒤 학습 현황을 볼 수 있습니다.' }); return; }
+    // 학습 랩(learning-lab.js): 이 화면의 리플레이 기록을 시작한다(본인만 보고 [기록 끄기]로 멈춘다)
+    import('./learning-lab.js').then(({ createLearningLab }) => { this.lab = createLearningLab(this); this.lab.track('start', { tab: this.state.moduleTab, process: this.state.processId }); this.lab.startBell(); this.forceUpdate(); });
     fetch('/api/me/dashboard', { headers: { authorization: 'Bearer ' + auth } })
       .then(async response => { if (!response.ok) throw new Error('학습 현황을 DB에서 불러오지 못했습니다.'); return response.json(); })
-      .then(data => this.setState({ data, loadedAt: new Date() }), error => this.setState({ error: error.message }));
+      .then(data => { this.setState({ data, loadedAt: new Date() }); this.checkPromotion(data); }, error => this.setState({ error: error.message }));
+  }
+  // 사원증 직급이 이 브라우저에서 지난번에 본 것보다 올랐으면 축하 창을 띄운다. 처음 보는 경우는 기록만 한다.
+  checkPromotion(data) {
+    const card = data?.employee_card, id = data?.trainee?.id;
+    if (!card || !id) return;
+    let seen = null;
+    try { seen = Number(localStorage.getItem(CARD_LEVEL_KEY(id))) || null; localStorage.setItem(CARD_LEVEL_KEY(id), String(card.rank.level)); } catch (e) {}
+    if (seen && card.rank.level > seen) {
+      const confetti = Array.from({ length: 60 }, (_, i) => ({ left: (i * 37) % 100, color: CONFETTI_COLORS[i % CONFETTI_COLORS.length], dur: (2.2 + (i % 7) * 0.35).toFixed(2), delay: ((i % 10) * 0.12).toFixed(2) }));
+      this.setState({ promo: { level: card.rank.level, title: card.rank.title, material: card.rank.material }, confetti });
+    }
   }
   applyTheme(theme, save) {
     document.body.dataset.theme = theme;
@@ -305,8 +869,22 @@ class Component extends DCLogic {
     B.setProperty('--tutor-foot-pb', `${pb}px`);
     B.setProperty('--tutor-foot-h', `${Math.round(s.height) + pb}px`);
   }
+  // 학습 랩 탭을 열면 고른 하위 탭(처음은 간격 반복)을 불러온다
+  openLab() { this.setState({ moduleTab: 'lab' }); this.lab?.open(this.state.labTab || 'review'); }
+  // 리플레이 기록: support.js는 componentDidUpdate에 이전 state를 넘기지 않으므로 지난 값을 직접 기억해 비교한다
+  trackChanges() {
+    const S = this.state, lab = this.lab;
+    if (!lab) return;
+    if (this._seenTab !== S.moduleTab) { if (this._seenTab !== undefined) lab.track('tab', { tab: S.moduleTab }); this._seenTab = S.moduleTab; }
+    if (this._seenTheme !== S.theme) { if (this._seenTheme !== undefined) lab.track('theme', { theme: S.theme }); this._seenTheme = S.theme; }
+    const msgs = S.messages || [];
+    if (this._seenMsgs === undefined) this._seenMsgs = msgs.length;
+    for (const m of msgs.slice(this._seenMsgs)) lab.track(m.role === 'user' ? 'ask' : 'answer', { text: String(m.text || '').slice(0, 300) });
+    this._seenMsgs = msgs.length;
+  }
   componentDidUpdate() {
     this._align?.();
+    this.trackChanges();
     const S = this.state, frame = document.getElementById('bpFrame');
     const key = `${S.processId}|${S.drawMode}|${S.theme}`;
     if (!this._bpSrc || !frame?.contentWindow || this._bpKey === key) return;
@@ -321,6 +899,46 @@ class Component extends DCLogic {
   scrollCheckpoint() { setTimeout(() => { const el = document.getElementById('cpBody'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 60); }
   openTutor() { this.setState({ sideTab: 'ask' }); setTimeout(() => { const el = document.getElementById('tutorInput'); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.focus(); } }, 120); }
   scrollChat() { [50, 250].forEach(ms => setTimeout(() => { const el = this.chatRef.current; if (el) el.scrollTop = el.scrollHeight; }, ms)); }
+  // 사원증 탭 값. 카드가 없으면(로그인 전·불러오기 실패·관리자) 안내 문구만
+  cardVals(D) {
+    const S = this.state, C = D?.employee_card, T = D?.trainee;
+    const openCard = () => { this.setState({ moduleTab: 'card' }); document.getElementById('learning-workspace')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+    const promo = S.promo;
+    const base = { hasCard: !!C, cardMissing: !C, cardMissingText: S.error || '사원증을 불러오는 중이에요…', openCard,
+      hasPromo: !!promo, confetti: S.confetti || [], promoTitle: promo ? `${promo.title}${withRo(promo.title)} 승진했어요!` : '', promoText: promo ? `사원증이 Lv.${promo.level} ${promo.material} 등급으로 바뀌었어요.` : '',
+      closePromo: e => { if (e.target === e.currentTarget) this.setState({ promo: null }); }, viewPromoCard: () => { this.setState({ promo: null }); openCard(); } };
+    if (!C) return base;
+    const today = C.today.date;
+    return {
+      ...base,
+      tierKey: C.rank.key, tierStrap: CARD_STRAPS[C.rank.key] || 'var(--orange)', rankTitle: C.rank.title, rankLevel: C.rank.level, rankMaterial: C.rank.material,
+      traineeName: T?.name || '', initials: initialsOf(T?.name), employeeNo: T?.employee_no || '-', issuedAt: (T?.created_at || '').slice(0, 10).replaceAll('-', '.'),
+      xpTotal: `${C.xp.toLocaleString()} XP`, barcode: barcode(T?.employee_no),
+      cardLabel: `${T?.name || ''} 사원증 · ${C.rank.title} · Lv.${C.rank.level} ${C.rank.material}`,
+      // 마우스를 따라 최대 10도 기울이고 빛 반사 위치를 옮긴다
+      tiltCard: e => { const el = e.currentTarget, r = el.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+        el.classList.add('ec-moving'); el.style.setProperty('--ry', `${(x - 0.5) * 20}deg`); el.style.setProperty('--rx', `${(0.5 - y) * 20}deg`);
+        el.style.setProperty('--mx', `${x * 100}%`); el.style.setProperty('--my', `${y * 100}%`); },
+      untiltCard: e => { const el = e.currentTarget; el.classList.remove('ec-moving'); ['--rx', '--ry', '--mx', '--my'].forEach(k => el.style.removeProperty(k)); },
+      // 연속 학습일
+      streakNow: C.streak.current, chipFlame: C.streak.today_done ? '🔥' : '🩶', flameClass: C.streak.today_done ? 'on' : '',
+      streakText: C.streak.today_done ? `오늘도 불꽃을 지켰어요 · 최장 ${C.streak.longest}일` : C.streak.current ? `오늘 공부하면 ${C.streak.current + 1}일째가 돼요 · 최장 ${C.streak.longest}일` : '오늘 질문 하나로 불꽃을 켜 보세요',
+      week: C.week.map(d => ({ label: WEEKDAYS[new Date(`${d.date}T00:00:00Z`).getUTCDay()], mark: d.active ? '✓' : '', cls: `${d.active ? 'on' : ''} ${d.date === today ? 'today' : ''}`, title: `${d.date} · ${d.xp} XP` })),
+      // 직급
+      rankPct: Math.round(C.rank_progress * 100),
+      rankNextText: C.next_rank ? `다음 직급 ${C.next_rank.title}까지 ${C.xp_to_next} XP` : '최고 직급이에요',
+      ladder: [1, 2, 3, 4, 5, 6].map(level => { const got = level <= C.rank.level;
+        const r = level === C.rank.level ? C.rank : level === C.rank.level + 1 ? C.next_rank : null;
+        return { title: ['수습', '사원', '주임', '대리', '과장', '명장'][level - 1], cls: `${got ? 'got' : ''} ${level === C.rank.level ? 'now' : ''}`, tip: r ? `${r.title} · ${r.material} · ${r.min_xp} XP` : '' }; }),
+      // 오늘의 목표·미션
+      todayDate: today.replaceAll('-', '.'), todayXp: C.today.xp, todayGoal: C.today.goal, todayPct: Math.min(100, Math.round(C.today.xp / C.today.goal * 100)),
+      missions: C.missions.map(m => ({ ...m, cls: m.done ? 'done' : '' })),
+      howto: CARD_HOWTO.map(([label, xp]) => ({ label, xp })),
+      // 배지
+      badgeCount: `${C.badges.filter(b => b.earned).length} / ${C.badges.length}`,
+      badges: C.badges.map(b => ({ ...b, icon: BADGE_ICONS[b.id] || '★', cls: b.earned ? 'got' : '', sub: b.earned ? b.description : b.goal > 1 ? `${b.progress} / ${b.goal}` : b.description })),
+    };
+  }
   renderVals() {
     const S = this.state, D = S.data;
     const process = section => S.processes.find(p => p.id === section) || { num: '', name: section, equipment: [] };
@@ -348,12 +966,15 @@ class Component extends DCLogic {
       showAsk: true,
       processId: S.processId, selectedAttr: S.selectedId || '', chatRef: this.chatRef,
       // 학습 모듈 탭과 설계도·필기
-      moduleTabs: [['steps', '작동 단계'], ['blueprint', '설계도·필기'], ['review', '복습'], ['mis', '내 오개념']].map(([k, label]) => ({ label, on: S.moduleTab === k,
+      moduleTabs: [['steps', '작동 단계'], ['blueprint', '설계도·필기'], ['review', '복습'], ['mis', '내 오개념'], ['card', '사원증'], ['lab', '학습 랩']].map(([k, label]) => ({ label, on: S.moduleTab === k,
         // 복습·내 오개념 탭 옆 개수: 다시 볼 개념 수, 미해결 오개념 수(탭을 열지 않아도 보이게)
         hasCount: !!D && (k === 'review' || k === 'mis'), count: k === 'review' ? reviews.length : open,
-        onClick: () => (k === 'blueprint' ? this.openBlueprint() : this.setState({ moduleTab: k })) })),
+        onClick: () => (k === 'blueprint' ? this.openBlueprint() : k === 'lab' ? this.openLab() : this.setState({ moduleTab: k })) })),
       stepsDisplay: S.moduleTab === 'steps' ? 'block' : 'none', blueprintDisplay: S.moduleTab === 'blueprint' ? 'flex' : 'none',
       reviewDisplay: S.moduleTab === 'review' ? 'flex' : 'none', misDisplay: S.moduleTab === 'mis' ? 'flex' : 'none',
+      cardDisplay: S.moduleTab === 'card' ? 'block' : 'none', labDisplay: S.moduleTab === 'lab' ? 'flex' : 'none',
+      ...(this.lab ? this.lab.vals() : {}),
+      ...this.cardVals(D),
       bpSrc: this._bpSrc || 'about:blank', drawMode: S.drawMode,
       bpProcesses: S.processes.map(x => ({ label: `${x.num} ${x.name}`, on: x.id === S.processId, onClick: () => this.goProcess(x.id) })),
       drawTabs: Object.entries(DRAW_MODES).map(([m, [label, tip]]) => ({ label, tip, on: S.drawMode === m, onClick: () => this.setState({ drawMode: m }) })),

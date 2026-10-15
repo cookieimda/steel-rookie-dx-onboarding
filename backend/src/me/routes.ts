@@ -9,6 +9,7 @@ import type { User } from "../auth/users.js";
 import { SECTION_NAMES, SECTION_ORDER, type Section } from "../checkpoint/types.js";
 import { defaultDemoSections, defaultRubrics, traineeStats } from "../admin/trainee-stats.js";
 import { statSections } from "../demo-sections.js";
+import { buildEmployeeCard } from "./employee-card.js";
 import { MeRepository } from "./repository.js";
 
 const Query = z.object({ section: z.enum(SECTION_ORDER as [Section, ...Section[]]).optional() });
@@ -91,7 +92,8 @@ export function createMeRouter(db: DatabaseSync, auth: AuthDeps): express.Router
         updated_at: String(row.updated_at) }];
     }).slice(0, 8);
     res.json({ checkpoint_data: stats.checkpoint_data, sections: stats.sections,
-      trainee, review_concepts, misconceptions: misconceptions(user.id) });
+      trainee, review_concepts, misconceptions: misconceptions(user.id),
+      employee_card: buildEmployeeCard(repo.cardEvents(user.id)) });
   });
 
   // 마이페이지 '설계도·필기'의 펜 필기. 본인 것만 읽고 쓴다(사용자는 토큰으로만 정한다).

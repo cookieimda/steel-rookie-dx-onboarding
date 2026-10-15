@@ -1,7 +1,7 @@
 // 튜터 말투(해요체) 통일: 핵심 정리 문장 변환(polite.ts)과 고정 문장.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { politeText, toPolite } from "../../llm/src/polite.js";
+import { politeText, toPolite, withObject } from "../../llm/src/polite.js";
 import { loadFinalRubrics } from "../src/rubrics.js";
 import { UNVERIFIED_ANSWER } from "../../llm/src/learning-agent.js";
 
@@ -60,4 +60,13 @@ test("final 루브릭의 핵심 요소는 모두 해요체로 바뀐다(핵심 �
 test("근거 없는 답 대신 보여 줄 문장도 해요체", () => {
   assert.match(UNVERIFIED_ANSWER, /요\.$/);
   assert.doesNotMatch(UNVERIFIED_ANSWER, /니다/);
+});
+
+test("withObject: 받침이 있으면 '을', 없으면 '를'. 따옴표 안 마지막 글자를 보고, 한글이 아니면 '를'", () => {
+  assert.equal(withObject("소결기"), "소결기를");
+  assert.equal(withObject("고로·장입 장치"), "고로·장입 장치를");
+  assert.equal(withObject("출선구·주상"), "출선구·주상을");
+  assert.equal(withObject("'고로에서 코크스의 역할'"), "'고로에서 코크스의 역할'을");
+  assert.equal(withObject("'소결의 목적'"), "'소결의 목적'을");
+  assert.equal(withObject("FINEX"), "FINEX를");
 });

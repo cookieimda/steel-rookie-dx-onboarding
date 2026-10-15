@@ -7,6 +7,9 @@
 //   [임시] 토큰이 없으면 체크포인트 테스트 페이지와 같이 주소의 ?user=이름 → X-User-Id를 보낸다.
 // - 접속 비밀번호(TEST_PASSCODE)는 이 페이지에 입력 화면이 없어서 체크포인트 테스트 페이지가 저장한 값을 쓴다. 없거나 틀리면 401 안내를 보여 준다.
 // - 추천 질문은 learning-suggestions.js에서 화면(공정·설비)에 맞게 고르고, 정해 둔 것이 없으면 data_v2.js의 SUGGESTED를 쓴다.
+// - 보충학습(docs/supplementary-learning.md): 오개념이 있는 개념을 추천 질문 앞에 '보충학습 · 개념' 칩으로 보여 준다.
+//   누르면 설명과 확인 문제가 같은 채팅에 나오고, 진행 중에는 입력창에 쓴 말을 확인 문제의 답으로 보낸다(칩은 '보충학습 그만하기').
+//   페이지 템플릿은 고치지 않는다(메시지·칩·입력창 값만 바꾼다). 상태는 컴포넌트 state의 supplement·supplementCandidates.
 
 import { suggestionsFor } from './learning-suggestions.js';
 
@@ -171,11 +174,58 @@ function toKeywordCard(card) {
 // 카드가 없는 메시지에도 같은 모양을 둔다(템플릿이 m.keywordCard.title 등을 읽어도 오류가 나지 않게).
 const NO_CARD = { title: '', keywords: [], hasSource: false, sourceTitle: '' };
 
+/** 보충학습 칩은 추천 질문 앞에 이만큼만 보여 준다. */
+export const MAX_SUPPLEMENT_CHIPS = 2;
+export const SUPPLEMENT_STOP_CHIP = '보충학습 그만하기';
+
+/** 보충학습 API의 말 → 채팅 메시지. 학습자의 답은 화면이 이미 넣었으므로 튜터의 말만 바꾼다. */
+export function supplementMessages(view) {
+  return (view?.messages || []).filter(m => m.role === 'tutor').map(m => ({
+    role: 'assistant', text: m.text, mode: 'free_question', evidence: 'supplement',
+    citations: (m.sources || []).map(s => ({ title: s.title, document_id: s.id, url: s.url })),
+    followUp: null, keywordCard: null,
+  }));
+}
+
+/** 보충학습이 답을 기다리는 중인지. */
+export const supplementWaiting = (s) => !!s && (s.state === 'awaiting_answer' || s.state === 'awaiting_recheck');
+
 /** 페이지 컴포넌트에 붙일 학습 채팅을 만든다. componentDidMount에서 한 번 부른다. */
 export async function createLearningChat(c) {
   // 이어지는 대화. 서버가 대화를 DB에 저장하고 이 id로 이어 준다. 새로고침해도 탭에 남은 id로 이어 간다.
   let sessionId = sessionStore.get();
   const useSession = (id) => { sessionId = id || null; sessionStore.set(sessionId); };
+  // 보충학습 후보를 마지막으로 읽은 공정. 공정이 바뀌면 다시 읽는다.
+  let supplementSection = null;
+  let restoredSupplement = false;
+  const sectionNow = () => (SECTIONS.includes(c.state.processId) ? c.state.processId : 'ironmaking');
+
+  /** 보충학습 요청 공통: 기다림 표시 → 요청 → 튜터 말 추가 → 화면 조작 실행·결과 보고. 실패하면 오류 말풍선. */
+  const supplementTurn = async (userText, send) => {
+    if (c.state.pending) return;
+    c.setState(s => ({ messages: [...s.messages, { role: 'user', text: userText }], input: '', pending: true, pendingSince: Date.now(), partial: '', tutorOpen: true, devOpen: false })); c.scrollChat();
+    const tick = setInterval(() => c.setState({ pendingTick: Date.now() }), 1000);
+    let view = null, error = null;
+    try { view = await send(); } catch (e) { error = e; }
+    let results = [];
+    if (view?.scene_actions?.length) {
+      results = await runSceneActions(c, view.scene_actions);
+      // 도구가 만든 조작과 화면에서 실제로 됐는지를 따로 남긴다(실패해도 보충학습은 이어 간다).
+      request('POST', `/api/learning/supplements/${encodeURIComponent(view.id)}/scene-results`, { results }).catch(() => {});
+    }
+    clearInterval(tick);
+    const added = error
+      ? [{ role: 'assistant', text: error.message, mode: 'free_question', evidence: 'error', citations: [], followUp: null }]
+      : supplementMessages(view);
+    // 끝났거나(완료·그만둠) 서버에서 이미 끝난 보충학습이면 진행 상태를 지운다.
+    const gone = error && [404, 409].includes(error.status) && error.data?.code !== 'BUSY' && error.data?.code !== 'CHECKPOINT_IN_PROGRESS';
+    c.setState(s => ({
+      pending: false, pendingSince: null, partial: '', lastResults: results.length ? results : s.lastResults,
+      supplement: view ? (supplementWaiting(view) ? view : null) : gone ? null : s.supplement,
+      messages: [...s.messages, ...added],
+    })); c.scrollChat();
+    if (!view || !supplementWaiting(view)) chat.refreshSupplements(true);
+  };
 
   const chat = {
     // 현재 공정·설비를 튜터 요청용으로 만든다.
@@ -187,6 +237,8 @@ export async function createLearningChat(c) {
     // 질문 → 학습 모드 API → (화면 조작) → 답변 메시지 추가.
     async ask(text) {
       text = (text || '').trim(); if (!text || c.state.pending) return;
+      // 보충학습 확인 문제의 답을 기다리는 중이면 입력을 답으로 보낸다(자유 질문은 '보충학습 그만하기' 뒤에).
+      if (supplementWaiting(c.state.supplement)) return chat.answerSupplement(text);
       const section = SECTIONS.includes(c.state.processId) ? c.state.processId : null; // 전체 보기('site')면 서버 기본(제선)
       const screen = { process_id: section, equipment_id: section ? c.state.selectedId : null };
       const req = { question: text, session_id: sessionId || undefined, screen };
@@ -215,6 +267,53 @@ export async function createLearningChat(c) {
       const results = await chat.runActions(res.scene_actions);
       clearInterval(tick);
       c.setState(s => ({ pending: false, pendingSince: null, partial: '', lastRes: res, lastResults: results, messages: [...s.messages, message] })); c.scrollChat();
+      // 이번 질문에서 오개념이 기록됐을 수 있어 보충학습 후보를 다시 읽는다.
+      chat.refreshSupplements(true);
+    },
+
+    /**
+     * 보충학습 후보와 진행 중인 보충학습을 읽는다(GET /api/learning/supplements). 공정이 바뀌었거나 force면 다시 읽는다.
+     * 새로고침 전에 풀던 보충학습이 있으면 그 개념과 지금 확인 문제를 한 번 다시 보여 준다.
+     */
+    async refreshSupplements(force = false) {
+      const section = sectionNow();
+      if (!force && supplementSection === section) return;
+      supplementSection = section;
+      let data;
+      try { data = await request('GET', `/api/learning/supplements?section=${encodeURIComponent(section)}`); } catch (e) { return; }
+      if (supplementSection !== section) return;
+      const active = data.active || null;
+      const announce = active && !restoredSupplement && !c.state.supplement;
+      if (active) restoredSupplement = true;
+      c.setState(s => ({
+        supplementCandidates: data.candidates || [],
+        supplement: active,
+        messages: announce
+          ? [...s.messages, { role: 'assistant', text: `풀던 보충학습이 있어요 · ${active.concept_name}\n확인 문제예요. ${active.question}`, mode: 'free_question', evidence: 'supplement', citations: [], followUp: null }]
+          : s.messages,
+      }));
+      if (announce) c.scrollChat();
+    },
+
+    /** 보충학습 시작(칩). 설명·확인 문제를 받고 관련 설비를 화면에 보여 준다. */
+    startSupplement(candidate) {
+      const section = sectionNow();
+      return supplementTurn(`'${candidate.name}' 보충학습을 할게요.`, () => request('POST', '/api/learning/supplements', {
+        section, concept_id: candidate.concept_id, screen: { process_id: SECTIONS.includes(c.state.processId) ? c.state.processId : null },
+      }));
+    },
+
+    /** 확인 문제에 답한다. */
+    answerSupplement(text) {
+      const id = c.state.supplement.id;
+      return supplementTurn(text, () => request('POST', `/api/learning/supplements/${encodeURIComponent(id)}/answer`, { answer: text }));
+    },
+
+    /** 보충학습 그만하기. */
+    stopSupplement() {
+      const id = c.state.supplement?.id;
+      if (!id) return;
+      return supplementTurn(SUPPLEMENT_STOP_CHIP, () => request('POST', `/api/learning/supplements/${encodeURIComponent(id)}/stop`));
     },
 
     // 새로고침 전 대화를 서버에서 다시 불러와 메시지 앞에 붙인다. 화면 조작은 다시 하지 않는다.
@@ -239,9 +338,16 @@ export async function createLearningChat(c) {
       // 받는 중인 답은 마지막 말풍선으로 보여 주고, 그동안 '답을 쓰고 있어요' 표시는 숨긴다.
       const streaming = S.pending && !!S.partial;
       const shown = streaming ? [...S.messages, { role: 'assistant', text: S.partial, mode: 'free_question', evidence: 'streaming', citations: [], followUp: null }] : S.messages;
+      // 공정이 바뀌면 보충학습 후보를 다시 읽는다(그리는 중에 state를 바꾸지 않게 다음 차례에).
+      if (supplementSection !== sectionNow()) setTimeout(() => chat.refreshSupplements(), 0);
+      const suggested = (suggestionsFor(S.processId, S.selectedId) || D.SUGGESTED.filter(t => S.selectedId || !t.startsWith('이 설비'))).map(text => ({ text, onClick: () => chat.ask(text) }));
+      // 보충학습 중에는 '그만하기' 칩만, 아니면 보충학습 후보 칩을 추천 질문 앞에 둔다.
+      const chips = supplementWaiting(S.supplement)
+        ? [{ text: SUPPLEMENT_STOP_CHIP, onClick: () => chat.stopSupplement() }]
+        : [...(S.supplementCandidates || []).slice(0, MAX_SUPPLEMENT_CHIPS).map(cand => ({ text: `보충학습 · ${cand.name}`, onClick: () => chat.startSupplement(cand) })), ...suggested];
       return {
         messages: shown.map(m => ({ ...m, isUser: m.role === 'user', isSafety: m.role === 'assistant' && m.mode === 'safety_redirect', isAssistant: m.role === 'assistant' && m.mode !== 'safety_redirect', hasFollowUp: !!m.followUp, askFollowUp: () => chat.ask(m.followUp), hasKeywordCard: !!m.keywordCard, keywordCard: m.keywordCard || NO_CARD })),
-        chatRef: c.chatRef, pending: S.pending && !streaming, pendingText: pendingText(S.pendingSince), chips: (suggestionsFor(S.processId, S.selectedId) || D.SUGGESTED.filter(t => S.selectedId || !t.startsWith('이 설비'))).map(text => ({ text, onClick: () => chat.ask(text) })),
+        chatRef: c.chatRef, pending: S.pending && !streaming, pendingText: pendingText(S.pendingSince), chips,
         input: S.input, onInput: e => c.setState({ input: e.target.value }), send: e => { e.preventDefault(); chat.ask(S.input); },
       };
     },

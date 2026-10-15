@@ -9,11 +9,12 @@ export interface DeletedCounts {
   llm_usage: number;
   learning_turns: number;
   learner_sketches: number;
+  learning_supplements: number;
 }
 
 /**
  * 지울 기록의 출처(attempts·misconceptions의 origin). all이 기본이다.
- * 학습 대화(learning_turns)·하루 LLM 사용량(llm_usage)·마이페이지 필기(learner_sketches)는 시연 기록이 없으므로 live·all일 때만 지운다.
+ * 학습 대화(learning_turns)·하루 LLM 사용량(llm_usage)·마이페이지 필기(learner_sketches)·보충학습(learning_supplements)은 시연 기록이 없으므로 live·all일 때만 지운다.
  */
 export type OriginFilter = "seed" | "live" | "all";
 
@@ -36,6 +37,10 @@ export function deleteUserData(db: DatabaseSync, userId: string, { origin = "all
       learning_turns: withoutOrigin("DELETE FROM learning_turns WHERE user_id = ?"),
       // 마이페이지 펜 필기(008). 시연 기록이 없으므로 live·all일 때만 지운다.
       learner_sketches: withoutOrigin("DELETE FROM learner_sketches WHERE user_id = ?"),
+      // 보충학습(009). 실행 기록(steps)이 보충학습을 참조하므로 먼저 지운다. 시연 기록이 없으므로 live·all일 때만 지운다.
+      learning_supplements: origin === "seed" ? 0
+        : (db.prepare("DELETE FROM learning_supplement_steps WHERE supplement_id IN (SELECT id FROM learning_supplements WHERE user_id = ?)").run(userId),
+          Number(db.prepare("DELETE FROM learning_supplements WHERE user_id = ?").run(userId).changes)),
     };
     db.exec("COMMIT");
     return counts;

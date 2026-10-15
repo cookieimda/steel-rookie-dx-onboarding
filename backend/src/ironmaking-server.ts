@@ -13,6 +13,7 @@ import { UserRepository } from "./auth/users.js";
 import { createMeRouter } from "./me/routes.js";
 import { CheckpointEngine } from "./checkpoint/engine.js";
 import { CheckpointRepository } from "./checkpoint/repository.js";
+import type { Section } from "./checkpoint/types.js";
 import { openDatabase } from "./db/database.js";
 import { buildLearnerNotes, useLearnerNotesSource } from "./learning/notes.js";
 import { LearningRepository } from "./learning/repository.js";
@@ -21,6 +22,8 @@ import { loadSceneCatalog } from "./learning/scene-catalog.js";
 import { loadScreenSteps } from "./learning/screen-material.js";
 import { AnswerCache, answerCacheVersion } from "./learning/answer-cache.js";
 import { loadSuggestedQuestions, warmItems } from "./learning/suggested.js";
+import { createSupplementRouter, SupplementEngine } from "./learning/supplement.js";
+import { SupplementRepository } from "./learning/supplement-repository.js";
 import { currentUserId } from "./request-user.js";
 import { loadFinalRubrics } from "./rubrics.js";
 import { passcodeRequired } from "./test-access.js";
@@ -35,10 +38,13 @@ const db = openDatabase();
 const usage = new LlmUsage(db);
 // 체크포인트의 평가자·튜터 호출마다 현재 사용자의 하루 호출 수를 센다.
 const gemini = new GeminiClient({ beforeCall: () => usage.consume(currentUserId()) });
+// 평가자·튜터는 체크포인트와 보충학습이 함께 쓴다.
+const evaluator = new GeminiEvaluator(gemini);
+const tutor = new GeminiTutor(gemini);
 const engine = new CheckpointEngine({
   repo: new CheckpointRepository(db),
-  evaluator: new GeminiEvaluator(gemini),
-  tutor: new GeminiTutor(gemini),
+  evaluator,
+  tutor,
   rubrics,
   // 부가 설명 때 튜터에게만 넘긴다(평가자에게는 넘기지 않음).
   learnerNotes: buildLearnerNotes,
@@ -63,21 +69,26 @@ const answerCache = new AnswerCache(
 );
 const sceneCatalog = await loadSceneCatalog();
 const suggestedQuestions = await loadSuggestedQuestions();
+const retriever = new Retriever({ glossaryFor: (s) => rubrics.find((r) => r.section === s)?.glossary ?? [] });
+const learningAgent = new GeminiLearningAgent(gemini);
+// 체크포인트에서 아직 만점이 아닌 개념(튜터에 넘김)과 진행 중 여부. 학습 채팅과 보충학습이 함께 쓴다. 이해도 계산은 엔진(summarizeSection)이 한다.
+const checkpointProgress = (userId: string, section: Section) => {
+  if (!rubrics.some((r) => r.section === section)) return null;
+  const p = engine.sectionProgress(userId, section);
+  // answering: 답하는 중(멈춘 시도 제외). 보충학습은 이때만 막는다.
+  return { retry_concept_ids: p.retry_concept_ids, in_progress: p.in_progress_attempt_id !== null, answering: !!p.in_progress && p.in_progress.state !== "paused" };
+};
 const learning = createLearningRouter({
   repo: learningRepo,
-  retriever: new Retriever({ glossaryFor: (s) => rubrics.find((r) => r.section === s)?.glossary ?? [] }),
-  agent: new GeminiLearningAgent(gemini),
+  retriever,
+  agent: learningAgent,
   rubrics,
   // 튜터의 3D 화면 조작(scene_actions)에 쓸 공정·설비 목록. data_v2.js 형식이 틀리면 서버가 시작되지 않는다.
   scene: sceneCatalog,
   // 학습 화면의 설비 작동 단계 설명(3D·2D). 근거로 답하지 못할 때 화면 위치를 안내하는 데에만 쓴다. 못 읽으면 경고만 남긴다.
   screenSteps: await loadScreenSteps(),
-  // 체크포인트에서 아직 만점이 아닌 개념(튜터에 넘김)과 진행 중 여부(진행 중이면 키워드 카드를 붙이지 않음). 이해도 계산은 엔진(summarizeSection)이 한다.
-  checkpointProgress: (userId, section) => {
-    if (!rubrics.some((r) => r.section === section)) return null;
-    const p = engine.sectionProgress(userId, section);
-    return { retry_concept_ids: p.retry_concept_ids, in_progress: p.in_progress_attempt_id !== null };
-  },
+  // 진행 중이면 키워드 카드를 붙이지 않는다.
+  checkpointProgress,
   cache: answerCache,
   suggestedQuestions,
 });
@@ -89,6 +100,10 @@ app.use(createAuthRouter(auth));
 // 관리자 AI 요약도 같은 GeminiClient로 관리자 계정의 하루 호출 수를 센다.
 app.use(createAdminRouter(db, auth, { summarizer: new GeminiAdminSummarizer(gemini) }));
 app.use(createMeRouter(db, auth));
+// 보충학습(docs/supplementary-learning.md): 오개념이 있는 개념을 설명 → 확인 문제 → 채점 → 해결/다시 설명.
+app.use(createSupplementRouter(new SupplementEngine({
+  repo: new SupplementRepository(db), learningRepo, retriever, agent: learningAgent, tutor, evaluator, rubrics, scene: sceneCatalog, checkpointProgress,
+})));
 
 const port = Number(process.env.PORT ?? 3000);
 // 이 컴퓨터에서만 접속을 받는다. 원격 공유는 cloudflared 터널(npm run tunnel)이 localhost로 넘겨준다.

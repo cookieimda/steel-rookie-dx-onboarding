@@ -46,7 +46,7 @@ const LAND = [[590, 40], [1180, 215], [1232, 300], [1196, 388], [746, 350], [700
 const CITY = [[-320, -95], [-125, -95], [-86, -62], [-117, 36], [47, 47], [125, 92], [210, 160], [320, 230], [320, 320], [-320, 320]];
 const ROADS = [[[-30, -80], [0, -90], [40, -84], [88, -70]], [[-30, -80], [-30, -72]], [[50, -53], [102, -47]], [[-2, -89], [-2, -24], [-12, -6], [-20, 10], [-27, 24], [-40, 48], [-46, 62], [-38, 80], [-22, 96], [-14, 102]], [[-86, -19], [0, -21]], [[-84, 46], [44, 46]], [[-24, 26], [20, 26]], [[-125, 10], [-106, 34], [-9, 114], [14, 125], [70, 126], [130, 98], [200, 120]]];
 const MAT = ['용선', '용강', '슬래브'];
-const RISE_DEPTH = 26, HOLD_MS = 2800, SHOW_MS = 3000, HOVER_GRACE = 350, TITLE_MS = 6000; // TITLE_MS: 여는 장면 뒤 제목 카드를 보여 주는 시간
+const RISE_DEPTH = 26, HOLD_MS = 1200, SHOW_MS = 3000, HOVER_GRACE = 350, TITLE_MS = 6000; // TITLE_MS: 여는 장면 뒤 제목 카드를 보여 주는 시간
 
 // ---- 렌더러·장면(밤) ----------------------------------------------------------------------------------------------
 const stage = $('stage'), hud = $('hud');
@@ -341,18 +341,20 @@ const clampPose = (p) => ({ ...p, dist: Math.min(p.dist, maxDist()) });
 function animateTo(to, dur = 1600) { anim = { t0: performance.now(), dur: REDUCED ? 1 : dur, from: { yaw: orbit.yaw, pitch: orbit.pitch, dist: orbit.dist, target: orbit.target.clone() }, to: { ...to, target: to.target.clone() } }; }
 
 // ---- 시작 ----------------------------------------------------------------------------------------------------------
-// 여는 장면 없이 바로 밤의 지도. 전체 보기 자리에서 제선 구역으로 다가가며 시작한다
+// 여는 장면 없이 바로 밤의 지도. 3D 대각선 전체 보기(pose3D)에 머문 채 제선 → 제강 → 연주 → 열연이 차례로 솟는다.
+// 구역마다 다가가며 보여 주던 연출은 뺐다(2026-10-15 요청). 구역에 다가가는 것은 사용자가 구역·숫자 키·타임라인으로 고를 때만.
 // 조작 안내 카드를 먼저 띄우고, [시작하기](또는 Enter·Space·Esc)를 누르면 시작한다(2026-10-15 요청)
 let started = false, guideOpen = false;
 function startMap() {
   if (ambientLights) ambientLights.material.uniforms.uOn.value = 1;
-  const all = clampPose(POSE.all); Object.assign(orbit, { yaw: all.yaw, pitch: all.pitch, dist: all.dist }); orbit.target.copy(all.target);
+  const all = pose3D(); Object.assign(orbit, { yaw: all.yaw, pitch: all.pitch, dist: all.dist }); orbit.target.copy(all.target);
+  wide = true; // 전체 보기에서 시작하므로 자동 재생은 카메라를 옮기지 않는다
   guideOpen = true; $('guide').classList.remove('off'); $('guideGo').focus();
 }
 function closeGuide() {
   if (!guideOpen) return; guideOpen = false; $('guide').classList.add('off');
   setTimeout(() => $('ttl').classList.add('out'), TITLE_MS); // 제목 카드는 잠깐만
-  setTimeout(() => { if (!started) { started = true; goTo(0); } }, REDUCED ? 0 : 500);
+  setTimeout(() => { if (!started) { started = true; goTo(0, true); } }, REDUCED ? 0 : 500);
 }
 $('guideGo').onclick = closeGuide;
 
@@ -551,7 +553,7 @@ function frame(now) {
   const focusD = camera.position.distanceTo(orbit.target); lightLayers.forEach((l) => { const u = l.material.uniforms; u.uT.value = now / 1000; u.uFocus.value = focusD; u.uCoc.value = 0; }); // 흐림 없음: 3D에서도 전체가 선명하게(2026-10-15 요청)
   links.forEach((l) => { const on = l.a.up && l.b.up; if (on && !l.on) { l.t0 = now; l.showUntil = now + SHOW_MS; } l.on = on; l.mesh.visible = on; if (on) { l.mesh.material.uniforms.reach.value = REDUCED ? 1 : Math.min(1, (now - l.t0) / 1400); l.mesh.material.uniforms.t.value = now / 1000; } });
   // 연결선이 제선에서 열연까지 다 그어지면(마지막 선이 다 뻗은 뒤): 위에서 전체를 보여 주며 선이 세 번 깜빡이고, 그 뒤 선 밝기를 낮춘다(한 번만)
-  if (!finale.t0 && links.length === procs.length - 1 && links.every((l) => l.on && now - l.t0 >= 1400)) { finale.t0 = now; setView('map'); }
+  if (!finale.t0 && links.length === procs.length - 1 && links.every((l) => l.on && now - l.t0 >= 1400)) { finale.t0 = now; } // 3D 대각선 전체 보기 그대로 깜빡인다(2D로 바꾸지 않는다)
   if (finale.t0) { const ft = now - finale.t0, gain = REDUCED ? FINALE.low : ft < FINALE.blink ? FINALE.low + (1.6 - FINALE.low) * (0.5 + 0.5 * Math.cos(ft / FINALE.blink * Math.PI * 6)) : Math.max(FINALE.low, 1.6 - (1.6 - FINALE.low) * Math.min(1, (ft - FINALE.blink) / 800));
     links.forEach((l) => { l.mesh.material.uniforms.gain.value = gain; }); }
   if (playing && cur >= 0 && procs[cur].up && now - procs[cur].upAt > HOLD_MS) { if (cur < procs.length - 1) goTo(cur + 1, true); else finish(); }

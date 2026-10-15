@@ -96,7 +96,7 @@ ST-Rookie는 FloodOps와 다르다. 현재 구조는 일반적인 다중 도구 
 - [x] 일반 공정 설명 질문이 안전 분기에 잘못 걸리지 않는지 확인한다. (`learning-safety.test.ts`)
 - [x] 실제 운전·조작 및 비상 대응 요청이 현재 안전 정책에 맞게 처리되는지 확인한다.
 - [x] 오개념 감지가 사실 단정과 질문/가설을 구분하는지 평가한다. (`eval:learning` 오개념 케이스)
-- [~] 같은 미해결 오개념의 중복 저장과 해결 후 재발 기록을 테스트한다. (중복은 갱신으로 막는 테스트 있음, 해결 뒤 재발은 아직)
+- [x] 같은 미해결 오개념의 중복 저장과 해결 후 재발 기록을 테스트한다. (중복은 갱신, 체크포인트에서 해결된 뒤 재발하면 학습·체크포인트 모두 새 미해결 행, 옛 행은 해결 상태 그대로: `learning-repository.test.ts`)
 - [x] scene_actions의 액션 종류와 설비 ID를 검증하고 공정 이동이 올바른지 테스트한다.
 
 평가 데이터 필드 권장안: id, question, screen, expected_evidence_ids, required_facts, must_not_claim, expected_status. 실제 ID와 정답은 저장소 자료에 맞춰 작성한다.

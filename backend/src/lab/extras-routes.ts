@@ -17,6 +17,7 @@ import { checkStep, faultScore, faultView, type FaultDrill } from "./faults.js";
 import { gradeIncident, scenarioView, type IncidentScenario } from "./incidents.js";
 import { maskName } from "./league.js";
 import { whatIf } from "./whatif.js";
+import { NODES, simulateCausal } from "./causal.js";
 
 /** 신고가 이만큼 쌓이면 자동으로 숨긴다(관리자가 다시 열 수 있다). */
 export const AUTO_HIDE_REPORTS = 3;
@@ -90,6 +91,16 @@ export function createLabExtrasRouter({ db, auth, deck, incidents, faults = { di
     const score = faultScore(body.data.tries);
     db.prepare("INSERT INTO fault_attempts(id,user_id,fault_id,tries_json,score,created_at) VALUES(?,?,?,?,?,?)").run(randomUUID(), me(res).id, f.id, JSON.stringify(body.data.tries), score, new Date().toISOString());
     res.json({ score });
+  });
+
+  // ── 공정 인과 지도: 조정 변수 → 공정 사이 반응(저장하지 않는 계산) ──
+  router.post("/api/lab/causal", login, express.json(), (req, res) => {
+    const body = z.record(z.string(), z.number()).safeParse(req.body ?? {});
+    if (!body.success) return bad(res, 400, "입력은 숫자만 받아요.");
+    const known = new Set(NODES.filter((n) => n.control).map((n) => n.id));
+    const unknown = Object.keys(body.data).find((k) => !known.has(k));
+    if (unknown) return bad(res, 400, `조정할 수 없는 변수예요: ${unknown}`);
+    res.json(simulateCausal(body.data));
   });
 
   // ── What-if ──

@@ -36,10 +36,10 @@ function injectStyle() {
   if (document.getElementById('sl-style')) return;
   const s = document.createElement('style'); s.id = 'sl-style';
   s.textContent = `
-    .sl-launch { position: fixed; right: 16px; bottom: 96px; z-index: 61; display: flex; flex-direction: column; gap: 8px; }
+    .sl-launch { position: fixed; right: 16px; bottom: 96px; z-index: 61; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; max-width: min(620px, calc(100vw - 32px)); }
     .sl-launch button { height: 42px; padding: 0 16px; border: 0; border-radius: 999px; background: rgba(14,24,40,.92); color: #eef2f7; font: 600 15px/1 "Pretendard", sans-serif; cursor: pointer; box-shadow: 0 8px 20px rgba(0,0,0,.3); }
     .sl-launch button[aria-pressed="true"] { background: #ff9e64; color: #1a0b03; }
-    .sl-panel { position: fixed; right: 16px; top: 84px; bottom: 200px; z-index: 62; width: min(340px, calc(100vw - 32px)); overflow-y: auto; padding: 16px; border-radius: 16px; background: rgba(12,20,34,.95); color: #eef2f7; font: 15px/1.55 "Pretendard", sans-serif; box-shadow: 0 18px 40px rgba(0,0,0,.4); display: flex; flex-direction: column; gap: 12px; }
+    .sl-panel { position: fixed; right: 16px; top: 84px; bottom: 152px; z-index: 62; width: min(340px, calc(100vw - 32px)); overflow-y: auto; padding: 16px; border-radius: 16px; background: rgba(12,20,34,.95); color: #eef2f7; font: 15px/1.55 "Pretendard", sans-serif; box-shadow: 0 18px 40px rgba(0,0,0,.4); display: flex; flex-direction: column; gap: 12px; }
     .sl-panel h3 { margin: 0; font-size: 18px; display: flex; align-items: center; gap: 8px; }
     .sl-panel h3 span { flex: 1; }
     .sl-muted { color: #a9b6c8; font-size: 14px; }
@@ -95,12 +95,12 @@ function createFx(scene) {
   };
   fx.setRingColor = (id, color) => { for (const r of fx.rings) if (r.id === id) r.m.material.color.set(color); };
   /** 원인 → 결과 흐름: 두 설비 사이 호를 따라 흐르는 빛 입자와 옅은 선. */
-  fx.flow = (fromId, toId, color = 0xff9e64) => {
+  fx.flow = (fromId, toId, color = 0xff9e64, opt = {}) => {
     const a = posOf(fromId, 1), b = posOf(toId, 1); if (!a || !b) return;
     const mid = a.clone().lerp(b, 0.5); mid.y += 6 + a.distanceTo(b) * 0.18;
     const curve = new THREE.QuadraticBezierCurve3(a, mid, b);
-    const line = own(new THREE.Line(new THREE.BufferGeometry().setFromPoints(curve.getPoints(48)), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.6, depthWrite: false, fog: false })));
-    const n = 8, geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+    const line = own(new THREE.Line(new THREE.BufferGeometry().setFromPoints(curve.getPoints(48)), new THREE.LineBasicMaterial({ color, transparent: true, opacity: opt.opacity ?? 0.6, depthWrite: false, fog: false })));
+    const n = opt.dots ?? 8, geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
     const points = own(new THREE.Points(geo, new THREE.PointsMaterial({ color, size: 11, sizeAttenuation: false, map: dotTex, transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, fog: false })));
     fx.flows.push({ curve, line, points, n, t0: performance.now() });
   };
@@ -180,20 +180,101 @@ export async function attachSimLab() {
   const launch = el('div', 'sl-launch');
   const panel = el('aside', 'sl-panel'); panel.hidden = true; panel.setAttribute('aria-live', 'polite');
   const bWhatif = btn('🧪 조업 실험', () => open(mode === 'whatif' ? null : 'whatif'), ''), bFault = btn('🚨 이상 상황 훈련', () => open(mode === 'fault' ? null : 'fault'), '');
-  launch.append(bWhatif, bFault);
+  const bMap = btn('🗺 공정 인과 지도', () => open(mode === 'map' ? null : 'map'), ''), bPlant = btn('🏭 공장 전체 보기', () => plantView(), '');
+  launch.append(bMap, bWhatif, bFault, bPlant);
   document.body.append(launch, panel);
   let mode = null;
   function open(next, preset) {
     mode = next; fx.clear(); panel.classList.remove('compact');
-    bWhatif.setAttribute('aria-pressed', String(mode === 'whatif')); bFault.setAttribute('aria-pressed', String(mode === 'fault'));
+    bWhatif.setAttribute('aria-pressed', String(mode === 'whatif')); bFault.setAttribute('aria-pressed', String(mode === 'fault')); bMap.setAttribute('aria-pressed', String(mode === 'map'));
     panel.hidden = !mode; panel.replaceChildren();
-    if (mode === 'whatif') void whatifPanel(preset); else if (mode === 'fault') void faultList();
+    if (mode === 'whatif') void whatifPanel(preset); else if (mode === 'fault') void faultList(); else if (mode === 'map') void causalMap(preset);
   }
   const head = (title, foldable = false) => {
     const h = el('h3'); h.append(el('span', '', title));
     if (foldable) { const f = btn('결과만 보기', () => { const c = panel.classList.toggle('compact'); f.textContent = c ? '조건 펼치기' : '결과만 보기'; }, 'sl-btn ghost'); h.append(f); }
     h.append(btn('닫기', () => open(null), 'sl-btn ghost')); return h;
   };
+
+  /** 공장 전체 보기: 공정 4개가 한 화면에 들어오는 드론 시점(sleek-overview가 정한 _overviewPose). 공정을 넘는 흐름을 볼 때 쓴다. */
+  function plantView() {
+    if (scene._2d) return;
+    const pose = scene._overviewPose?.();
+    if (pose && scene._animateTo) scene._animateTo(pose); else scene.overview?.();
+    scene._dirty = true;
+  }
+
+  // ── ⓪ 공정 인과 지도: 조정 변수 6개 → 공정 사이로 퍼지는 반응 ──
+  const SECTION_ORDER = ['ironmaking', 'steelmaking', 'continuous_casting', 'rolling'];
+  async function causalMap(preset = {}) {
+    const input = { ...preset };
+    panel.append(head('🗺 공정 인과 지도', true),
+      el('p', 'sl-muted sl-hide', '조정할 수 있는 값 하나를 바꾸면, 그 영향이 다음 공정으로 어떻게 번지는지 3D 공장 위에 흐름으로 보여요. 주황은 값이 오르는 연결, 파랑은 내리는 연결이에요.'));
+    const presets = el('div', 'sl-box sl-hide'); presets.append(el('b', '', '바로 해 보기'));
+    const PRESETS = [
+      ['코크스를 줄이면?', { coke_rate: 290 }],
+      ['출강을 뜨겁게 + 빨리 주조하면?', { tap_temp: 1670, cast_speed: 1.6 }],
+      ['염기도를 낮추면?', { basicity: 0.95 }],
+      ['냉각 뱅크를 많이 열면?', { cool_banks: 14 }],
+    ];
+    const pr = el('div'); pr.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;';
+    for (const [label, v] of PRESETS) pr.append(btn(label, () => { for (const k of Object.keys(input)) delete input[k]; Object.assign(input, v); void run(); }, 'sl-btn ghost'));
+    presets.append(pr);
+    const controls = el('div', 'sl-box sl-hide'), story = el('div'), byProc = el('div'), note = el('p', 'sl-muted');
+    panel.append(presets, controls, story, byProc, note);
+    let timer = 0, data = null, first = true;
+    async function run() {
+      try { data = await api('POST', '/api/lab/causal', input); } catch (e) { story.replaceChildren(el('p', 'sl-bad', e.message)); return; }
+      if (first) { first = false; renderControls(); }
+      for (const n of data.nodes.filter((x) => x.control)) { const row = controls.querySelector(`[data-k="${n.id}"]`); if (row) { row.querySelector('input').value = n.value; row.querySelector('b').textContent = `${fmt(n.value, n.digits)}${n.unit}`; } }
+      render();
+    }
+    function renderControls() {
+      controls.replaceChildren(el('b', '', '조정할 수 있는 값'));
+      for (const n of data.nodes.filter((x) => x.control)) {
+        const row = el('label', 'sl-s'); row.dataset.k = n.id;
+        const range = el('input'); Object.assign(range, { type: 'range', min: n.control.min, max: n.control.max, step: n.control.step, value: n.value }); range.setAttribute('aria-label', n.label);
+        range.addEventListener('input', () => { input[n.id] = Number(range.value); row.querySelector('b').textContent = `${range.value}${n.unit}`; clearTimeout(timer); timer = setTimeout(run, 200); });
+        row.append(el('span', '', `${SECTION[n.process]} · ${n.label}`), range, el('b', '', '')); controls.append(row);
+      }
+      controls.append(btn('기준 조건으로', () => { for (const k of Object.keys(input)) delete input[k]; void run(); }, 'sl-btn ghost'));
+    }
+    function render() {
+      // 설명: 위에서 아래로 따라간 인과
+      story.replaceChildren(...(data.story.length ? [el('b', '', '무엇이 어떻게 번졌나')] : []), ...(data.story.length ? data.story.map((s, i) => {
+        const box = el('div', s.status === 'warn' ? 'sl-next' : 'sl-cause'); box.append(el('small', 'sl-muted', `${i + 1}. ${SECTION[s.process]}`), el('div', '', s.text)); return box;
+      }) : [el('p', 'sl-muted', '값을 하나 바꾸거나 위 예시를 눌러 보세요. 공정 4개를 잇는 연결이 지금은 옅게 그려져 있어요.')]));
+      // 공정별 값
+      byProc.replaceChildren(...SECTION_ORDER.map((sec) => {
+        const box = el('div', 'sl-box'); box.append(el('b', '', SECTION[sec]));
+        for (const n of data.nodes.filter((x) => x.process === sec && !x.control)) {
+          const line = el('div'); line.style.cssText = 'display:flex;justify-content:space-between;gap:8px;font-size:14px;';
+          const v = el('span', n.status === 'warn' ? 'sl-bad' : n.delta ? (n.delta > 0 ? 'sl-up' : 'sl-down') : '', `${fmt(n.value, n.digits)}${n.unit}${n.delta ? ` (${signed(n.delta, n.digits)})` : ''}`);
+          line.append(el('span', '', n.label), v); box.append(line);
+        }
+        return box;
+      }));
+      note.textContent = data.note;
+      // 3D: 모든 연결을 옅게, 바뀐 연결은 진하게(오름 주황·내림 파랑), 범위 밖은 붉은 링, 바뀐 값은 설비 이름표
+      fx.clear();
+      const eqOf = new Map(data.nodes.map((n) => [n.id, n.equipment_id]));
+      for (const e of data.edges) {
+        const a = eqOf.get(e.from), b = eqOf.get(e.to);
+        if (a === b) continue;
+        if (e.active) fx.flow(a, b, e.effect > 0 ? 0xff7a3d : 0x5aa0ff);
+        else fx.flow(a, b, 0x9aa4b2, { opacity: 0.22, dots: 2 });
+      }
+      const tags = new Map();
+      for (const n of data.nodes.filter((x) => x.delta)) {
+        const t = tags.get(n.equipment_id) || { lines: [], warn: false };
+        t.lines.push(`${n.label} ${signed(n.delta, n.digits)}${n.unit}`); t.warn ||= n.status === 'warn'; tags.set(n.equipment_id, t);
+      }
+      for (const [eqId, t] of tags) { fx.tag(eqId, `${t.warn ? '⚠ ' : ''}${t.lines.join(' · ')}`, t.warn ? 'warn' : 'hot', 5); if (t.warn) fx.ring(eqId, 0xff4d4d, true); }
+      scene._dirty = true;
+    }
+    plantView();
+    await run();
+  }
 
   // ── ① 조업 실험(What-if) ──
   async function whatifPanel(preset = {}) {

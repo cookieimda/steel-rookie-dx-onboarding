@@ -155,10 +155,14 @@ export const STEP_FX = {
     [A([-1, 0], [2.6, 0], WHITE, '절단기 쪽으로 배출', { w: 1.3, labelAt: [1.4, 0.7] })],
   ],
   torch_cutter: [
-    [A([0, 1.4], [1, 1.4], UI, null, { w: 0.7 }), A([0, 1.4], [-1, 1.4], UI, '주문 길이에 맞춰 자를 위치', { w: 0.7, labelAt: [0, 1.9] }), { t: 'pulse', at: [1, 0], color: UI, delay: 1 }],
-    [S('spark', [0, 0.8], [0, -2], { spread: [0.06, 0.05], toSpread: [0.6, 0.2], n: 90, label: '토치 불꽃 (약 3,000℃)', labelAt: [1.2, 0.2] }), A([-1.4, 1.8], [1.4, 1.8], WHITE, '주편과 같은 속도로 따라가며 자름', { delay: 0.6, labelAt: [0, 2.3] })],
-    [A([-1, 0], [2.6, 0], WHITE, '배출 롤러 → 냉각대', { w: 1.3, labelAt: [1.4, 0.7] }), { t: 'pulse', at: [0, 0.6], color: '#ffd08a', label: '번호 표시', delay: 1 }],
-    [G('#ff8a3a', '#6b6f76', { span: 'all', dur: 2.6 }), B([-1.4, 0], '20~30톤', '슬라브 한 장 · 두께 약 250mm', 'weight', { span: 'all', anim: 'drop', press: true, delay: 1.2 })],
+    // 1 길이 측정: 주편이 오른쪽으로 흐르는 동안 측정 롤이 돌며 길이를 재고, 자를 자리에 표시가 찍힌다
+    [A([-2.2, 0], [1.6, 0], WHITE, null, { w: 1.1, dur: 2.4 }), A([-1.3, 1.3], [1.1, 1.3], UI, '주문 길이(예: 약 10m)만큼 재기', { w: 0.6, delay: 0.4, labelAt: [-0.1, 1.8] }), { t: 'spin', at: [-1.3, -1.15], rad: 0.26, deg: 300, color: UI, speed: 1.6, label: '측정 롤', delay: 0.2 }, { t: 'pulse', at: [1.1, 0.7], color: '#ffd08a', label: '자를 위치', delay: 1.6 }],
+    // 2 토치 절단: 토치가 주편과 같은 방향·속도로 따라가며, 불꽃이 절단선에서 아래로 쏟아진다(위로 튀지 않는다)
+    [A([-1.6, 0], [1.8, 0], WHITE, null, { w: 1.1 }), A([-0.9, 1.5], [0.9, 1.5], '#ffd08a', '토치가 주편과 같은 속도로 따라감', { w: 0.7, delay: 0.3, labelAt: [0, 2.0] }), S('flame', [0, 1.1], [0, 0.35], { spread: [0.05, 0.03], toSpread: [0.12, 0.05], n: 40, delay: 0.6 }), S('spark', [0, 0.1], [0.2, -2.1], { spread: [0.05, 0.04], toSpread: [0.7, 0.15], n: 110, delay: 0.7, label: '절단 불꽃 (약 3,000℃)', labelAt: [1.25, -0.6] }), T([-1.4, -0.7], 'O₂ + 연료가스로 녹여 끊음', { delay: 1.4 })],
+    // 3 배출·표시: 배출 롤러가 돌며 잘린 슬라브를 냉각대 쪽으로 보내고, 번호가 찍힌다
+    [A([-1.4, 0], [2.6, 0], WHITE, '배출 롤러 → 냉각대', { w: 1.3, labelAt: [1.4, 0.7] }), { t: 'spin', at: [-1.6, -1.15], rad: 0.22, deg: 280, color: ROLL, speed: 2.2, delay: 0, label: '배출 롤러' }, { t: 'spin', at: [-0.6, -1.15], rad: 0.22, deg: 280, color: ROLL, speed: 2.2, delay: 0.12 }, { t: 'spin', at: [0.4, -1.15], rad: 0.22, deg: 280, color: ROLL, speed: 2.2, delay: 0.24 }, { t: 'spin', at: [1.4, -1.15], rad: 0.22, deg: 280, color: ROLL, speed: 2.2, delay: 0.36 }, { t: 'pulse', at: [-0.4, 0.55], color: '#ffd08a', label: '슬라브 번호 표시', delay: 1.2 }],
+    // 4 냉각·적치: 슬라브가 주황 → 회색으로 식으며 김이 오르고, 한 장의 무게가 표시된다
+    [G('#ff8a3a', '#6b6f76', { span: 'all', dur: 2.6 }), S('steam', [0, 0.6], [0.4, 2.4], { spread: [1.1, 0.1], toSpread: [1.4, 0.3], n: 40, delay: 0.4 }), B([-1.4, 0], '20~30톤', '슬라브 한 장 · 두께 약 250mm', 'weight', { span: 'all', anim: 'drop', press: true, delay: 1.2 })],
   ],
   reheating_furnace: [
     [A([-3, 0], [-0.6, 0], ROLL, '슬라브를 한 장씩 넣음', { w: 1.3, labelAt: [-2.2, 0.8] }), T([1.2, 0], '바닥 빔이 앞으로 옮겨 줌', { delay: 1 })],

@@ -153,7 +153,7 @@ function tune(m) {
   m = m.clone(); const nm = m.name || ''; m.envMapIntensity = 0.3;
   if (/^(Steel|Steel_Dark|Struct_Gray|Roll_Steel|Coil_Cooled|Chrome_Rod)$/.test(nm)) { m.roughness = Math.max(0.28, m.roughness); m.envMapIntensity = 0.45; }
   if (nm === 'Concrete') m.color.setRGB(0.5, 0.51, 0.52);
-  if (/^(Molten_Steel|Hot_Slab|Slag_Hot)$/.test(nm)) { m.emissiveIntensity = 2.6; m.toneMapped = false; }
+  if (/^(Molten_Steel|Hot_Slab|Slag_Hot)$/.test(nm)) { m.emissiveIntensity = 1.6; m.toneMapped = false; } // 빛번짐 완화 2.6 → 1.6
   m.clippingPlanes = above(0.0); return m;
 }
 const procs = PROCESSES.map((p, i) => ({ id: p.id, data: p, i, c: SITE[p.id], root: null, glow: null, ripples: [], hit: null, flood: null, warm: null, foot: null, modelTop: 10, t0: null, up: false, upAt: 0, chip: null, showUntil: 0, hoverZone: false, hoverOff: 0, hoverChip: false }));
@@ -403,7 +403,8 @@ renderer.domElement.addEventListener('wheel', (e) => { e.preventDefault(); orbit
 // ---- 후처리: 블룸 → 출력 ---------------------------------------------------------------------------------
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.55, 0.5, 0.92); // 불빛·쇳물만 번지게 임계값을 높게 composer.addPass(bloom);
+const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.3, 0.4, 0.97); // 불빛·쇳물만 번지게 임계값을 높게(빛번짐 완화)
+composer.addPass(bloom);
 composer.addPass(new OutputPass());
 function resize() { const w = stage.clientWidth || 1, h = stage.clientHeight || 1; renderer.setSize(w, h, false); composer.setSize(w, h); bloom.resolution.set(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
 new ResizeObserver(resize).observe(stage); resize();
@@ -535,7 +536,7 @@ function rise(p, now) {
   const t = p.t0 == null ? -1 : now - p.t0, k1 = t < 0 ? 0 : REDUCED ? 1 : Math.min(1, t / 700), k2 = t < 0 ? 0 : REDUCED ? 1 : Math.min(1, Math.max(0, (t - 250) / 1300));
   p.root.visible = k2 > 0; p.root.position.y = -RISE_DEPTH * (1 - (k2 >= 1 ? 1 : easeOutBack(k2)));
   p.glow.material.opacity = k1 <= 0 ? 0 : k1 < 1 ? 0.6 + 0.6 * Math.sin(k1 * Math.PI) : 0.5;
-  p.warm.intensity = 380 * easeOut(k2); // 은은한 주황 반사만(세면 모델이 하얗게 타고 블룸이 번진다)
+  p.warm.intensity = 220 * easeOut(k2); // 은은한 주황 반사만(세면 모델이 하얗게 타고 블룸이 번진다)
   if (k2 >= 1 && !p.up) { p.up = true; p.upAt = now; p.showUntil = now + SHOW_MS; } // 솟은 직후 3초만 칩을 보인다
   const on = p.up && p.i === cur && !REDUCED, r0 = Math.max(p.foot.w, p.foot.d) * 0.62; // 지금 구역: 15% 물결
   p.ripples.forEach((r, k) => { if (!on) { r.material.opacity = 0; return; } const ph = ((now / 2200) + k * 0.5) % 1; r.scale.setScalar(r0 * (0.9 + 0.7 * ph)); r.material.opacity = 0.15 * (1 - ph); });

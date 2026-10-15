@@ -62,13 +62,15 @@ export class GeminiClient implements LlmClient {
     const trace = currentTrace();
     const started = performance.now();
     const usage: { tokens?: LlmCallRecord["tokens"] } = {};
+    // provider를 붙여 남긴다(ollama.ts는 ollama:모델). trace:report가 provider·모델별로 나눠 센다.
+    const label = `gemini:${model}`;
     try {
       const text = await this.call(req, apiKey, model, usage);
-      trace?.llm({ model, ms: Math.round(performance.now() - started), ok: true, streamed: !!req.onText, ...usage });
+      trace?.llm({ model: label, ms: Math.round(performance.now() - started), ok: true, streamed: !!req.onText, ...usage });
       return text;
     } catch (error) {
       const failure = error instanceof GeminiCallError ? { failure: error.reason, ...(error.httpStatus ? { http_status: error.httpStatus } : {}) } : { failure: "error" };
-      trace?.llm({ model, ms: Math.round(performance.now() - started), ok: false, streamed: !!req.onText, ...failure });
+      trace?.llm({ model: label, ms: Math.round(performance.now() - started), ok: false, streamed: !!req.onText, ...failure });
       throw error;
     }
   }

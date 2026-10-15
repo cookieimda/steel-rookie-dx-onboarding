@@ -7,12 +7,14 @@ import test from "node:test";
 import { SECTION_ORDER } from "../src/checkpoint/types.js";
 import { loadSceneCatalog } from "../src/learning/scene-catalog.js";
 
-test("data_v2.js에서 공정 4개(섹션 순서)와 설비 24개의 id·이름만 읽는다", async () => {
+test("data_v2.js에서 공정 4개(섹션 순서)와 설비 24개의 id·이름, 작동 단계가 있는지(operation)만 읽는다", async () => {
   const scene = await loadSceneCatalog();
   assert.deepEqual(scene.processes.map((p) => p.id), SECTION_ORDER);
   const equipment = scene.processes.flatMap((p) => p.equipment);
   assert.equal(equipment.length, 24);
-  assert.deepEqual(scene.processes[0].equipment.find((e) => e.id === "blast_furnace"), { id: "blast_furnace", name: "고로·장입 장치" });
+  assert.deepEqual(scene.processes[0].equipment.find((e) => e.id === "blast_furnace"), { id: "blast_furnace", name: "고로·장입 장치", operation: true });
+  // 작동 단계(steps)가 없는 설비는 operation이 없다(작동 보기를 시키지 않는다).
+  assert.deepEqual(scene.processes[0].equipment.find((e) => e.id === "torpedo_car"), { id: "torpedo_car", name: "토페도카" });
   assert.deepEqual(Object.keys(scene.processes[0]).sort(), ["equipment", "id", "name"]);
 });
 

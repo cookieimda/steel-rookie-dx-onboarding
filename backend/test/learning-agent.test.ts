@@ -6,10 +6,12 @@ import { GeminiClient } from "../../llm/src/gemini.js";
 import {
   GeminiLearningAgent,
   LearningFormatError,
+  learningSystemPrompt,
   learningUserPrompt,
   MAX_SCENE_ACTIONS,
   namedEquipment,
   normalizeSceneActions,
+  operationTarget,
   parseLearningReply,
   OVERLOAD_RETRY_DELAYS_MS,
   UNVERIFIED_ANSWER,
@@ -125,7 +127,7 @@ test("화면 조작: 화면 목록의 공정·설비 id를 schema enum으로 묶
 
   const schema = sent[0].generationConfig.responseSchema;
   assert.ok(schema.required.includes("scene_actions"));
-  assert.deepEqual(schema.properties.scene_actions.items.properties.type.enum, ["goto_process", "highlight", "focus", "play_animation"]);
+  assert.deepEqual(schema.properties.scene_actions.items.properties.type.enum, ["goto_process", "highlight", "focus", "play_animation", "show_operation"]);
   assert.deepEqual(schema.properties.scene_actions.items.properties.target_id.enum, ["ironmaking", "coke_oven", "blast_furnace", "steelmaking", "bof_converter"]);
   const system = sent[0].systemInstruction.parts[0].text;
   assert.ok(system.includes("- 공정 ironmaking (제선): coke_oven (코크스 오븐), blast_furnace (고로·장입 장치)"), system);
@@ -173,6 +175,48 @@ test("normalizeSceneActions: 없는 id·조작은 버리고, 다른 공정이면
   ]);
   assert.equal(many.length, MAX_SCENE_ACTIONS);
   assert.equal(normalizeSceneActions([{ type: "focus", target_id: "coke_oven" }], undefined, "ironmaking").length, 0);
+});
+
+test("normalizeSceneActions: show_operation은 작동 단계가 있는 설비 하나만, highlight를 앞에 붙이고, 같은 설비 focus와 공정 애니메이션은 뺀다", () => {
+  // 코크스 오븐만 작동 단계가 없다고 둔다.
+  const scene: SceneCatalog = { processes: SCENE.processes.map((p) => ({ ...p, equipment: p.equipment.map((e) => ({ ...e, ...(e.id === "coke_oven" ? {} : { operation: true }) })) })) };
+  const n = (raw: { type: string; target_id: string }[], current: string | null = "ironmaking") => normalizeSceneActions(raw, scene, current);
+  assert.deepEqual(n([{ type: "show_operation", target_id: "coke_oven" }]), [], "작동 단계가 없는 설비는 버린다");
+  assert.deepEqual(n([{ type: "focus", target_id: "blast_furnace" }, { type: "show_operation", target_id: "blast_furnace" }, { type: "play_animation", target_id: "ironmaking" }]), [
+    { type: "highlight", target_id: "blast_furnace" },
+    { type: "show_operation", target_id: "blast_furnace" },
+  ]);
+  // 다른 공정 설비면 그 공정으로 먼저 옮기고, 두 번째 작동 보기는 버린다.
+  assert.deepEqual(n([{ type: "show_operation", target_id: "bof_converter" }, { type: "show_operation", target_id: "coke_oven" }]), [
+    { type: "goto_process", target_id: "steelmaking" },
+    { type: "highlight", target_id: "bof_converter" },
+    { type: "show_operation", target_id: "bof_converter" },
+  ]);
+  assert.deepEqual(n([{ type: "show_operation", target_id: "ironmaking" }]), [], "공정 id에는 작동 보기가 없다");
+});
+
+test("operationTarget: 작동 과정을 묻는 질문만, 작동 단계가 있는 설비(이름 → 보여 준 설비 → 화면 설비 순서)", () => {
+  const scene: SceneCatalog = { processes: SCENE.processes.map((p) => ({ ...p, equipment: p.equipment.map((e) => ({ ...e, ...(e.id === "coke_oven" ? {} : { operation: true }) })) })) };
+  assert.equal(operationTarget("고로는 어떻게 작동해?", scene, null, []), "blast_furnace");
+  assert.equal(operationTarget("이 설비가 바람을 데우는 과정을 보여 줘", scene, "blast_furnace", []), "blast_furnace");
+  assert.equal(operationTarget("고로는 무슨 일을 해?", scene, null, []), null, "역할 질문은 작동 보기가 아니다");
+  assert.equal(operationTarget("코크스 오븐은 어떻게 작동해?", scene, null, []), null, "작동 단계가 없는 설비");
+  assert.equal(operationTarget("제선 공정 순서를 보여 줘", scene, null, []), null, "설비가 정해지지 않으면 null");
+  assert.equal(operationTarget("작동 원리를 알려 줘", scene, null, [{ type: "focus", target_id: "bof_converter" }]), "bof_converter");
+});
+
+test("parseLearningReply: 작동 질문인데 모델이 focus만 내면 서버가 작동 보기로 바꾼다", () => {
+  const scene: SceneCatalog = { processes: SCENE.processes.map((p) => ({ ...p, equipment: p.equipment.map((e) => ({ ...e, operation: true })) })) };
+  const raw = reply({ detected_misconception: null, scene_actions: [{ type: "focus", target_id: "blast_furnace" }] });
+  const r = parseLearningReply(raw, { ...input({ scene }), question: "고로는 어떻게 작동해?" });
+  assert.ok(typeof r !== "string");
+  assert.deepEqual(r.scene_actions, [{ type: "highlight", target_id: "blast_furnace" }, { type: "show_operation", target_id: "blast_furnace" }]);
+  const role = parseLearningReply(raw, { ...input({ scene }), question: "고로는 뭐 하는 설비야?" });
+  assert.ok(typeof role !== "string");
+  assert.deepEqual(role.scene_actions.map((a) => a.type), ["focus", "highlight"]);
+  // compact 프롬프트에는 작동 보기 표시를 하지 않는다.
+  assert.match(learningSystemPrompt({ ...input({ scene }) }, "full"), /작동 보기/);
+  assert.doesNotMatch(learningSystemPrompt({ ...input({ scene }) }, "compact"), /작동 보기/);
 });
 
 test("normalizeSceneActions: 한 답에서는 한 공정으로만 옮긴다(갔다가 돌아오지 않는다)", () => {

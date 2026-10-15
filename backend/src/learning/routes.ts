@@ -57,6 +57,34 @@ function errorKind(error: unknown): string {
   return "internal";
 }
 
+/** 화면 표시 보고(POST /api/chat/trace/:traceId/ui). 시간은 질문을 보낸 때부터 브라우저 기준(ms). */
+const UiReport = z.object({
+  /** 최종 답을 말풍선에 그리고 3D 조작까지 끝낸 시각. */
+  client_ms: z.number().int().min(0).max(600_000),
+  /** 스트리밍 첫 글자를 말풍선에 그린 시각. 스트리밍이 아니었으면 null. */
+  first_partial_ms: z.number().int().min(0).max(600_000).nullable(),
+  /** 답을 못 받았으면 true(오류 문장을 보여 줌). */
+  error: z.boolean(),
+  /** 3D 조작 실행 결과(runSceneActions). */
+  actions: z.array(z.object({ type: z.string().max(40), target_id: z.string().max(60), status: z.enum(["succeeded", "failed"]) })).max(10),
+});
+
+/** 사용자별로 최근 발급한 trace id(화면 표시 보고를 한 번만 받으려고). 오래된 것부터 지워 MAX개를 넘지 않는다. */
+export class IssuedTraces {
+  private readonly owners = new Map<string, string>();
+  constructor(private readonly max = 2000) {}
+  add(traceId: string, userId: string): void {
+    this.owners.set(traceId, userId);
+    if (this.owners.size > this.max) this.owners.delete(this.owners.keys().next().value!);
+  }
+  /** 그 사용자의 id면 지우고 true(두 번째 보고는 받지 않는다). */
+  take(traceId: string, userId: string): boolean {
+    if (this.owners.get(traceId) !== userId) return false;
+    this.owners.delete(traceId);
+    return true;
+  }
+}
+
 const ChatRequest = z.object({
   question: z.string().trim().min(1).max(1000),
   session_id: z.string().uuid().optional(),
@@ -172,17 +200,37 @@ export function createLearningRouter({ repo, retriever, agent, rubrics, scene, s
   };
   // 같은 세션에서 답변 중에 또 질문하면 막는다(대화 순서가 꼬이지 않게).
   const busy = new Set<string>();
+  const issued = new IssuedTraces();
 
   // 요청마다 trace(llm/src/trace.ts)를 만들어 단계별 시간·검색 후보·모델 제안·서버 검증 결과를 남긴다(docs/agent-observability.md).
   // 클라이언트가 X-Trace-Id를 보내면 그 id를 쓰고, 응답 헤더 X-Trace-Id와 본문 trace_id로 돌려준다.
   router.post("/api/chat", async (req, res) => {
     const trace = new Trace("learning", req.get("x-trace-id"));
     res.setHeader("X-Trace-Id", trace.id);
+    issued.add(trace.id, currentUserId());
     try {
       await runWithTrace(trace, () => chat(req, res, trace));
     } finally {
       traceSink?.(trace.toRecord());
     }
+  });
+
+  // 화면 표시 단계(로드맵 Stage 1): 프론트가 답을 그리고 3D 조작을 실행한 결과를 같은 trace id로 보낸다(learning-ui-날짜.jsonl).
+  // 그 사용자에게 최근 발급한 trace id만 받는다(남의 기록에 끼워 넣지 못하게). 기록을 남기지 않는 서버(traceSink 없음)는 받기만 한다.
+  router.post("/api/chat/trace/:traceId/ui", (req, res) => {
+    const traceId = req.params.traceId;
+    const body = UiReport.safeParse(req.body);
+    if (!body.success) {
+      res.status(400).json({ error: "형식이 올바르지 않아요." });
+      return;
+    }
+    if (!issued.take(traceId, currentUserId())) {
+      res.status(404).json({ error: "기록을 찾지 못했어요." });
+      return;
+    }
+    const at = now();
+    traceSink?.({ trace_id: traceId, kind: "learning-ui", at, total_ms: body.data.client_ms, stages: {}, llm_calls: [], llm_tokens: null, ...body.data });
+    res.status(204).end();
   });
 
   const chat = async (req: express.Request, res: express.Response, trace: Trace) => {
@@ -301,12 +349,13 @@ export function createLearningRouter({ repo, retriever, agent, rubrics, scene, s
       if (error instanceof UsageLimitError) {
         send(429, { error: `오늘 쓸 수 있는 튜터 호출(${error.limit}회)을 다 썼어요.`, code: "USAGE_LIMIT" });
       } else if (error instanceof LlmUnavailableError) {
-        console.error(`학습 모드 Gemini 오류(trace ${trace.id}): ${error.message}`);
+        console.error(`학습 모드 LLM 오류(trace ${trace.id}): ${error.message}`);
+        // provider(Gemini·Ollama)를 가리지 않는 문장. 503은 설정 누락(Gemini 키 없음·Ollama 모델 미지정)이다.
         send(
           error.status,
           error.status === 503
-            ? { error: "Gemini가 연결되지 않았어요. 서버에 GEMINI_API_KEY를 설정해 주세요.", code: "LLM_NOT_CONFIGURED" }
-            : { error: "Gemini 연결 중 오류가 생겼어요. 잠시 후 다시 시도해 주세요." },
+            ? { error: "튜터 모델이 연결되지 않았어요. 서버의 LLM 설정(GEMINI_API_KEY 또는 Ollama)을 확인해 주세요.", code: "LLM_NOT_CONFIGURED" }
+            : { error: "튜터 모델 연결 중 오류가 생겼어요. 잠시 후 다시 시도해 주세요." },
         );
       } else if (error instanceof LearningFormatError) {
         console.error(`${error.message} (trace ${trace.id})`);
@@ -322,21 +371,34 @@ export function createLearningRouter({ repo, retriever, agent, rubrics, scene, s
 
   // 저장된 대화(오래된 것부터 최근 RESTORE_TURNS개). 없는 세션·다른 사람의 세션은 POST와 같이 구분하지 않고 404.
   // follow_up·scene_actions·keyword_card는 저장하지 않으므로 돌려주지 않는다(다시 보여 줄 때 화면을 움직이지 않는다).
+  // 대화 복원도 trace(learning-restore)로 남긴다: 결과(ok·not_found·error)·복원한 대화 수·걸린 시간(로드맵 Stage 1 '대화 복원').
   router.get("/api/chat/sessions/:sessionId", (req, res) => {
+    const trace = new Trace("learning-restore");
     const sessionId = req.params.sessionId;
-    if (!z.string().uuid().safeParse(sessionId).success || repo.sessionOwner(sessionId) !== currentUserId()) {
-      res.status(404).json(NOT_FOUND);
-      return;
+    try {
+      if (!z.string().uuid().safeParse(sessionId).success || repo.sessionOwner(sessionId) !== currentUserId()) {
+        trace.set("outcome", "not_found");
+        res.status(404).json(NOT_FOUND);
+        return;
+      }
+      const turns = trace.time("load", () => repo.recentTurns(sessionId, RESTORE_TURNS).map((t) => ({
+        question: t.question,
+        answer: t.answer,
+        status: t.status,
+        section: t.section,
+        equipment_id: t.equipment_id,
+        sources: toSources(retriever.sourceIdsOf(t.section ?? "ironmaking", t.source_ids)),
+      })));
+      trace.set("outcome", "ok");
+      trace.set("restored_turns", turns.length);
+      res.json({ session_id: sessionId, turns });
+    } catch (error) {
+      trace.set("outcome", "error");
+      trace.set("error", { kind: "internal", message: (error as Error)?.message ?? String(error) });
+      throw error;
+    } finally {
+      traceSink?.(trace.toRecord());
     }
-    const turns = repo.recentTurns(sessionId, RESTORE_TURNS).map((t) => ({
-      question: t.question,
-      answer: t.answer,
-      status: t.status,
-      section: t.section,
-      equipment_id: t.equipment_id,
-      sources: toSources(retriever.sourceIdsOf(t.section ?? "ironmaking", t.source_ids)),
-    }));
-    res.json({ session_id: sessionId, turns });
   });
 
   return router;

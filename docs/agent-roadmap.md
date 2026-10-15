@@ -6,13 +6,16 @@ FloodOps 저장소에 임시로 올렸던 계획(`docs/HARVARD_AGENT_ROADMAP_ST-
 
 | 로드맵 항목 | 상태 | 위치 |
 |---|---|---|
-| Stage 1 요청별 trace | 학습 모드(`/api/chat`) 완료 | [agent-observability.md](agent-observability.md), `npm run trace:report` |
+| Stage 1 요청별 trace | 학습 모드(`/api/chat`) 완료: 서버 단계·LLM 호출·화면 표시(`learning-ui`)·대화 복원(`learning-restore`) | [agent-observability.md](agent-observability.md), `npm run trace:report` |
+| 답변 사실 평가 | `facts`(필수 사실)·`must_not`(하면 안 되는 주장), 제선 11문항 | [learning-mode.md](learning-mode.md) '품질 평가' |
+| 작동 보기(`show_operation`) | 튜터가 설비 작동 단계를 3D로 보여 줌. 작동 질문은 서버 규칙으로도 붙임 | [learning-mode.md](learning-mode.md) '화면 조작' |
 | 근거 겹침(답변 근거성) 지표 | 관찰용 지표 완료, status에는 반영 안 함 | `llm/src/grounding.ts`, trace·`eval:learning` 보고서 |
-| 교육용 평가 세트 | 학습 답변 84개 + 추천 질문 칩, 검색 41개(제선 27 + 후속 질문 14) | `llm/eval/learning/`, `llm/eval/retrieval/` |
+| 교육용 평가 세트 | 학습 답변 86개 + 추천 질문 칩, 검색 41개(제선 27 + 후속 질문 14) | `llm/eval/learning/`, `llm/eval/retrieval/` |
 | Recall@5·MRR | 있음 | `npm run eval:retrieval` |
 | 잘못된 source/concept/scene action 차단 테스트 | 있음 | `backend/test/learning-agent.test.ts`, `learning-route.test.ts` |
 | 비용·지연 기준선 | trace로 수집 시작. 실제 사용 기록이 쌓이면 적는다 | 아래 Stage 3 |
-| 모델 비교 | Ollama 로컬 비교는 보류(시연은 Gemini만, PR #126) | `docs/ollama-*.md` |
+| provider 계층(Gemini·Ollama) | 완료. 같은 에이전트·같은 평가 세트를 `LLM_PROVIDER`로 바꿔 돌림, Ollama는 짧은 프롬프트·채점 보강 | [llm-providers.md](llm-providers.md) |
+| 모델 비교 | Ollama(qwen2.5:3b) 측정 기록 있음. Gemini는 유료 평가 중단으로 예전 기록과 비교 | [llm-providers.md](llm-providers.md) '측정 기록' |
 
 유료 Gemini 평가 실행은 하지 않기로 했다(2026-10-14). 기준선은 서버 trace(실제 사용)와 이미 있는 평가 기록으로 만든다.
 
@@ -61,15 +64,15 @@ ST-Rookie는 FloodOps와 다르다. 현재 구조는 일반적인 다중 도구 
 | P2 | 모델 대안 비교 | benchmark 결과표 | 근거를 바탕으로 전환 결정 |
 
 ## Stage 1 — Mads-Lens: 관찰 가능성
-- [x] 요청별 trace ID로 프런트와 백엔드 이벤트를 연결한다. (`X-Trace-Id` 헤더·응답 `trace_id`. 프런트가 보내는 UI 표시 이벤트는 아직 없음)
-- [x] 질문 → 안전 분기 → 검색 후보/점수 → 선택 근거 → Gemini 호출/재시도 → 응답 파싱 → 서버 검증 → DB 저장을 기록한다. UI 표시는 아직.
+- [x] 요청별 trace ID로 프런트와 백엔드 이벤트를 연결한다. (`X-Trace-Id` 헤더·응답 `trace_id`, 프런트의 화면 표시 보고 `learning-ui`)
+- [x] 질문 → 안전 분기 → 검색 후보/점수 → 선택 근거 → Gemini 호출/재시도 → 응답 파싱 → 서버 검증 → DB 저장 → UI 표시(첫 글자·최종 답·3D 조작 성공/실패)를 기록한다.
 - [x] 검색 조각 ID, 점수, source ID를 기록한다. 원문 전체를 운영 로그에 복제하지 않는다.
 - [x] Gemini 호출 수, 토큰(제공되는 경우), 단계별 시간, 재시도 사유, 오류를 기록한다.
 - [x] unverified 응답을 검색 부족(`no_chunks`), 근거 밖 답변(`model_unverified`), 출처 검증 실패(`invalid_sources`)로 분류한다. 형식 오류·연결 오류는 `error.kind`.
 - [x] 모델이 제안한 scene_actions와 서버 검증 후 액션을 분리해 기록한다.
 - [ ] 대화 복원, 세션 경계, 저장 실패도 측정한다. (세션 id·새 세션 여부·저장 시간은 기록. 복원 요청은 아직)
 
-**완료 기준:** 검색 실패, 생성 실패, 검증 실패, 저장/UI 실패를 trace로 구분할 수 있다. → UI 실패를 뺀 나머지 완료.
+**완료 기준:** 검색 실패, 생성 실패, 검증 실패, 저장/UI 실패를 trace로 구분할 수 있다. → 완료(대화 복원 측정만 남음).
 
 ## Stage 2 — Mads-Loop 원칙: 현재 파이프라인의 실패 정책
 현재의 고정 파이프라인을 먼저 평가한다. 무조건 자율 반복 Agent로 바꾸지 않는다.
@@ -83,7 +86,7 @@ ST-Rookie는 FloodOps와 다르다. 현재 구조는 일반적인 다중 도구 
 - [ ] 검색 실패에 따라 키워드, 태그, 화면 가중치, 청크 구성을 조정한다. (trace의 `no_chunks`·낮은 1위 점수 질문을 세트에 옮겨 계속)
 
 ### 답변 평가
-- [ ] 질문별 필수 사실, 필수 출처, 금지할 과장 표현을 정의한다. (지금은 `answer_any` 낱말 검사만)
+- [~] 질문별 필수 사실, 필수 출처, 금지할 과장 표현을 정의한다. (`expect.facts`·`must_not`, 제선 11문항. 필수 출처는 아직)
 - [~] 출처가 핵심 사실을 실제로 뒷받침하는지 평가한다. (근거 겹침 지표로 관찰 시작, 사람 라벨 정밀도 측정 전)
 - [ ] 공개 자료를 넘어선 사실이나 근거 없는 운전 지시를 덧붙이지 않는지 확인한다.
 - [x] 잘못된 source ID, concept ID, 응답 스키마를 테스트한다.
@@ -104,7 +107,11 @@ ST-Rookie는 FloodOps와 다르다. 현재 구조는 일반적인 다중 도구 
 - [~] Gemini 호출 수, 재시도, 토큰, 검색 시간, p50/p95 응답 시간을 기준선으로 측정한다. (trace로 수집 시작, `trace:report`)
 - [ ] 현재 코드의 대화·오개념 컨텍스트 상한이 실제로 어떻게 적용되는지 확인한다. (trace `context`·`agent.prompt_chars`로 볼 수 있음)
 - [ ] 중복 프롬프트와 반복 컨텍스트를 줄이되 근거·단위·자료 한계는 유지한다.
-- [ ] 검색 결과 5개가 항상 필요한지 실험한다. 줄일 때는 Recall@k와 답변 근거성을 함께 평가한다.
+- [~] 검색 결과 5개가 항상 필요한지 실험한다. 줄일 때는 Recall@k와 답변 근거성을 함께 평가한다.
+  - 2026-10-15 `eval:retrieval --max-results k`(모델 호출 없음): 단독 질문 Recall@1 77.8%, @2 92.6%, @3 96.3%, @5 100%(27개), 이어지는 질문은 @2부터 100%(14개). MRR @3 0.790, @5 0.798.
+  - 로컬 모델(compact)이 실제로 받는 근거(최대 3개·2,200자) 기준 Recall 24/25(평균 2.92개 전송). 놓친 질문은 "출선구는 어떻게 막아?" 하나.
+  - 결론: Gemini는 5개 유지(토큰 여유가 있고 1개를 더 잡는다). 로컬은 3개로 근거 손실 4%를 감수하고 지연을 줄인다. 답변 근거성까지 비교하는 것은 다음 단계.
+- [x] 근거 검색 0건일 때 다시 찾기가 필요한지 측정: 학습 평가 84문항 중 0건은 안전 질문 1개뿐(검색 전에 차단됨)이라 만들지 않는다. 실제 사용의 `no_chunks`는 trace로 본다.
 - [ ] 캐시를 도입한다면 화면 컨텍스트, 대화, 오개념, 자료·루브릭 버전을 고려해 오래된 결과가 재사용되지 않게 한다. (답 저장은 이미 있음: `answer-cache.ts`, 모델·프롬프트·자료 버전 키)
 - [ ] 재시도가 비용과 호출 한도에 미치는 영향을 측정한다.
 - [ ] 최적화는 같은 평가 세트에서 품질을 확인한 뒤 적용한다.
@@ -134,7 +141,8 @@ ST-Rookie는 FloodOps와 다르다. 현재 구조는 일반적인 다중 도구 
 
 ## Stage 4 — Mads-Serve: 모델 대안 비교
 지금은 Gemini 구조를 유지한다. 자체 서빙이 교육 품질을 자동으로 높이지는 않는다.
-- [ ] 동일 평가 질문·검색 결과·응답 스키마로 모델을 비교한다.
+- [x] provider 계층: `LLM_PROVIDER=gemini|ollama`로 모든 에이전트가 같은 클라이언트를 쓴다. 응답 검증은 provider와 상관없이 서버가 한다. ([llm-providers.md](llm-providers.md))
+- [~] 동일 평가 질문·검색 결과·응답 스키마로 모델을 비교한다. (모든 `eval:*`가 provider를 따름. Ollama 측정 완료, Gemini는 예전 기록)
 - [ ] 검색 결과를 고정한 모델 비교와 retrieval부터 포함한 end-to-end 비교를 분리한다.
 - [ ] 한국어 제선 설명, 출처 선택, 구조화 응답, 오개념 감지, 안전 분기, scene action을 평가한다.
 - [ ] GPU 비용뿐 아니라 배포·모니터링·모델 로딩·장애 대응을 계산한다.

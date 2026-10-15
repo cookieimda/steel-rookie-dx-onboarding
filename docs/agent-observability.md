@@ -75,8 +75,22 @@ npm run trace:report -- [--dir data/traces] [--since 2026-10-15] [--until 2026-1
 
 `npm run eval:learning` 보고서에도 근거 겹침 줄이 붙는다(같은 함수, 관찰용).
 
+## 화면 표시 단계 (`learning-ui`)
+
+프런트(`learning-chat.js`의 `reportUi`)가 최종 답을 말풍선에 그리고 3D 조작을 실행한 뒤, 같은 trace id로 `POST /api/chat/trace/:traceId/ui`를 보낸다. 서버는 `data/traces/learning-ui-날짜.jsonl`에 남기고 `trace:report`가 trace id로 이어 붙인다.
+
+| 필드 | 내용 |
+|---|---|
+| `client_ms` | 질문을 보낸 때부터 최종 답·3D 조작까지(브라우저 기준) |
+| `first_partial_ms` | 스트리밍 첫 글자를 그린 시각(스트리밍이 아니면 null) |
+| `error` | 답을 못 받아 오류 문장을 보여 줬는지 |
+| `actions` | 3D 조작별 `succeeded`·`failed`(예: 2D 화면에서 `show_operation`은 실패) |
+
+- 그 사용자에게 최근 발급한 trace id만, 한 번만 받는다(다른 사람의 기록에 끼워 넣지 못하게). 서버가 기억하는 id는 최근 2,000개이고 재시작하면 비운다.
+- 보고는 기다리지 않고 실패해도 화면에 알리지 않는다.
+- 요약: 화면 표시 p50/p95, 첫 글자 p50, 서버 밖 시간(브라우저 시간 - 서버 `total_ms`: 네트워크·그리기·3D 조작), 3D 조작 종류별 성공률.
+
 ## 다음
 
 - 실제 사용 기록이 쌓이면 trace:report로 기준선(지연 p50/p95, 토큰, unverified 원인 비율)을 [agent-roadmap.md](agent-roadmap.md) Stage 3 표에 적는다.
-- 화면 표시(UI) 단계: 프런트가 답을 그리고 화면 조작을 실행한 시각을 같은 trace id로 보내는 것은 아직 없다.
-- 체크포인트·시험·보충학습 경로는 아직 trace를 만들지 않는다(GeminiClient는 trace가 있으면 기록하므로 라우트에서 감싸면 된다).
+- 체크포인트·시험·보충학습 경로는 아직 trace를 만들지 않는다(LLM 클라이언트는 trace가 있으면 기록하므로 라우트에서 감싸면 된다).

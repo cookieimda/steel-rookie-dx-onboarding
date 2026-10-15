@@ -5,6 +5,7 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { pathToFileURL } from "node:url";
 import express from "express";
 import { groundingLines } from "../../llm/eval/run-learning.js";
 import { formatReport, quantile, readTraces, summarizeTraces } from "../../llm/eval/trace-report.js";
@@ -91,7 +92,7 @@ test("GeminiClient: trace 안에서 부르면 호출마다 모델·성공 여부
     await assert.rejects(client.generate({ system: "", prompt: "", temperature: 0, maxOutputTokens: 10 }));
   });
   assert.equal(t.llm_calls.length, 2);
-  assert.deepEqual({ ...t.llm_calls[0], ms: 0 }, { model: "test-model", ms: 0, ok: true, streamed: false, tokens: { prompt: 110, output: 10, thoughts: undefined, total: 120 } });
+  assert.deepEqual({ ...t.llm_calls[0], ms: 0 }, { model: "gemini:test-model", ms: 0, ok: true, streamed: false, tokens: { prompt: 110, output: 10, thoughts: undefined, total: 120 } });
   assert.equal(t.llm_calls[1]!.ok, false);
   assert.equal(t.llm_calls[1]!.failure, "rate_limit");
   assert.equal(t.llm_calls[1]!.http_status, 429);
@@ -178,8 +179,59 @@ async function setup() {
     const res = await fetch(`${base}/api/chat`, { method: "POST", headers: { "content-type": "application/json", "x-user-id": "minsu", ...headers }, body: JSON.stringify(body) });
     return { status: res.status, header: res.headers.get("x-trace-id"), text: await res.text() };
   };
-  return { agent, traces, ask, close: () => server.close() };
+  const ui = async (traceId: string, body: unknown, user = "minsu") =>
+    (await fetch(`${base}/api/chat/trace/${traceId}/ui`, { method: "POST", headers: { "content-type": "application/json", "x-user-id": user }, body: JSON.stringify(body) })).status;
+  const restore = async (sessionId: string, user = "minsu") => (await fetch(`${base}/api/chat/sessions/${sessionId}`, { headers: { "x-user-id": user } })).status;
+  return { agent, traces, ask, ui, restore, close: () => server.close() };
 }
+
+test("POST /api/chat/trace/:id/ui: 그 사용자에게 발급한 trace id로 한 번만 화면 표시 결과를 받아 learning-ui 기록으로 남긴다", async () => {
+  const t = await setup();
+  try {
+    const { header } = await t.ask({ question: "코크스는 고로에서 무슨 일을 해?" });
+    const report = { client_ms: 5200, first_partial_ms: 900, error: false, actions: [{ type: "show_operation", target_id: "blast_furnace", status: "failed" }] };
+    assert.equal(await t.ui(header!, { ...report, client_ms: -1 }), 400);
+    assert.equal(await t.ui(header!, report, "someone-else"), 404, "다른 사용자는 못 보낸다");
+    assert.equal(await t.ui(header!, report), 204);
+    assert.equal(await t.ui(header!, report), 404, "두 번째 보고는 받지 않는다");
+    assert.equal(await t.ui("never-issued-id", report), 404);
+    const ui = t.traces.find((r) => r.kind === "learning-ui")!;
+    assert.deepEqual([ui.trace_id, ui.total_ms, ui.first_partial_ms, (ui.actions as unknown[]).length], [header, 5200, 900, 1]);
+  } finally {
+    t.close();
+  }
+});
+
+test("GET /api/chat/sessions/:id: 대화 복원도 learning-restore 기록(결과·복원한 대화 수)을 남긴다", async () => {
+  const t = await setup();
+  try {
+    const { text } = await t.ask({ question: "코크스는 고로에서 무슨 일을 해?" });
+    const sessionId = JSON.parse(text).session_id as string;
+    await t.restore(sessionId);
+    await t.restore(sessionId, "someone-else");
+    const restores = t.traces.filter((r) => r.kind === "learning-restore");
+    assert.deepEqual(restores.map((r) => [r.outcome, r.restored_turns]), [["ok", 1], ["not_found", undefined]]);
+    const s = summarizeTraces([], 10, [], restores);
+    assert.deepEqual([s.restore.requests, s.restore.outcomes, s.restore.turns_mean], [2, { ok: 1, not_found: 1 }, 1]);
+  } finally {
+    t.close();
+  }
+});
+
+test("reportUi(프론트): trace id가 없으면 보내지 않고, 조작 결과는 필요한 필드만 10개까지 보낸다", async () => {
+  const { reportUi } = await import(pathToFileURL(join(process.cwd(), "frontend", "3d-demo", "learning-chat.js")).href);
+  const sent: { method: string; path: string; body: { actions: object[] } }[] = [];
+  const send = async (method: string, path: string, body: { actions: object[] }) => void sent.push({ method, path, body });
+  reportUi(null, { client_ms: 1, first_partial_ms: null, error: true, actions: [] }, send);
+  assert.equal(sent.length, 0);
+  const actions = Array.from({ length: 12 }, (_, i) => ({ type: "focus", target_id: `e${i}`, status: "succeeded", extra: "x" }));
+  reportUi("web-abcdef12", { client_ms: 10, first_partial_ms: 3, error: false, actions }, send);
+  assert.equal(sent[0]!.path, "/api/chat/trace/web-abcdef12/ui");
+  assert.equal(sent[0]!.body.actions.length, 10);
+  assert.deepEqual(sent[0]!.body.actions[0], { type: "focus", target_id: "e0", status: "succeeded" });
+  // 보내기가 실패해도 예외가 밖으로 나오지 않는다.
+  reportUi("web-abcdef12", { client_ms: 1, first_partial_ms: null, error: false, actions: [] }, async () => { throw new Error("offline"); });
+});
 
 test("POST /api/chat: 요청마다 trace를 남기고 X-Trace-Id·trace_id로 돌려준다", async () => {
   const t = await setup();
@@ -276,7 +328,13 @@ test("trace 요약: 결과·unverified 원인·지연 분위수·서버 검증�
       result: { status: "unverified", unverified_reason: "no_chunks", source_ids: [], scene_actions: [], misconception: null, keyword_card: null } }),
     base({ trace_id: "c", outcome: "error", llm_calls: [{ model: "m", ms: 5, ok: false, streamed: false, failure: "timeout" }], llm_tokens: null, error: { kind: "llm_unavailable", message: "x" } }),
   ];
-  const s = summarizeTraces(records as never);
+  const ui = [
+    { trace_id: "a", kind: "learning-ui", at: "x", total_ms: 400, stages: {}, llm_calls: [], llm_tokens: null, client_ms: 400, first_partial_ms: 120, error: false, actions: [{ type: "show_operation", target_id: "bf", status: "failed" }, { type: "focus", target_id: "bf", status: "succeeded" }] },
+  ];
+  const s = summarizeTraces(records as never, 10, ui as never);
+  assert.deepEqual([s.ui.reports, s.ui.client_p50, s.ui.first_partial_p50, s.ui.overhead_p50], [1, 400, 120, 300]);
+  assert.deepEqual(s.ui.actions, { show_operation: { run: 1, failed: 1 }, focus: { run: 1, failed: 0 } });
+  assert.equal(summarizeTraces(records as never).ui.reports, 0);
   assert.deepEqual(s.outcomes, { grounded: 1, unverified: 1, error: 1 });
   assert.deepEqual(s.unverified_reasons, { no_chunks: 1 });
   assert.deepEqual(s.errors, { llm_unavailable: 1 });
@@ -293,7 +351,11 @@ test("trace 요약: 결과·unverified 원인·지연 분위수·서버 검증�
   assert.equal(s.validation.misconception_dropped, 1);
   assert.equal(s.grounding.low[0]!.trace_id, "a");
   assert.deepEqual(s.unverified_questions.map((u) => u.question), ["q2"]);
+  assert.deepEqual(Object.keys(s.by_model), ["m"]);
+  assert.deepEqual([s.by_model.m!.requests, s.by_model.m!.grounded, s.by_model.m!.unverified, s.by_model.m!.errors], [3, 1, 1, 1]);
+  assert.equal(s.by_model.m!.grounding_mean, 0.5);
   const text = formatReport(s);
+  assert.match(text, /모델별/);
   assert.match(text, /unverified 원인: no_chunks 1/);
   assert.match(text, /버린 source id 1\/2/);
 });

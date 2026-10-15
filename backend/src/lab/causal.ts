@@ -6,6 +6,8 @@ export type ProcessId = "ironmaking" | "steelmaking" | "continuous_casting" | "r
 
 export interface NodeDef {
   id: string; label: string; unit: string; process: ProcessId; equipment_id: string;
+  /** 변수 설명 카드에 보여 줄 한두 문장. */
+  desc?: string;
   base: number; normal: [number, number]; digits: number;
   /** 조정할 수 있는 변수면 범위와 간격. */
   control?: { min: number; max: number; step: number };
@@ -13,26 +15,26 @@ export interface NodeDef {
 export interface EdgeDef { from: string; to: string; coef: number; why: string }
 
 export const NODES: NodeDef[] = [
-  { id: "coke_rate", label: "코크스비", unit: "kg/t", process: "ironmaking", equipment_id: "coke_oven", base: 340, normal: [320, 380], digits: 0, control: { min: 280, max: 420, step: 10 } },
-  { id: "basicity", label: "고로 슬래그 염기도", unit: "", process: "ironmaking", equipment_id: "blast_furnace", base: 1.2, normal: [1.1, 1.3], digits: 2, control: { min: 0.9, max: 1.4, step: 0.05 } },
-  { id: "hm_temp", label: "용선 온도", unit: "℃", process: "ironmaking", equipment_id: "taphole_casthouse", base: 1500, normal: [1480, 1530], digits: 0 },
-  { id: "hm_si", label: "용선 규소(Si)", unit: "%", process: "ironmaking", equipment_id: "taphole_casthouse", base: 0.45, normal: [0.3, 0.6], digits: 2 },
-  { id: "hm_s", label: "용선 황(S)", unit: "%", process: "ironmaking", equipment_id: "torpedo_car", base: 0.03, normal: [0.015, 0.04], digits: 3 },
-  { id: "desulf_min", label: "예비처리 탈황 시간", unit: "분", process: "steelmaking", equipment_id: "hot_metal_pretreatment", base: 15, normal: [10, 22], digits: 0 },
-  { id: "scrap_pct", label: "전로 고철 투입 여유", unit: "%", process: "steelmaking", equipment_id: "bof_converter", base: 18, normal: [14, 22], digits: 1 },
-  { id: "bof_slag", label: "전로 슬래그량", unit: "kg/t", process: "steelmaking", equipment_id: "bof_converter", base: 90, normal: [70, 110], digits: 0 },
-  { id: "slopping", label: "슬로핑(넘침) 위험", unit: "점", process: "steelmaking", equipment_id: "oxygen_lance_offgas", base: 20, normal: [0, 40], digits: 0 },
-  { id: "tap_temp", label: "출강 온도", unit: "℃", process: "steelmaking", equipment_id: "tapping_ladle_crane", base: 1640, normal: [1620, 1660], digits: 0, control: { min: 1600, max: 1690, step: 5 } },
-  { id: "superheat", label: "턴디시 과열도", unit: "℃", process: "continuous_casting", equipment_id: "tundish", base: 30, normal: [20, 35], digits: 0 },
-  { id: "cast_speed", label: "주조 속도", unit: "m/분", process: "continuous_casting", equipment_id: "cc_mold", base: 1.2, normal: [1.0, 1.4], digits: 2, control: { min: 0.8, max: 1.8, step: 0.05 } },
-  { id: "shell_mm", label: "주형 출구 응고 껍질", unit: "mm", process: "continuous_casting", equipment_id: "cc_mold", base: 15, normal: [12, 20], digits: 1 },
-  { id: "breakout", label: "브레이크아웃 위험", unit: "점", process: "continuous_casting", equipment_id: "secondary_cooling", base: 10, normal: [0, 30], digits: 0 },
-  { id: "center_seg", label: "슬래브 중심 편석", unit: "점", process: "continuous_casting", equipment_id: "torch_cutter", base: 20, normal: [0, 35], digits: 0 },
-  { id: "reheat_temp", label: "재가열 온도", unit: "℃", process: "rolling", equipment_id: "reheating_furnace", base: 1200, normal: [1170, 1240], digits: 0, control: { min: 1150, max: 1260, step: 5 } },
-  { id: "rolled_defect", label: "압연 내부 결함 위험", unit: "점", process: "rolling", equipment_id: "roughing_mill", base: 10, normal: [0, 30], digits: 0 },
-  { id: "fdt", label: "사상압연 출구 온도", unit: "℃", process: "rolling", equipment_id: "finishing_mill", base: 880, normal: [860, 900], digits: 0 },
-  { id: "cool_banks", label: "런아웃 냉각 뱅크", unit: "개", process: "rolling", equipment_id: "runout_table", base: 10, normal: [8, 12], digits: 0, control: { min: 6, max: 16, step: 1 } },
-  { id: "coiling_temp", label: "권취 온도", unit: "℃", process: "rolling", equipment_id: "coiler", base: 600, normal: [580, 620], digits: 0 },
+  { id: "coke_rate", desc: "용선 1톤을 만드는 데 넣는 코크스 양이에요. 열을 내는 연료이자 철광석에서 산소를 떼는 환원 가스(CO)의 원료이고, 노 안에서 원료를 받쳐 가스가 지나갈 길도 만들어요.", label: "코크스비", unit: "kg/t", process: "ironmaking", equipment_id: "coke_oven", base: 340, normal: [320, 380], digits: 0, control: { min: 280, max: 420, step: 10 } },
+  { id: "basicity", desc: "고로 슬래그의 CaO를 SiO2로 나눈 값이에요. 슬래그가 얼마나 잘 흐르는지, 황을 얼마나 붙잡는지를 정해요.", label: "고로 슬래그 염기도", unit: "", process: "ironmaking", equipment_id: "blast_furnace", base: 1.2, normal: [1.1, 1.3], digits: 2, control: { min: 0.9, max: 1.4, step: 0.05 } },
+  { id: "hm_temp", desc: "출선구에서 나오는 쇳물(용선)의 온도예요. 노 아래쪽이 얼마나 뜨거운지 보여 주는 대표 지표예요.", label: "용선 온도", unit: "℃", process: "ironmaking", equipment_id: "taphole_casthouse", base: 1500, normal: [1480, 1530], digits: 0 },
+  { id: "hm_si", desc: "용선에 녹아 있는 규소 비율이에요. 노 아래가 뜨거울수록 오르는 경향이 있어 노의 열 상태를 함께 보여 줘요.", label: "용선 규소(Si)", unit: "%", process: "ironmaking", equipment_id: "taphole_casthouse", base: 0.45, normal: [0.3, 0.6], digits: 2 },
+  { id: "hm_s", desc: "용선에 녹아 있는 황 비율이에요. 황이 많으면 강이 뜨거울 때 부서지기 쉬워져서 제강 전에 줄여야 해요.", label: "용선 황(S)", unit: "%", process: "ironmaking", equipment_id: "torpedo_car", base: 0.03, normal: [0.015, 0.04], digits: 3 },
+  { id: "desulf_min", desc: "용선 예비처리에서 황을 빼는 데 걸리는 시간이에요. 길어지면 그만큼 다음 공정이 기다려요.", label: "예비처리 탈황 시간", unit: "분", process: "steelmaking", equipment_id: "hot_metal_pretreatment", base: 15, normal: [10, 22], digits: 0 },
+  { id: "scrap_pct", desc: "전로에 용선과 함께 넣어 녹일 수 있는 고철 비율이에요. 용선이 가져온 열이 많을수록 늘릴 수 있어요.", label: "전로 고철 투입 여유", unit: "%", process: "steelmaking", equipment_id: "bof_converter", base: 18, normal: [14, 22], digits: 1 },
+  { id: "bof_slag", desc: "전로에서 생기는 슬래그 양이에요(강 1톤당). 규소처럼 산화되는 성분이 많을수록 늘어요.", label: "전로 슬래그량", unit: "kg/t", process: "steelmaking", equipment_id: "bof_converter", base: 90, normal: [70, 110], digits: 0 },
+  { id: "slopping", desc: "전로의 거품 슬래그가 노구로 넘칠 위험을 점수로 나타낸 교육용 지표예요.", label: "슬로핑(넘침) 위험", unit: "점", process: "steelmaking", equipment_id: "oxygen_lance_offgas", base: 20, normal: [0, 40], digits: 0 },
+  { id: "tap_temp", desc: "전로에서 용강을 래들로 쏟아 낼 때의 온도예요. 정련·이송 중 식는 만큼을 생각해 정해요.", label: "출강 온도", unit: "℃", process: "steelmaking", equipment_id: "tapping_ladle_crane", base: 1640, normal: [1620, 1660], digits: 0, control: { min: 1600, max: 1690, step: 5 } },
+  { id: "superheat", desc: "턴디시 용강 온도가 그 강이 굳기 시작하는 온도보다 얼마나 높은지예요. 높으면 굳는 데 시간이 더 걸려요.", label: "턴디시 과열도", unit: "℃", process: "continuous_casting", equipment_id: "tundish", base: 30, normal: [20, 35], digits: 0 },
+  { id: "cast_speed", desc: "주형에서 주편을 뽑아내는 속도예요. 빠르면 생산량은 늘지만 주형 안에서 굳을 시간이 줄어요.", label: "주조 속도", unit: "m/분", process: "continuous_casting", equipment_id: "cc_mold", base: 1.2, normal: [1.0, 1.4], digits: 2, control: { min: 0.8, max: 1.8, step: 0.05 } },
+  { id: "shell_mm", desc: "주형을 빠져나올 때 주편 바깥에 굳은 껍질 두께예요. 안쪽은 아직 녹아 있어 이 껍질이 쇳물을 버텨요.", label: "주형 출구 응고 껍질", unit: "mm", process: "continuous_casting", equipment_id: "cc_mold", base: 15, normal: [12, 20], digits: 1 },
+  { id: "breakout", desc: "응고 껍질이 찢어져 용강이 새어 나올 위험을 점수로 나타낸 교육용 지표예요.", label: "브레이크아웃 위험", unit: "점", process: "continuous_casting", equipment_id: "secondary_cooling", base: 10, normal: [0, 30], digits: 0 },
+  { id: "center_seg", desc: "슬래브 두께 가운데에 탄소·황 같은 성분이 몰리는 정도를 점수로 나타낸 교육용 지표예요.", label: "슬래브 중심 편석", unit: "점", process: "continuous_casting", equipment_id: "torch_cutter", base: 20, normal: [0, 35], digits: 0 },
+  { id: "reheat_temp", desc: "슬래브를 압연하기 전에 데우는 재가열로 온도예요. 너무 낮으면 압연이 힘들고 너무 높으면 연료와 표면 손실이 커져요.", label: "재가열 온도", unit: "℃", process: "rolling", equipment_id: "reheating_furnace", base: 1200, normal: [1170, 1240], digits: 0, control: { min: 1150, max: 1260, step: 5 } },
+  { id: "rolled_defect", desc: "압연 뒤 판 내부에 결함이 생길 위험을 점수로 나타낸 교육용 지표예요.", label: "압연 내부 결함 위험", unit: "점", process: "rolling", equipment_id: "roughing_mill", base: 10, normal: [0, 30], digits: 0 },
+  { id: "fdt", desc: "사상압연 마지막 롤을 지날 때 판의 온도예요. 판의 결정 크기와 품질에 영향을 줘요.", label: "사상압연 출구 온도", unit: "℃", process: "rolling", equipment_id: "finishing_mill", base: 880, normal: [860, 900], digits: 0 },
+  { id: "cool_banks", desc: "런아웃 테이블에서 판에 물을 뿌리는 냉각 장치를 몇 개 켰는지예요.", label: "런아웃 냉각 뱅크", unit: "개", process: "rolling", equipment_id: "runout_table", base: 10, normal: [8, 12], digits: 0, control: { min: 6, max: 16, step: 1 } },
+  { id: "coiling_temp", desc: "판을 코일로 감을 때의 온도예요. 이때 온도가 강의 조직을 정해 강도·연신이 달라져요.", label: "권취 온도", unit: "℃", process: "rolling", equipment_id: "coiler", base: 600, normal: [580, 620], digits: 0 },
 ];
 
 /** 위에서 아래로(정렬된 순서로) 계산한다. coef는 부모가 1단위 바뀔 때 자식이 바뀌는 양. */

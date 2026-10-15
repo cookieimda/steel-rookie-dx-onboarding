@@ -12,6 +12,7 @@ test("인과 지도: 고리 없이 부모가 먼저, 모든 연결의 끝이 있
   for (const e of EDGES) { assert.ok(ids.has(e.from) && ids.has(e.to)); assert.ok(order.indexOf(e.from) < order.indexOf(e.to)); }
   for (const n of NODES.filter((x) => x.control)) assert.ok(!EDGES.some((e) => e.to === n.id), n.id);
   for (const n of NODES) assert.ok(n.base >= n.normal[0] && n.base <= n.normal[1], `${n.id} 기준값이 정상 범위 안`);
+  for (const n of NODES) assert.ok((n.desc ?? "").length >= 20, `${n.id} 설명 카드 문장`);
 });
 
 test("인과 지도: 기준 조건은 모두 정상·변화 없음, 설명도 없다", () => {

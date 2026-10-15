@@ -72,6 +72,10 @@ function injectStyle() {
     .sl-steps span.on { background: #ff9e64; color: #1a0b03; font-weight: 700; } .sl-steps span.done { color: #6fcf97; }
     .sl-tag { position: fixed; z-index: 55; transform: translate(-50%, -100%); padding: 4px 9px; border-radius: 8px; font: 700 13px/1.3 "Pretendard", sans-serif; color: #fff; background: rgba(14,24,40,.88); border: 1px solid rgba(255,255,255,.25); pointer-events: none; white-space: nowrap; }
     .sl-tag.warn { border-color: #ff6b6b; color: #ffd0d0; } .sl-tag.ok { border-color: #6fcf97; color: #d6ffe6; } .sl-tag.hot { border-color: #ff9e64; color: #ffe0c2; } .sl-tag.cold { border-color: #7fb2ff; color: #d8e7ff; }
+    .sl-var { display: flex; justify-content: space-between; gap: 8px; width: 100%; padding: 4px 6px; border: 0; border-radius: 8px; background: transparent; color: inherit; font: 14px/1.4 "Pretendard", sans-serif; text-align: left; cursor: pointer; }
+    .sl-var:hover, .sl-var[aria-pressed="true"] { background: rgba(43,212,180,.14); }
+    .sl-var:focus-visible, .sl-opt:focus-visible, .sl-btn:focus-visible { outline: 2px solid #2bd4b4; outline-offset: 2px; }
+    .sl-card { border: 1px solid rgba(43,212,180,.5); }
     .sl-shake { animation: slShake .35s; } @keyframes slShake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
     @media (max-width: 740px) { .sl-panel { top: auto; bottom: 150px; max-height: 55vh; } .sl-launch { bottom: 120px; } }`;
   document.head.appendChild(s);
@@ -223,9 +227,9 @@ export async function attachSimLab() {
     const pr = el('div'); pr.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;';
     for (const [label, v] of PRESETS) pr.append(btn(label, () => { for (const k of Object.keys(input)) delete input[k]; Object.assign(input, v); void run(); }, 'sl-btn ghost'));
     presets.append(pr, btn('🧩 인과 퀴즈로 확인하기', () => open('quiz'), 'sl-btn'));
-    const controls = el('div', 'sl-box sl-hide'), story = el('div'), byProc = el('div'), note = el('p', 'sl-muted');
-    panel.append(presets, controls, story, byProc, note);
-    let timer = 0, data = null, first = true;
+    const controls = el('div', 'sl-box sl-hide'), story = el('div'), detail = el('div'), byProc = el('div'), note = el('p', 'sl-muted');
+    panel.append(presets, controls, story, detail, byProc, note);
+    let timer = 0, data = null, first = true, picked = null;
     async function run() {
       try { data = await api('POST', '/api/lab/causal', input); } catch (e) { story.replaceChildren(el('p', 'sl-bad', e.message)); return; }
       if (first) { first = false; renderControls(); }
@@ -248,10 +252,10 @@ export async function attachSimLab() {
         const box = el('div', s.status === 'warn' ? 'sl-next' : 'sl-cause'); box.append(el('small', 'sl-muted', `${i + 1}. ${SECTION[s.process]}`), el('div', '', s.text)); return box;
       }) : [el('p', 'sl-muted', '값을 하나 바꾸거나 위 예시를 눌러 보세요. 공정 4개를 잇는 연결이 지금은 옅게 그려져 있어요.')]));
       // 공정별 값
-      byProc.replaceChildren(...SECTION_ORDER.map((sec) => {
+      byProc.replaceChildren(el('small', 'sl-muted', '값을 누르면 무슨 뜻인지, 무엇과 이어져 있는지 보여 줘요.'), ...SECTION_ORDER.map((sec) => {
         const box = el('div', 'sl-box'); box.append(el('b', '', SECTION[sec]));
-        for (const n of data.nodes.filter((x) => x.process === sec && !x.control)) {
-          const line = el('div'); line.style.cssText = 'display:flex;justify-content:space-between;gap:8px;font-size:14px;';
+        for (const n of data.nodes.filter((x) => x.process === sec)) {
+          const line = btn('', () => { picked = n.id; renderDetail(); render(); }, 'sl-var'); line.setAttribute('aria-pressed', String(picked === n.id)); line.title = `${n.label} 설명 보기`;
           const v = el('span', n.status === 'warn' ? 'sl-bad' : n.delta ? (n.delta > 0 ? 'sl-up' : 'sl-down') : '', `${fmt(n.value, n.digits)}${n.unit}${n.delta ? ` (${signed(n.delta, n.digits)})` : ''}`);
           line.append(el('span', '', n.label), v); box.append(line);
         }
@@ -273,7 +277,32 @@ export async function attachSimLab() {
         t.lines.push(`${n.label} ${signed(n.delta, n.digits)}${n.unit}`); t.warn ||= n.status === 'warn'; tags.set(n.equipment_id, t);
       }
       for (const [eqId, t] of tags) { fx.tag(eqId, `${t.warn ? '⚠ ' : ''}${t.lines.join(' · ')}`, t.warn ? 'warn' : 'hot', 5); if (t.warn) fx.ring(eqId, 0xff4d4d, true); }
+      const sel = picked && data.nodes.find((x) => x.id === picked);
+      if (sel) { fx.ring(sel.equipment_id, 0x2bd4b4, true); if (!tags.has(sel.equipment_id)) fx.tag(sel.equipment_id, `🔎 ${sel.label}`, 'ok', 5); }
       scene._dirty = true;
+      renderDetail();
+    }
+    // 변수 설명 카드: 뜻·단위·정상 범위·지금 값, 영향을 주는 값·받는 값(누르면 그 변수로), 설비로 카메라 이동
+    function renderDetail() {
+      const n = picked && data?.nodes.find((x) => x.id === picked);
+      if (!n) { detail.replaceChildren(); return; }
+      const box = el('div', 'sl-box sl-card'), nameOf = (id) => data.nodes.find((x) => x.id === id);
+      const headRow = el('div'); headRow.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:8px;';
+      headRow.append(el('b', '', `🔎 ${n.label}`), btn('✕', () => { picked = null; renderDetail(); render(); }, 'sl-btn ghost'));
+      box.append(headRow, el('small', 'sl-muted', `${SECTION[n.process]}${n.control ? ' · 조정할 수 있는 값' : ''}`), el('div', '', n.desc || ''));
+      box.append(el('div', n.status === 'warn' ? 'sl-bad' : '', `지금 ${fmt(n.value, n.digits)}${n.unit} · 기준 ${fmt(n.base, n.digits)}${n.unit} · 정상 ${fmt(n.normal[0], n.digits)}~${fmt(n.normal[1], n.digits)}${n.unit}`));
+      const links = (title, list, other) => {
+        if (!list.length) return;
+        box.append(el('b', '', title));
+        for (const e of list) {
+          const o = nameOf(other(e)), b = btn(`${o.label} · ${e.coef > 0 ? '같은 방향' : '반대 방향'}`, () => { picked = o.id; renderDetail(); render(); }, 'sl-opt');
+          b.append(el('div', 'sl-muted', e.why)); box.append(b);
+        }
+      };
+      links('영향을 주는 값', data.edges.filter((e) => e.to === n.id), (e) => e.from);
+      links('영향을 받는 값', data.edges.filter((e) => e.from === n.id), (e) => e.to);
+      box.append(btn('3D에서 이 설비 보기', () => goTo(n.process, n.equipment_id), 'sl-btn ghost'));
+      detail.replaceChildren(box);
     }
     plantView();
     await run();

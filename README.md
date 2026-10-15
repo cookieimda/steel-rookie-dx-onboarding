@@ -10,6 +10,8 @@ npm.cmd ci
 npm.cmd start
 ```
 
+시연 서버는 `npm.cmd run start:gemini`로 켭니다. Gemini로 고정하고, 서버를 켤 때 추천 질문 답을 미리 받는 유료 호출을 끕니다(켜려면 `WARM_ANSWERS=on`). 기존 기록을 이어 쓰려면 `DB_PATH`에 그 SQLite 파일을, 포트는 `PORT`를 지정합니다(`$env:PORT=3001; $env:DB_PATH="data/demo.sqlite"; npm.cmd run start:gemini`).
+
 브라우저에서 <http://localhost:3000>을 엽니다. `.env`는 서버 시작 시 읽으며 Git에서 제외됩니다. Gemini API 키가 없으면 미연결 상태를 표시하고 답변을 생성하지 않습니다.
 
 공개 공식 자료 목록: [backend/data/ironmaking-sources.json](backend/data/ironmaking-sources.json). 기존 3D 데모는 이 화면과 연결되지 않습니다.

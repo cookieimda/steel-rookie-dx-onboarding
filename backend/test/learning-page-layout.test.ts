@@ -68,3 +68,15 @@ test("UI 편집 반영: 내 현황·복습 한 줄, 불러오기 오류는 제�
   assert.match(page, /\.learn\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) 348px/);
   assert.match(css, /\.dg-hero\s*\{[^}]*minmax\(0, 1fr\) 348px/);
 });
+
+test("학습 모듈: 탭이 판에 이어지고, 2D 모듈 판은 모서리를 자르며 둥근 모서리가 없다, 튜터는 모듈 선에 맞춘다", () => {
+  const mod = readFileSync(join(process.cwd(), "frontend", "3d-demo", "process-2d.js"), "utf8");
+  const modCss = mod.slice(mod.indexOf("const CSS"), mod.indexOf("const DEFS"));
+  assert.doesNotMatch(modCss, /border-radius:\s*(18|14|12|10|8)px/);
+  assert.match(modCss, /\.root::before\{[^}]*clip-path:polygon/);
+  assert.match(modCss, /\.chapters\{[^}]*margin-top:40px/);
+  assert.match(template, /role="tablist" aria-label="학습 모듈" class="dg-ftabs"/);
+  assert.match(template, /class="dg-mframe" aria-label="설계도·필기"/);
+  assert.match(css, /--module-bg:\s*#24211e/);
+  assert.match(page, /alignTutor\(\)\s*\{/);
+});

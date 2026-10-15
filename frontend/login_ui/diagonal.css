@@ -17,6 +17,8 @@ body {
   --accent: var(--orange); --accent-ink: var(--orange-ink); --bubble-in: #2a2a2e; --send: var(--orange);
   --ok: #6fcf97; --mid: #e8c25a; --bad: #ff6b6b;
   --ghost-fill: var(--bg);
+  --module-bg: #24211e; --module-panel: #1b1916; /* 학습 모듈 판: 살짝 따뜻한 회색(2026-10-15) */
+  --mtab-h: 40px; /* 학습 모듈 위 탭(작동 단계 | 설계도·필기) 높이. 오른쪽 튜터 열은 이만큼 내려 모듈 판 위쪽 선에 맞춘다 */
   margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-ko); letter-spacing: -0.01em; -webkit-font-smoothing: antialiased;
 }
 body[data-theme="light"] {
@@ -26,6 +28,7 @@ body[data-theme="light"] {
   --line: rgba(0, 0, 0, .14); --text: #141414; --muted: #4f4f55; --dim: #6b6b71;
   --bubble-in: #ececea; --ok: #177a42; --mid: #9a6200; --bad: #c53030;
   --ghost-fill: var(--bg);
+  --module-bg: #f0ece6; --module-panel: #e7e1d9;
 }
 
 /* 어두운 패널(AI 튜터·평가 시험 띠): 라이트 테마에서도 어둡다. 안쪽 인라인 스타일이 쓰는 토큰을 어두운 값으로 다시 정한다 */
@@ -101,6 +104,22 @@ body[data-theme="light"] {
 .dg-now-row { display: flex; align-items: baseline; gap: 10px; font-size: 15px; }
 .dg-now-row b { font: 700 40px/1 var(--font-en); }
 
+/* ---- ③ 학습 모듈 탭 + 판: 고른 탭은 아래 판과 같은 바탕이라 브라우저 탭처럼 판에 이어진다(2026-10-15) ----
+   판(.dg-mframe, 2D 모듈 안 .root)은 오른쪽 위·왼쪽 아래를 자르고, 탭이 붙는 왼쪽 위는 자르지 않는다 */
+.dg-ftabs { position: relative; z-index: 1; display: flex; align-items: flex-end; gap: 2px; height: var(--mtab-h); margin-bottom: -1px; }
+.dg-ftabs button { --c: 10px; position: relative; isolation: isolate; height: 100%; padding: 0 20px; border: 0; background: transparent; color: var(--muted); font: 700 14px/1 var(--font-ko); white-space: nowrap; cursor: pointer;
+  clip-path: polygon(0 0, calc(100% - var(--c)) 0, 100% var(--c), 100% 100%, 0 100%); }
+.dg-ftabs button:hover { color: var(--text); background: var(--panel2); }
+.dg-ftabs button[aria-selected="true"] { background: var(--line); color: var(--text); cursor: default; }
+.dg-ftabs button[aria-selected="true"]::before { content: ""; position: absolute; inset: 1px 1px 0 1px; z-index: -1; background: var(--module-bg);
+  clip-path: polygon(0 0, calc(100% - var(--c) + .4px) 0, 100% calc(var(--c) - .4px), 100% 100%, 0 100%); }
+.dg-ftabs button[aria-selected="true"]::after { content: ""; position: absolute; left: 1px; right: var(--c); top: 1px; height: 2px; background: var(--orange); } /* 고른 탭 위 주황 줄 */
+.dg-ftabs button:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--text); }
+.dg-mframe { --c: 22px; position: relative; isolation: isolate; }
+.dg-mframe::before, .dg-mframe::after { content: ""; position: absolute; pointer-events: none; }
+.dg-mframe::before { inset: 0; z-index: -2; background: var(--line); clip-path: polygon(0 0, calc(100% - var(--c)) 0, 100% var(--c), 100% 100%, var(--c) 100%, 0 calc(100% - var(--c))); }
+.dg-mframe::after { inset: 1px; z-index: -1; background: var(--module-bg); clip-path: polygon(0 0, calc(100% - var(--c) + .4px) 0, 100% calc(var(--c) - .4px), 100% 100%, calc(var(--c) - .4px) 100%, 0 calc(100% - var(--c) + .4px)); }
+
 /* ---- ④ 내 현황 · ⑤ 복습: 구역은 1px 선과 양쪽 끝 + 표시로 나눈다 ---- */
 .dg-section { position: relative; display: flex; flex-direction: column; gap: 18px; padding-top: 28px; border-top: 1px solid var(--line); }
 .dg-section::before, .dg-section::after { content: "+"; position: absolute; top: -11px; padding: 2px 3px; background: var(--bg); color: var(--dim); font: 400 16px/1 var(--mono); }
@@ -154,12 +173,12 @@ body[data-theme="light"] {
 
 /* ---- 2D 학습 모듈(<process-2d>) 색: 바깥 문서 규칙이 모듈 안 :host 기본값보다 우선한다 ---- */
 process-2d {
-  --bg: #1d1d20; --panel: #17171a; --chip: rgba(255, 255, 255, .08); --chip-on: rgba(255, 255, 255, .16); --line: rgba(255, 255, 255, .13);
+  --bg: var(--module-bg); --panel: var(--module-panel); --chip: rgba(255, 255, 255, .08); --chip-on: rgba(255, 255, 255, .16); --line: rgba(255, 255, 255, .13);
   --text: #f2f2f2; --muted: #b9b9be; --dim: #8e8e94; --accent: #ff9e64; --accent-ink: #1a0b03;
   --lit: #ff9e64; --lit-ink: #1a0b03; --lit-bg: rgba(255, 158, 100, .14);
 }
 body[data-theme="light"] process-2d {
-  --bg: #ffffff; --panel: #f3f2ee; --chip: rgba(0, 0, 0, .05); --chip-on: rgba(0, 0, 0, .1); --line: rgba(0, 0, 0, .14);
+  --bg: var(--module-bg); --panel: var(--module-panel); --chip: rgba(0, 0, 0, .05); --chip-on: rgba(0, 0, 0, .1); --line: rgba(0, 0, 0, .14);
   --text: #141414; --muted: #4f4f55; --dim: #6b6b71; --accent: #ff9e64; --accent-ink: #1a0b03;
   --lit: #c25a1c; --lit-ink: #ffffff; --lit-bg: rgba(255, 158, 100, .14);
 }

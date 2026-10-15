@@ -57,8 +57,10 @@ function injectStyle() {
     .sl-out div { padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.06); display: flex; flex-direction: column; }
     .sl-out small { color: #a9b6c8; } .sl-out b { font-size: 18px; } .sl-out i { font-style: normal; font-size: 13px; }
     .sl-up { color: #ff8a65; } .sl-down { color: #7fb2ff; } .sl-ok { color: #6fcf97; } .sl-bad { color: #ff6b6b; }
-    .sl-cause { padding: 10px 12px; border-radius: 10px; background: rgba(255,158,100,.1); border-left: 3px solid #ff9e64; font-size: 14px; }
-    .sl-next { padding: 10px 12px; border-radius: 10px; background: rgba(255,107,107,.1); border-left: 3px solid #ff6b6b; font-size: 14px; }
+    .sl-cause { padding: 10px 12px; border-radius: 10px; background: rgba(255,158,100,.1); border-left: 3px solid #ff9e64; font-size: 15px; }
+    .sl-next { padding: 10px 12px; border-radius: 10px; background: rgba(255,107,107,.1); border-left: 3px solid #ff6b6b; font-size: 15px; }
+    .sl-cause.sl-on, .sl-next.sl-on { box-shadow: 0 0 0 2px #2bd4b4; } .sl-cause.sl-dim, .sl-next.sl-dim { opacity: .45; }
+    .sl-tour { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
     .sl-read { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,.06); border: 1px solid transparent; text-align: left; color: inherit; font: inherit; cursor: pointer; }
     .sl-read:disabled { cursor: default; }
     .sl-read.bad { border-color: #ff6b6b; background: rgba(255,107,107,.12); } .sl-read.fixed { border-color: #6fcf97; }
@@ -259,7 +261,53 @@ export async function attachSimLab() {
     const controls = el('div', 'sl-box sl-hide'), story = el('div'), detail = el('div'), byProc = el('div'), note = el('p', 'sl-muted');
     panel.append(presets, controls, story, detail, byProc, note);
     let timer = 0, data = null, first = true, picked = startVar, lastCard = null;
+    // ── 인과 따라가기: 이야기 줄 순서(원인 → 결과)대로 카메라가 설비를 하나씩 찾아가고, 앞 줄의 원인 설비에서 흐름을 잇는다 ──
+    const tour = (() => {
+      let token = 0, step = -1, skip = null;
+      const STEP_MS = 3800;
+      const running = () => step >= 0;
+      const boxes = () => [...story.querySelectorAll('[data-i]')];
+      function mark() { for (const b of boxes()) { const i = Number(b.dataset.i); b.classList.toggle('sl-on', i === step); b.classList.toggle('sl-dim', running() && i > step); } boxes()[step]?.scrollIntoView({ block: 'nearest' }); }
+      function draw() {
+        fx.clear();
+        const eqOf = new Map(data.nodes.map((n) => [n.id, n.equipment_id]));
+        data.story.slice(0, step + 1).forEach((st, i) => {
+          for (const c of st.causes) { const a = eqOf.get(c); if (a && a !== st.equipment_id) fx.flow(a, st.equipment_id, i === step ? 0xff7a3d : 0xffb38a, i === step ? {} : { opacity: 0.45, dots: 3 }); }
+          if (i === step) {
+            const n = data.nodes.find((x) => x.id === st.id);
+            fx.ring(st.equipment_id, st.status === 'warn' ? 0xff4d4d : 0x2bd4b4, true);
+            fx.tag(st.equipment_id, `${i + 1}. ${n.label} ${n.delta > 0 ? '▲' : '▼'} ${fmt(n.value, n.digits)}${n.unit}`, st.status === 'warn' ? 'warn' : 'hot', 6);
+          }
+        });
+        scene._dirty = true;
+      }
+      async function go(my) {
+        while (my === token && panel.contains(story) && step < data.story.length - 1) {
+          step++; mark(); draw(); refresh();
+          const st = data.story[step];
+          say(`${step + 1}단계. ${st.text}`);
+          await goTo(st.process, st.equipment_id);
+          await new Promise((r) => { skip = r; setTimeout(r, STEP_MS); });
+        }
+        if (my === token && panel.contains(story)) { say('끝까지 따라왔어요. 공장 전체로 돌아가요.'); stop(true); }
+      }
+      function stop(toPlant) {
+        if (!running()) return;
+        token++; step = -1; skip?.(); skip = null;
+        if (data && panel.contains(story)) { mark(); render(); }
+        if (toPlant) plantView();
+      }
+      let ctl = null;
+      function refresh() {
+        if (!ctl) return;
+        ctl.replaceChildren(...(running()
+          ? [btn(`다음 ▶ (${step + 1}/${data.story.length})`, () => skip?.(), 'sl-btn ghost'), btn('■ 그만 보기', () => { say('따라가기를 멈췄어요.'); stop(true); }, 'sl-btn ghost')]
+          : data.story.length > 1 ? [btn(`▶ 인과 따라가기 (${data.story.length}단계)`, () => { token++; step = -1; void go(token); }, 'sl-btn')] : []));
+      }
+      return { stop, controls() { ctl = el('div', 'sl-tour'); refresh(); if (running()) setTimeout(mark, 0); return ctl; }, get running() { return running(); } };
+    })();
     async function run() {
+      tour.stop(false);
       try { data = await api('POST', '/api/lab/causal', input); } catch (e) { story.replaceChildren(el('p', 'sl-bad', e.message)); return; }
       if (first) { first = false; renderControls(); }
       else { const warn = data.nodes.filter((x) => x.status === 'warn').map((x) => x.label); say(`${data.story.length}개 값이 바뀌었어요.${warn.length ? ` 정상 범위 밖: ${warn.join(', ')}.` : ''}`); }
@@ -278,8 +326,8 @@ export async function attachSimLab() {
     }
     function render() {
       // 설명: 위에서 아래로 따라간 인과
-      story.replaceChildren(...(data.story.length ? [el('b', '', '무엇이 어떻게 번졌나')] : []), ...(data.story.length ? data.story.map((s, i) => {
-        const box = el('div', s.status === 'warn' ? 'sl-next' : 'sl-cause'); box.append(el('small', 'sl-muted', `${i + 1}. ${SECTION[s.process]}`), el('div', '', s.text)); return box;
+      story.replaceChildren(...(data.story.length ? [el('b', '', '무엇이 어떻게 번졌나'), tour.controls()] : []), ...(data.story.length ? data.story.map((s, i) => {
+        const box = el('div', s.status === 'warn' ? 'sl-next' : 'sl-cause'); box.dataset.i = i; box.append(el('small', 'sl-muted', `${i + 1}. ${SECTION[s.process]}`), el('div', '', s.text)); return box;
       }) : [el('p', 'sl-muted', '값을 하나 바꾸거나 위 예시를 눌러 보세요. 공정 4개를 잇는 연결이 지금은 옅게 그려져 있어요.')]));
       // 공정별 값
       byProc.replaceChildren(el('small', 'sl-muted', '값을 누르면 무슨 뜻인지, 무엇과 이어져 있는지 보여 줘요.'), ...SECTION_ORDER.map((sec) => {
@@ -293,6 +341,7 @@ export async function attachSimLab() {
         return box;
       }));
       note.textContent = data.note;
+      if (tour.running) return;
       // 3D: 모든 연결을 옅게, 바뀐 연결은 진하게(오름 주황·내림 파랑), 범위 밖은 붉은 링, 바뀐 값은 설비 이름표
       fx.clear();
       const eqOf = new Map(data.nodes.map((n) => [n.id, n.equipment_id]));

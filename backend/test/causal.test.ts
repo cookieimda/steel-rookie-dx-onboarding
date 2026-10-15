@@ -30,6 +30,10 @@ test("인과 지도: 코크스를 줄이면 제선 → 제강으로 이어진다
   assert.equal(node(r, "superheat").delta, 0, "출강 온도는 따로 조정하므로 연주에는 안 간다");
   assert.ok(r.story[0].text.startsWith("코크스비를"));
   assert.ok(r.story.some((s) => s.process === "steelmaking"));
+  // 인과 따라가기: 이야기 줄마다 변수·설비·원인 변수(앞 줄에 먼저 나온 변수)
+  assert.deepEqual([r.story[0].id, r.story[0].causes], ["coke_rate", []]);
+  const seen = new Set<string>();
+  for (const s of r.story) { assert.ok(s.equipment_id); for (const c of s.causes) assert.ok(seen.has(c), `${s.id}의 원인 ${c}가 먼저 나온다`); seen.add(s.id); }
 });
 
 test("인과 지도: 출강 온도↑·주조 속도↑ → 껍질↓ → 브레이크아웃·중심 편석 → 압연 결함까지", () => {
@@ -61,4 +65,9 @@ test("인과 퀴즈 채점: 부호의 곱으로 방향을 정한다(코크스↑
   assert.deepEqual([r.correct, r.answer], [false, "up"]);
   assert.match(r.sign_rule, /반대 방향/);
   assert.equal(checkHop("coke_rate>bof_slag>slopping", 1, 1, "up"), null, "없는 연결");
+});
+
+test("을/를: 받침과 끝 괄호", async () => {
+  const { eulReul } = await import("../src/lab/causal.js");
+  assert.deepEqual(["코크스비", "용선 황(S)", "출강 온도", "송풍량", "CO"].map(eulReul), ["코크스비를", "용선 황(S)을", "출강 온도를", "송풍량을", "CO를"]);
 });

@@ -80,8 +80,15 @@ export interface CausalResult {
   nodes: (NodeDef & { value: number; delta: number; status: "ok" | "warn" })[];
   edges: (EdgeDef & { effect: number; active: boolean })[];
   /** 바뀐 변수를 위에서 아래로 따라간 설명(조정 변수 → 영향받은 변수). */
-  story: { process: ProcessId; text: string; status: "ok" | "warn" }[];
+  story: { id: string; equipment_id: string; causes: string[]; process: ProcessId; text: string; status: "ok" | "warn" }[];
   note: string;
+}
+
+/** 받침에 따라 '을/를'. 끝의 괄호(예: '용선 황(S)')는 빼고 본다. */
+export function eulReul(word: string) {
+  const w = word.replace(/\s*\([^)]*\)\s*$/, ""), c = w.charCodeAt(w.length - 1);
+  const batchim = c >= 0xac00 && c <= 0xd7a3 ? (c - 0xac00) % 28 !== 0 : /[0-9LMNRlmnr]$/.test(w);
+  return `${word}${batchim ? "을" : "를"}`;
 }
 
 export function simulateCausal(raw: Record<string, number> = {}): CausalResult {
@@ -110,10 +117,13 @@ export function simulateCausal(raw: Record<string, number> = {}): CausalResult {
   const story = topoOrder().flatMap((id) => {
     const n = nodeOf.get(id)!;
     if (!n.delta) return [];
-    if (n.control) return [{ process: n.process, text: `${n.label}를 ${fmt(n)}로 바꿨어요.`, status: n.status }];
-    const causes = edges.filter((e) => e.to === id && e.active).map((e) => nodeOf.get(e.from)!.label);
+    // id·설비·원인 변수: 3D '인과 따라가기'가 이 순서대로 카메라를 옮기고 원인 설비 → 이 설비로 흐름을 그린다
+    const at = { id, equipment_id: n.equipment_id, process: n.process, status: n.status };
+    if (n.control) return [{ ...at, causes: [], text: `${eulReul(n.label)} ${fmt(n)}로 바꿨어요.` }];
+    const active = edges.filter((e) => e.to === id && e.active);
+    const causes = active.map((e) => nodeOf.get(e.from)!.label);
     const why = edges.filter((e) => e.to === id && e.active).map((e) => e.why).join(" ");
-    return [{ process: n.process, text: `${causes.join("·")} → ${n.label} ${fmt(n)}. ${why}${n.status === "warn" ? " 정상 범위를 벗어났어요." : ""}`, status: n.status }];
+    return [{ ...at, causes: active.map((e) => e.from), text: `${causes.join("·")} → ${n.label} ${fmt(n)}. ${why}${n.status === "warn" ? " 정상 범위를 벗어났어요." : ""}` }];
   });
   return { nodes, edges, story, note: CAUSAL_NOTE };
 }

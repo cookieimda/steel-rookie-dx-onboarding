@@ -7,6 +7,17 @@ import { pathToFileURL } from "node:url";
 const load = (file: string) => import(pathToFileURL(join(process.cwd(), "frontend", "3d-demo", file)).href);
 const { MOTIONS, PROCEDURAL, MOTION_ALIAS, resolveMotion, poseAt, blendPose, CpCharacter } = await load("cp-character.js");
 const { MOTION_BY_TYPE, motionFor } = await load("checkpoint-chat.js");
+const { EXPRESSION_BY_MOTION, MOOD_BY_MOTION, POP_MOTIONS } = await load("cp-face.js");
+
+test("미통과 완료는 웃음·축하 효과 없이 아쉬움을 표현하고 통과 완료만 축하한다", () => {
+  const retry = motionFor("result", { unlocked: false }), passed = motionFor("result", { unlocked: true });
+  assert.equal(EXPRESSION_BY_MOTION[retry], "sad");
+  assert.equal(MOOD_BY_MOTION[retry], "sad");
+  assert.equal(POP_MOTIONS.has(retry), false);
+  assert.equal(EXPRESSION_BY_MOTION[passed], "excited");
+  assert.equal(MOOD_BY_MOTION[passed], "celebrate");
+  for (let t = 0; t < 3; t += .1) assert.ok(poseAt(retry, t).y <= 0, "미통과는 축하 점프를 하지 않는다");
+});
 
 type Pose = { y: number; rx: number; ry: number; rz: number; sy: number };
 const REST: Pose = { y: 0, rx: 0, ry: 0, rz: 0, sy: 1 };
@@ -20,7 +31,8 @@ test("브라우저가 없어도 모듈을 불러오고, 엘리먼트 클래스�
 test("동작 선택: 같은 이름의 클립 → 그 이름의 몸 전체 움직임 → 대체 이름표 → idle", () => {
   assert.deepEqual(resolveMotion("praise", ["praise", "idle"]), { kind: "clip", name: "praise" });
   assert.deepEqual(resolveMotion("praise", ["idle"]), { kind: "procedural", name: "praise" });
-  assert.deepEqual(resolveMotion("greet", []), { kind: "procedural", name: "praise" }, "몸 전체 움직임이 없으면 대체 이름표");
+  assert.deepEqual(resolveMotion("ask", []), { kind: "procedural", name: "idle" }, "몸 전체 움직임이 없으면 대체 이름표");
+  assert.deepEqual(resolveMotion("greet", []), { kind: "procedural", name: "greet" });
   assert.deepEqual(resolveMotion("greet", ["greet"]), { kind: "clip", name: "greet" }, "클립이 있으면 대체보다 클립");
   assert.deepEqual(resolveMotion("ask", []), { kind: "procedural", name: "idle" });
   assert.deepEqual(resolveMotion("unknown", []), { kind: "procedural", name: "idle" });
@@ -35,7 +47,7 @@ test("모든 이름표가 몸 전체 움직임으로 정의되거나 대체되�
     assert.ok(PROCEDURAL[r.name], motion);
     if (!PROCEDURAL[motion]) assert.equal(r.name, MOTION_ALIAS[motion], `${motion}은 대체 이름표를 쓴다`);
   }
-  assert.deepEqual(Object.keys(PROCEDURAL).sort(), ["ask_again", "celebrate", "explain", "idle", "praise", "thinking"]);
+  assert.deepEqual(Object.keys(PROCEDURAL).sort(), ["ask_again", "celebrate", "cheer_retry", "encourage", "explain", "greet", "idle", "praise", "sorry", "thinking"]);
   for (const target of Object.values(MOTION_ALIAS)) assert.ok(PROCEDURAL[target as string], String(target));
 });
 
@@ -45,11 +57,11 @@ test("몸 전체 움직임: 대기는 작게 흔들리고, 튀기·점프는 땅
     assert.ok(Math.abs(p.y) <= 0.015 + 1e-9, `idle y ${p.y}`);
     assert.equal(p.ry, 0);
   }
-  for (const name of ["praise", "celebrate"]) {
+  for (const name of ["praise", "celebrate", "greet"]) {
     const { duration } = PROCEDURAL[name];
     assert.ok(close(poseAt(name, 0).y, 0), `${name} 시작은 바닥`);
     const peak = Math.max(...Array.from({ length: 50 }, (_, i) => poseAt(name, (duration * i) / 50).y));
-    assert.ok(peak > 0.05, `${name} 동안 뜬다 ${peak}`);
+    assert.ok(peak > 0.1, `${name} 동안 크게 뜬다 ${peak}`);
     const after: Pose = poseAt(name, duration + 0.3), idle: Pose = poseAt("idle", 0.3);
     for (const k of Object.keys(REST) as (keyof Pose)[]) assert.ok(close(after[k], idle[k]), `${name}이 끝나면 대기(끝난 뒤 시간 기준): ${k}`);
   }
@@ -65,7 +77,11 @@ test("몸 전체 움직임: 갸웃은 기운 채 유지하고, 좌우 흔들기�
   assert.ok(sway[0]! > 0.1 && sway[1]! < -0.1, `좌우로 흔든다 ${sway}`);
   assert.ok(close(poseAt("explain", 0.4).ry, poseAt("explain", 2.0).ry), "주기 1.6초로 반복");
   assert.ok(close(poseAt("thinking", 0.8).rz, poseAt("thinking", 4.0).rz), "주기 3.2초로 반복");
-  assert.ok(Math.abs(poseAt("thinking", 0.8).rz) <= 0.08 + 1e-9, "천천히·작게 기운다");
+  assert.ok(Math.abs(poseAt("thinking", 0.8).rz) <= 0.12 + 1e-9, "천천히 기운다");
+  const droop = poseAt("sorry", 3);
+  assert.ok(droop.rx > 0.15 && droop.sy < 1 && droop.y < 0, "아쉬움: 고개를 숙이고 작아진다");
+  assert.ok(Math.max(...[0.1, 0.2, 0.3].map((t) => poseAt("encourage", t).rx)) > 0.1, "응원: 끄덕인다");
+  assert.ok(poseAt("cheer_retry", 0.175).y <= 0, "다시 도전: 축하 점프 대신 차분하게 고개를 숙인다");
 });
 
 test("움직임 줄이기 설정이면 어떤 동작이든 기본 자세", () => {
@@ -98,4 +114,36 @@ test("checkpoint-chat.js가 내는 이름표는 모두 MOTIONS에 있고, 몸 �
     assert.ok(r.name === motion || r.name === MOTION_ALIAS[motion], `${motion} → ${r.name}: 같은 이름이거나 대체 이름표여야 한다`);
   }
   assert.deepEqual([...produced].sort(), [...MOTIONS].sort(), "두 모듈의 이름표 목록이 같다(한쪽에만 있는 이름표 없음)");
+});
+
+test("표정·감정 배경: 모든 이름표에 표정이 있고, 감정 배경은 정해 둔 감정만, 감정이 바뀌면 '톡' 커졌다 돌아온다", async () => {
+  const face = await load("cp-face.js");
+  const { moodParticles } = await load("cp-character.js");
+  for (const motion of MOTIONS) assert.ok(face.EXPRESSIONS.includes(face.EXPRESSION_BY_MOTION[motion]), `${motion} 표정`);
+  assert.equal(face.EXPRESSION_BY_MOTION.praise, "happy");
+  assert.equal(face.EXPRESSION_BY_MOTION.sorry, "sad");
+  assert.equal(face.EXPRESSION_BY_MOTION.celebrate, "excited");
+  for (const mood of Object.values(face.MOOD_BY_MOTION) as string[]) {
+    assert.ok(face.MOODS.includes(mood), mood);
+    assert.ok(moodParticles(mood).length > 0, `${mood} 조각`);
+  }
+  assert.equal(face.MOOD_BY_MOTION.idle, undefined, "대기에는 배경 효과 없음");
+  assert.deepEqual(moodParticles("unknown"), []);
+  assert.equal(face.popAt(0), 1);
+  assert.ok(face.popAt(face.POP.seconds / 2) > 1.1, "중간에 커짐");
+  assert.equal(face.popAt(face.POP.seconds), 1, "끝나면 원래 크기");
+  for (const m of face.POP_MOTIONS) assert.ok(MOTIONS.includes(m), m);
+  const blinks = Array.from({ length: 20 }, (_, i) => face.nextBlinkIn(() => i / 20));
+  assert.ok(blinks.every((s: number) => s >= 2.6 && s <= 5), "깜빡임 간격 2.6~5초");
+});
+
+test("drawFace: 표정마다 캔버스 그리기 명령만 쓰고(브라우저 없이 가짜 캔버스), 예외 없이 그린다", async () => {
+  const face = await load("cp-face.js");
+  const calls: string[] = [];
+  const ctx = new Proxy({}, {
+    get: (_t, k) => (k === "createRadialGradient" ? () => ({ addColorStop() {} }) : (...a: unknown[]) => { calls.push(String(k)); return a; }),
+    set: () => true,
+  });
+  for (const expression of face.EXPRESSIONS) for (const blink of [false, true]) face.drawFace(ctx, { expression, blink, skin: "#cccccc" });
+  assert.ok(calls.includes("ellipse") && calls.includes("stroke"));
 });

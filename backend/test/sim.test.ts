@@ -395,3 +395,18 @@ test("3D 실습 통계 · 되돌리기 퍼즐: 퍼즐별 시도·푼 비율·부
   assert.deepEqual([x.attempts, x.learners, x.solved_rate, x.clean_rate], [4, 1, 0.5, 0.25]);
   assert.deepEqual(x.common_far, { control: "코크스비", times: 2 });
 });
+
+test("오늘의 실습 경로 · 거꾸로 추론: 원인 변수 공정의 정답률이 약한 정도에 들어가고 이유 문장에 나온다", async () => {
+  const { practicePath } = await import("../src/lab/practice-path.js");
+  const pdb = openDatabase(":memory:"), u = await new UserRepository(pdb).create({ username: "trainee10", password: "password123", name: "아", employee_no: "S10" });
+  const faults = loadFaults().faults, now = new Date().toISOString();
+  const before = practicePath(pdb, u.id, faults).processes.find((p) => p.process === "rolling")!;
+  assert.equal(before.diagnose_rate, null);
+  for (const [i, c] of [0, 0, 0].entries()) pdb.prepare("INSERT INTO diagnose_answers VALUES(?,?,?,?,?,?)").run(`d${i}`, u.id, "cool_banks:1", "reheat_temp:-1", c, now);
+  const path = practicePath(pdb, u.id, faults);
+  const rolling = path.processes.find((p) => p.process === "rolling")!;
+  assert.equal(rolling.diagnose_rate, 0);
+  assert.ok(rolling.weakness > before.weakness);
+  assert.equal(path.process, "rolling", "거꾸로 추론을 다 틀린 공정이 가장 약하다");
+  assert.match(path.reason, /거꾸로 추론 정답률이 0%/);
+});

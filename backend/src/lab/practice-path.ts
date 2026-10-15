@@ -27,17 +27,22 @@ export function practicePath(db: DatabaseSync, userId: string, faults: FaultDril
   // 칸 하나가 지나는 변수들(원인 ~ 그 칸의 결과). 그 변수가 속한 공정마다 이 칸을 센다.
   const touched = (r: Record<string, unknown>) => String(r.chain_id).split(">").slice(0, Number(r.hop) + 1);
 
+  // 거꾸로 추론 답(017): 문제의 진짜 원인 변수가 속한 공정으로 센다. 풀어 본 공정만 약한 정도에 넣는다(안 풀었다고 약하게 보지 않음)
+  const diagRows = tableExists(db, "diagnose_answers") ? db.prepare("SELECT question, correct FROM diagnose_answers WHERE user_id = ?").all(userId) : [];
   const processes = SECTION_ORDER.map((p) => {
     const mine = quiz.filter((r) => touched(r).some((id) => proc.get(id) === p));
     const rate = mine.length ? mine.filter((r) => Number(r.correct) === 1).length / mine.length : null;
     const fault = faults.find((f) => f.section === p);
     const faultBest = fault ? best.get(fault.id) ?? null : null;
-    const parts = [rate == null ? UNTRIED_WEAKNESS : 1 - rate, ...(fault ? [faultBest == null ? UNTRIED_WEAKNESS : 1 - faultBest] : [])];
+    const diag = diagRows.filter((r) => proc.get(String(r.question).split(":")[0]) === p);
+    const diagRate = diag.length ? diag.filter((r) => Number(r.correct) === 1).length / diag.length : null;
+    const parts = [rate == null ? UNTRIED_WEAKNESS : 1 - rate, ...(fault ? [faultBest == null ? UNTRIED_WEAKNESS : 1 - faultBest] : []), ...(diagRate == null ? [] : [1 - diagRate])];
     // 틀린 칸이 지난 이 공정 변수(인과 지도에서 먼저 볼 것)
     const missed = mine.filter((r) => Number(r.correct) !== 1).flatMap(touched).filter((id) => proc.get(id) === p);
     return {
       process: p, name: NAME[p], quiz_answers: mine.length, quiz_rate: rate == null ? null : Math.round(rate * 100) / 100,
       fault_id: fault?.id ?? null, fault_title: fault?.title ?? null, fault_best: faultBest,
+      diagnose_rate: diagRate == null ? null : Math.round(diagRate * 100) / 100,
       weakness: Math.round((parts.reduce((a, b) => a + b, 0) / parts.length) * 100) / 100, missed,
     };
   });
@@ -48,10 +53,11 @@ export function practicePath(db: DatabaseSync, userId: string, faults: FaultDril
   for (const id of pick.missed) counts.set(id, (counts.get(id) ?? 0) + 1);
   const variable = NODES.find((n) => n.id === [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]) ?? NODES.find((n) => n.process === p && !n.control) ?? NODES.find((n) => n.process === p)!;
 
-  const reason = pick.quiz_rate == null && pick.fault_best == null
+  const reason = pick.quiz_rate == null && pick.fault_best == null && pick.diagnose_rate == null
     ? `${pick.name}의 3D 실습을 아직 안 해 봤어요.`
     : [pick.quiz_rate != null && pick.quiz_rate < 1 ? `${josa(pick.name, "이", "가")} 걸린 인과 퀴즈 정답률이 ${pct(pick.quiz_rate)}` : null,
        pick.fault_best != null && pick.fault_best < 1 ? `이상 상황 훈련 최고 점수가 ${pct(pick.fault_best)}` : null,
+       pick.diagnose_rate != null && pick.diagnose_rate < 1 ? `거꾸로 추론 정답률이 ${pct(pick.diagnose_rate)}` : null,
        pick.quiz_rate == null ? "인과 퀴즈는 아직 안 풀었어요" : null,
        pick.fault_id && pick.fault_best == null ? "이상 상황 훈련은 아직 안 해 봤어요" : null].filter(Boolean).join(", ") + ".";
   const url = (q: string) => `${PAGE}?p=${p}&${q}`;

@@ -62,6 +62,7 @@ function injectStyle() {
     .sl-cause.sl-on, .sl-next.sl-on { box-shadow: 0 0 0 2px #2bd4b4; } .sl-cause.sl-dim, .sl-next.sl-dim { opacity: .45; }
     .sl-tour { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
     .sl-link { width: 100%; box-sizing: border-box; padding: 7px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.06); color: inherit; font: 14px/1.4 ui-monospace, monospace; }
+    .sl-cmp { width: 100%; border-collapse: collapse; font-size: 14px; } .sl-cmp th, .sl-cmp td { text-align: left; padding: 4px 6px; border-top: 1px solid rgba(255,255,255,.12); } .sl-cmp th { color: #9aa4b2; font-weight: 600; }
     .sl-scenes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
     .sl-read { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,.06); border: 1px solid transparent; text-align: left; color: inherit; font: inherit; cursor: pointer; }
     .sl-read:disabled { cursor: default; }
@@ -274,8 +275,8 @@ export async function attachSimLab() {
     const pr = el('div'); pr.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;';
     for (const [label, v] of PRESETS) pr.append(btn(label, () => { for (const k of Object.keys(input)) delete input[k]; Object.assign(input, v); void run(); }, 'sl-btn ghost'));
     presets.append(pr, btn('🧩 인과 퀴즈로 확인하기', () => open('quiz'), 'sl-btn'), btn('🔍 거꾸로 추론: 증상 → 원인', () => open('diagnose'), 'sl-btn ghost'));
-    const controls = el('div', 'sl-box sl-hide'), story = el('div'), detail = el('div'), byProc = el('div'), note = el('p', 'sl-muted');
-    panel.append(presets, controls, story, detail, byProc, note);
+    const controls = el('div', 'sl-box sl-hide'), story = el('div'), detail = el('div'), byProc = el('div'), note = el('p', 'sl-muted'), cmp = el('div', 'sl-box sl-hide');
+    panel.append(presets, controls, story, cmp, detail, byProc, note);
     let timer = 0, data = null, first = true, picked = startVar, lastCard = null;
     // ── 인과 따라가기: 이야기 줄 순서(원인 → 결과)대로 카메라가 설비를 하나씩 찾아가고, 앞 줄의 원인 설비에서 흐름을 잇는다 ──
     const tour = (() => {
@@ -355,6 +356,39 @@ export async function attachSimLab() {
       linkRow.append(btn('🔗 이 조건 링크 복사', () => void copy(false), 'sl-btn ghost'), btn('🔗 따라가기까지', () => void copy(true), 'sl-btn ghost'));
       controls.append(linkRow, linkOut);
     }
+    // ── 조건 두 개 나란히 비교: A·B에 지금 조건을 담고, 바뀐 하류 값을 나란히 놓는다 ──
+    const slots = { A: null, B: null };
+    const changedLabel = (snap) => snap.nodes.filter((n) => n.control && n.delta).map((n) => `${n.label} ${n.delta > 0 ? '▲' : '▼'} ${fmt(n.value, n.digits)}${n.unit}`).join(', ') || '기준 조건';
+    function renderCompare() {
+      const row = el('div', 'sl-tour');
+      for (const k of ['A', 'B']) {
+        const b = btn(slots[k] ? `${k}에 다시 담기` : `지금 조건을 ${k}로`, () => {
+          slots[k] = { input: { ...input }, nodes: data.nodes.map((n) => ({ ...n })) };
+          say(`${k}에 담았어요: ${changedLabel(slots[k])}.`); renderCompare();
+        }, 'sl-btn ghost');
+        row.append(b);
+        if (slots[k]) row.append(btn(`${k} 다시 보기`, () => { for (const x of Object.keys(input)) delete input[x]; Object.assign(input, slots[k].input); void run(); }, 'sl-btn ghost'));
+      }
+      cmp.replaceChildren(el('b', '', '⚖ 두 조건 비교'), row);
+      if (!slots.A || !slots.B) { cmp.append(el('small', 'sl-muted', '조건을 하나 만들어 A로 담고, 다른 조건을 만들어 B로 담으면 하류 값을 나란히 비교해요.')); return; }
+      const A = new Map(slots.A.nodes.map((n) => [n.id, n])), B = new Map(slots.B.nodes.map((n) => [n.id, n]));
+      cmp.append(el('div', 'sl-muted', `A: ${changedLabel(slots.A)}`), el('div', 'sl-muted', `B: ${changedLabel(slots.B)}`));
+      const table = el('table', 'sl-cmp'), head = el('tr');
+      for (const h of ['값', 'A', 'B']) head.append(el('th', '', h));
+      table.append(head);
+      const same = [];
+      for (const id of data.nodes.filter((n) => !n.control).map((n) => n.id)) {
+        const a = A.get(id), b = B.get(id);
+        if (!a.delta && !b.delta) continue;
+        const tr = el('tr'), cell = (n) => { const td = el('td', n.status === 'warn' ? 'sl-bad' : '', `${n.delta > 0 ? '▲' : n.delta < 0 ? '▼' : '–'} ${fmt(n.value, n.digits)}${n.unit}`); if (n.status === 'warn') td.append(el('span', 'sl-sr', ' 정상 범위 밖')); return td; };
+        tr.append(el('td', '', `${SECTION[a.process]} · ${a.label}`), cell(a), cell(b));
+        table.append(tr);
+        if (a.delta && b.delta && Math.sign(a.delta) === Math.sign(b.delta)) same.push(`${a.label} ${a.delta > 0 ? '▲' : '▼'}`);
+      }
+      cmp.append(table);
+      const ctrlA = slots.A.nodes.filter((n) => n.control && n.delta).map((n) => n.id).sort().join(), ctrlB = slots.B.nodes.filter((n) => n.control && n.delta).map((n) => n.id).sort().join();
+      if (same.length && ctrlA !== ctrlB) cmp.append(el('div', 'sl-next', `원인은 다른데 똑같이 움직이는 값이 있어요: ${same.join(', ')}. 현장에서 이 값만 보고는 원인을 가를 수 없어요. 두 조건이 다르게 움직이는 값을 함께 봐야 해요.`));
+    }
     function render() {
       // 설명: 위에서 아래로 따라간 인과
       story.replaceChildren(...(data.story.length ? [el('b', '', '무엇이 어떻게 번졌나'), tour.controls()] : []), ...(data.story.length ? data.story.map((s, i) => {
@@ -372,6 +406,7 @@ export async function attachSimLab() {
         return box;
       }));
       note.textContent = data.note;
+      renderCompare();
       if (tour.running) return;
       // 3D: 모든 연결을 옅게, 바뀐 연결은 진하게(오름 주황·내림 파랑), 범위 밖은 붉은 링, 바뀐 값은 설비 이름표
       fx.clear();

@@ -94,3 +94,15 @@ test("거꾸로 추론 퀴즈: 증상 2개, 보기 4개 중 정답만 같은 증
   const r = checkDiagnose("coke_rate:-1", "coke_rate:-1", ["hm_temp"])!;
   assert.ok(r.correct && r.story.length > 0 && r.edges.length > 0);
 });
+
+test("인과 지도 값의 바닥: 위험 점수·과열도는 조정 값을 어느 끝으로 보내도 0 아래로 내려가지 않는다", async () => {
+  const { NODES, simulateCausal } = await import("../src/lab/causal.js");
+  const ctrls = NODES.filter((n) => n.control);
+  const floored = NODES.filter((n) => n.floor !== undefined).map((n) => n.id).sort();
+  assert.deepEqual(floored, ["breakout", "center_seg", "rolled_defect", "slopping", "superheat"]);
+  for (let mask = 0; mask < 3 ** ctrls.length; mask++) {
+    let m = mask; const input: Record<string, number> = {};
+    for (const c of ctrls) { const k = m % 3; m = Math.floor(m / 3); if (k) input[c.id] = k === 1 ? c.control!.min : c.control!.max; }
+    for (const n of simulateCausal(input).nodes) if (n.floor !== undefined) assert.ok(n.value >= n.floor, `${n.id} ${n.value} (${JSON.stringify(input)})`);
+  }
+});

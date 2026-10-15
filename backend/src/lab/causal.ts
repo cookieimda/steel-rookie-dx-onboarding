@@ -11,6 +11,8 @@ export interface NodeDef {
   base: number; normal: [number, number]; digits: number;
   /** 조정할 수 있는 변수면 범위와 간격. */
   control?: { min: number; max: number; step: number };
+  /** 이보다 작아질 수 없는 값(위험 점수 0, 과열도 0℃). 선형 모델이 음수를 내지 않게 자른다. */
+  floor?: number;
 }
 export interface EdgeDef { from: string; to: string; coef: number; why: string }
 
@@ -23,15 +25,15 @@ export const NODES: NodeDef[] = [
   { id: "desulf_min", desc: "용선 예비처리에서 황을 빼는 데 걸리는 시간이에요. 길어지면 그만큼 다음 공정이 기다려요.", label: "예비처리 탈황 시간", unit: "분", process: "steelmaking", equipment_id: "hot_metal_pretreatment", base: 15, normal: [10, 22], digits: 0 },
   { id: "scrap_pct", desc: "전로에 용선과 함께 넣어 녹일 수 있는 고철 비율이에요. 용선이 가져온 열이 많을수록 늘릴 수 있어요.", label: "전로 고철 투입 여유", unit: "%", process: "steelmaking", equipment_id: "bof_converter", base: 18, normal: [14, 22], digits: 1 },
   { id: "bof_slag", desc: "전로에서 생기는 슬래그 양이에요(강 1톤당). 규소처럼 산화되는 성분이 많을수록 늘어요.", label: "전로 슬래그량", unit: "kg/t", process: "steelmaking", equipment_id: "bof_converter", base: 90, normal: [70, 110], digits: 0 },
-  { id: "slopping", desc: "전로의 거품 슬래그가 노구로 넘칠 위험을 점수로 나타낸 교육용 지표예요.", label: "슬로핑(넘침) 위험", unit: "점", process: "steelmaking", equipment_id: "oxygen_lance_offgas", base: 20, normal: [0, 40], digits: 0 },
+  { id: "slopping", desc: "전로의 거품 슬래그가 노구로 넘칠 위험을 점수로 나타낸 교육용 지표예요.", label: "슬로핑(넘침) 위험", unit: "점", process: "steelmaking", equipment_id: "oxygen_lance_offgas", base: 20, normal: [0, 40], digits: 0, floor: 0 },
   { id: "tap_temp", desc: "전로에서 용강을 래들로 쏟아 낼 때의 온도예요. 정련·이송 중 식는 만큼을 생각해 정해요.", label: "출강 온도", unit: "℃", process: "steelmaking", equipment_id: "tapping_ladle_crane", base: 1640, normal: [1620, 1660], digits: 0, control: { min: 1600, max: 1690, step: 5 } },
-  { id: "superheat", desc: "턴디시 용강 온도가 그 강이 굳기 시작하는 온도보다 얼마나 높은지예요. 높으면 굳는 데 시간이 더 걸려요.", label: "턴디시 과열도", unit: "℃", process: "continuous_casting", equipment_id: "tundish", base: 30, normal: [20, 35], digits: 0 },
+  { id: "superheat", desc: "턴디시 용강 온도가 그 강이 굳기 시작하는 온도보다 얼마나 높은지예요. 높으면 굳는 데 시간이 더 걸려요.", label: "턴디시 과열도", unit: "℃", process: "continuous_casting", equipment_id: "tundish", base: 30, normal: [20, 35], digits: 0, floor: 0 },
   { id: "cast_speed", desc: "주형에서 주편을 뽑아내는 속도예요. 빠르면 생산량은 늘지만 주형 안에서 굳을 시간이 줄어요.", label: "주조 속도", unit: "m/분", process: "continuous_casting", equipment_id: "cc_mold", base: 1.2, normal: [1.0, 1.4], digits: 2, control: { min: 0.8, max: 1.8, step: 0.05 } },
   { id: "shell_mm", desc: "주형을 빠져나올 때 주편 바깥에 굳은 껍질 두께예요. 안쪽은 아직 녹아 있어 이 껍질이 쇳물을 버텨요.", label: "주형 출구 응고 껍질", unit: "mm", process: "continuous_casting", equipment_id: "cc_mold", base: 15, normal: [12, 20], digits: 1 },
-  { id: "breakout", desc: "응고 껍질이 찢어져 용강이 새어 나올 위험을 점수로 나타낸 교육용 지표예요.", label: "브레이크아웃 위험", unit: "점", process: "continuous_casting", equipment_id: "secondary_cooling", base: 10, normal: [0, 30], digits: 0 },
-  { id: "center_seg", desc: "슬래브 두께 가운데에 탄소·황 같은 성분이 몰리는 정도를 점수로 나타낸 교육용 지표예요.", label: "슬래브 중심 편석", unit: "점", process: "continuous_casting", equipment_id: "torch_cutter", base: 20, normal: [0, 35], digits: 0 },
+  { id: "breakout", desc: "응고 껍질이 찢어져 용강이 새어 나올 위험을 점수로 나타낸 교육용 지표예요.", label: "브레이크아웃 위험", unit: "점", process: "continuous_casting", equipment_id: "secondary_cooling", base: 10, normal: [0, 30], digits: 0, floor: 0 },
+  { id: "center_seg", desc: "슬래브 두께 가운데에 탄소·황 같은 성분이 몰리는 정도를 점수로 나타낸 교육용 지표예요.", label: "슬래브 중심 편석", unit: "점", process: "continuous_casting", equipment_id: "torch_cutter", base: 20, normal: [0, 35], digits: 0, floor: 0 },
   { id: "reheat_temp", desc: "슬래브를 압연하기 전에 데우는 재가열로 온도예요. 너무 낮으면 압연이 힘들고 너무 높으면 연료와 표면 손실이 커져요.", label: "재가열 온도", unit: "℃", process: "rolling", equipment_id: "reheating_furnace", base: 1200, normal: [1170, 1240], digits: 0, control: { min: 1150, max: 1260, step: 5 } },
-  { id: "rolled_defect", desc: "압연 뒤 판 내부에 결함이 생길 위험을 점수로 나타낸 교육용 지표예요.", label: "압연 내부 결함 위험", unit: "점", process: "rolling", equipment_id: "roughing_mill", base: 10, normal: [0, 30], digits: 0 },
+  { id: "rolled_defect", desc: "압연 뒤 판 내부에 결함이 생길 위험을 점수로 나타낸 교육용 지표예요.", label: "압연 내부 결함 위험", unit: "점", process: "rolling", equipment_id: "roughing_mill", base: 10, normal: [0, 30], digits: 0, floor: 0 },
   { id: "fdt", desc: "사상압연 마지막 롤을 지날 때 판의 온도예요. 판의 결정 크기와 품질에 영향을 줘요.", label: "사상압연 출구 온도", unit: "℃", process: "rolling", equipment_id: "finishing_mill", base: 880, normal: [860, 900], digits: 0 },
   { id: "cool_banks", desc: "런아웃 테이블에서 판에 물을 뿌리는 냉각 장치를 몇 개 켰는지예요.", label: "런아웃 냉각 뱅크", unit: "개", process: "rolling", equipment_id: "runout_table", base: 10, normal: [8, 12], digits: 0, control: { min: 6, max: 16, step: 1 } },
   { id: "coiling_temp", desc: "판을 코일로 감을 때의 온도예요. 이때 온도가 강의 조직을 정해 강도·연신이 달라져요.", label: "권취 온도", unit: "℃", process: "rolling", equipment_id: "coiler", base: 600, normal: [580, 620], digits: 0 },
@@ -102,7 +104,7 @@ export function simulateCausal(raw: Record<string, number> = {}): CausalResult {
     }
     let v = n.base;
     for (const e of EDGES.filter((x) => x.to === id)) v += e.coef * (value.get(e.from)! - byId.get(e.from)!.base);
-    value.set(id, v);
+    value.set(id, n.floor === undefined ? v : Math.max(n.floor, v));
   }
   const nodes = NODES.map((n) => {
     const v = round(value.get(n.id)!, n.digits);

@@ -121,6 +121,10 @@ export class MeRepository {
     for (const r of rows("SELECT scenario_id, at_step, pick, created_at FROM branch_explorations WHERE user_id = ? AND actual = 0")) {
       events.push({ kind: "branch_explored", at: String(r.created_at), object_id: `${r.scenario_id}#${r.at_step}.${r.pick}` });
     }
+    // 되돌리기 퍼즐을 부작용 없이 푼 것(018): 퍼즐마다 처음 한 번만
+    for (const r of rows("SELECT puzzle, MIN(created_at) AS at FROM rebalance_attempts WHERE user_id = ? AND clean = 1 GROUP BY puzzle")) {
+      events.push({ kind: "rebalance_clean", at: String(r.at), object_id: String(r.puzzle) });
+    }
     for (const r of rows("SELECT section, equipment_id, updated_at FROM socratic_sessions WHERE user_id = ? AND state = 'reached'")) {
       events.push({ kind: "socratic_reached", at: String(r.updated_at), section: String(r.section), object_id: String(r.equipment_id) });
     }

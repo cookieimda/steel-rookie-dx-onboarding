@@ -76,6 +76,7 @@ export function statementFor(e: CardEvent, actor: Statement["actor"], names: Nam
     socratic_reached: () => ({ verb: "mastered", object: equipment(e.object_id), result: { success: true, extensions: { [`${BASE}/xapi/ext/via`]: "소크라테스 모드" } } }),
     causal_correct: () => ({ verb: "answered", object: activity("causal-link", e.object_id ?? "link", "공정 인과 퀴즈", `${ACT}/interaction`), result: { success: true } }),
     branch_explored: () => ({ verb: "experienced", object: activity("incident-branch", e.object_id ?? "branch", "사고 사례 갈림길 · 다르게 했다면", `${ACT}/simulation`) }),
+    rebalance_clean: () => ({ verb: "completed", object: activity("rebalance", e.object_id ?? "puzzle", "되돌리기 퍼즐", `${ACT}/simulation`), result: { success: true, completion: true } }),
     fault_drill: () => ({ verb: "completed", object: activity("fault-drill", e.object_id ?? "drill", "이상 상황 훈련", `${ACT}/simulation`),
       result: { completion: true, ...(e.understanding == null ? {} : { score: { scaled: e.understanding } }) } }),
   };

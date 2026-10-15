@@ -27,7 +27,7 @@ export const SUBTABS = [['review', '간격 반복'], ['league', '주간 리그']
 /** xAPI 활동 종류(활동 id의 /activities/<종류>/) → 이름·아이콘. 3D 실습 종류도 여기서 이름을 붙인다. */
 const KIND_LABEL = { section: ['📍', '공정'], concept: ['💡', '개념'], 'review-card': ['🗂', '복습 카드'], equipment: ['🏭', '설비'], blueprint: ['✏️', '설계도'],
   'causal-link': ['🧩', '인과 퀴즈'], 'fault-drill': ['🚨', '이상 상황 훈련'], 'incident-branch': ['🔀', '갈림길'], 'causal-tour': ['🗺', '인과 따라가기'],
-  'causal-map-link': ['🔗', '조건 링크'], 'incident-3d': ['🔀', '갈림길 3D'], lesson: ['🎓', '수업'] };
+  'causal-map-link': ['🔗', '조건 링크'], 'incident-3d': ['🔀', '갈림길 3D'], lesson: ['🎓', '수업'], rebalance: ['🧰', '되돌리기 퍼즐'] };
 const VERB_LABEL = { asked: '질문함', answered: '답함', completed: '끝냄', passed: '통과함', experienced: '살펴봄', resolved: '해결함', annotated: '필기함', reviewed: '복습함', mastered: '스스로 답함' };
 const GRADE_LABEL = { 0: '다시', 3: '어려움', 4: '보통', 5: '쉬움' };
 const GRADE_TONE = { 0: 'bad', 3: 'mid', 4: 'ok', 5: 'easy' };

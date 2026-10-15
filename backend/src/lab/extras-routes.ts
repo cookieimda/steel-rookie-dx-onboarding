@@ -177,6 +177,9 @@ export function createLabExtrasRouter({ db, auth, deck, incidents, faults = { di
     if (!body.success) return bad(res, 400, "퍼즐과 조정 값을 보내 주세요.");
     const out = checkRebalance(body.data.id, body.data.input);
     if (!out) return bad(res, 400, "이 퍼즐에서 쓸 수 있는 조정 값 하나만 보내 주세요.");
+    const [control, value] = Object.entries(body.data.input)[0];
+    db.prepare("INSERT INTO rebalance_attempts(id,user_id,puzzle,control,value,solved,clean,created_at) VALUES(?,?,?,?,?,?,?,?)")
+      .run(randomUUID(), me(res).id, body.data.id, control, value, out.solved ? 1 : 0, out.solved && !out.side_effects.length ? 1 : 0, new Date().toISOString());
     res.json(out);
   });
   // 변수 → 관련 실습(인과 지도 변수 카드): 그 변수를 원인 조건으로 쓰는 이상 상황 훈련·갈림길 선택·수업 단계, 흔들거나 되돌리는 퍼즐

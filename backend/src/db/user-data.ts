@@ -75,6 +75,8 @@ export function deleteUserData(db: DatabaseSync, userId: string, { origin = "all
         "DELETE FROM branch_explorations WHERE user_id = ?",
         // 거꾸로 추론 답(017)
         "DELETE FROM diagnose_answers WHERE user_id = ?",
+        // 되돌리기 퍼즐(018)
+        "DELETE FROM rebalance_attempts WHERE user_id = ?",
         "DELETE FROM equipment_note_votes WHERE note_id IN (SELECT id FROM equipment_notes WHERE user_id = ?)",
         "DELETE FROM equipment_note_replies WHERE note_id IN (SELECT id FROM equipment_notes WHERE user_id = ?)",
         "DELETE FROM equipment_note_reports WHERE note_id IN (SELECT id FROM equipment_notes WHERE user_id = ?)",

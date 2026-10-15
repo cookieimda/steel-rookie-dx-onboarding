@@ -363,3 +363,18 @@ test("변수 → 관련 실습: 주조 속도는 이상 상황 훈련·되돌리
   const coil = await call("GET", "/api/lab/causal/related?var=coiling_temp");
   assert.ok(coil.json.puzzles.some((p: any) => p.role === "목표"), "권취 온도는 퍼즐의 목표");
 });
+
+test("되돌리기 퍼즐 기록·사원증: 채점 때 남기고, 부작용 없이 푼 퍼즐만 퍼즐마다 한 번 사원증 기록, 지우기", async () => {
+  const { rebalancePuzzles } = await import("../src/lab/causal.js");
+  const p = rebalancePuzzles().find((x) => x.id.startsWith("cool_banks:-1@8>coiling_temp"))!;
+  assert.ok(p && p.clean);
+  const clean = await call("POST", "/api/lab/causal/rebalance/check", { id: p.id, input: { reheat_temp: 1170 } });
+  assert.deepEqual([clean.json.solved, clean.json.side_effects.length], [true, 0]);
+  await call("POST", "/api/lab/causal/rebalance/check", { id: p.id, input: { reheat_temp: 1170 } });
+  await call("POST", "/api/lab/causal/rebalance/check", { id: p.id, input: { coke_rate: 300 } });
+  assert.equal(Number(db.prepare("SELECT COUNT(*) AS n FROM rebalance_attempts WHERE user_id = ?").get(kim.id)!.n), 3);
+  const events = new MeRepository(db).cardEvents(kim.id).filter((e) => e.kind === "rebalance_clean");
+  assert.deepEqual(events.map((e) => e.object_id), [p.id], "같은 퍼즐을 두 번 풀어도 한 번만");
+  deleteUserData(db, kim.id, { origin: "live" });
+  assert.equal(Number(db.prepare("SELECT COUNT(*) AS n FROM rebalance_attempts WHERE user_id = ?").get(kim.id)!.n), 0);
+});

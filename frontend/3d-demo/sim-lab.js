@@ -747,7 +747,7 @@ export async function attachSimLab() {
       box.append(el('b', '', r.solved ? '✓ 되돌렸어요' : '✗ 아직 범위 밖이에요'), el('div', '', `${tt.label} ${unitV(t, tt.value)} (정상 ${fmt(tt.normal[0], t.digits)}~${fmt(tt.normal[1], t.digits)}${t.unit})`));
       if (r.side_effects.length) box.append(el('div', 'sl-bad', `부작용 — 새로 범위 밖: ${r.side_effects.map((x) => `${x.label} ${x.value}${x.unit}`).join(', ')}`));
       if (r.side_effects.some((x) => x.id === chosen.id)) box.append(el('small', 'sl-muted', `조치한 ${eunNeun(chosen.label)} 자기 정상 범위를 벗어났어요. 문제는 막았지만 생산성·품질과 맞바꾼 거예요. 원인 쪽을 고칠 수 있게 되면 되돌려야 해요.`));
-      else if (r.solved) box.append(el('div', 'sl-muted', '다른 값은 범위 안이에요. 원인 쪽(흔들린 값)을 고칠 수 있게 되면 이 조치는 원래대로 돌려야 해요.'));
+      else if (r.solved) box.append(el('div', 'sl-muted', '다른 값은 범위 안이에요. 원인 쪽(흔들린 값)을 고칠 수 있게 되면 이 조치는 원래대로 돌려야 해요.'), el('small', 'sl-ok', '🧰 부작용 없이 풀었어요 · 사원증 XP(퍼즐마다 처음 한 번)'));
       if (!r.solved) box.append(el('small', 'sl-muted', r.reaches ? '이 값은 닿긴 해요. 움직이는 방향이나 크기를 바꿔 보세요.' : `${eunNeun(chosen.label)} ${t.label}까지 이어지지 않아요. 인과 지도에서 ${t.label}에 닿는 값을 찾아보세요.`));
       result.replaceChildren(box);
       fx.clear(); mark();

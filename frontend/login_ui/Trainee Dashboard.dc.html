@@ -254,6 +254,8 @@
     .ic-br-out { font-size: 15px; line-height: 1.55; padding: 8px 10px; border-radius: var(--cut-s); animation: lb-in .3s ease; }
     .ic-br-out.safe { color: var(--ok); background: color-mix(in srgb, var(--ok) 10%, transparent); }
     .ic-br-out.actual { color: var(--bad); background: color-mix(in srgb, var(--bad) 8%, transparent); }
+    .ic-br-3d { align-self: flex-start; font-size: 15px; font-weight: 700; color: var(--orange); text-decoration: none; }
+    .ic-br-3d:hover, .ic-br-3d:focus-visible { text-decoration: underline; }
     .ic-q { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: var(--cut-s); background: var(--panel2); font-size: 15px; }
     .ic-q.ok { box-shadow: inset 3px 0 0 var(--ok); } .ic-q.bad { box-shadow: inset 3px 0 0 var(--bad); }
     .ic-opts { display: flex; flex-direction: column; gap: 6px; }
@@ -621,7 +623,7 @@
                 <ol class="ic-time"><sc-for list="{{ icSteps }}" as="t" hint-placeholder-count="2"><li class="{{ t.cls }}"><b>{{ t.time }}</b><span>{{ t.text }}</span><button type="button" class="lb-btn ghost" onClick="{{ t.onShow }}">설비 보기</button>
                   <sc-if value="{{ t.hasBranch }}" hint-placeholder-val="{{ false }}"><div class="ic-br"><span class="ic-br-q">🔀 {{ t.brPrompt }}</span>
                     <div class="ic-br-opts"><sc-for list="{{ t.brOpts }}" as="o" hint-placeholder-count="2"><button type="button" class="{{ o.cls }}" aria-pressed="{{ o.on }}" onClick="{{ o.onClick }}">{{ o.text }}</button></sc-for></div>
-                    <sc-if value="{{ t.brHasOutcome }}" hint-placeholder-val="{{ false }}"><span class="ic-br-out {{ t.brOutCls }}" role="status">{{ t.brOutcome }}</span></sc-if></div></sc-if></li></sc-for></ol>
+                    <sc-if value="{{ t.brHasOutcome }}" hint-placeholder-val="{{ false }}"><span class="ic-br-out {{ t.brOutCls }}" role="status">{{ t.brOutcome }}</span><a class="ic-br-3d" href="{{ t.brHref }}">🏭 3D 공장에서 이 갈림길 보기</a></sc-if></div></sc-if></li></sc-for></ol>
                 <sc-if value="{{ icMoreSteps }}" hint-placeholder-val="{{ true }}"><div class="lb-row"><button type="button" class="lb-btn" onClick="{{ icNext }}">다음 장면 ▶</button><button type="button" class="lb-btn ghost" onClick="{{ icAllSteps }}">끝까지 보기</button></div></sc-if>
                 <sc-if value="{{ icShowQs }}" hint-placeholder-val="{{ false }}">
                   <strong>원인 분석</strong>

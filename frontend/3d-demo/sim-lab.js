@@ -61,6 +61,7 @@ function injectStyle() {
     .sl-next { padding: 10px 12px; border-radius: 10px; background: rgba(255,107,107,.1); border-left: 3px solid #ff6b6b; font-size: 15px; }
     .sl-cause.sl-on, .sl-next.sl-on { box-shadow: 0 0 0 2px #2bd4b4; } .sl-cause.sl-dim, .sl-next.sl-dim { opacity: .45; }
     .sl-tour { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .sl-scenes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
     .sl-read { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,.06); border: 1px solid transparent; text-align: left; color: inherit; font: inherit; cursor: pointer; }
     .sl-read:disabled { cursor: default; }
     .sl-read.bad { border-color: #ff6b6b; background: rgba(255,107,107,.12); } .sl-read.fixed { border-color: #6fcf97; }
@@ -212,8 +213,8 @@ export async function attachSimLab() {
   if (typeof ResizeObserver === 'function') new ResizeObserver(fitPanel).observe(launch);
   addEventListener('resize', fitPanel); fitPanel();
   let mode = null;
-  const TITLES = { map: '공정 인과 지도', whatif: '조업 실험', fault: '이상 상황 훈련', quiz: '인과 퀴즈' };
-  const launcherOf = { map: bMap, whatif: bWhatif, fault: bFault, quiz: bMap };
+  const TITLES = { map: '공정 인과 지도', whatif: '조업 실험', fault: '이상 상황 훈련', quiz: '인과 퀴즈', incident: '사고 사례 갈림길' };
+  const launcherOf = { map: bMap, whatif: bWhatif, fault: bFault, quiz: bMap, incident: bFault };
   function open(next, preset, opt = {}) {
     const prev = mode;
     mode = next; fx.clear(); panel.classList.remove('compact');
@@ -223,7 +224,7 @@ export async function attachSimLab() {
     else if (prev && panel.contains(document.activeElement)) launcherOf[prev]?.focus();
     bWhatif.setAttribute('aria-pressed', String(mode === 'whatif')); bFault.setAttribute('aria-pressed', String(mode === 'fault')); bMap.setAttribute('aria-pressed', String(mode === 'map'));
     panel.hidden = !mode; panel.replaceChildren();
-    if (mode === 'whatif') void whatifPanel(preset); else if (mode === 'fault') void (opt.fault ? faultDrill(opt.fault) : faultList()); else if (mode === 'map') void causalMap(preset, opt.var); else if (mode === 'quiz') void causalQuizPanel(opt.process);
+    if (mode === 'whatif') void whatifPanel(preset); else if (mode === 'fault') void (opt.fault ? faultDrill(opt.fault) : faultList()); else if (mode === 'map') void causalMap(preset, opt.var); else if (mode === 'quiz') void causalQuizPanel(opt.process); else if (mode === 'incident') void incidentPanel(opt.scenario, Number(opt.at), Number(opt.pick));
   }
   const head = (title, foldable = false) => {
     const h = el('h3'); h.append(el('span', '', title)); h.tabIndex = -1;
@@ -443,6 +444,60 @@ export async function attachSimLab() {
     show();
   }
 
+  // ── 사고 사례 갈림길 재현(학습 기록의 '3D 공장에서 이 갈림길 보기'): 갈림길 장면까지 설비를 따라가고,
+  //    고른 선택이 실제로 일어난 일이면 이후 장면의 설비를 붉게 이어 보여 주고, 다른 선택이면 그 자리에서 막힌 결과를 초록으로 보여 준다 ──
+  async function incidentPanel(scenarioId, at, pick) {
+    panel.append(head('🔀 사고 사례 갈림길'));
+    let sc;
+    try { sc = (await api('GET', `/api/lab/incidents/${scenarioId}`)).scenario; } catch (e) { panel.append(el('p', 'sl-bad', e.message)); return; }
+    const t = sc.timeline[at];
+    if (!t?.branch || !t.branch.options[pick]) { panel.append(el('p', 'sl-bad', '그 갈림길을 찾지 못했어요. 학습 기록에서 다시 열어 주세요.')); return; }
+    const short = (x, n = 34) => (x.length > n ? `${x.slice(0, n)}…` : x);
+    const intro = el('div', 'sl-box'); intro.append(el('b', '', `${SECTION[sc.section]} · ${sc.title}`), el('small', 'sl-muted', `위험 · ${sc.hazard} · 교육용 가상 사례`));
+    const scenes = el('ol', 'sl-scenes'), choice = el('div', 'sl-box'), result = el('div');
+    panel.append(intro, scenes, choice, result, el('p', 'sl-muted', '학습 기록의 사고 사례에서 장면과 원인 분석 문제를 이어서 풀 수 있어요.'));
+    scenes.append(...sc.timeline.slice(0, at + 1).map((s, i) => {
+      const li = el('li'), b = btn(`${s.time} · ${short(s.text, 60)}`, () => void goTo(sc.section, s.equipment_id), 'sl-opt');
+      if (i === at) b.classList.add('right'); li.append(b); return li;
+    }));
+    choice.append(el('b', '', `🔀 ${t.branch.prompt}`));
+    const opts = el('div'); opts.style.cssText = 'display:flex;flex-direction:column;gap:6px;'; opts.setAttribute('role', 'group'); opts.setAttribute('aria-label', t.branch.prompt);
+    choice.append(opts);
+    const actualIdx = t.branch.options.findIndex((o) => o.actual);
+    function show(k) {
+      pick = k;
+      opts.replaceChildren(...t.branch.options.map((o, j) => { const b = btn(o.text, () => show(j), 'sl-opt'); b.setAttribute('aria-pressed', String(j === k)); if (j === k) b.classList.add(o.actual ? 'wrong' : 'right'); return b; }));
+      const o = t.branch.options[k], after = sc.timeline.slice(at + 1);
+      result.replaceChildren();
+      const box = el('div', o.actual ? 'sl-next' : 'sl-cause');
+      // 실제 선택의 결과 문장은 "실제로 일어난 일이에요"처럼 머리와 겹치므로, 이어진 장면을 결과로 보여 준다
+      box.append(el('b', '', o.actual ? '그대로 가면 — 실제로 이렇게 이어졌어요' : '다르게 했다면'), el('div', '', o.actual ? (after.length ? '아래 장면처럼 사고로 이어졌어요. 3D에서 붉게 이어진 설비를 따라가 보세요.' : o.outcome) : o.outcome));
+      result.append(box);
+      if (o.actual && after.length) {
+        const list = el('div', 'sl-box'); list.append(el('b', '', '이어진 장면'));
+        for (const s of after) list.append(el('div', 'sl-bad', `${s.time} · ${s.text}`));
+        result.append(list);
+      } else if (!o.actual && actualIdx >= 0) {
+        result.append(btn(`실제 선택과 비교: "${short(t.branch.options[actualIdx].text, 24)}"`, () => show(actualIdx), 'sl-btn ghost'));
+      }
+      // 3D: 지난 장면 설비를 옅은 흐름으로 잇고, 갈림길 설비에 결과 링
+      fx.clear();
+      const path = sc.timeline.slice(0, at + 1).map((s) => s.equipment_id);
+      path.forEach((id, i) => { if (i && path[i - 1] !== id) fx.flow(path[i - 1], id, 0x9aa4b2, { opacity: 0.5, dots: 3 }); });
+      fx.ring(t.equipment_id, o.actual ? 0xff3b3b : 0x3ddc84, true);
+      fx.tag(t.equipment_id, `${t.time} ${o.actual ? '⚠ 그대로 가면' : '✓ 다르게 했다면'}`, o.actual ? 'warn' : 'ok', 6);
+      if (o.actual) {
+        // 실제로 일어난 일: 이후 장면의 설비로 붉은 흐름
+        let prev = t.equipment_id;
+        after.forEach((s, i) => { if (s.equipment_id !== prev) fx.flow(prev, s.equipment_id, 0xff3b3b); fx.ring(s.equipment_id, 0xff3b3b, true); if (i === after.length - 1) fx.tag(s.equipment_id, `${s.time} ⚠ ${short(s.text, 18)}`, 'warn', 8); prev = s.equipment_id; });
+      }
+      scene._dirty = true;
+      say(o.actual ? `그대로 가면 실제로 이렇게 이어졌어요. ${after.map((s) => `${s.time}, ${s.text}`).join(' ') || o.outcome}` : `다르게 했다면. ${o.outcome}`);
+    }
+    await goTo(sc.section, t.equipment_id);
+    show(pick);
+  }
+
   // ── ① 조업 실험(What-if) ──
   async function whatifPanel(preset = {}) {
     const input = { ...preset };
@@ -603,9 +658,9 @@ export async function attachSimLab() {
   }
   // 학습 기록의 '오늘의 실습 경로' 링크(?p=공정&lab=map&var=… · lab=quiz&process=… · lab=fault&fault=…)로 들어오면 그 실습을 바로 연다.
   const qs = new URLSearchParams(location.search), lab = qs.get('lab');
-  if (['map', 'quiz', 'fault', 'whatif'].includes(lab)) {
+  if (['map', 'quiz', 'fault', 'whatif', 'incident'].includes(lab)) {
     const id = (k) => (/^[a-z0-9_-]{1,40}$/.test(qs.get(k) || '') ? qs.get(k) : undefined);
-    setTimeout(() => open(lab, {}, { var: id('var'), process: id('process'), fault: id('fault') }), 1200);
+    setTimeout(() => open(lab, {}, { var: id('var'), process: id('process'), fault: id('fault'), scenario: id('scenario'), at: id('at'), pick: id('pick') }), 1200);
   }
   const sectionOf = (eqId) => Object.entries(scene.zones || {}).find(([, z]) => (z.eqs || []).some((e) => e.id === eqId))?.[0] || 'ironmaking';
 }

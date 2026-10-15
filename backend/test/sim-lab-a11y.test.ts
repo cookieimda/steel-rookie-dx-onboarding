@@ -30,3 +30,12 @@ test("3D 실습 패널 배치: 닫힌 패널은 숨기고(빈 띠 방지), 좁�
   assert.match(src, /new ResizeObserver\(fitPanel\)\.observe\(launch\)/);
   assert.match(src, /2D 보기에서는 공장 전체 보기를 쓸 수 없어요/);
 });
+
+test("사고 사례 갈림길 3D 재현: 학습 기록 링크(lab=incident)와 3D 패널이 같은 주소 규칙을 쓴다", () => {
+  const extras = readFileSync(join(process.cwd(), "frontend", "login_ui", "lab-extras.js"), "utf8");
+  assert.match(extras, /lab=incident&scenario=\$\{cur\.id\}&at=\$\{i\}&pick=\$\{pick\}/);
+  assert.match(src, /\['map', 'quiz', 'fault', 'whatif', 'incident'\]\.includes\(lab\)/);
+  assert.match(src, /incidentPanel\(opt\.scenario, Number\(opt\.at\), Number\(opt\.pick\)\)/);
+  const dash = readFileSync(join(process.cwd(), "frontend", "login_ui", "Trainee Dashboard.dc.html"), "utf8");
+  assert.match(dash, /<a class="ic-br-3d" href="\{\{ t\.brHref \}\}">/);
+});

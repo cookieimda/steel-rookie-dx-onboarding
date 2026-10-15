@@ -3,9 +3,12 @@
 // - GET /api/admin/concepts : 개념(=설비)별 첫 판정 분포. concept_results + attempts로 집계
 
 const TOKEN_KEY = 'st-rookie-token';
-async function get(path) {
+function authHeaders() {
   let token = null; try { token = localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY); } catch (e) {}
-  const res = await fetch(path, { headers: token ? { authorization: 'Bearer ' + token } : {} });
+  return token ? { authorization: 'Bearer ' + token } : {};
+}
+async function get(path) {
+  const res = await fetch(path, { headers: authHeaders() });
   if (!res.ok) throw new Error(String(res.status));
   return res.json();
 }
@@ -25,4 +28,17 @@ export function loadTraineeDetail(id) {
 // 실패해도 대시보드는 그대로 보이도록 loadAdminData와 따로 부른다. 실패하면 { error: 상태 코드 문자열 }.
 export async function loadAiSummary() {
   try { return await get('/api/admin/ai-summary'); } catch (e) { return { error: e.message }; }
+}
+
+// GET /api/admin/report.csv : 신입사원 통계 보고서(CSV, 엑셀에서 열림). 로그인 토큰이 있어야 해서 링크 대신 받아서 내려받기를 연다.
+// 파일 이름은 서버가 정한다(신입사원_학습현황_YYYYMMDD.csv).
+export async function downloadReport() {
+  const res = await fetch('/api/admin/report.csv', { headers: authHeaders() });
+  if (!res.ok) throw new Error(String(res.status));
+  const m = (res.headers.get('content-disposition') || '').match(/filename\*=UTF-8''([^;]+)/);
+  const name = m ? decodeURIComponent(m[1]) : 'trainee-report.csv';
+  const url = URL.createObjectURL(await res.blob());
+  const a = Object.assign(document.createElement('a'), { href: url, download: name });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

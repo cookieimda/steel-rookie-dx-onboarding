@@ -74,7 +74,8 @@ function slateTexture() {
   const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(4, 2.4); t.colorSpace = THREE.NoColorSpace; return t;
 }
 const slateMap = slateTexture();
-const tableMat = new THREE.MeshStandardMaterial({ color: 0x24272c, roughness: 0.78, metalness: 0.18, roughnessMap: slateMap, bumpMap: slateMap, bumpScale: 0.12 });
+const FLOOR_UNLIT = true; // [테스트] 테이블 바닥도 조명을 받지 않게. 되돌리려면 false
+const tableMat = FLOOR_UNLIT ? new THREE.MeshBasicMaterial({ color: 0x24272c }) : new THREE.MeshStandardMaterial({ color: 0x24272c, roughness: 0.78, metalness: 0.18, roughnessMap: slateMap, bumpMap: slateMap, bumpScale: 0.12 });
 const table = new THREE.Mesh(new THREE.BoxGeometry(150, 6, 90), tableMat); table.position.y = -3 - STAGE_H; table.receiveShadow = true; scene.add(table);
 const edge = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(150, 6, 90)), new THREE.LineBasicMaterial({ color: 0x3a3e45, transparent: true, opacity: 0.8 })); edge.position.y = -3 - STAGE_H; scene.add(edge);
 const stage3d = createStage({ scene, slateMap, reduced: REDUCED }); // ㄴ자 무대(바닥판 + 뒷벽 + 벽 대시보드)
@@ -98,11 +99,11 @@ $('btnTheme').onclick = () => { theme = theme === 'dark' ? 'light' : 'dark'; try
 function glowTexture() {
   if (glowTexture.t) return glowTexture.t;
   const c = document.createElement('canvas'); c.width = 256; c.height = 192; const x = c.getContext('2d');
-  x.shadowColor = 'rgba(255,255,255,1)'; x.shadowBlur = 26; x.strokeStyle = 'rgba(255,255,255,.95)'; x.lineWidth = 3;
-  x.beginPath(); x.roundRect(28, 28, 200, 136, 18); x.stroke(); x.stroke();
+  x.shadowColor = 'rgba(255,255,255,.8)'; x.shadowBlur = 9; x.strokeStyle = 'rgba(255,255,255,.7)'; x.lineWidth = 1.4;
+  x.beginPath(); x.roundRect(28, 28, 200, 136, 18); x.stroke(); // 은은하게: blur 26→9, 굵기 3→1.4, 한 번만
   return (glowTexture.t = new THREE.CanvasTexture(c));
 }
-const glow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: glowTexture(), color: ORANGE, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+const glow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: glowTexture(), color: 0xffc484, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
 glow.rotation.x = -Math.PI / 2; glow.position.y = 0.12; glow.renderOrder = 1; scene.add(glow);
 // 선택한 설비를 감싸는 바닥 링(v4의 선택 링과 같은 시안). 참고 영상의 '선택 돔' 역할을 가볍게 한다
 // 선택한 설비: 바닥에 굵은 링을 두지 않고, 15% 불투명 물결 두 개가 바깥으로 퍼진다(2026-10-13 요청)
@@ -132,8 +133,8 @@ function tuneMaterial(o) {
   if (nm === 'Concrete') { m.color.setRGB(0.6, 0.61, 0.62); o.castShadow = false; }
   if (nm === 'Cladding') m.color.setRGB(0.6, 0.63, 0.66);
   if (nm === 'Grating') m.color.setRGB(0.36, 0.38, 0.4);
-  if (/^(Molten_Steel|Hot_Slab|Slag_Hot)$/.test(nm)) { m.emissiveIntensity = 2.2; m.toneMapped = false; o.castShadow = false; }
-  if (nm === 'Slab_Cooling') m.emissiveIntensity = 1.6;
+  if (/^(Molten_Steel|Hot_Slab|Slag_Hot)$/.test(nm)) { m.emissiveIntensity = 1.0; m.toneMapped = true; o.castShadow = false; } // 2.2·톤매핑 제외 → 1.0·톤매핑: 주황 빛번짐 제거
+  if (nm === 'Slab_Cooling') m.emissiveIntensity = 0.8;
   if (/Water/.test(nm)) o.castShadow = false;
   if (nm === 'Glass') { m.envMapIntensity = 0.3; m.roughness = 0.35; }
   if (nm === 'Blue_Steel') { m.envMapIntensity = 0.5; m.roughness = Math.max(0.55, m.roughness); }
@@ -184,7 +185,7 @@ function renderProg(p) { // 학습 현황을 벽 대시보드로 보낸다
 // ---- 상단 알약 바 --------------------------------------------------------------------------------------
 $('icHome').src = icon('home', '#111111', 1.8); $('btnHome').classList.add('on'); $('btnHome').onclick = () => { location.href = '/login_ui/home-sleek.html'; };
 $('icClose').src = icon('close', '#e6ebf1', 1.8); $('btnClose').onclick = () => leaveStep();
-$('icUser').src = icon('user', '#e6ebf1', 1.6); $('btnUser').onclick = () => { location.href = '/login'; };
+$('icUser').src = icon('user', '#e6ebf1', 1.6); $('btnUser').onclick = () => { location.href = '/login_ui/home-sleek.html'; };
 // 로그아웃: 로그아웃 API는 없다(JWT, docs/auth-api.md). 토큰이 있을 때만 보이고, 누르면 이 브라우저의 토큰과 이어 보던 학습 대화 id를 지우고 홈으로 간다(steel-intro.html과 같음).
 $('icLogout').src = icon('logout', '#e6ebf1', 1.6);
 { let hasToken = false; try { hasToken = !!(localStorage.getItem('st-rookie-token') || sessionStorage.getItem('st-rookie-token')); } catch (e) {} $('btnLogout').hidden = !hasToken; }
@@ -217,7 +218,7 @@ function renderPanel() {
   const e = curEq; if (!e) return closePanel();
   const d = e.data;
   if (panel === 'eq') {
-    section.hide(); clearInterval(typer);
+    section.hide(); stage3d.setQuiet(false); clearInterval(typer);
     const steps = (d.steps || []).map((s, i) => `<button data-i="${i}"><span class="tile"><img class="ic" width="30" height="30" alt="" src="${icon(stepIcon(s.zone), '#dfe5ec', 1.5)}"></span><span><span class="zone"><span>${esc(s.zone)}</span>${s.temp ? `<code>${esc(s.temp)}</code>` : ''}</span><span class="tx">${esc(s.text)}</span></span></button>`).join('');
     right.innerHTML = `<div class="scroll">
         <div class="phead"><span class="eyebrow">${cur.data.num} · ${esc(cur.data.name)}</span><h1>${esc(d.name)}</h1></div>
@@ -239,7 +240,7 @@ function renderPanel() {
     const lay = d.interior?.[stepIdx] || null; // 같은 번호의 단면 층(라벨·수식)
     const rng = parseTemp(st.temp || lay?.temp), hi = rng ? rng[1] : 0, [hA, hB, hC] = heatOf(hi), pct = (v) => `${Math.min(100, Math.max(0, v / 2000 * 100)).toFixed(1)}%`;
     // 단면 연출을 먼저 켜서 핫스팟 글(현장 포인트)을 패널에 함께 그린다
-    const ok = section.show(cur, e), L = ok ? section.layer(stepIdx) : null, hots = L?.hotspots || [], kpi = d.facts?.[0] || null;
+    const ok = section.show(cur, e); stage3d.setQuiet(!!ok); const L = ok ? section.layer(stepIdx) : null, hots = L?.hotspots || [], kpi = d.facts?.[0] || null;
     right.innerHTML = `<div class="scroll stepcard">
         <!-- L1: 설비 · 단계 · 상태 -->
         <div class="lv l1"><div style="display:flex;align-items:center;gap:12px"><img class="ic" width="40" height="40" alt="" src="${icon(d.shape || 'box', '#e6ebf1', 1.4)}"><div style="flex:1;min-width:0"><div class="eyebrow">${cur.data.num} · ${esc(cur.data.name)} · ${esc(d.name)}</div><h1 style="margin-top:6px;font-size:22px">${String(stepIdx + 1).padStart(2, '0')} ${esc(st.zone)}</h1></div><button class="x" style="position:static" id="stBack" title="설비 설명으로" aria-label="설비 설명으로"><img class="ic" width="22" height="22" alt="" src="${icon('close', '#e6ebf1', 1.8)}"></button></div>
@@ -299,7 +300,7 @@ async function show(p, replay = false) {
   p.root.visible = true;
   p.eqs.forEach((e) => { tagFor(e); e.up = false; e.y = -RISE.depth; e.node.position.y = e.baseY + e.y; });
   syncUi();
-  if (REDUCED) { p.eqs.forEach((e) => { e.up = true; e.y = 0; e.node.position.y = e.baseY; }); glow.material.opacity = 0.14; return; }
+  if (REDUCED) { p.eqs.forEach((e) => { e.up = true; e.y = 0; e.node.position.y = e.baseY; }); glow.material.opacity = 0.07; return; }
   seq = { t0: performance.now() + 650 }; // 바닥판이 다 뻗은 뒤 설비가 솟는다
 }
 function sink(p) {
@@ -311,11 +312,25 @@ function sink(p) {
 }
 
 // ---- 설비 보기 ---------------------------------------------------------------------------------------
-function clearDim(p) { section.hide(); work.stop(); warm.intensity = 0; ripples.forEach((r) => { r.material.opacity = 0; }); p.eqs.forEach((q) => q.node.traverse((o) => { if (!o.isMesh || !o.material.userData.color) return; const m = o.material; m.color.copy(m.userData.color); if (m.userData.emissive) { m.emissive.copy(m.userData.emissive); m.emissiveIntensity = m.userData.emissiveI; } })); }
+let drive = null; // { e, ax, L, p0 } 토페도카 주행
+const isVehicle = (e) => !!e && /torpedo|_car$/.test(e.id);
+function startDrive(e) { stopDrive(); if (!isVehicle(e) || REDUCED) return; const sz = e.box.getSize(new THREE.Vector3()), ax = sz.x >= sz.z ? 'x' : 'z';
+  const par = e.node.parent, w0 = e.node.getWorldPosition(new THREE.Vector3()), w1 = w0.clone(); w1[ax] += 1; const l0 = par.worldToLocal(w0.clone()), l1 = par.worldToLocal(w1.clone()), dir = l1.sub(l0);
+  drive = { e, dir, L: Math.max(sz.x, sz.z) * 2.2, p0: e.node.position.clone(), w0, warm0: warm.position.clone(), rip0: ripples.map((r) => r.position.clone()), t0: performance.now() + 900 }; }
+function stopDrive() { if (!drive) return; drive.e.node.position.x = drive.p0.x; drive.e.node.position.z = drive.p0.z; warm.position.copy(drive.warm0); ripples.forEach((r, i) => r.position.copy(drive.rip0[i])); work.setOffset(0, 0, 0); drive.e.box.setFromObject(drive.e.node); drive = null; } // 상자도 원래 자리로 다시 계산
+function driveTick(now) { if (!drive) return; const T = 9000, u = Math.max(0, now - drive.t0) % T / T; // 0~.4 나감, .4~.5 정차, .5~.9 돌아옴, .9~1 정차
+  const sm = (k) => k * k * (3 - 2 * k), f = u < 0.4 ? sm(u / 0.4) : u < 0.5 ? 1 : u < 0.9 ? 1 - sm((u - 0.5) / 0.4) : 0;
+  const n = drive.e.node, d = drive.dir; n.position.x = drive.p0.x + d.x * drive.L * f; n.position.z = drive.p0.z + d.z * drive.L * f;
+  const wp = n.getWorldPosition(_dv), ox = wp.x - drive.w0.x, oz = wp.z - drive.w0.z; // 불빛·물결·작업 입자도 같은 만큼
+  warm.position.set(drive.warm0.x + ox, drive.warm0.y, drive.warm0.z + oz); ripples.forEach((r, i) => r.position.set(drive.rip0[i].x + ox, drive.rip0[i].y, drive.rip0[i].z + oz)); work.setOffset(ox, 0, oz);
+  drive.e.box.setFromObject(n); }
+const _dv = new THREE.Vector3();
+function clearDim(p) { stopDrive(); section.hide(); stage3d.setQuiet(false); work.stop(); warm.intensity = 0; ripples.forEach((r) => { r.material.opacity = 0; }); p.eqs.forEach((q) => q.node.traverse((o) => { if (!o.isMesh || !o.material.userData.color) return; const m = o.material; m.color.copy(m.userData.color); if (m.userData.emissive) { m.emissive.copy(m.userData.emissive); m.emissiveIntensity = m.userData.emissiveI; } })); }
 function enterStep(e, userAct = true) {
   if (!cur || !e || !e.up || sinking) return;
   if (userAct && tour) stopTour();
   if (curEq !== e) section.hide();
+  stopDrive(); // 움직이던 차를 먼저 제자리로(상자·불빛·입자가 원래 위치 기준으로 잡히게)
   mode = 'step'; curEq = e; stepIdx = 0; cur.seen.add(e.id);
   if (tour) tour.t0 = performance.now();
   openPanel(tour ? 'steps' : 'eq');
@@ -323,6 +338,7 @@ function enterStep(e, userAct = true) {
   const c = e.box.getCenter(new THREE.Vector3()), s = e.box.getSize(new THREE.Vector3());
   warm.position.set(c.x, e.box.max.y + 2, c.z); warm.intensity = 14;
   ripples.forEach((r) => r.position.set(c.x, 0.1, c.z)); rippleR = Math.max(2.5, Math.max(s.x, s.z) * 0.62);
+  startDrive(e);
   cur.eqs.forEach((q) => q.node.traverse((o) => { if (!o.isMesh || !o.material.userData.color) return; const m = o.material; if (q === e) { m.color.copy(m.userData.color); if (m.userData.emissive) { m.emissive.copy(m.userData.emissive); m.emissiveIntensity = m.userData.emissiveI; } } else { m.color.copy(m.userData.color).multiplyScalar(0.6); if (m.userData.emissive) m.emissiveIntensity = m.userData.emissiveI * 0.5; } }));
   if (view === 'board') setView('3d', false); // 설비를 고르면 대시보드 보기에서 나온다
   animateTo(eqPose(e, orbit.yaw), 1200);
@@ -392,7 +408,7 @@ renderer.domElement.addEventListener('wheel', (e) => { e.preventDefault(); orbit
 // ---- 루프 ---------------------------------------------------------------------------------------------
 const composer = new EffectComposer(renderer);
 const renderPass = new RenderPass(scene, camera); composer.addPass(renderPass);
-const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.4, 0.4, 1.35); composer.addPass(bloom); composer.addPass(new OutputPass());
+const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.15, 0.3, 1.6); composer.addPass(bloom); composer.addPass(new OutputPass());
 function resize() { const w = stage.clientWidth || 1, h = stage.clientHeight || 1; renderer.setSize(w, h, false); composer.setSize(w, h); bloom.resolution.set(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); applyViewOffset(); }
 // 오른쪽 패널이 열리면 패널 폭의 절반만큼 장면을 왼쪽으로 밀어, 고른 설비가 패널에 가리지 않고 남은 영역 가운데에 온다(2026-10-14 요청). 천천히 옮겨 간다
 let viewOff = 0;
@@ -413,7 +429,7 @@ function riseTick(now) {
   }
   if (seq && cur) {
     const p = cur, t = now - seq.t0, ks = Math.min(1, Math.max(0, t / 600));
-    glow.material.opacity = ks < 1 ? 0.2 + 0.7 * Math.sin(ks * Math.PI) : 0.14;
+    glow.material.opacity = ks < 1 ? 0.1 + 0.3 * Math.sin(ks * Math.PI) : 0.07; // 등장 때 번쩍임도 절반 이하로
     let done = true;
     p.eqs.forEach((e, i) => { const k = Math.min(1, Math.max(0, (t - 150 - i * RISE.gap) / RISE.dur)); e.y = -RISE.depth * (1 - easeOutBack(k)); if (k >= 1) e.y = 0; e.node.position.y = e.baseY + e.y; e.up = k >= 1; if (k < 1) done = false; });
     if (done) { seq = null; syncUi(); }
@@ -442,7 +458,7 @@ function frame(now) {
   else if (!drag && !REDUCED && mode === 'overview' && view === '3d') orbit.yaw += dt * 0.01;
   const o = orbit; camera.position.set(o.target.x + o.dist * Math.sin(o.yaw) * Math.cos(o.pitch), o.target.y + o.dist * Math.sin(o.pitch), o.target.z + o.dist * Math.cos(o.yaw) * Math.cos(o.pitch)); camera.lookAt(o.target);
   if (curEq && !REDUCED) { warm.intensity = 14 + 3 * Math.sin(now / 420); ripples.forEach((r, k) => { const ph = ((now / 2200) + k * 0.5) % 1; r.scale.setScalar(rippleR * (0.8 + 0.8 * ph)); r.material.opacity = 0.15 * (1 - ph); }); }
-  section.tick(now); stage3d.tick(now, camera); work.tick(now);
+  driveTick(now); section.tick(now); stage3d.tick(now, camera); work.tick(now);
   composer.render(); placeHud();
 }
 

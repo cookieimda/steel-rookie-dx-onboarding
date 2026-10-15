@@ -115,12 +115,25 @@ export function createSection({ scene, renderer, hud, getCamera, getAnchors, isD
     return { group: g, layers: out, scroll };
   }
 
+  const eqOf = (p, o) => { for (let q = o; q; q = q.parent) { const e = p.eqs.find((x) => x.node === q); if (e) return e; } return null; };
+  // 카메라와 포커스 설비 사이에 끼어 화면에서 겹치는 설비는 거의 안 보이게(0.05), 나머지는 0.3 유지
+  const _v = new THREE.Vector3(), _b = new THREE.Box3();
+  function occludeFront(camera) {
+    if (!cur || !camera) return; const p = cur.p, e = cur.e; const fc = e.box.getCenter(_v.clone()), dF = camera.position.distanceTo(fc);
+    const fw = camera.position.clone().sub(fc).normalize();
+    const hidden = new Set();
+    p.eqs.forEach((q) => { if (q === e || !q.box) return; const c = q.box.getCenter(_v); const dq = camera.position.distanceTo(c); if (dq >= dF) return;
+      // 포커스 중심 → 카메라 선분에 대한 q 중심의 거리가 q 반지름 안이면 가린 것으로 본다
+      const t = Math.max(0, Math.min(1, c.clone().sub(fc).dot(fw) / dF)); const onLine = fc.clone().addScaledVector(fw, t * dF); const r = q.box.getSize(_b.min).length() * 0.5;
+      if (onLine.distanceTo(c) < r * 0.9) hidden.add(q); });
+    p.root.traverse((o) => { if (!o.isMesh || !o.material || o.material.userData._xr !== 'out') return; const want = o.userData._xrEq && hidden.has(o.userData._xrEq) ? 0.05 : 0.3; if (o.material.opacity !== want) o.material.opacity = want; });
+  }
   function xray(p, e) {
     const restore = [];
     p.root.traverse((o) => { if (!o.isMesh || !o.visible) return; const m = o.material; restore.push(() => { m.transparent = m.userData._tr; m.opacity = m.userData._op; m.depthWrite = m.userData._dw; m.needsUpdate = true; });
       if (m.userData._tr === undefined) { m.userData._tr = m.transparent; m.userData._op = m.opacity; m.userData._dw = m.depthWrite; }
       let inside = false; for (let q = o; q; q = q.parent) if (q === e.node) { inside = true; break; }
-      m.transparent = true; m.opacity = inside ? 0.16 : 0.1; m.depthWrite = false; m.needsUpdate = true; });
+      m.transparent = true; m.opacity = inside ? 0.42 : 0.3; m.depthWrite = false; m.needsUpdate = true; m.userData._xr = inside ? 'in' : 'out'; o.userData._xrEq = inside ? null : eqOf(p, o); }); // 전엔 0.16/0.1 — 너무 투명해 안 보였다
     return restore;
   }
 
@@ -162,6 +175,6 @@ export function createSection({ scene, renderer, hud, getCamera, getAnchors, isD
     const box = new THREE.Box3().setFromObject(cur.group), c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3());
     const l = cur.layers[idx]; return { target: l ? l.mid.clone().lerp(c, 0.35) : c, span: Math.max(s.x, s.y, s.z), hotspots: hs };
   }
-  function tick(now) { if (cur?.scroll?.length) { const off = (now / 1000) * 0.08 % 1; cur.scroll.forEach((m) => { if (m.map) m.map.offset.x = -off; }); } return fx.tick(now); }
+  function tick(now) { if (cur) occludeFront(getCamera()); if (cur?.scroll?.length) { const off = (now / 1000) * 0.08 % 1; cur.scroll.forEach((m) => { if (m.map) m.map.offset.x = -off; }); } return fx.tick(now); }
   return { show, layer, hide, tick, highlight, get hotspots() { return hotspots; }, get active() { return !!cur; }, get equipment() { return cur?.e || null; } };
 }

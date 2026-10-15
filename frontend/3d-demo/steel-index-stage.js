@@ -20,7 +20,9 @@ const fmt = (n) => Math.round(n).toLocaleString('ko-KR');
 const fitFont = (x, text, weight, size, maxW, family = FONT) => { let s = size; x.font = `${weight} ${s}px ${family}`; while (s > 18 && x.measureText(text).width > maxW) { s -= 2; x.font = `${weight} ${s}px ${family}`; } return s; };
 
 export function createStage({ scene, slateMap, reduced = false }) {
-  const floorMat = new THREE.MeshStandardMaterial({ color: 0x2c3036, roughness: 0.8, metalness: 0.15, roughnessMap: slateMap, bumpMap: slateMap, bumpScale: 0.08 });
+  // [테스트] 바닥이 조명(주황 불빛·키 라이트 반사)을 받지 않게 무광(조명 무시) 재질로. 되돌리려면 FLOOR_UNLIT = false
+  const FLOOR_UNLIT = true;
+  const floorMat = FLOOR_UNLIT ? new THREE.MeshBasicMaterial({ color: 0x2c3036 }) : new THREE.MeshStandardMaterial({ color: 0x2c3036, roughness: 0.8, metalness: 0.15, roughnessMap: slateMap, bumpMap: slateMap, bumpScale: 0.08 });
   const wallMat = new THREE.MeshStandardMaterial({ color: 0x1c2025, roughness: 0.88, metalness: 0.08, transparent: true });
   const lineMat = new THREE.LineBasicMaterial({ color: 0x4a5058, transparent: true });
   const floorPivot = new THREE.Group(), wallPivot = new THREE.Group(), board = new THREE.Group();
@@ -58,7 +60,7 @@ export function createStage({ scene, slateMap, reduced = false }) {
     const pts = [], bands = [];
     p.eqs.forEach((e) => { const i0 = pts.length; (e.data.steps || []).forEach((s) => { const r = parseTemp(s.temp); if (r) pts.push({ v: r[1], zone: s.zone, temp: s.temp, eq: e }); }); if (pts.length > i0) bands.push({ eq: e, i0, i1: pts.length - 1 }); });
     st = { p, W, D, Hw, z0, title, graph, small, pts, bands, t0: 0, sink: null, k: { floor: 0, wall: 0, title: 0, graph: 0 }, learn: null, eq: null, fade: 1 };
-    floorPivot.scale.set(1, 1, 0.0001); wallPivot.scale.set(1, 0.0001, 1); floorPivot.visible = wallPivot.visible = board.visible = true;
+    floorPivot.scale.set(1, 1, 0.0001); wallPivot.scale.set(1, 0.0001, 1); floorPivot.visible = true; wallPivot.visible = board.visible = !quiet;
     drawAll(true);
   }
 
@@ -154,7 +156,7 @@ export function createStage({ scene, slateMap, reduced = false }) {
     K.floor = ease(t / T.floor); K.wall = ease((t - T.wallAt) / T.wall);
     floorPivot.scale.z = Math.max(0.0001, K.floor); wallPivot.scale.y = Math.max(0.0001, K.wall);
     const kt = Math.min(1, Math.max(0, (t - T.titleAt) / T.title)); if (kt !== K.title) { K.title = kt; drawTitle(kt); }
-    camera.getWorldPosition(_cam); const behind = _cam.z < st.z0 - 0.5; st.fade += ((behind ? 0.12 : 1) - st.fade) * 0.12; // 벽 뒤에서 보면 옅게
+    camera.getWorldPosition(_cam); const behind = _cam.z < st.z0 - 0.5; st.fade += ((quiet ? 0 : behind ? 0.12 : 1) - st.fade) * 0.12; // 벽 뒤에서 보면 옅게, 재생 중엔 완전히 사라짐
     wallMat.opacity = st.fade; lineMat.opacity = st.fade; wallMat.depthWrite = st.fade > 0.9;
     const kg = Math.min(1, Math.max(0, (t - T.panelAt) / (T.panel * 2.2))); // 그래프 선은 판이 켜진 뒤 왼쪽부터 그어진다
     if (kg > 0 && K.graph !== kg) { K.graph = kg; drawGraph(kg); }
@@ -166,5 +168,7 @@ export function createStage({ scene, slateMap, reduced = false }) {
   }
   // 카메라가 무대 전체(바닥판 + 벽)를 담는 데 쓰는 상자
   function bounds() { if (!st) return null; const { cx } = st.p.foot; return new THREE.Box3(new THREE.Vector3(cx - st.W / 2, 0, st.z0), new THREE.Vector3(cx + st.W / 2, st.Hw, st.z0 + st.D)); }
-  return { build, play, sink, tick, setTheme, setEquipment, setLearning, bounds };
+  let quiet = false; // 재생(단면) 중 뒷벽 대시보드 숨김
+  function setQuiet(on) { quiet = !!on; if (st) { if (quiet) st.fade = 0; wallPivot.visible = board.visible = !quiet; } } // 재생 중엔 벽·판을 통째로 끈다(페이드로는 판이 남았다)
+  return { build, play, sink, tick, setTheme, setEquipment, setLearning, bounds, setQuiet };
 }

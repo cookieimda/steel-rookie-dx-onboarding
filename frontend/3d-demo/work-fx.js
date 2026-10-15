@@ -83,5 +83,6 @@ export function createWorkFx({ scene, isDark = () => true }) {
   }
   function stop() { if (!W) return; scene.remove(W.g); W.em.forEach((m) => { if (m.pts) { m.pts.geometry.dispose(); m.pts.material.dispose(); } if (m.ln) { m.ln.geometry.dispose(); m.ln.material.dispose(); } }); W = null; }
   function setVisible(v) { if (W) W.g.visible = !!v; }
-  return { start, tick, stop, setVisible, get active() { return !!W; } };
+  function setOffset(x, y, z) { if (W) W.g.position.set(x, y, z); } // 움직이는 설비(토페도카)를 따라가게
+  return { start, tick, stop, setVisible, setOffset, get active() { return !!W; } };
 }

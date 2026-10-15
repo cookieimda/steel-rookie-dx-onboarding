@@ -679,6 +679,7 @@ export async function attachSimLab() {
       else if (s.lab === 'map') open('map', s.set || {}, { tour: !!s.tour });
       else if (s.lab === 'quiz') open('quiz', {}, { level: s.level || 1 });
       else if (s.lab === 'diagnose') open('diagnose');
+      else if (s.lab === 'rebalance') open('rebalance');
       else if (s.lab === 'fault') open('fault', {}, { fault: s.fault });
       else if (s.lab === 'incident') open('incident', {}, { scenario: s.scenario, at: s.at, pick: s.pick });
       say(`수업 ${i + 1}단계, ${s.title}. ${s.note}`);

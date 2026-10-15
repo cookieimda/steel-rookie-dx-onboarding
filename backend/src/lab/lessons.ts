@@ -9,7 +9,7 @@ import type { IncidentScenario } from "./incidents.js";
 
 const Step = z.object({
   title: z.string().min(1), note: z.string().min(1),
-  lab: z.enum(["plant", "map", "quiz", "diagnose", "fault", "incident"]),
+  lab: z.enum(["plant", "map", "quiz", "diagnose", "rebalance", "fault", "incident"]),
   set: z.record(z.string(), z.number()).optional(), tour: z.boolean().optional(),
   level: z.union([z.literal(1), z.literal(2)]).optional(),
   fault: z.string().optional(), scenario: z.string().optional(), at: z.number().int().min(0).optional(), pick: z.number().int().min(0).optional(),

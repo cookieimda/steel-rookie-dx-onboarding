@@ -251,7 +251,7 @@ test("수업 모드: 수업 파일의 참조(변수·이상 상황·갈림길)�
   const { simulateCausal } = await import("../src/lab/causal.js");
   const refs = { faults: loadFaults().faults, scenarios: loadIncidents().scenarios };
   const lessons = loadLessons(undefined, refs);
-  assert.deepEqual(lessons.map((l) => l.id), ["causal-101", "diagnose-drill"]);
+  assert.deepEqual(lessons.map((l) => l.id), ["causal-101", "diagnose-drill", "field-judgment"]);
   // 'diagnose-drill' 1·2단계 안내: 재가열 온도↓는 사상압연 출구·권취 온도를 함께 내리고, 냉각 뱅크↑는 권취 온도만 내린다
   const v = (input: Record<string, number>, id: string) => simulateCausal(input).nodes.find((n) => n.id === id)!.delta;
   assert.ok(v({ reheat_temp: 1160 }, "fdt") < 0 && v({ reheat_temp: 1160 }, "coiling_temp") < 0);
@@ -339,4 +339,16 @@ test("거꾸로 추론 기록·통계: 채점할 때 답을 남기고, 통계는
   assert.deepEqual([c.cause, c.mistaken_for, c.rate], ["재가열 온도 ▼", "런아웃 냉각 뱅크 ▲", 0.5]);
   deleteUserData(db, kim.id, { origin: "live" });
   assert.equal(Number(db.prepare("SELECT COUNT(*) AS n FROM diagnose_answers WHERE user_id = ?").get(kim.id)!.n), 0);
+});
+
+test("수업 '현장 판단': 되돌리기 단계 종류를 받고, 안내의 '출강 온도↑·주조 속도↑가 같은 증상' 설명이 모델과 맞는다", async () => {
+  const { loadLessons } = await import("../src/lab/lessons.js");
+  const { simulateCausal, diagnoseInput } = await import("../src/lab/causal.js");
+  const l = loadLessons().find((x) => x.id === "field-judgment")!;
+  assert.deepEqual(l.steps.map((s) => s.lab), ["map", "diagnose", "rebalance", "quiz"]);
+  const sign = (input: Record<string, number>, id: string) => Math.sign(simulateCausal(input).nodes.find((n) => n.id === id)!.delta);
+  for (const key of ["tap_temp:1", "cast_speed:1"]) {
+    const input = diagnoseInput(key)!;
+    assert.deepEqual([sign(input, "shell_mm"), sign(input, "breakout")], [-1, 1], key);
+  }
 });

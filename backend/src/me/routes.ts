@@ -6,8 +6,9 @@ import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 import { requireUser, type AuthDeps } from "../auth/routes.js";
 import type { User } from "../auth/users.js";
-import { SECTION_ORDER, type Section } from "../checkpoint/types.js";
-import { traineeStats } from "../admin/trainee-stats.js";
+import { SECTION_NAMES, SECTION_ORDER, type Section } from "../checkpoint/types.js";
+import { defaultDemoSections, defaultRubrics, traineeStats } from "../admin/trainee-stats.js";
+import { statSections } from "../demo-sections.js";
 import { MeRepository } from "./repository.js";
 
 const Query = z.object({ section: z.enum(SECTION_ORDER as [Section, ...Section[]]).optional() });
@@ -47,6 +48,13 @@ const SketchParams = z.object({ process: z.enum(SECTION_ORDER as [Section, ...Se
 export function createMeRouter(db: DatabaseSync, auth: AuthDeps): express.Router {
   const router = express.Router();
   const repo = new MeRepository(db);
+  // 표시 이름은 설비 목록이 아닌 평가·통계와 같은 개념 목록에서 읽는다.
+  const conceptName = (section: string, id: string) =>
+    statSections(defaultRubrics(), defaultDemoSections())
+      .find((s) => s.section === section)?.concepts.find((c) => c.concept_id === id)?.name
+    ?? `${SECTION_NAMES[section as Section] ?? "학습"} 관련 개념`;
+  const misconceptions = (userId: string, section?: Section) => repo.listMisconceptions(userId, section)
+    .map((m) => ({ ...m, concept_name: conceptName(m.section, m.concept_id) }));
   // 로그인이 필요하다. 다른 사람의 기록은 어떤 값을 넣어도 볼 수 없다(사용자는 토큰으로만 정한다).
   router.get("/api/me/misconceptions", requireUser(auth), (req, res) => {
     const query = Query.safeParse(req.query);
@@ -55,7 +63,7 @@ export function createMeRouter(db: DatabaseSync, auth: AuthDeps): express.Router
       return;
     }
     const user = res.locals.user as User;
-    res.json({ misconceptions: repo.listMisconceptions(user.id, query.data.section) });
+    res.json({ misconceptions: misconceptions(user.id, query.data.section) });
   });
   router.get("/api/me/dashboard", requireUser(auth), (_req, res) => {
     const user = res.locals.user as User;
@@ -78,12 +86,12 @@ export function createMeRouter(db: DatabaseSync, auth: AuthDeps): express.Router
       if (seen.has(key)) return [];
       seen.add(key);
       if (row.verdict === "correct" || row.recheck_verdict === "correct") return [];
-      return [{ section, concept_id, verdict: String(row.verdict),
+      return [{ section, concept_id, concept_name: conceptName(section, concept_id), verdict: String(row.verdict),
         recheck_verdict: row.recheck_verdict == null ? null : String(row.recheck_verdict),
         updated_at: String(row.updated_at) }];
     }).slice(0, 8);
     res.json({ checkpoint_data: stats.checkpoint_data, sections: stats.sections,
-      trainee, review_concepts, misconceptions: repo.listMisconceptions(user.id) });
+      trainee, review_concepts, misconceptions: misconceptions(user.id) });
   });
 
   // 마이페이지 '설계도·필기'의 펜 필기. 본인 것만 읽고 쓴다(사용자는 토큰으로만 정한다).

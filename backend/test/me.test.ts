@@ -50,6 +50,8 @@ test("본인 오개념만 최근 것부터, 출처 라벨과 해결 여부를 �
     ["m1", "대화 중 감지됨", false],
   ]);
   assert.equal(json.misconceptions[2].answer_text, "코크스가 불순물 없애는 거죠?");
+  assert.equal(json.misconceptions[1].concept_name, "소결의 목적");
+  assert.equal(json.misconceptions[0].concept_name, "제강 관련 개념");
   assert.ok(!JSON.stringify(json).includes("다른 사람"));
 });
 
@@ -74,6 +76,7 @@ test("학습 현황은 로그인한 신입사원의 DB 기록만 돌려준다", 
   assert.equal(json.trainee.misconceptions.open, 0);
   assert.deepEqual(json.review_concepts, []);
   assert.deepEqual(json.misconceptions.map((m: { id: string }) => m.id), ["m3", "m2", "m1"]);
+  assert.equal(json.misconceptions.find((m: any) => m.concept_id === "sinter_purpose").concept_name, "소결의 목적");
   assert.ok(!JSON.stringify(json).includes("다른 사람"));
 });
 

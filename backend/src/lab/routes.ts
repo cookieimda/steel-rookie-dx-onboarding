@@ -130,12 +130,17 @@ export function createLabRouter({ db, auth, deck, llm = null, now = () => new Da
   const strip = ({ verbKey: _v, ...s }: Statement & { verbKey: VerbKey }) => s;
   router.get("/api/me/lab/xapi", login, (req, res) => {
     const verb = typeof req.query.verb === "string" ? req.query.verb : "";
+    const kind = typeof req.query.kind === "string" ? req.query.kind : "";
     const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 50));
     const all = allStatements(userOf(res));
-    const counts: Record<string, number> = {};
+    // 활동 종류: 활동 id의 /activities/<종류>/ (설비·개념·인과 퀴즈·이상 상황 훈련·갈림길·3D 살펴봄 …). 동사와 함께 거를 수 있다.
+    const kindOf = (s: Statement) => /\/activities\/([a-z0-9-]+)\//.exec(s.object.id)?.[1] ?? "other";
+    const counts: Record<string, number> = {}, kinds: Record<string, number> = {};
     for (const s of all) counts[s.verbKey] = (counts[s.verbKey] ?? 0) + 1;
-    const list = verb ? all.filter((s) => s.verbKey === verb) : all;
-    res.set("X-Experience-API-Version", XAPI_VERSION).json({ statements: list.slice(0, limit).map((s) => ({ ...strip(s), verb_key: s.verbKey })), total: list.length, counts, more: null });
+    const byVerb = verb ? all.filter((s) => s.verbKey === verb) : all;
+    for (const s of byVerb) kinds[kindOf(s)] = (kinds[kindOf(s)] ?? 0) + 1;
+    const list = kind ? byVerb.filter((s) => kindOf(s) === kind) : byVerb;
+    res.set("X-Experience-API-Version", XAPI_VERSION).json({ statements: list.slice(0, limit).map((s) => ({ ...strip(s), verb_key: s.verbKey, kind: kindOf(s) })), total: list.length, counts, kinds, more: null });
   });
   router.get("/api/me/lab/xapi/export", login, (_req, res) => {
     const user = userOf(res);

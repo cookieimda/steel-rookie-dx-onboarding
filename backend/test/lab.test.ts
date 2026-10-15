@@ -248,3 +248,15 @@ test("HTTP xAPI 3D 실습 살펴봄: 인과 따라가기·조건 링크(변수)�
   // 인과 퀴즈 답(activities/causal-link/…)과 활동 id가 겹치지 않는다
   assert.ok(list.json.statements.every((s: any) => !/\/activities\/causal-link\//.test(s.object.id)));
 });
+
+test("HTTP xAPI 종류로 거르기: 활동 종류별 개수를 주고 ?kind=로 거르며, 동사와 함께 쓸 수 있다", async () => {
+  const all = await call("GET", "/api/me/lab/xapi", lee);
+  assert.equal(all.json.kinds["causal-tour"], 1);
+  assert.equal(all.json.kinds["incident-3d"], 1);
+  assert.ok(all.json.statements.every((s: any) => typeof s.kind === "string"));
+  const tour = await call("GET", "/api/me/lab/xapi?kind=causal-tour", lee);
+  assert.deepEqual([tour.json.total, tour.json.statements[0].kind], [1, "causal-tour"]);
+  assert.equal((await call("GET", "/api/me/lab/xapi?verb=reviewed&kind=causal-tour", lee)).json.total, 0);
+  const kimReviewed = await call("GET", "/api/me/lab/xapi?verb=reviewed", kim);
+  assert.equal(Object.values(kimReviewed.json.kinds as Record<string, number>).reduce((a, b) => a + b, 0), kimReviewed.json.total, "종류 개수는 동사로 거른 뒤의 수");
+});

@@ -24,6 +24,10 @@ async function api(method, path, body) {
 
 export const SUBTABS = [['review', '간격 반복'], ['league', '주간 리그'], ['xapi', 'xAPI 기록'], ['replay', '세션 리플레이'], ['socratic', '소크라테스'],
   ['incident', '사고 사례'], ['whatif', 'What-if'], ['notes', '설비 메모'], ['patterns', '내 오답 유형']];
+/** xAPI 활동 종류(활동 id의 /activities/<종류>/) → 이름·아이콘. 3D 실습 종류도 여기서 이름을 붙인다. */
+const KIND_LABEL = { section: ['📍', '공정'], concept: ['💡', '개념'], 'review-card': ['🗂', '복습 카드'], equipment: ['🏭', '설비'], blueprint: ['✏️', '설계도'],
+  'causal-link': ['🧩', '인과 퀴즈'], 'fault-drill': ['🚨', '이상 상황 훈련'], 'incident-branch': ['🔀', '갈림길'], 'causal-tour': ['🗺', '인과 따라가기'],
+  'causal-map-link': ['🔗', '조건 링크'], 'incident-3d': ['🔀', '갈림길 3D'] };
 const VERB_LABEL = { asked: '질문함', answered: '답함', completed: '끝냄', passed: '통과함', experienced: '살펴봄', resolved: '해결함', annotated: '필기함', reviewed: '복습함', mastered: '스스로 답함' };
 const GRADE_LABEL = { 0: '다시', 3: '어려움', 4: '보통', 5: '쉬움' };
 const GRADE_TONE = { 0: 'bad', 3: 'mid', 4: 'ok', 5: 'easy' };
@@ -111,7 +115,7 @@ export function createLearningLab(c) {
   const loaders = {
     review: () => api('GET', '/api/me/lab/review').then(r => set({ labReview: r, labRevealed: false })),
     league: () => api('GET', '/api/me/lab/league').then(r => set({ labLeague: r })),
-    xapi: () => api('GET', `/api/me/lab/xapi?limit=100${S().labXapiVerb ? `&verb=${S().labXapiVerb}` : ''}`).then(r => set({ labXapi: r })),
+    xapi: () => api('GET', `/api/me/lab/xapi?limit=100${S().labXapiVerb ? `&verb=${S().labXapiVerb}` : ''}${S().labXapiKind ? `&kind=${S().labXapiKind}` : ''}`).then(r => set({ labXapi: r })),
     replay: () => api('GET', '/api/me/lab/replays').then(r => set({ labReplays: r.sessions })),
     socratic: () => api('GET', '/api/me/lab/socratic').then(r => set({ labSocList: r, labSocEq: S().labSocEq || r.equipment[0]?.id || '' })),
   };
@@ -250,7 +254,10 @@ export function createLearningLab(c) {
       xaLoaded: !!X, xaTotal: X ? `${X.total}개 문장` : '',
       xaVerbs: X ? [{ label: `전체`, on: !s.labXapiVerb, onClick: () => { set({ labXapiVerb: '' }); setTimeout(() => load('xapi')); } },
         ...Object.entries(X.counts).map(([k, n]) => ({ label: `${VERB_LABEL[k] || k} ${n}`, on: s.labXapiVerb === k, onClick: () => { set({ labXapiVerb: k }); setTimeout(() => load('xapi')); } }))] : [],
-      xaRows: (X?.statements || []).map(st => ({ when: clock(st.timestamp), verb: st.verb.display['ko-KR'], obj: st.object.definition.name['ko-KR'],
+      // 종류 칩: 동사로 거른 뒤의 종류별 개수. 같은 칩을 다시 누르면 풀린다
+      xaKinds: X?.kinds ? Object.entries(X.kinds).sort((a, b) => b[1] - a[1]).map(([k, n]) => ({ label: `${(KIND_LABEL[k] || ['•', k])[0]} ${(KIND_LABEL[k] || ['', k])[1]} ${n}`, on: s.labXapiKind === k,
+        onClick: () => { set({ labXapiKind: s.labXapiKind === k ? '' : k }); setTimeout(() => load('xapi')); } })) : [],
+      xaRows: (X?.statements || []).map(st => ({ when: clock(st.timestamp), verb: st.verb.display['ko-KR'], obj: `${(KIND_LABEL[st.kind] || ['•'])[0]} ${st.object.definition.name['ko-KR']}`,
         res: st.result?.score ? `${Math.round(st.result.score.scaled * 100)}%` : st.result?.success === true ? '성공' : st.result?.success === false ? '아직' : '',
         json: JSON.stringify({ id: st.id, actor: st.actor, verb: st.verb, object: st.object, ...(st.result ? { result: st.result } : {}), context: st.context, timestamp: st.timestamp, stored: st.stored, version: st.version }, null, 2) })),
       xaEmpty: !!X && !X.statements.length, xaDownload: download,

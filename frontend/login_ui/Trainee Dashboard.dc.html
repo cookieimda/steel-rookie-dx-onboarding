@@ -556,7 +556,9 @@
         <!-- ③ xAPI 기록: 내 학습 기록을 xAPI 1.0.3 문장으로. 사내 LMS·LRS로 옮길 수 있다 -->
         <div class="lb-pane" style="display:{{ labShowXapi }};">
           <div class="lb-row" style="justify-content:space-between;"><span class="lb-muted">xAPI 1.0.3 형식 · {{ xaTotal }} · 줄을 누르면 문장(JSON)이 보여요</span><button type="button" class="lb-btn ghost" onClick="{{ xaDownload }}">JSON 내려받기</button></div>
-          <div class="lb-chips"><sc-for list="{{ xaVerbs }}" as="c" hint-placeholder-count="4"><button type="button" aria-pressed="{{ c.on }}" onClick="{{ c.onClick }}">{{ c.label }}</button></sc-for></div>
+          <div class="lb-chips" aria-label="동사로 거르기"><sc-for list="{{ xaVerbs }}" as="c" hint-placeholder-count="4"><button type="button" aria-pressed="{{ c.on }}" onClick="{{ c.onClick }}">{{ c.label }}</button></sc-for></div>
+          <!-- 종류(활동)로 거르기: 설비·인과 퀴즈·이상 상황 훈련·갈림길·3D 살펴봄 등. 같은 칩을 다시 누르면 풀린다 -->
+          <div class="lb-chips" aria-label="종류로 거르기"><sc-for list="{{ xaKinds }}" as="c" hint-placeholder-count="4"><button type="button" aria-pressed="{{ c.on }}" onClick="{{ c.onClick }}">{{ c.label }}</button></sc-for></div>
           <sc-if value="{{ xaEmpty }}" hint-placeholder-val="{{ false }}"><span class="lb-muted">아직 기록이 없어요. 튜터에게 질문하거나 복습하면 문장이 생겨요.</span></sc-if>
           <div class="lb-xa"><sc-for list="{{ xaRows }}" as="x" hint-placeholder-count="5">
             <details><summary><span class="lb-muted">{{ x.when }}</span><strong>{{ x.verb }}</strong><span>{{ x.obj }}</span><span class="lb-muted">{{ x.res }}</span></summary><pre>{{ x.json }}</pre></details>

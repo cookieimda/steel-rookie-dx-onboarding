@@ -30,6 +30,7 @@
     .seg { pointer-events: auto; display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 999px; background: var(--surf); border: 1px solid var(--line); box-shadow: var(--shadow); }
     .seg button { height: 36px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: 600 15px/1 var(--f-body); cursor: pointer; }
     .seg button.on { background: #f2f2f2; color: #111; }
+    .seg button:focus-visible { outline: none; } /* 2D·3D 토글은 포커스 외곽선을 그리지 않는다(2026-10-15 요청) */
     .seg .sep { width: 1px; height: 22px; background: var(--line); margin: 0 4px; }
     .seg a { height: 36px; padding: 0 14px; border-radius: 999px; display: inline-flex; align-items: center; color: var(--text); font: 600 15px/1 var(--f-body); text-decoration: none; }
     .seg a:hover { background: var(--surf2); }
@@ -66,6 +67,18 @@
     .flow .nx:hover { background: var(--surf2); }
 
 
+    /* 조작 안내: 처음 들어오면 먼저 보이고, [시작하기]를 누르면 공정이 순서대로 이어진다 */
+    .guide { position: fixed; inset: 0; z-index: 8; display: grid; place-items: center; background: rgba(8,8,10,.45); transition: opacity .4s var(--ease); }
+    .guide.off { opacity: 0; pointer-events: none; }
+    .guide .card { width: min(440px, calc(100vw - 32px)); box-sizing: border-box; padding: 24px 24px 20px; border-radius: 18px; background: var(--surf); border: 1px solid var(--line); box-shadow: var(--shadow); }
+    .guide h2 { margin: 0; font: 800 22px/1.2 var(--f-body); }
+    .guide p { margin: 6px 0 16px; color: var(--muted); font: 400 15px/1.5 var(--f-body); }
+    .guide ul { list-style: none; margin: 0 0 20px; padding: 0; display: grid; gap: 10px; }
+    .guide li { display: flex; align-items: center; gap: 12px; font: 400 15px/1.4 var(--f-body); }
+    .guide kbd { flex: none; min-width: 92px; padding: 5px 10px; border-radius: 8px; background: var(--surf2); border: 1px solid var(--line); color: var(--text); font: 600 14px/1.2 var(--f-body); text-align: center; box-sizing: border-box; }
+    .guide button { width: 100%; height: 44px; border: 0; border-radius: 999px; background: #f2f2f2; color: #111; font: 700 16px/1 var(--f-body); cursor: pointer; }
+    .guide button:hover { background: #fff; }
+
     #load { position: fixed; inset: 0; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 45%, #232327 0%, var(--night) 60%); z-index: 9; transition: opacity .6s var(--ease); }
     #load.off { opacity: 0; pointer-events: none; }
     #load b { font: 400 13px/1 var(--f-mono); letter-spacing: .3em; color: #9a9aa0; }
@@ -81,7 +94,7 @@
 
   <div class="top">
     <div class="ttl" id="ttl"><h1>제철 공정 지도</h1><p>제선 → 제강 → 연주 → 열연 구역이 차례로 올라옵니다. 구역에 마우스를 올려 그 공정으로 들어가세요.</p></div>
-    <div class="seg" role="group" aria-label="보기"><button id="v2d" aria-pressed="false">지도</button><button id="v3d" class="on" aria-pressed="true">3D</button><span class="sep"></span><a href="/login" title="마이페이지">마이페이지</a><button id="btnLogout" type="button" hidden>로그아웃</button></div>
+    <div class="seg" role="group" aria-label="보기"><button id="v2d" aria-pressed="false">2D</button><button id="v3d" class="on" aria-pressed="true">3D</button><span class="sep"></span><a href="/login" title="마이페이지">마이페이지</a><button id="btnLogout" type="button" hidden>로그아웃</button></div>
   </div>
 
   <div class="flow">
@@ -91,6 +104,21 @@
     <button class="nx" id="btnNext">다음 공정 ›</button>
   </div>
 
+
+  <div class="guide off" id="guide" role="dialog" aria-modal="true" aria-labelledby="guideTtl">
+    <div class="card">
+      <h2 id="guideTtl">이렇게 둘러보세요</h2>
+      <p>시작하면 제선 → 제강 → 연주 → 열연 공정이 순서대로 이어집니다.</p>
+      <ul>
+        <li><kbd>드래그</kbd>화면을 돌려 봅니다 (2D에서는 위에서 본 채로 돌아갑니다)</li>
+        <li><kbd>마우스 휠</kbd>확대·축소합니다</li>
+        <li><kbd>구역 클릭</kbd>그 공정으로 다가가고, [들어가기]로 들어갑니다</li>
+        <li><kbd>← → · 1~4</kbd>공정을 옮깁니다 (Space: 재생·멈춤)</li>
+        <li><kbd>2D · 3D · V</kbd>위에서 본 평면 보기와 입체 보기를 바꿉니다 (2D에서 위아래로 드래그해도 3D로 바뀝니다)</li>
+      </ul>
+      <button type="button" id="guideGo">시작하기</button>
+    </div>
+  </div>
 
   <div id="load"><div style="display:flex;flex-direction:column;align-items:center"><b>ST-ROOKIE</b><div class="bar"><i id="loadbar"></i></div></div></div>
 

@@ -10,7 +10,7 @@ import {
   type Phase,
 } from "../../backend/src/checkpoint/types.js";
 import type { Rubric, RubricConcept } from "../../backend/src/rubrics.js";
-import { escapeDelimited, renderPrompt, type GeminiClient } from "./gemini.js";
+import { escapeDelimited, renderPrompt, type LlmClient } from "./gemini.js";
 
 const MAX_ATTEMPTS = 2;
 
@@ -90,7 +90,7 @@ export interface DetailedEvaluation {
 }
 
 export class GeminiEvaluator implements Evaluator {
-  constructor(private readonly gemini: GeminiClient) {}
+  constructor(private readonly gemini: LlmClient) {}
 
   async evaluate(input: EvaluateInput): Promise<Evaluation> {
     const { evaluation, formatProblems } = await this.evaluateDetailed(input);

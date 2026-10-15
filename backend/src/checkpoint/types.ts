@@ -99,7 +99,7 @@ export class LlmUnavailableError extends Error {
 
 /** 클라이언트가 고칠 수 있는 요청 오류. status는 그대로 HTTP 상태 코드가 된다. */
 export class CheckpointError extends Error {
-  constructor(readonly status: 400 | 403 | 404 | 409, message: string) {
+  constructor(readonly status: 400 | 403 | 404 | 409 | 429, message: string) {
     super(message);
   }
 }

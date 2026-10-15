@@ -22,6 +22,7 @@ const MAX_ENTRIES = 500;
 export const normalizeQuestion = (q: string) => q.normalize("NFC").replace(/\s+/g, " ").trim();
 
 export class AnswerCache {
+  clear(): void { this.entries.clear(); this.scheduleSave(); }
   private readonly entries = new Map<string, LearningReply>();
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
 

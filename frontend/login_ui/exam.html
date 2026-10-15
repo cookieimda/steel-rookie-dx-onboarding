@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1c1c1c">
+  <title>평가 시험 · ST-ROOKIE</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Montserrat:wght@500;700;800&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+  <link rel="stylesheet" href="/login_ui/exam.css">
+  <script type="module" src="/login_ui/exam.js"></script>
+</head>
+<body>
+  <!-- 학습 기록(Trainee Dashboard.dc.html)과 같은 체계: 둥근 헤더(로고 · ST-ROOKIE · TRAINEE · 현재 위치 알약), [ TRAINEE ] 눈썹 + 영어 제목, .card 패널 -->
+  <header class="topbar">
+    <a class="brand" href="/login_ui/home-sleek.html" data-leave><span class="brand-mark" aria-hidden="true"></span>ST-ROOKIE</a>
+    <span class="role">TRAINEE</span>
+    <span class="where" id="where">● 평가 시험</span>
+    <span class="grow"></span>
+    <nav class="top-nav" aria-label="주 메뉴">
+      <button type="button" class="icon-button" id="theme" aria-label="테마 전환">☀</button>
+      <button type="button" class="text-button" id="logout">로그아웃</button>
+      <a class="btn" href="/3d-demo/steel-index.html" data-leave>학습 화면</a>
+      <a class="btn secondary" href="/login" data-leave>학습 기록</a>
+    </nav>
+  </header>
+  <main>
+    <section class="hero">
+      <div class="hero-text">
+        <span class="eyebrow">[ TRAINEE ]</span>
+        <h1>PROVE &amp; PASS.</h1>
+        <span class="lead"><span id="profile">내 시험</span> · 배운 공정을 자신의 말로 설명하고, 다음 단계로 나아가세요.</span>
+      </div>
+      <!-- 통과 기준과 진행 요약: 학습 기록의 통계 카드 모양 -->
+      <div class="kpis" aria-label="시험 기준과 진행 요약">
+        <div class="kpi"><span class="kpi-label">통과 기준</span><span class="kpi-value"><b>80</b><span>%</span></span><span class="kpi-sub">개념별 점수의 평균이 기준 이상이면 통과</span></div>
+        <div class="kpi" id="kpi-passed-card"><span class="kpi-label">통과한 공정</span><span class="kpi-value"><b id="kpi-passed">—</b><span id="kpi-passed-unit">/ 4</span></span><span class="kpi-sub">통과하면 다음 공정이 열려요</span></div>
+        <div class="kpi"><span class="kpi-label">응시 가능</span><span class="kpi-value"><b id="kpi-open">—</b><span>개</span></span><span class="kpi-sub">지금 바로 응시할 수 있는 공정</span></div>
+      </div>
+    </section>
+    <div id="notice" class="notice card" role="alert" hidden></div>
+    <!-- 공정 4개: 학습 기록의 공정 카드 모양(번호 · 이름 · 상태 칩 · 이해도 · 막대) -->
+    <section class="process-grid" id="sections" aria-label="공정별 시험"><p class="muted">시험 목록을 불러오고 있어요.</p></section>
+    <div class="work-grid">
+      <section class="card exam-panel" id="exam-content" aria-label="평가 시험 문제">
+        <div class="exam-head">
+          <div class="exam-head-text">
+            <h2 class="h2" id="exam-title">응시할 공정을 고르세요</h2>
+            <span class="exam-sub" id="exam-sub">문제 준비부터 답안 평가, 결과 확인까지 이 화면에서 이어서 진행해요.</span>
+            <div class="dots" id="exam-dots" aria-label="개념 진행" hidden></div>
+          </div>
+          <div class="exam-head-tools">
+            <button type="button" class="btn ghost sm" id="sfx" aria-pressed="true" hidden>🔊 효과음 켜짐</button>
+            <span class="chip" id="exam-stage" hidden></span>
+          </div>
+        </div>
+        <!-- 튜터 무대: 왼쪽 포석호(cp-character 한 개, exam.js가 만들어 재사용) + 오른쪽 흰 말풍선(이번 차례의 발화) -->
+        <div class="stage">
+          <div class="stage-char" id="stage-char"></div>
+          <!-- 마지막 줄(질문)은 exam.js가 한 글자씩 적으므로 읽기 프로그램용 live 영역은 따로 두고 전체 문장을 한 번에 넣는다 -->
+          <div class="bubble" id="bubble">
+            <div class="bubble-head"><strong id="bubble-label">포석호</strong><span class="bubble-tag" id="bubble-tag" hidden></span></div>
+            <div class="bubble-lines" id="bubble-lines"><p class="main">응시할 공정을 고르면 제가 질문할게요.</p></div>
+            <p class="sr-only" id="bubble-live" role="status" aria-live="polite"></p>
+          </div>
+        </div>
+        <!-- 응시 전 안내(진행 순서). 시도를 열면 exam.js가 이 자리를 문제·결과로 바꾼다 -->
+        <div class="exam-body" id="exam-body">
+          <ol class="steps" aria-label="진행 순서">
+            <li><b>1</b><span>공정 선택</span><small>응시 가능한 공정의 [시험 응시]를 눌러요</small></li>
+            <li><b>2</b><span>자신의 말로 답하기</span><small>개념마다 포석호가 질문해요</small></li>
+            <li><b>3</b><span>설명과 추가 확인</span><small>놓친 부분은 설명 뒤 한 번 더 물어요</small></li>
+            <li><b>4</b><span>결과 확인</span><small>이해도 80% 이상이면 다음 공정이 열려요</small></li>
+          </ol>
+        </div>
+      </section>
+      <aside class="aside-stack" aria-label="나의 학습 안내">
+        <section class="card aside-card"><div class="aside-head"><span class="aside-title">나의 복습 일정</span><span class="n" id="review-count" hidden></span></div><div id="reviews" class="list"><p class="muted">평가 결과에 따라 복습 일정을 정해요.</p></div></section>
+        <section class="card aside-card"><div class="aside-head"><span class="aside-title">배정된 시험</span></div><div id="assignments" class="list"><p class="muted">배정된 시험을 확인하고 있어요.</p></div></section>
+        <section class="card aside-card"><div class="aside-head"><span class="aside-title">최근 평가 기록</span></div><div id="history" class="list"><p class="muted">완료한 평가 결과가 여기에 쌓여요.</p></div></section>
+      </aside>
+    </div>
+  </main>
+  <!-- 담금질 로딩 화면: 흐린 페이지 위에 학습 기록 체계의 카드. 망치·모루·달군 쇠 그림과 동작은 그대로, 색은 exam.css의 변수(테마별)로 칠한다 -->
+  <dialog id="forge" class="forge-screen" aria-labelledby="forge-title" aria-describedby="forge-phase">
+    <div class="forge-content">
+      <span class="forge-eyebrow">[ FORGING ]</span>
+      <svg class="forge-art" viewBox="0 0 360 240" aria-hidden="true">
+        <defs><linearGradient id="steel" x1="0" x2="1"><stop class="steel-a"/><stop class="steel-b" offset=".45"/><stop class="steel-c" offset="1"/></linearGradient><linearGradient id="heat" x1="0" y1="1" x2="0" y2="0"><stop class="heat-a"/><stop class="heat-b" offset="1"/></linearGradient><radialGradient id="glow"><stop class="glow-a"/><stop class="glow-b" offset="1"/></radialGradient></defs>
+        <ellipse cx="183" cy="161" rx="140" ry="70" fill="url(#glow)"/>
+        <path class="anvil" d="M72 149h214l-28 17h-27l-9 25 25 11v10H121v-10l25-11-9-25H99z" stroke-width="2"/>
+        <path class="anvil-edge" d="M73 149h214" stroke-width="2"/>
+        <rect class="billet" x="155" y="133" width="66" height="15" rx="3" fill="url(#heat)"/>
+        <g class="hammer"><path class="handle" d="M241 56l-43 62" stroke-width="12" stroke-linecap="round"/><path class="handle-hi" d="M239 57l-42 60" stroke-width="5" stroke-linecap="round"/><rect x="166" y="111" width="61" height="23" rx="4" fill="url(#steel)"/><path class="head-edge" d="M169 129h55" stroke-width="2"/></g>
+        <g class="sparks" stroke-width="2.4" stroke-linecap="round"><path d="M181 132l-31-35"/><path d="M184 130l-4-41"/><path d="M200 132l30-30"/><path d="M211 139l41-9"/><path d="M171 140l-42-9"/><path d="M208 142l32 15"/></g>
+        <ellipse class="ground" cx="185" cy="220" rx="91" ry="5"/>
+      </svg>
+      <h2 id="forge-title">담금질 하기<span class="orange-dot">.</span></h2>
+      <p id="forge-phase" role="status" aria-live="polite">요청을 준비하고 있어요.</p>
+      <!-- 서버가 지나온 단계(준비 → 답안 채점 → 설명 정리 → …). 작업 상태의 phase가 바뀔 때마다 한 칸씩 늘어 처리가 움직이고 있음을 보여 준다 -->
+      <ol class="forge-steps" id="forge-steps" aria-label="처리 단계"></ol>
+      <div class="forge-line" aria-hidden="true"><span></span></div>
+      <p class="forge-time"><span class="live-dot" aria-hidden="true"></span>처리 중 <time id="elapsed">00:00</time></p>
+      <p class="forge-help">단단한 배움을 만드는 중이에요.<br>응답을 받으면 자동으로 시험 화면으로 돌아가요.</p>
+      <div class="forge-actions"><button id="cancel-job" class="btn secondary">요청 취소</button><button id="reconnect" class="btn secondary" hidden>연결 다시 확인</button></div>
+    </div>
+  </dialog>
+</body>
+</html>

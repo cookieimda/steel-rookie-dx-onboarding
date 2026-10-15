@@ -55,8 +55,9 @@ export function createApiClient(options = {}) {
     setPasscode(value) { if (value) write(local, PASS_KEY, value); else remove(local, PASS_KEY); },
 
     /** JSON 요청. 성공하면 응답 본문, 실패하면 ApiError. 로그인이 만료됐으면(TOKEN_INVALID) 저장된 토큰을 지운다. */
-    async request(method, path, body) {
+    async request(method, path, body, { idempotencyKey } = {}) {
       const headers = body === undefined ? {} : { 'Content-Type': 'application/json' };
+      if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
       const t = token();
       if (t) headers['Authorization'] = 'Bearer ' + t;
       const passcode = read(local, PASS_KEY);

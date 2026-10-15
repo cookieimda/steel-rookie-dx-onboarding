@@ -43,6 +43,8 @@ export interface SupplementMessage {
   role: "tutor" | "user";
   type: "intro" | "explanation" | "question" | "reaction" | "key_points" | "closing" | "answer";
   text: string;
+  /** reaction일 때 어떤 반응인지(화면이 포석호 표정·효과음을 고른다). */
+  tone?: "correct" | "almost" | "miss";
   sources?: SourceView[];
 }
 
@@ -312,7 +314,7 @@ export class SupplementEngine {
           ...(checkpointOpen ? ["이해도 확인에서 남은 기록은 이해도 확인에서 이 개념을 맞히면 해결돼요."] : []),
         ].join(" ");
         const messages: SupplementMessage[] = [
-          { role: "tutor", type: "reaction", text: phase === "initial" ? SUPPLEMENT_TEXT.correct : SUPPLEMENT_TEXT.recheckCorrect },
+          { role: "tutor", type: "reaction", tone: "correct", text: phase === "initial" ? SUPPLEMENT_TEXT.correct : SUPPLEMENT_TEXT.recheckCorrect },
           { role: "tutor", type: "closing", text: closing },
         ];
         const done = this.deps.repo.update(s.id, { state: "completed", outcome: "resolved" }, toSteps(messages), now);
@@ -330,7 +332,7 @@ export class SupplementEngine {
         });
         if (!quiz.ok) throw new Error(`확인 문제 도구 거절: ${quiz.error.message}`);
         const messages: SupplementMessage[] = [
-          { role: "tutor", type: "reaction", text: evaluation.verdict === "partial" ? SUPPLEMENT_TEXT.almost : SUPPLEMENT_TEXT.miss },
+          { role: "tutor", type: "reaction", tone: evaluation.verdict === "partial" ? "almost" : "miss", text: evaluation.verdict === "partial" ? SUPPLEMENT_TEXT.almost : SUPPLEMENT_TEXT.miss },
           { role: "tutor", type: "explanation", text: explanation },
           { role: "tutor", type: "question", text: `다른 각도로 한 번 더 물어볼게요. ${quiz.result.question}` },
         ];

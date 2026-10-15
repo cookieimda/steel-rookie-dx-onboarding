@@ -3,6 +3,8 @@
 이해도 확인(체크포인트)을 오른쪽 AI 튜터 패널에서 분리해 3D 화면 위 오버레이로 옮긴다. 서버 API는 바꾸지 않는다.
 상태: PR 1(`checkpoint-chat.js`의 오버레이용 상태·값)이 이 문서와 함께 들어간다. 화면(v3)은 아직 바뀌지 않았다. 아래 '미정 사항'은 팀 확인 뒤 확정한다.
 
+**2026-10-14 갱신:** 이해도 확인 UI는 3D 화면 위 오버레이가 아니라 독립 페이지 **`/exam`(평가 시험, [exam-page.md](exam-page.md))**로 분리됐다. 이 문서의 캐릭터·말풍선·동작 규칙(`motionFor`, 발화 type → 동작, `cp-character`)은 그 페이지의 시험 패널과 AI 튜터 패널 머리(학습 기록·v4)에서 그대로 쓴다. 3D 화면 위 오버레이 자체는 만들지 않는다.
+
 관련 문서: [checkpoint-api.md](checkpoint-api.md)(API·상태 머신), [checkpoint-integration.md](checkpoint-integration.md)(튜터 패널 통합, `vals()` 키 전체 표).
 
 ## 목표

@@ -197,6 +197,10 @@ export interface RetrieverOptions {
 }
 
 export class Retriever {
+  invalidate(section?: Section) {
+    if (section) { this.cache.delete(section); this.frequencies.delete(section); }
+    else { this.cache.clear(); this.frequencies.clear(); }
+  }
   private readonly cache = new Map<Section, Chunk[]>();
   private readonly frequencies = new Map<Section, Map<string, number>>();
   private readonly ranking: "idf" | "overlap";

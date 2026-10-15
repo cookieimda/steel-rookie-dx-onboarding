@@ -2,7 +2,8 @@ import { GeminiAdminSummarizer } from "../../llm/src/admin-summary.js";
 import { GeminiEvaluator } from "../../llm/src/evaluator.js";
 import { DEFAULT_GEMINI_MODEL, GeminiClient } from "../../llm/src/gemini.js";
 import { GeminiLearningAgent } from "../../llm/src/learning-agent.js";
-import { Retriever } from "../../llm/src/retrieval.js";
+import { useApprovedSources } from "../../llm/src/ironmaking-sources.js";
+import { loadSectionChunks, Retriever } from "../../llm/src/retrieval.js";
 import { GeminiTutor } from "../../llm/src/tutor.js";
 import { createAdminRouter } from "./admin/routes.js";
 import { createApp } from "./app.js";
@@ -24,6 +25,9 @@ import { AnswerCache, answerCacheVersion } from "./learning/answer-cache.js";
 import { loadSuggestedQuestions, warmItems } from "./learning/suggested.js";
 import { createSupplementRouter, SupplementEngine } from "./learning/supplement.js";
 import { SupplementRepository } from "./learning/supplement-repository.js";
+import { EducationJobs, jobAwareClient, jobUserId, phaseEvaluator, phaseTutor } from "./education/jobs.js";
+import { EducationRepository } from "./education/repository.js";
+import { createEducationRouter } from "./education/routes.js";
 import { currentUserId } from "./request-user.js";
 import { loadFinalRubrics } from "./rubrics.js";
 import { passcodeRequired } from "./test-access.js";
@@ -36,15 +40,20 @@ const rubrics = loadFinalRubrics();
 
 const db = openDatabase();
 const usage = new LlmUsage(db);
-// 체크포인트의 평가자·튜터 호출마다 현재 사용자의 하루 호출 수를 센다.
-const gemini = new GeminiClient({ beforeCall: () => usage.consume(currentUserId()) });
-// 평가자·튜터는 체크포인트와 보충학습이 함께 쓴다.
+// 평가 시험(docs/exam-page.md): 시험 작업 대기열·취소, 루브릭 이력·복습 일정·교육 그룹·자료 검수.
+const jobs = new EducationJobs(db);
+const education = new EducationRepository(db, rubrics);
+useApprovedSources(() => education.approvedSources());
+// 체크포인트·학습·관리자 호출마다 사용자의 하루 호출 수를 센다. 시험 작업 안에서는 요청을 보낸 사람이 아니라 작업 주인(jobUserId)으로 세고,
+// 작업을 취소하면 진행 중인 추론도 끊는다(jobAwareClient).
+const gemini = jobAwareClient(new GeminiClient({ beforeCall: () => usage.consume(jobUserId() ?? currentUserId()) }));
+// 평가자·튜터는 체크포인트·시험·보충학습이 함께 쓴다. 시험 작업에서는 단계(문제·채점·설명)를 작업 상태에 적는다(phase*).
 const evaluator = new GeminiEvaluator(gemini);
 const tutor = new GeminiTutor(gemini);
 const engine = new CheckpointEngine({
   repo: new CheckpointRepository(db),
-  evaluator,
-  tutor,
+  evaluator: phaseEvaluator(evaluator),
+  tutor: phaseTutor(tutor),
   rubrics,
   // 부가 설명 때 튜터에게만 넘긴다(평가자에게는 넘기지 않음).
   learnerNotes: buildLearnerNotes,
@@ -69,7 +78,11 @@ const answerCache = new AnswerCache(
 );
 const sceneCatalog = await loadSceneCatalog();
 const suggestedQuestions = await loadSuggestedQuestions();
-const retriever = new Retriever({ glossaryFor: (s) => rubrics.find((r) => r.section === s)?.glossary ?? [] });
+// 근거: 개념별 자료·공개 자료 메모(loadSectionChunks)에 관리자가 승인한 교육 자료(education.approvedChunks)를 더한다.
+const retriever = new Retriever({
+  glossaryFor: (s) => rubrics.find((r) => r.section === s)?.glossary ?? [],
+  chunksFor: (s) => [...loadSectionChunks(s), ...education.approvedChunks(s)],
+});
 const learningAgent = new GeminiLearningAgent(gemini);
 // 체크포인트에서 아직 만점이 아닌 개념(튜터에 넘김)과 진행 중 여부. 학습 채팅과 보충학습이 함께 쓴다. 이해도 계산은 엔진(summarizeSection)이 한다.
 const checkpointProgress = (userId: string, section: Section) => {
@@ -100,6 +113,10 @@ app.use(createAuthRouter(auth));
 // 관리자 AI 요약도 같은 GeminiClient로 관리자 계정의 하루 호출 수를 센다.
 app.use(createAdminRouter(db, auth, { summarizer: new GeminiAdminSummarizer(gemini) }));
 app.use(createMeRouter(db, auth));
+// 평가 시험 API(/api/exams, /api/exam-jobs, /api/me/reviews·assignments·exam-history, /api/admin/education). 승인 자료가 바뀌면 검색·저장한 답을 다시 만든다.
+app.use(createEducationRouter({ auth, engine, jobs, repo: education,
+  onMaterialsChanged: (section) => { retriever.invalidate(section); answerCache.clear(); },
+}));
 // 보충학습(docs/supplementary-learning.md): 오개념이 있는 개념을 설명 → 확인 문제 → 채점 → 해결/다시 설명.
 app.use(createSupplementRouter(new SupplementEngine({
   repo: new SupplementRepository(db), learningRepo, retriever, agent: learningAgent, tutor, evaluator, rubrics, scene: sceneCatalog, checkpointProgress,

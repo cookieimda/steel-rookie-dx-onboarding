@@ -59,3 +59,22 @@ test("deleteUserData: 이어 풀기 질문 기록(attempt_questions)도 지운�
   assert.deepEqual(ids(db, "attempts"), ["acc-seed", "hdr-live", "other"]);
   assert.deepEqual(db.prepare("SELECT attempt_id FROM attempt_questions").all().map((r) => String(r.attempt_id)), ["other"]);
 });
+
+test("deleteUserData removes exam dependants in order while retaining seed data, accounts and other learners", async () => {
+  const { db, accountId } = await setup();
+  const peer = await new UserRepository(db).create({ username: "exam_reset_peer", password: "password123", name: "동료", employee_no: "T2" });
+  const job = db.prepare("INSERT INTO education_jobs(id,user_id,kind,request_key,payload_hash,state,phase,metadata_json,created_at,updated_at) VALUES(?,?,'exam-start',?,'h','succeeded','completed','{}','t','t')");
+  job.run("live-job", accountId, "live-job"); job.run("seed-job", accountId, "seed-job"); job.run("peer-job", peer.id, "peer-job");
+  db.prepare("INSERT INTO rubric_versions(id,section,snapshot_json,created_at) VALUES('v','ironmaking','{}','t')").run();
+  const event = db.prepare("INSERT INTO exam_events(id,user_id,attempt_id,job_id,rubric_version,metadata_json,view_json,created_at) VALUES(?,?,?,?,'v','{}','{}','t')");
+  event.run("live-event", accountId, "acc-live", "live-job"); event.run("seed-event", accountId, "acc-seed", "seed-job");
+  db.prepare("INSERT INTO review_tasks(id,user_id,section,concept_id,concept_name,due_date,reason,based_attempt,created_at) VALUES('review',?,'ironmaking','c','개념','2026-10-14','복습','acc-live','t')").run(accountId);
+  const removed = deleteUserData(db, accountId, { origin: "live" });
+  assert.deepEqual([removed.exam_events, removed.review_tasks, removed.education_jobs], [1, 1, 1]);
+  assert.deepEqual(ids(db, "exam_events"), ["seed-event"]);
+  assert.deepEqual(ids(db, "education_jobs"), ["peer-job", "seed-job"]);
+  assert.ok(db.prepare("SELECT id FROM users WHERE id=?").get(accountId));
+  deleteUserData(db, accountId, { origin: "all" });
+  assert.deepEqual(ids(db, "education_jobs"), ["peer-job"]);
+  db.close();
+});

@@ -3,7 +3,7 @@
 // - 땅: 포항제철소 부지 윤곽(위성 사진 기준, scene_v3.js의 SITE_LAND·SITE_CITY·SITE_ROADS)을 밤 지도처럼 칠한 판. 도로는 외곽선을 먼저 모두 그리고 속을 나중에 그려
 //   교차로가 한 덩어리 십자로 합쳐진다. 공정 사이 레일은 점선.
 // - 밤: 짙은 남색 하늘·바다, 달빛, 주황 불빛(보케: 팔각 원판, 크기·밝기 제각각, 무리 지어 불규칙하게 흩어짐, 초점에서 멀수록 커지고 옅어짐) + 블룸.
-//   피사계 심도(BokehPass, 화각 27° ≈ 50mm)로 지금 구역 밖은 흐리게.
+//   화각 27° ≈ 50mm. 피사계 심도 흐림은 3D에서 전체가 안 보인다는 의견으로 뺐다(2026-10-15).
 // - 새벽빛(세상이 밝아짐): 로그인 직후는 어둡다. 제선이 솟으면 그 둘레부터 푸른 블루아워 빛이 땅에 깔리고, 구역이 하나씩 솟을 때마다 번져 나간다
 //   (땅의 푸른 빛 웅덩이가 커지고, 솟은 구역마다 푸른 조명이 켜지고, 하늘·안개·주변광이 밤 → 블루아워로). 진행도 = 솟은 정도 합 / 4.
 // - 주변 모델: 구역이 솟으면 그 공정에 맞는 소품(plant-props.js: 원료·고철 야적더미, 슬래브 야드·더미, 코일 야드)이 땅에서 차례로 자라고
@@ -25,7 +25,6 @@ import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/
 import { RoomEnvironment } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/environments/RoomEnvironment.js/+esm';
 import { EffectComposer } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/EffectComposer.js/+esm';
 import { RenderPass } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/RenderPass.js/+esm';
-import { BokehPass } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/BokehPass.js/+esm';
 import { UnrealBloomPass } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/UnrealBloomPass.js/+esm';
 import { OutputPass } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/OutputPass.js/+esm';
 import { PROCESSES } from './data_v2.js';
@@ -47,7 +46,7 @@ const LAND = [[590, 40], [1180, 215], [1232, 300], [1196, 388], [746, 350], [700
 const CITY = [[-320, -95], [-125, -95], [-86, -62], [-117, 36], [47, 47], [125, 92], [210, 160], [320, 230], [320, 320], [-320, 320]];
 const ROADS = [[[-30, -80], [0, -90], [40, -84], [88, -70]], [[-30, -80], [-30, -72]], [[50, -53], [102, -47]], [[-2, -89], [-2, -24], [-12, -6], [-20, 10], [-27, 24], [-40, 48], [-46, 62], [-38, 80], [-22, 96], [-14, 102]], [[-86, -19], [0, -21]], [[-84, 46], [44, 46]], [[-24, 26], [20, 26]], [[-125, 10], [-106, 34], [-9, 114], [14, 125], [70, 126], [130, 98], [200, 120]]];
 const MAT = ['용선', '용강', '슬래브'];
-const RISE_DEPTH = 26, HOLD_MS = 2800, SHOW_MS = 3000, HOVER_GRACE = 350, TITLE_MS = 6000; // TITLE_MS: 여는 장면 뒤 제목 카드를 보여 주는 시간
+const RISE_DEPTH = 26, HOLD_MS = 1200, SHOW_MS = 3000, HOVER_GRACE = 350, TITLE_MS = 6000; // TITLE_MS: 여는 장면 뒤 제목 카드를 보여 주는 시간
 
 // ---- 렌더러·장면(밤) ----------------------------------------------------------------------------------------------
 const stage = $('stage'), hud = $('hud');
@@ -342,18 +341,20 @@ const clampPose = (p) => ({ ...p, dist: Math.min(p.dist, maxDist()) });
 function animateTo(to, dur = 1600) { anim = { t0: performance.now(), dur: REDUCED ? 1 : dur, from: { yaw: orbit.yaw, pitch: orbit.pitch, dist: orbit.dist, target: orbit.target.clone() }, to: { ...to, target: to.target.clone() } }; }
 
 // ---- 시작 ----------------------------------------------------------------------------------------------------------
-// 여는 장면 없이 바로 밤의 지도. 전체 보기 자리에서 제선 구역으로 다가가며 시작한다
+// 여는 장면 없이 바로 밤의 지도. 3D 대각선 전체 보기(pose3D)에 머문 채 제선 → 제강 → 연주 → 열연이 차례로 솟는다.
+// 구역마다 다가가며 보여 주던 연출은 뺐다(2026-10-15 요청). 구역에 다가가는 것은 사용자가 구역·숫자 키·타임라인으로 고를 때만.
 // 조작 안내 카드를 먼저 띄우고, [시작하기](또는 Enter·Space·Esc)를 누르면 시작한다(2026-10-15 요청)
 let started = false, guideOpen = false;
 function startMap() {
   if (ambientLights) ambientLights.material.uniforms.uOn.value = 1;
-  const all = clampPose(POSE.all); Object.assign(orbit, { yaw: all.yaw, pitch: all.pitch, dist: all.dist }); orbit.target.copy(all.target);
+  const all = pose3D(); Object.assign(orbit, { yaw: all.yaw, pitch: all.pitch, dist: all.dist }); orbit.target.copy(all.target);
+  wide = true; // 전체 보기에서 시작하므로 자동 재생은 카메라를 옮기지 않는다
   guideOpen = true; $('guide').classList.remove('off'); $('guideGo').focus();
 }
 function closeGuide() {
   if (!guideOpen) return; guideOpen = false; $('guide').classList.add('off');
   setTimeout(() => $('ttl').classList.add('out'), TITLE_MS); // 제목 카드는 잠깐만
-  setTimeout(() => { if (!started) { started = true; goTo(0); } }, REDUCED ? 0 : 500);
+  setTimeout(() => { if (!started) { started = true; goTo(0, true); } }, REDUCED ? 0 : 500);
 }
 $('guideGo').onclick = closeGuide;
 
@@ -362,15 +363,17 @@ let cur = -1, playing = true, finished = false, hot = null;
 const tl = $('tl'); procs.forEach((p, i) => { const b = document.createElement('button'); b.style.left = `${(i / (procs.length - 1)) * 100}%`; b.innerHTML = `<span>${i + 1} ${esc(p.data.name)}</span>`; b.title = `${p.data.name} 구역`; b.onclick = () => { goTo(i); pause(); }; p.stop = b; tl.appendChild(b); });
 $('icPlay').src = icon('play', '#111111', 1.8);
 function pause() { playing = false; $('icPlay').src = icon('play', '#111111', 1.8); $('btnPlay').title = '재생'; $('btnPlay').setAttribute('aria-label', '재생'); }
-function play() { playing = true; $('icPlay').src = icon('stop', '#111111', 1.8); $('btnPlay').title = '멈춤'; $('btnPlay').setAttribute('aria-label', '멈춤'); if (finished || cur >= procs.length - 1) { finished = false; goTo(0); } }
+function play() { playing = true; $('icPlay').src = icon('stop', '#111111', 1.8); $('btnPlay').title = '멈춤'; $('btnPlay').setAttribute('aria-label', '멈춤'); if (finished || cur >= procs.length - 1) { finished = false; goTo(0, true); } }
 $('btnPlay').onclick = () => (playing ? pause() : play());
 $('btnNext').onclick = () => { goTo(Math.min(procs.length - 1, cur + 1)); pause(); };
-function goTo(i) {
+// auto: 자동 재생이 부른 것. 2D·3D 전체 보기를 고른 뒤(wide)에는 자동 재생이 카메라를 구역으로 끌고 가지 않는다(구역을 직접 고르면 다가간다)
+let wide = false;
+function goTo(i, auto = false) {
   cur = i; finished = false; const now = performance.now();
   procs.forEach((p, k) => { if (k <= i && p.t0 == null) p.t0 = now + (k === i ? (REDUCED ? 0 : 700) : 0); p.chip.classList.toggle('cur', k === i); p.stop.classList.toggle('cur', k === i); p.stop.classList.toggle('up', k < i); });
   if (procs[i].up) procs[i].showUntil = now + SHOW_MS; // 이미 솟은 구역을 고르면 칩을 다시 3초
   $('tlFill').style.width = `${(i / (procs.length - 1)) * 100}%`;
-  if (view === '3d') animateTo(zonePose(procs[i]), 1700);
+  if (view === '3d' && !(auto && wide)) { wide = false; animateTo(zonePose(procs[i]), 1700); }
 }
 function finish() { finished = true; pause(); procs.forEach((p) => p.stop.classList.add('up')); } // 멀리 빠지지 않고 마지막 구역 가까이에서 천천히 돈다(전체는 [지도]나 휠로)
 addEventListener('keydown', (e) => { if (guideOpen) { if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') { e.preventDefault(); closeGuide(); } return; } if (e.key === ' ') { e.preventDefault(); playing ? pause() : play(); } else if (e.key === 'ArrowRight') { goTo(Math.min(procs.length - 1, cur + 1)); pause(); } else if (e.key === 'ArrowLeft') { goTo(Math.max(0, cur - 1)); pause(); } else if (e.key === 'Enter' && cur >= 0) enter(procs[cur]); else if (e.key === 'v' || e.key === 'V') setView(view === 'map' ? '3d' : 'map'); else { const n = parseInt(e.key, 10); if (n >= 1 && n <= procs.length) { goTo(n - 1); pause(); } } });
@@ -379,7 +382,10 @@ addEventListener('keydown', (e) => { if (guideOpen) { if (e.key === 'Enter' || e
 // 2D(view 'map')에서는 드래그해도 위에서 본 채로 평면 회전만 한다. 위아래로 TILT_PX 넘게 드래그하거나 V 키를 누르면 3D로 바뀐다(위 토글도 같이)
 const TILT_PX = 30;
 function markView(v) { view = v; $('v2d').classList.toggle('on', v === 'map'); $('v2d').setAttribute('aria-pressed', String(v === 'map')); $('v3d').classList.toggle('on', v === '3d'); $('v3d').setAttribute('aria-pressed', String(v === '3d')); }
-function setView(v) { markView(v); animateTo(v === 'map' ? overviewPose() : cur >= 0 ? zonePose(procs[cur]) : clampPose(POSE.all), 1400); }
+// 3D 버튼·V 키는 지금 구역이 아니라 3D 전체 보기로 간다: PITCH_3D만큼 기울이고 YAW_3D만큼 살짝 대각선으로 돌려 네 구역이 다 보이게(2026-10-15 요청)
+const PITCH_3D = 0.52, YAW_3D = -0.58, DIST_3D = 0.68; // DIST_3D: 위에서 본 전체 보기 거리 대비(기울이면 앞뒤가 줄어 더 가까이 와도 다 보인다)
+const pose3D = () => { const p = overviewPose(PITCH_3D); return { ...p, yaw: YAW_3D, dist: p.dist * DIST_3D }; };
+function setView(v) { markView(v); wide = true; animateTo(v === 'map' ? overviewPose() : pose3D(), 1400); }
 $('v2d').onclick = () => setView('map'); $('v3d').onclick = () => setView('3d');
 
 // ---- 입력 ----------------------------------------------------------------------------------------------------------
@@ -394,10 +400,9 @@ renderer.domElement.addEventListener('pointerleave', () => setHot(null));
 renderer.domElement.addEventListener('pointerup', (e) => { const d = drag; drag = null; stage.classList.remove('dragging'); if (!d || d.moved) return; const p = pick(e); if (p) { goTo(p.i); pause(); p.showUntil = performance.now() + SHOW_MS; } });
 renderer.domElement.addEventListener('wheel', (e) => { e.preventDefault(); orbit.dist = Math.min(maxDist(), Math.max(50, orbit.dist * (1 + e.deltaY * 0.0012))); anim = null; }, { passive: false });
 
-// ---- 후처리: 피사계 심도 → 블룸 → 출력 ---------------------------------------------------------------------------------
+// ---- 후처리: 블룸 → 출력 ---------------------------------------------------------------------------------
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-const bokeh = new BokehPass(scene, camera, { focus: 300, aperture: 0.00004, maxblur: 0.012 }); composer.addPass(bokeh);
 const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.55, 0.5, 0.92); // 불빛·쇳물만 번지게 임계값을 높게 composer.addPass(bloom);
 composer.addPass(new OutputPass());
 function resize() { const w = stage.clientWidth || 1, h = stage.clientHeight || 1; renderer.setSize(w, h, false); composer.setSize(w, h); bloom.resolution.set(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
@@ -545,18 +550,16 @@ function frame(now) {
   procs.forEach((p) => { rise(p, now); growSurroundings(p, now); });
   trafficTick(now);
   dawnTick();
-  const focusD = camera.position.distanceTo(orbit.target); lightLayers.forEach((l) => { const u = l.material.uniforms; u.uT.value = now / 1000; u.uFocus.value = focusD; u.uCoc.value = view === 'map' ? 0 : 0.04; });
+  const focusD = camera.position.distanceTo(orbit.target); lightLayers.forEach((l) => { const u = l.material.uniforms; u.uT.value = now / 1000; u.uFocus.value = focusD; u.uCoc.value = 0; }); // 흐림 없음: 3D에서도 전체가 선명하게(2026-10-15 요청)
   links.forEach((l) => { const on = l.a.up && l.b.up; if (on && !l.on) { l.t0 = now; l.showUntil = now + SHOW_MS; } l.on = on; l.mesh.visible = on; if (on) { l.mesh.material.uniforms.reach.value = REDUCED ? 1 : Math.min(1, (now - l.t0) / 1400); l.mesh.material.uniforms.t.value = now / 1000; } });
   // 연결선이 제선에서 열연까지 다 그어지면(마지막 선이 다 뻗은 뒤): 위에서 전체를 보여 주며 선이 세 번 깜빡이고, 그 뒤 선 밝기를 낮춘다(한 번만)
-  if (!finale.t0 && links.length === procs.length - 1 && links.every((l) => l.on && now - l.t0 >= 1400)) { finale.t0 = now; setView('map'); }
+  if (!finale.t0 && links.length === procs.length - 1 && links.every((l) => l.on && now - l.t0 >= 1400)) { finale.t0 = now; } // 3D 대각선 전체 보기 그대로 깜빡인다(2D로 바꾸지 않는다)
   if (finale.t0) { const ft = now - finale.t0, gain = REDUCED ? FINALE.low : ft < FINALE.blink ? FINALE.low + (1.6 - FINALE.low) * (0.5 + 0.5 * Math.cos(ft / FINALE.blink * Math.PI * 6)) : Math.max(FINALE.low, 1.6 - (1.6 - FINALE.low) * Math.min(1, (ft - FINALE.blink) / 800));
     links.forEach((l) => { l.mesh.material.uniforms.gain.value = gain; }); }
-  if (playing && cur >= 0 && procs[cur].up && now - procs[cur].upAt > HOLD_MS) { if (cur < procs.length - 1) goTo(cur + 1); else finish(); }
+  if (playing && cur >= 0 && procs[cur].up && now - procs[cur].upAt > HOLD_MS) { if (cur < procs.length - 1) goTo(cur + 1, true); else finish(); }
   if (anim) { const k = Math.min(1, (now - anim.t0) / anim.dur), s = easeInOut(k); orbit.yaw = anim.from.yaw + (anim.to.yaw - anim.from.yaw) * s; orbit.pitch = anim.from.pitch + (anim.to.pitch - anim.from.pitch) * s; orbit.dist = anim.from.dist + (anim.to.dist - anim.from.dist) * s; orbit.target.lerpVectors(anim.from.target, anim.to.target, s); if (k >= 1) anim = null; }
   else if (!drag && !REDUCED && finished && view === '3d') orbit.yaw += 0.0003;
   const o = orbit; camera.position.set(o.target.x + o.dist * Math.sin(o.yaw) * Math.cos(o.pitch), o.target.y + o.dist * Math.sin(o.pitch), o.target.z + o.dist * Math.cos(o.yaw) * Math.cos(o.pitch)); camera.lookAt(o.target);
-  bokeh.uniforms.focus.value = camera.position.distanceTo(o.target); // 초점은 지금 보는 곳. 지도 보기에서는 흐림 없음
-  bokeh.uniforms.aperture.value = view === 'map' ? 0 : finished || cur < 0 ? 0.00004 : 0.0001;
   composer.render();
   placeHud(now);
 }

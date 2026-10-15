@@ -428,24 +428,42 @@ export async function attachSimLab() {
     try { chains = (await api('GET', `/api/lab/causal/quiz?seed=${Date.now() % 100000}${process ? `&process=${process}` : ''}`)).chains; } catch (e) { panel.append(el('p', 'sl-bad', e.message)); return; }
     const box = el('div', 'sl-box'), scoreLine = el('p', 'sl-muted');
     panel.append(box, scoreLine, btn('🗺 인과 지도로 돌아가기', () => open('map'), 'sl-btn ghost'));
-    let qi = 0, right = 0, total = 0;
+    let qi = 0, right = 0, total = 0, round = 1;
+    // 틀린 칸: 길 id → { c, hops }. 끝 화면의 [틀린 칸만 다시 풀기]가 같은 길·같은 방향으로 그 칸만 다시 묻는다(다 맞힐 때까지 반복 가능)
+    let wrong = new Map();
     plantView();
     const word = (d) => (d > 0 ? '오르면' : '내려가면');
+    const dirWord = (up) => (up ? '올라요 ▲' : '내려가요 ▼');
     function show() {
       fx.clear();
       if (qi >= chains.length) {
-        box.replaceChildren(el('b', '', `다 풀었어요 · ${right} / ${total} 칸 맞힘`), el('p', 'sl-muted', '틀린 칸은 "같은 방향/반대 방향" 규칙을 떠올려 보세요. 두 칸을 지나면 방향은 규칙 두 개를 곱한 것과 같아요.'),
-          btn('새 문제로 다시', () => open('quiz'), 'sl-btn'));
+        const misses = [...wrong.values()].reduce((n, w) => n + w.hops.size, 0);
+        const tools = el('div', 'sl-tour');
+        if (misses) tools.append(btn(`↻ 틀린 칸만 다시 풀기 (${misses}칸)`, () => {
+          chains = [...wrong.values()].map((w) => ({ ...w.c, only: new Set(w.hops) }));
+          wrong = new Map(); qi = 0; right = 0; total = 0; round++;
+          scoreLine.textContent = ''; show();
+          box.querySelector('button')?.focus();
+        }, 'sl-btn'));
+        tools.append(btn('새 문제로 다시', () => open('quiz'), misses ? 'sl-btn ghost' : 'sl-btn'));
+        box.replaceChildren(el('b', '', `${round > 1 ? `다시 풀기 ${round - 1}회차 끝` : '다 풀었어요'} · ${right} / ${total} 칸 맞힘`),
+          el('p', 'sl-muted', misses ? '틀린 칸은 "같은 방향/반대 방향" 규칙을 떠올려 보세요. 두 칸을 지나면 방향은 규칙 두 개를 곱한 것과 같아요.' : (round > 1 ? '틀렸던 칸을 모두 바로잡았어요!' : '모든 칸을 맞혔어요!')), tools);
+        say(`${right} / ${total} 칸 맞힘.${misses ? ` 틀린 칸 ${misses}개를 다시 풀 수 있어요.` : ''}`);
         return;
       }
       const c = chains[qi], [a, b, d] = c.nodes;
-      box.replaceChildren(el('small', 'sl-muted', `${qi + 1} / ${chains.length} · ${SECTION[a.process]}${c.cross ? ' → 다른 공정' : ''}`),
+      box.replaceChildren(el('small', 'sl-muted', `${round > 1 ? '다시 풀기 · ' : ''}${qi + 1} / ${chains.length} · ${SECTION[a.process]}${c.cross ? ' → 다른 공정' : ''}`),
         el('b', '', `${iGa(a.label)} ${word(c.dir)}…`));
       fx.ring(a.equipment_id, c.dir > 0 ? 0xff7a3d : 0x5aa0ff, true);
       fx.tag(a.equipment_id, `원인 · ${a.label} ${c.dir > 0 ? '▲' : '▼'}`, c.dir > 0 ? 'hot' : 'cold', 5);
-      ask(c, 1, a, b, () => ask(c, 2, b, d, () => {
-        const next = btn('다음 문제 ▶', () => { qi++; show(); }, 'sl-btn'); box.append(next); next.focus();
-      }));
+      const finish = () => { const next = btn('다음 문제 ▶', () => { qi++; show(); }, 'sl-btn'); box.append(next); next.focus(); };
+      const second = () => (c.only && !c.only.has(2) ? finish() : ask(c, 2, b, d, finish));
+      if (c.only && !c.only.has(1)) {
+        // 첫 칸은 지난번에 맞혔다: 답(방향 = 원인 방향 × 연결 방향)을 보여 주고 둘째 칸으로
+        const up1 = c.hop1_up;
+        box.append(el('p', 'sl-ok', `① ${SECTION[b.process]} · ${eunNeun(b.label)} ${dirWord(up1)} (지난번에 맞힌 칸)`));
+        second();
+      } else ask(c, 1, a, b, second);
     }
     function ask(c, hop, from, to, done) {
       const q = el('div'); q.style.cssText = 'display:flex;flex-direction:column;gap:6px;';
@@ -457,6 +475,9 @@ export async function attachSimLab() {
           let r;
           try { r = await api('POST', '/api/lab/causal/quiz/check', { chain_id: c.id, dir: c.dir, hop, choice }); } catch (e) { q.append(el('p', 'sl-bad', e.message)); return; }
           total++; if (r.correct) right++;
+          if (hop === 1) c.hop1_up = r.answer === 'up';
+          if (!r.correct) { const w = wrong.get(c.id) || { c: { id: c.id, dir: c.dir, cross: c.cross, nodes: c.nodes, hop1_up: c.hop1_up }, hops: new Set() }; w.hops.add(hop); wrong.set(c.id, w); }
+          else if (hop === 1) { const w = wrong.get(c.id); if (w) w.c.hop1_up = c.hop1_up; }
           scoreLine.textContent = `지금까지 ${right} / ${total} 칸 맞힘`;
           const up = r.answer === 'up';
           const verdict = `${r.correct ? '✓ 맞아요' : '✗ 아니에요'} — ${eunNeun(to.label)} ${up ? '올라요 ▲' : '내려가요 ▼'}. ${r.why} (${r.sign_rule})`;

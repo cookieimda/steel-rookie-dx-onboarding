@@ -307,3 +307,20 @@ test("3D 실습 통계 · 수업: 수업별 연 사람·끝 단계까지 간 사
   assert.deepEqual([l.learners, l.finished, l.by_step.map((x) => x.learners)], [2, 1, [2, 2, 1, 1, 1, 1]]);
   assert.equal(st.lessons.find((x) => x.id === "diagnose-drill")!.learners, 0);
 });
+
+test("갈림길 → 인과 지도: 연주 브레이크아웃 사례에서 실제 선택(속도 올림·유지)은 브레이크아웃 위험을 범위 밖으로, 다른 선택은 범위 안으로", async () => {
+  const { simulateCausal } = await import("../src/lab/causal.js");
+  const s = loadIncidents().scenarios.find((x) => x.id === "casting-breakout")!;
+  const branches = s.timeline.filter((t) => t.branch?.options.some((o) => o.causal));
+  assert.equal(branches.length, 2);
+  for (const t of branches) for (const o of t.branch!.options) {
+    const risk = simulateCausal(o.causal!).nodes.find((n) => n.id === "breakout")!;
+    assert.equal(risk.status, o.actual ? "warn" : "ok", `${o.text}: ${risk.value}`);
+  }
+  // 조정할 수 없는 값·범위 밖은 파일 검사에서 막는다
+  const raw = JSON.parse(readFileSync(join(process.cwd(), "content", "scenarios", "incidents.json"), "utf8"));
+  const dir = mkdtempSync(join(tmpdir(), "inc-causal-"));
+  raw.scenarios.find((x: any) => x.id === "casting-breakout").timeline[0].branch.options[0].causal = { breakout: 50 };
+  writeFileSync(join(dir, "a.json"), JSON.stringify(raw));
+  assert.throws(() => loadIncidents(join(dir, "a.json")), /조정할 수 없는 값/);
+});

@@ -699,6 +699,9 @@ export async function attachSimLab() {
     show();
   }
 
+  /** 갈림길 선택 버튼에 보여 줄 인과 지도 조정 값 이름·단위·소수 자리(조정 변수 6개). */
+  const CAUSAL_LABEL = { coke_rate: ['코크스비', 'kg/t', 0], basicity: ['고로 슬래그 염기도', '', 2], tap_temp: ['출강 온도', '℃', 0], cast_speed: ['주조 속도', 'm/분', 1], reheat_temp: ['재가열 온도', '℃', 0], cool_banks: ['런아웃 냉각 뱅크', '개', 0] };
+
   // ── 사고 사례 갈림길 재현(학습 기록의 '3D 공장에서 이 갈림길 보기'): 갈림길 장면까지 설비를 따라가고,
   //    고른 선택이 실제로 일어난 일이면 이후 장면의 설비를 붉게 이어 보여 주고, 다른 선택이면 그 자리에서 막힌 결과를 초록으로 보여 준다 ──
   async function incidentPanel(scenarioId, at, pick) {
@@ -729,6 +732,8 @@ export async function attachSimLab() {
       // 실제 선택의 결과 문장은 "실제로 일어난 일이에요"처럼 머리와 겹치므로, 이어진 장면을 결과로 보여 준다
       box.append(el('b', '', o.actual ? '그대로 가면 — 실제로 이렇게 이어졌어요' : '다르게 했다면'), el('div', '', o.actual ? (after.length ? '아래 장면처럼 사고로 이어졌어요. 3D에서 붉게 이어진 설비를 따라가 보세요.' : o.outcome) : o.outcome));
       result.append(box);
+      // 이 선택이 조업 값으로 이어지면(예: 주조 속도) 인과 지도에서 하류 반응을 본다
+      if (o.causal) result.append(btn(`🗺 인과 지도에서 이 선택 보기 (${Object.entries(o.causal).map(([k, v]) => { const [name, unit, d] = CAUSAL_LABEL[k] || [k, '', 0]; return `${name} ${fmt(v, d)}${unit}`; }).join(', ')})`, () => open('map', o.causal, { tour: true }), 'sl-btn'));
       if (o.actual && after.length) {
         const list = el('div', 'sl-box'); list.append(el('b', '', '이어진 장면'));
         for (const s of after) list.append(el('div', 'sl-bad', `${s.time} · ${s.text}`));

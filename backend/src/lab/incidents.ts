@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import { SECTION_ORDER, type Section } from "../checkpoint/types.js";
+import { NODES } from "./causal.js";
 
 const Question = z.object({ id: z.string(), prompt: z.string(), options: z.array(z.string()).min(2).max(6), answer: z.number().int().min(0), explain: z.string() })
   .refine((q) => q.answer < q.options.length, "정답 번호가 보기 수보다 커요.");
@@ -14,7 +15,9 @@ const Scenario = z.object({
   timeline: z.array(z.object({
     time: z.string(), text: z.string(), equipment_id: z.string(),
     /** 갈림길: "여기서 다르게 했다면?" 실제로 일어난 선택(actual) 하나와 다른 선택들, 고르면 결과(outcome)를 보여 준다. */
-    branch: z.object({ prompt: z.string(), options: z.array(z.object({ text: z.string(), outcome: z.string(), actual: z.boolean().optional() })).min(2) })
+    branch: z.object({ prompt: z.string(), options: z.array(z.object({ text: z.string(), outcome: z.string(), actual: z.boolean().optional(),
+      /** 이 선택을 인과 지도 조정 값으로(선택). 3D 갈림길 패널에서 [인과 지도에서 이 선택 보기]로 연다. */
+      causal: z.record(z.string(), z.number()).optional() })).min(2) })
       .refine((b) => b.options.filter((o) => o.actual).length === 1, "갈림길에는 실제로 일어난 선택(actual)이 하나 있어야 해요").optional(),
   })).min(1),
   questions: z.array(Question).min(1), reflection: z.string(),
@@ -32,6 +35,12 @@ export function loadIncidents(path = INCIDENTS_PATH, known?: Set<string>) {
     if (ids.has(s.id)) throw new Error(`사고 사례 id가 겹칩니다: ${s.id}`);
     ids.add(s.id);
     if (known) for (const t of s.timeline) if (!known.has(t.equipment_id)) throw new Error(`사고 사례 ${s.id}: 없는 설비 id ${t.equipment_id}`);
+    // 갈림길 선택의 인과 지도 조건: 조정할 수 있는 값이고 범위 안
+    for (const t of s.timeline) for (const o of t.branch?.options ?? []) for (const [k, v] of Object.entries(o.causal ?? {})) {
+      const n = NODES.find((x) => x.id === k);
+      if (!n?.control) throw new Error(`사고 사례 ${s.id}: 인과 지도에 조정할 수 없는 값 ${k}`);
+      if (v < n.control.min || v > n.control.max) throw new Error(`사고 사례 ${s.id}: ${k} = ${v}, 범위 밖이에요`);
+    }
   }
   return parsed;
 }

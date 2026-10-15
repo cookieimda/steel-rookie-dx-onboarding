@@ -273,6 +273,19 @@ export async function attachSimLab() {
     h.append(x); return h;
   };
 
+  /** 다음 실습 추천: 오늘의 실습 경로(practice-path)에서 지금 실습과 종류가 다르고 끝내지 않은 첫 단계를 한 줄로. 누르면 같은 화면에서 연다 */
+  async function nextStep(into, current) {
+    let path;
+    try { path = await api('GET', '/api/lab/practice-path'); } catch (e) { return; }
+    const step = path.steps.find((x) => x.kind !== current && !x.done);
+    if (!step) return;
+    const q = new URL(step.href, location.origin).searchParams, lab = q.get('lab');
+    const go = () => { if (lab === 'map') open('map', {}, { var: q.get('var') }); else if (lab === 'quiz') open('quiz', {}, { process: q.get('process') }); else if (lab === 'fault') open('fault', {}, { fault: q.get('fault') }); };
+    const row = el('div', 'sl-box');
+    row.append(el('small', 'sl-muted', `다음 추천 · 오늘의 실습 경로(${path.name})`), btn(`▶ ${step.title}`, go, 'sl-btn'));
+    into.append(row);
+  }
+
   /** 3D 실습 살펴봄을 xAPI로 남긴다(학습 랩 xAPI 기록에 보인다). 기록 실패는 화면에 영향 없음. */
   const experienced = (practice, objectId) => { if (objectId) api('POST', '/api/me/lab/xapi', { verb: 'experienced', practice, object_id: objectId }).catch(() => {}); };
 
@@ -559,7 +572,7 @@ export async function attachSimLab() {
         box.replaceChildren(el('b', '', `${round > 1 ? `다시 풀기 ${round - 1}회차 끝` : '다 풀었어요'} · ${right} / ${total} 칸 맞힘`),
           el('p', 'sl-muted', misses ? '틀린 칸은 "같은 방향/반대 방향" 규칙을 떠올려 보세요. 두 칸을 지나면 방향은 규칙 두 개를 곱한 것과 같아요.' : (round > 1 ? '틀렸던 칸을 모두 바로잡았어요!' : '모든 칸을 맞혔어요!')), tools);
         say(`${right} / ${total} 칸 맞힘.${misses ? ` 틀린 칸 ${misses}개를 다시 풀 수 있어요.` : ''}`);
-        void lagBox();
+        void lagBox().then(() => nextStep(box, 'quiz'));
         return;
       }
       const c = chains[qi], a = c.nodes[0], hops = c.nodes.length - 1;
@@ -988,7 +1001,7 @@ export async function attachSimLab() {
           // 인과 지도 재현: 이 원인을 조정 값으로 넣고 하류 공정까지 따라가기를 바로 시작
           if (res3.causal) tools.append(btn('🗺 인과 지도에서 하류까지 따라가기', () => open('map', res3.causal, { tour: true }), 'sl-btn'));
           work.append(tools);
-          api('POST', `/api/lab/faults/${f.id}/complete`, { tries }).then((r) => work.append(el('p', 'sl-ok', `점수 ${Math.round(r.score * 100)}점 · 시도 ${tries.signal}/${tries.cause}/${tries.action}번`)), () => {});
+          api('POST', `/api/lab/faults/${f.id}/complete`, { tries }).then((r) => { work.append(el('p', 'sl-ok', `점수 ${Math.round(r.score * 100)}점 · 시도 ${tries.signal}/${tries.cause}/${tries.action}번`)); void nextStep(work, 'fault'); }, () => {});
         });
       });
     }

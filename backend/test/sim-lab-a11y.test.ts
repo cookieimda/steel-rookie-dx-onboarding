@@ -114,3 +114,9 @@ test("터치 크기: 터치·좁은 화면에서 실습 패널·실행 버튼·�
   assert.match(src, /\.sl-btn, \.sl-opt, \.sl-var, \.sl-read, \.sl-launch button, \.sl-lesson button, \.sl-hint-bubble button \{ min-height: 44px; \}/);
   assert.match(src, /\.sl-panel input\[type="range"\] \{ height: 44px; \}/);
 });
+
+test("실습 끝 → 다음 실습 추천: 인과 퀴즈·이상 상황 훈련 끝에서 오늘의 실습 경로의 다른 종류 첫 단계를 같은 화면에서 연다", () => {
+  assert.ok(src.includes("const step = path.steps.find((x) => x.kind !== current && !x.done);"));
+  assert.ok(src.includes("void lagBox().then(() => nextStep(box, 'quiz'));"));
+  assert.ok(src.includes("void nextStep(work, 'fault');"));
+});

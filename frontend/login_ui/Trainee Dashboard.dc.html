@@ -8,7 +8,7 @@
 <body>
 <x-dc>
 <helmet>
-  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
   <link rel="stylesheet" href="./diagonal.css">
   <script type="module" src="../3d-demo/process-2d.js"></script>
@@ -28,11 +28,11 @@
     .learn { display: grid; grid-template-columns: minmax(0, 1fr) 348px; gap: 24px; align-items: stretch; } /* 튜터 칸 348px(2026-10-15 UI 편집). 튜터는 모듈 위쪽에 맞춰 같은 높이(#142) */
     /* 오른쪽 열(AI 튜터): 왼쪽 2D 모듈과 같은 줄 높이를 따르고, 튜터 패널은 남은 높이를 채운다(basis 0). 대화만 안에서 스크롤하며 머리·추천 질문·입력창은 늘 보인다(#142) */
     /* 튜터 열은 모듈 위 탭 높이(--mtab-h)만큼 내려 튜터 위쪽 = 모듈 판 위쪽, 튜터 아래쪽 = 모듈 판 아래쪽(2026-10-15) */
-    .side { display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; margin-top: calc(var(--mtab-h) - 1px); } /* 탭이 판 위 선을 1px 덮으므로 판은 탭 높이 - 1px에서 시작한다 */
+    .side { display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; margin-top: var(--mtab-h); } /* 판은 탭 바로 아래에서 시작한다(선 없음, 2026-10-15) */
     .side > .tutor { flex: 1 1 0; min-height: 0; overflow: hidden; }
     .tutor { display: flex; flex-direction: column; }
     .tutor [data-al="head"], .tutor [data-al="foot"] { flex: none; }
-    /* 머리 아래 선 = 2D 그림 위쪽, 추천 질문 위 = 단계 설명 위, 입력창 아래 = 단계 설명 아래. 값은 alignTutor()가 재서 body에 넣는다(없으면 기본 배치) */
+    /* 머리 아래 선 = 2D 그림 위쪽, 추천 질문 위 = 설비 목록 위, 입력창 아래 = 설비 목록 아래(2026-10-15 그림 아래 가로 목록). 값은 alignTutor()가 재서 body에 넣는다(없으면 기본 배치) */
     .tutor [data-al="head"] { height: var(--tutor-head-h, auto); }
     .tutor [data-al="foot"] { box-sizing: border-box; height: var(--tutor-foot-h, auto); padding-bottom: var(--tutor-foot-pb, 14px); }
     .tutor [data-al="chat"] { overscroll-behavior: contain; }
@@ -52,58 +52,44 @@
       .dashboard-header > span { display: none; }
       .dashboard-header > a { font-size: 15px !important; }
       .dashboard-header nav { width: 100%; justify-content: flex-end; gap: 3px !important; }
-      .dashboard-header nav a, .dashboard-header nav button { height: 30px !important; padding: 0 10px !important; font-size: 12px !important; }
+      .dashboard-header nav a, .dashboard-header nav button { height: 30px !important; padding: 0 8px !important; font-size: 15px !important; }
     }
   </style>
 </helmet>
 <div style="min-height:100vh;color:var(--text);">
-  <!-- ① 헤더: 오른쪽 아래 모서리를 자른 패널. 좁은 화면 규칙은 위 .dashboard-header -->
-  <header class="dashboard-header dg-header dg-cut-br" data-sec="header">
+  <!-- ① 헤더: 오른쪽 아래 모서리가 둥근 패널. 좁은 화면 규칙은 위 .dashboard-header -->
+  <header class="dashboard-header dg-header dg-cut-br dg-pop" data-sec="header">
     <a href="/" target="_top" class="dg-logo"><span class="dg-logo-mark"></span>ST-ROOKIE</a>
-    <span class="dg-label">TRAINEE</span>
-    <span class="dg-badge" style="color:{{ srcColor }};">● {{ srcLabel }}</span>
+    <span class="dg-label">LEARN &amp; ASK</span>
     <div style="flex:1;"></div>
     <nav class="dg-nav">
       <button type="button" onClick="{{ toggleTheme }}" aria-label="테마 전환" class="dg-btn dg-btn-plain dg-cut dg-s" style="width:40px;padding:0;">{{ themeIcon }}</button>
       <button type="button" onClick="{{ logout }}" class="dg-btn dg-btn-plain dg-cut dg-s">로그아웃</button>
-      <a href="/3d-demo/steel-index.html" target="_top" class="dg-btn dg-btn-primary dg-cut dg-s">3D 공정 화면</a>
-      <a href="/exam" target="_top" class="dg-btn dg-btn-ghost dg-cut dg-s">평가 시험</a>
+      <a href="/3d-demo/steel-index.html" target="_top" class="dg-btn dg-btn-soft dg-cut dg-s">3D 공정 화면</a>
+      <a href="/exam" target="_top" class="dg-btn dg-btn-primary dg-cut dg-s">평가 시험</a>
     </nav>
   </header>
 
   <main class="dg-main">
-    <!-- ② 제목띠: 왼쪽 제목, 오른쪽 주황 패널에 지금 공정 상태(2D 모듈에서 고른 공정의 이해도) -->
-    <section class="dg-hero" data-sec="hero">
-      <div class="dg-hero-text">
-        <span class="dg-label">[ TRAINEE ]</span>
-        <h1 class="dg-title">LEARN &amp; ASK.</h1>
-        <span class="dg-sub">{{ profile }} · 2D 학습 모듈로 공정을 따라가고, 모르는 것은 옆의 AI 튜터에게 바로 물어보세요.</span>
-        <!-- 불러온 시각 옆에 불러오기 오류를 한 줄로(따로 카드를 두지 않는다, 2026-10-15 UI 편집) -->
-        <span class="dg-hero-meta"><span class="dg-label" style="letter-spacing:.08em;">{{ updatedLabel }}</span><sc-if value="{{ loadError }}" hint-placeholder-val="{{ false }}"><span role="alert" class="dg-alert">{{ loadError }}</span></sc-if></span>
-      </div>
-      <div class="dg-now dg-cut dg-l" role="group" aria-label="지금 공정 상태">
-        <span class="dg-label">NOW · 지금 공정</span>
-        <strong class="dg-now-name"><span class="dg-num">{{ heroNum }}</span>{{ heroName }}</strong>
-        <span class="dg-now-row"><b>{{ heroScore }}</b><span>이해도 · {{ heroState }}</span></span>
-      </div>
-    </section>
+    <!-- 제목띠는 없앴다(2026-10-15): 학습 모듈이 헤더 바로 아래에서 시작한다. 불러오기 오류만 이 자리에 한 줄로 보인다 -->
+    <sc-if value="{{ loadError }}" hint-placeholder-val="{{ false }}"><span role="alert" class="dg-alert" data-sec="hero">{{ loadError }}</span></sc-if>
 
     <!-- ③ 학습 영역: 왼쪽 2D 모듈·설계도, 오른쪽 AI 튜터(어두운 패널) -->
     <div class="learn" id="learning-workspace" data-sec="workspace">
-      <div class="module">
+      <div class="module dg-pop" style="--d:.1s;">
       <!-- 학습 모듈 탭: 작동 단계(2D 애니메이션 모듈) / 설계도·필기(3D 화면의 2D 도면 + 펜 필기). 탭을 바꿔도 두 화면은 상태를 유지하도록 숨기기만 한다 -->
       <div role="tablist" aria-label="학습 모듈" class="dg-ftabs">
         <sc-for list="{{ moduleTabs }}" as="t" hint-placeholder-count="2">
-          <button type="button" role="tab" aria-selected="{{ t.on }}" onClick="{{ t.onClick }}">{{ t.label }}</button>
+          <button type="button" role="tab" aria-selected="{{ t.on }}" onClick="{{ t.onClick }}">{{ t.label }}<sc-if value="{{ t.hasCount }}" hint-placeholder-val="{{ false }}"><span class="dg-tab-count">{{ t.count }}</span></sc-if></button>
         </sc-for>
       </div>
       <!-- 2D 학습 모듈(공정 4개·설비 24개). 색은 diagonal.css의 process-2d 규칙이 덮어쓴다 -->
-      <div style="display:{{ stepsDisplay }};min-width:0;">
+      <div class="dg-pop" style="display:{{ stepsDisplay }};min-width:0;">
         <x-import component-from-global-scope="process-2d" process="{{ processId }}" selected="{{ selectedAttr }}" theme="{{ theme }}" hint-size="100%,100%" style="display:block;width:100%;height:auto;min-width:0;"></x-import>
       </div>
       <!-- 설계도·필기: 3D 화면(v4)의 2D 뷰를 도면 전용 페이지(/3d-demo/blueprint.html)로 띄우고 그 위에 펜 필기(sketch-pad.js)를 겹친다.
            도면 영역 비율을 16:10으로 고정해 필기 좌표(비율)가 화면 크기와 상관없이 같은 자리에 남는다. 도면은 이동·확대하지 않는다 -->
-      <section class="dg-mframe" aria-label="설계도·필기" style="display:{{ blueprintDisplay }};flex-direction:column;gap:12px;padding:18px;">
+      <section class="dg-mframe dg-pop" aria-label="설계도·필기" style="display:{{ blueprintDisplay }};flex-direction:column;gap:12px;padding:18px;">
         <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;">
           <div role="tablist" aria-label="공정" class="dg-seg dg-sm dg-cut dg-s">
             <sc-for list="{{ bpProcesses }}" as="p" hint-placeholder-count="4">
@@ -125,22 +111,58 @@
           </div>
           <x-import component-from-global-scope="sketch-pad" process="{{ processId }}" mode="{{ drawMode }}" hint-size="100%,100%" style="position:absolute;inset:0;"></x-import>
         </div>
-        <span style="font-size:12px;color:var(--dim);">도면 위에 펜·형광펜으로 그리거나 텍스트(T)로 메모하면 공정·도면마다 내 계정에 저장돼요. 도면 이동·확대는 3D 화면의 2D 뷰에서 할 수 있어요.</span>
+        <span style="font-size:15px;color:var(--dim);">도면 위에 펜·형광펜으로 그리거나 텍스트(T)로 메모하면 공정·도면마다 내 계정에 저장돼요. 도면 이동·확대는 3D 화면의 2D 뷰에서 할 수 있어요.</span>
+      </section>
+      <!-- 복습·내 오개념: 학습 모듈 탭에서 연다(2026-10-15). 탭을 열 때 창이 뜨듯 들어온다(dg-pop). 복습: 다시 볼 개념(이해도 확인 최근 결과 기준) -->
+      <section class="dg-mframe dg-pane dg-pop" data-sec="review" aria-label="복습" style="display:{{ reviewDisplay }};">
+        <div class="dg-section-head">
+          <span class="dg-label">[ REVIEW ]</span>
+          <h2 class="dg-h2">다시 볼 개념</h2>
+          <span class="dg-count" style="color:{{ reviewCountColor }};">{{ reviewCount }}</span>
+          <span class="dg-sub">이해도 확인에서 최근에 받은 결과 기준</span>
+        </div>
+        <sc-if value="{{ reviewEmpty }}" hint-placeholder-val="{{ false }}"><span class="dg-empty">복습할 개념이 없습니다.</span></sc-if>
+        <div class="dg-list">
+          <sc-for list="{{ reviews }}" as="r" hint-placeholder-count="3">
+            <div class="dg-row">
+              <span class="dg-row-main"><strong>{{ r.name }}</strong><span class="dg-sub">{{ r.section }} · {{ r.date }}</span></span>
+              <span class="dg-tag" style="color:{{ r.color }};background:color-mix(in srgb, {{ r.color }} 14%, transparent);">{{ r.verdict }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </section>
+      <!-- 내 오개념: 줄을 눌러 설명을 펼친다(본인 화면에만 보임) -->
+      <section class="dg-mframe dg-pane dg-pop" data-sec="misconceptions" aria-label="내 오개념" style="display:{{ misDisplay }};">
+        <div class="dg-section-head">
+          <span class="dg-label">[ MISCONCEPTIONS ]</span>
+          <h2 class="dg-h2">내 오개념</h2>
+          <span class="dg-count" style="color:{{ misCountColor }};">{{ misCount }}</span>
+          <span class="dg-sub">내용과 답변은 본인에게만 표시됩니다</span>
+        </div>
+        <sc-if value="{{ misEmpty }}" hint-placeholder-val="{{ false }}"><span class="dg-empty">기록된 오개념이 없습니다.</span></sc-if>
+        <div class="dg-list">
+          <sc-for list="{{ misconceptions }}" as="m" hint-placeholder-count="3">
+            <details class="dg-acc">
+              <summary><strong>{{ m.name }}</strong><span style="color:{{ m.color }};">{{ m.status }}</span><i aria-hidden="true">+</i></summary>
+              <p>{{ m.summary }}</p>
+            </details>
+          </sc-for>
+        </div>
       </section>
       </div>
 
       <div class="side">
       <!-- AI 튜터는 학습 전용이며 평가 시험은 헤더와 맨 아래 평가 시험 띠에서 연다 -->
       <sc-if value="{{ showAsk }}" hint-placeholder-val="{{ true }}">
-      <!-- AI 튜터: 어두운 패널(dg-ink). 이름·상태 머리, 왼쪽 회색/오른쪽 주황 말풍선, 연속 말풍선 묶음, 입력 중 점, 비스듬한 입력창 -->
-      <aside class="dg-ink dg-cut tutor" aria-label="AI 튜터">
-        <!-- 머리: 포석호(튜터 캐릭터, cp-character.js) · 이름과 상태 · 효과음 켜기/끄기. 대화 칸이 넓도록 작게(68×80) 둔다(#142) -->
-        <div data-al="head" style="display:flex;align-items:center;gap:12px;min-height:96px;padding:8px 14px 8px 12px;border-bottom:1px solid var(--line);box-sizing:border-box;flex:none;">
+      <!-- AI 튜터: 어두운 패널(dg-ink). 이름·상태 머리, 왼쪽 회색/오른쪽 주황 말풍선, 연속 말풍선 묶음, 입력 중 점, 둥근 입력창 -->
+      <aside class="dg-ink dg-cut tutor dg-pop" aria-label="AI 튜터" style="--d:.2s;">
+        <!-- 머리: 포석호(튜터 캐릭터, cp-character.js) · 이름과 상태 · 효과음 켜기/끄기. 머리 높이는 2D 그림 위쪽 선에 맞춰 58px이라, 몸 대신 얼굴을 가까이 크게 보이고(framing="face") 눈이 마우스를 따라 본다(gaze, 2026-10-15) -->
+        <div data-al="head" style="display:flex;align-items:center;gap:12px;min-height:0;padding:2px 14px 2px 12px;box-sizing:border-box;flex:none;">
           <!-- 크기는 이 x-import의 style(감싸는 상자)로 정하고 위 .tutor cp-character 규칙이 상자를 채운다. 한 자리에 한 개만 두어 다시 그릴 때 같은 엘리먼트를 쓴다(WebGL 컨텍스트가 쌓이지 않게) -->
-          <x-import component-from-global-scope="cp-character" motion="{{ tutorMotion }}" model="/3d-demo/models/character/tutor.glb" hint-size="68,80" style="width:68px;height:80px;flex:none;"></x-import>
-          <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;"><strong style="font-size:15px;">{{ tutorName }}</strong><span style="font-size:13px;color:{{ tutorStatusColor }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">AI 튜터 · {{ tutorStatus }}</span></span>
+          <x-import component-from-global-scope="cp-character" motion="{{ tutorMotion }}" model="/3d-demo/models/character/tutor.glb" framing="face" gaze="on" hint-size="76,58" style="width:76px;height:58px;flex:none;"></x-import>
+          <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;"><strong style="font-size:15px;">{{ tutorName }} <span style="font-weight:500;color:var(--muted);">AI 튜터</span></strong><span style="font-size:15px;color:{{ tutorStatusColor }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="AI 튜터 · {{ tutorStatus }}">{{ tutorStatus }}</span></span>
           <!-- 포석호 효과음(보충학습에서 맞히거나 틀릴 때 짧은 소리) 켜기·끄기. 지원하지 않는 브라우저에서는 숨긴다 -->
-          <sc-if value="{{ tutorSfxSupported }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ onToggleTutorSfx }}" title="보충학습에서 맞히거나 틀릴 때 포석호가 짧게 소리를 내요" class="dg-btn dg-btn-ghost dg-cut dg-s" style="flex:none;height:32px;padding:0 12px;font-size:13px;font-weight:600;">{{ tutorSfxLabel }}</button></sc-if>
+          <sc-if value="{{ tutorSfxSupported }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ onToggleTutorSfx }}" title="보충학습에서 맞히거나 틀릴 때 포석호가 짧게 소리를 내요" class="dg-btn dg-btn-tint dg-cut dg-s" style="flex:none;height:32px;padding:0 12px;font-size:15px;font-weight:600;">{{ tutorSfxLabel }}</button></sc-if>
         </div>
         <div ref="{{ chatRef }}" data-al="chat" style="flex:1 1 0;min-height:0;overflow-y:auto;padding:16px 14px 10px;display:flex;flex-direction:column;scrollbar-width:thin;scrollbar-color:var(--line) transparent;">
           <sc-for list="{{ messages }}" as="m" hint-placeholder-count="0">
@@ -148,9 +170,9 @@
               <div style="max-width:80%;display:flex;flex-direction:column;align-items:{{ m.align }};gap:4px;">
                 <div class="dg-cut dg-s" style="padding:9px 14px;background:{{ m.bg }};border:{{ m.border }};color:{{ m.color }};font-size:15px;line-height:1.55;white-space:pre-wrap;word-break:break-word;">{{ m.text }}</div>
                 <sc-if value="{{ m.hasKeywordCard }}" hint-placeholder-val="{{ false }}">
-                  <div class="dg-cut dg-s" style="padding:9px 12px;background:var(--panel2);display:flex;flex-direction:column;gap:6px;"><span style="font-size:13px;color:var(--muted);">핵심 용어 · {{ m.keywordCard.title }}</span><div style="display:flex;flex-wrap:wrap;gap:4px;"><sc-for list="{{ m.keywordCard.keywords }}" as="k" hint-placeholder-count="0"><span style="font-size:13px;padding:2px 8px;background:var(--panel2);">{{ k.text }}</span></sc-for></div></div>
+                  <div class="dg-cut dg-s" style="padding:9px 12px;background:var(--panel2);display:flex;flex-direction:column;gap:6px;"><span style="font-size:15px;color:var(--muted);">핵심 용어 · {{ m.keywordCard.title }}</span><div style="display:flex;flex-wrap:wrap;gap:4px;"><sc-for list="{{ m.keywordCard.keywords }}" as="k" hint-placeholder-count="0"><span style="font-size:15px;padding:2px 8px;background:var(--panel2);">{{ k.text }}</span></sc-for></div></div>
                 </sc-if>
-                <sc-for list="{{ m.citations }}" as="c" hint-placeholder-count="0"><span style="font-size:13px;color:var(--muted);padding:0 6px;line-height:1.45;">근거 · {{ c.title }}</span></sc-for>
+                <sc-for list="{{ m.citations }}" as="c" hint-placeholder-count="0"><span style="font-size:15px;color:var(--muted);padding:0 6px;line-height:1.45;">근거 · {{ c.title }}</span></sc-for>
                 <sc-if value="{{ m.hasFollowUp }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ m.askFollowUp }}" class="dg-chip dg-cut dg-s" style="white-space:normal;">{{ m.followUp }}</button></sc-if>
               </div>
             </div>
@@ -158,23 +180,27 @@
           <sc-if value="{{ pending }}" hint-placeholder-val="{{ false }}">
             <div style="display:flex;align-items:flex-end;gap:8px;margin-top:10px;">
               <div aria-label="튜터가 답을 쓰고 있어요" class="dg-cut dg-s" style="display:flex;gap:4px;padding:13px 16px;background:var(--bubble-in);"><span style="width:7px;height:7px;border-radius:50%;background:var(--muted);animation:blink 1s infinite;"></span><span style="width:7px;height:7px;border-radius:50%;background:var(--muted);animation:blink 1s .2s infinite;"></span><span style="width:7px;height:7px;border-radius:50%;background:var(--muted);animation:blink 1s .4s infinite;"></span></div>
-              <span style="font-size:13px;color:var(--dim);">{{ pendingText }}</span>
+              <span style="font-size:15px;color:var(--dim);">{{ pendingText }}</span>
             </div>
           </sc-if>
         </div>
         <!-- 아래 묶음(추천 질문 + 입력창): 카드 아래에 늘 보인다(#142). 대화만 위에서 스크롤한다 -->
         <div data-al="foot" style="display:flex;flex-direction:column;justify-content:space-between;flex:none;">
-        <!-- 추천 질문: 입력창 위 가로 스크롤 칩 -->
-        <div style="display:flex;gap:6px;overflow-x:auto;padding:0 14px;scrollbar-width:none;">
-          <sc-for list="{{ chips }}" as="c" hint-placeholder-count="3">
-            <button type="button" onClick="{{ c.onClick }}" class="dg-chip dg-cut dg-s">{{ c.text }}</button>
-          </sc-for>
+        <!-- 추천 질문: 두 개씩 나란히, 글자는 단어 단위로 줄바꿈해 잘리지 않게. 더 있으면 양옆 화살표로 넘긴다(2026-10-15) -->
+        <div class="dg-chips">
+          <sc-if value="{{ chipMore }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ chipPrev }}" disabled="{{ chipAtStart }}" aria-label="이전 추천 질문" class="dg-chips-nav">‹</button></sc-if>
+          <div class="dg-chips-row">
+            <sc-for list="{{ chipsPage }}" as="c" hint-placeholder-count="2">
+              <button type="button" onClick="{{ c.onClick }}" class="dg-chip dg-cut dg-s">{{ c.text }}</button>
+            </sc-for>
+          </div>
+          <sc-if value="{{ chipMore }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ chipNext }}" disabled="{{ chipAtEnd }}" aria-label="다음 추천 질문" class="dg-chips-nav">›</button></sc-if>
         </div>
         <!-- 이해도 확인에 답하는 중 학습 질문을 하려 하면: [멈추고 질문하기] (checkpoint-chat.js) -->
         <form onSubmit="{{ send }}" data-al="form" style="padding:8px 14px 0;">
           <div class="dg-input dg-cut dg-s">
-            <input id="tutorInput" value="{{ input }}" onChange="{{ onInput }}" placeholder="메시지 보내기…" aria-label="질문" style="flex:1;min-width:0;height:32px;padding:0;border:none;background:transparent;color:var(--text);font-size:15px;outline:none;">
-            <button type="submit" disabled="{{ cantSend }}" style="height:32px;padding:0 12px;border:none;background:transparent;color:var(--orange);font-size:15px;font-weight:700;cursor:pointer;opacity:{{ sendOpacity }};">보내기</button>
+            <input id="tutorInput" class="dg-input-field" value="{{ input }}" onChange="{{ onInput }}" placeholder="메시지 보내기…" aria-label="질문" style="flex:1;min-width:0;height:32px;padding:0;border:none;background:transparent;color:var(--text);font-size:15px;outline:none;">
+            <button type="submit" disabled="{{ cantSend }}" style="height:32px;padding:0 12px;border:none;background:transparent;color:{{ sendColor }};font-size:15px;font-weight:700;cursor:pointer;">보내기</button>
           </div>
         </form>
         </div>
@@ -183,84 +209,11 @@
       </div>
     </div>
 
-    <!-- ④ 내 현황 + ⑤ 복습을 한 줄로: 왼쪽 숫자 카드 4칸과 그 아래 공정 카드 4칸, 오른쪽 다시 볼 개념·내 오개념을 위아래로(2026-10-15 UI 편집) -->
-    <div class="dg-split">
-    <section class="dg-section" data-sec="status" aria-label="내 현황">
-      <div class="dg-section-head">
-        <span class="dg-label">[ MY STATUS ]</span>
-        <h2 class="dg-h2">내 현황</h2>
-        <span class="dg-sub">{{ statsSummary }}</span>
-      </div>
-      <div class="dg-stats">
-        <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
-          <div class="dg-stat dg-cut">
-            <span class="dg-stat-value">{{ k.value }}<small>{{ k.unit }}</small></span>
-            <span class="dg-stat-label">{{ k.label }}</span>
-            <span class="dg-stat-sub">{{ k.sub }}</span>
-          </div>
-        </sc-for>
-      </div>
-      <div class="dg-secs">
-        <sc-for list="{{ secCards }}" as="s" hint-placeholder-count="4">
-          <div class="dg-card dg-cut dg-sec">
-            <div class="dg-sec-top"><span class="dg-num">{{ s.num }}</span><strong>{{ s.name }}</strong></div>
-            <div class="dg-sec-score"><span style="color:{{ s.color }};">{{ s.score }}</span><span>{{ s.status }}</span></div>
-            <div class="dg-bar"><span style="width:{{ s.width }};background:{{ s.color }};"></span></div>
-            <span class="dg-sub">{{ s.attempts }}</span>
-          </div>
-        </sc-for>
-      </div>
-    </section>
-
-    <!-- ⑤ 복습: 다시 볼 개념 · 내 오개념을 위아래로. 오개념은 줄을 눌러 설명을 펼친다(본인 화면에만 보임) -->
-    <section class="dg-section" data-sec="review" aria-label="복습">
-      <div class="dg-section-head"><span class="dg-label">[ REVIEW ]</span><h2 class="dg-h2">복습</h2></div>
-      <div class="dg-two">
-        <div class="dg-col dg-cut">
-          <div class="dg-col-head"><strong>다시 볼 개념</strong><span class="dg-count" style="color:{{ reviewCountColor }};">{{ reviewCount }}</span></div>
-          <span class="dg-sub">이해도 확인에서 최근에 받은 결과 기준</span>
-          <sc-if value="{{ reviewEmpty }}" hint-placeholder-val="{{ false }}"><span class="dg-empty">복습할 개념이 없습니다.</span></sc-if>
-          <div class="dg-list">
-            <sc-for list="{{ reviews }}" as="r" hint-placeholder-count="3">
-              <div class="dg-row">
-                <span class="dg-row-main"><strong>{{ r.name }}</strong><span class="dg-sub">{{ r.section }} · {{ r.date }}</span></span>
-                <span class="dg-tag" style="color:{{ r.color }};background:color-mix(in srgb, {{ r.color }} 14%, transparent);">{{ r.verdict }}</span>
-              </div>
-            </sc-for>
-          </div>
-        </div>
-        <div class="dg-col dg-cut">
-          <div class="dg-col-head"><strong>내 오개념</strong><span class="dg-count" style="color:{{ misCountColor }};">{{ misCount }}</span></div>
-          <span class="dg-sub">내용과 답변은 본인에게만 표시됩니다</span>
-          <sc-if value="{{ misEmpty }}" hint-placeholder-val="{{ false }}"><span class="dg-empty">기록된 오개념이 없습니다.</span></sc-if>
-          <div class="dg-list">
-            <sc-for list="{{ misconceptions }}" as="m" hint-placeholder-count="3">
-              <details class="dg-acc">
-                <summary><strong>{{ m.name }}</strong><span style="color:{{ m.color }};">{{ m.status }}</span><i aria-hidden="true">+</i></summary>
-                <p>{{ m.summary }}</p>
-              </details>
-            </sc-for>
-          </div>
-        </div>
-      </div>
-    </section>
-    </div>
-
-    <!-- ⑥ 평가 시험 띠: 학습을 마치고 내려오면 바로 평가로 -->
-    <section class="dg-band dg-ink dg-cut dg-l" data-sec="exam" aria-label="평가 시험">
-      <div class="dg-band-text">
-        <span class="dg-label">[ NEXT ]</span>
-        <h2 class="dg-title" style="font-size:clamp(32px,5vw,56px);">PROVE &amp; PASS.</h2>
-        <span class="dg-sub">학습한 공정의 이해도를 확인해요. 이해도 80% 이상이면 다음 공정이 열려요.</span>
-      </div>
-      <a href="/exam" target="_top" class="dg-btn dg-btn-primary dg-cut dg-s dg-band-cta">평가 시험 응시 →</a>
-    </section>
   </main>
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script>
-const pct = value => Math.round(value * 100) + '%';
-// AI 튜터 말풍선: 맨 앞에 튜터 인사를 넣고, 같은 쪽 연속 말풍선은 간격을 좁힌다. 모양(비스듬한 모서리)은 템플릿의 dg-cut이 맡는다.
+// AI 튜터 말풍선: 맨 앞에 튜터 인사를 넣고, 같은 쪽 연속 말풍선은 간격을 좁힌다. 모양(둥근 모서리)은 템플릿의 dg-cut이 맡는다.
 const WELCOME = '궁금한 설비를 고르고 물어보세요. 제선·제강·연주·열간압연 모두 공개 자료를 근거로 답해요.';
 function dmMessages(list) {
   const all = [{ role: 'assistant', isAssistant: true, text: WELCOME, citations: [] }, ...list];
@@ -274,7 +227,6 @@ function dmMessages(list) {
       hasKeywordCard: !!m.hasKeywordCard, keywordCard: m.keywordCard || { title: '', keywords: [] }, citations: m.citations || [], hasFollowUp: !!m.hasFollowUp };
   });
 }
-const scoreColor = value => value >= 0.8 ? 'var(--ok)' : value >= 0.6 ? 'var(--mid)' : 'var(--bad)';
 const token = () => { try { return localStorage.getItem('st-rookie-token') || sessionStorage.getItem('st-rookie-token'); } catch (e) { return null; } };
 // 테마: 사용자가 고른 값(localStorage) → 시스템 설정. 시스템 설정이 바뀌면 고른 값이 없을 때만 따라간다.
 const THEME_KEY = 'st-rookie-theme';
@@ -291,7 +243,7 @@ const DRAW_MODES = { top: ['탑뷰', '위에서 내려다본 실제 모습', '�
 class Component extends DCLogic {
   state = { data: null, processes: [], error: null, theme: savedTheme() || systemTheme(), loadedAt: null, ai: null, sideTab: 'ask',
     processId: 'ironmaking', selectedId: 'sinter_plant', messages: [], input: '', pending: false, lastReq: null, lastRes: null, lastResults: [], speed: 1,
-    moduleTab: 'steps', drawMode: 'plan' }; // 학습 모듈 탭(steps 작동 단계 | blueprint 설계도·필기)과 도면(top·plan·front)
+    moduleTab: 'steps', drawMode: 'plan' }; // 학습 모듈 탭(steps 작동 단계 | blueprint 설계도·필기 | review 복습 | mis 내 오개념)과 도면(top·plan·front)
   chatRef = React.createRef();
   componentDidMount() {
     document.body.dataset.theme = this.state.theme;
@@ -312,6 +264,7 @@ class Component extends DCLogic {
     // 튜터 선 맞춤: 창 크기·모듈 크기·단계 설명이 바뀔 때마다 다시 잰다. 단계 설명은 바뀔 때 0.3초 들어오는 움직임이 있어 끝난 뒤 한 번 더 잰다
     this._align = () => { requestAnimationFrame(() => this.alignTutor()); clearTimeout(this._alignT); this._alignT = setTimeout(() => this.alignTutor(), 350); };
     addEventListener('resize', this._align);
+    document.addEventListener('animationend', e => { if (e.target.classList?.contains('dg-pop')) this._align(); });
     const watchModule = () => {
       const m = this.module(), sc = m?.shadowRoot?.getElementById('stepcard');
       if (!sc) { setTimeout(watchModule, 300); return; }
@@ -338,12 +291,12 @@ class Component extends DCLogic {
     if (!this._bpSrc) this._bpSrc = `/3d-demo/blueprint.html?p=${encodeURIComponent(this.state.processId)}&mode=${this.state.drawMode}&theme=${this.state.theme}`;
     this.setState({ moduleTab: 'blueprint' });
   }
-  // AI 튜터 머리·추천 질문·입력창을 2D 모듈 선에 맞춘다(2026-10-15): 머리 아래 선 = 그림 위쪽, 추천 질문 위 = 단계 설명 위, 입력창 아래 = 단계 설명 아래.
+  // AI 튜터 머리·추천 질문·입력창을 2D 모듈 선에 맞춘다(2026-10-15): 머리 아래 선 = 그림 위쪽, 추천 질문 위 = 설비 목록(그림 아래 가로 줄) 위, 입력창 아래 = 설비 목록 아래.
   // 2D 모듈 안(Shadow DOM)을 재서 body에 CSS 변수로 넣는다(템플릿이 다시 그려도 지워지지 않게). 좁은 화면(세로로 쌓임)·설계도 탭이면 기본 배치로 둔다
   alignTutor() {
     const B = document.body.style, reset = () => ['--tutor-head-h', '--tutor-foot-h', '--tutor-foot-pb'].forEach(k => B.removeProperty(k));
     const sr = this.module()?.shadowRoot, tutor = document.querySelector('.tutor');
-    const stage = sr?.querySelector('.stage'), step = sr?.querySelector('#stepcard > *');
+    const stage = sr?.querySelector('.stage'), step = sr?.querySelector('#chapters');
     if (!tutor || !stage || !step || this.state.moduleTab !== 'steps' || matchMedia('(max-width: 1100px)').matches) { reset(); return; }
     const t = tutor.getBoundingClientRect(), g = stage.getBoundingClientRect(), s = step.getBoundingClientRect();
     const pb = Math.round(t.bottom - s.bottom);
@@ -369,13 +322,9 @@ class Component extends DCLogic {
   openTutor() { this.setState({ sideTab: 'ask' }); setTimeout(() => { const el = document.getElementById('tutorInput'); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.focus(); } }, 120); }
   scrollChat() { [50, 250].forEach(ms => setTimeout(() => { const el = this.chatRef.current; if (el) el.scrollTop = el.scrollHeight; }, ms)); }
   renderVals() {
-    const S = this.state, D = S.data, T = D?.trainee;
-    // 섹션 목록과 순서는 서버 응답(/api/me/dashboard의 sections)을 그대로 쓴다.
-    const secs = D?.sections || [];
+    const S = this.state, D = S.data;
     const process = section => S.processes.find(p => p.id === section) || { num: '', name: section, equipment: [] };
     const conceptName = (section, id) => process(section).equipment.find(e => e.id === id)?.name || id;
-    const stats = secs.map(section => T?.sections[section]).filter(Boolean);
-    const avg = stats.length ? stats.reduce((sum, s) => sum + s.understanding, 0) / stats.length : null;
     const misconceptions = D?.misconceptions || [];
     const open = misconceptions.filter(m => !m.resolved).length;
     const reviews = (D?.review_concepts || []).map(r => ({
@@ -386,16 +335,8 @@ class Component extends DCLogic {
     const P = S.processes.find(x => x.id === S.processId), E = P?.equipment.find(x => x.id === S.selectedId);
     const chat0 = this.chat ? this.chat.vals(this.data) : { messages: [], chips: [], input: '', onInput: () => {}, send: e => e.preventDefault(), pending: false };
     const chat = chat0;
-    // 제목띠 주황 패널: 2D 모듈에서 고른 공정(S.processId)의 이해도와 통과 여부
-    const nowInfo = T?.sections[S.processId], nowP = process(S.processId);
     return {
-      srcLabel: D ? 'DB 데이터' : S.error ? '연결 오류' : '불러오는 중',
-      srcColor: D ? 'var(--ok)' : S.error ? 'var(--bad)' : 'var(--muted)',
       loadError: S.error,
-      profile: T ? `${T.name} · ${T.employee_no}` : '내 학습 기록',
-      heroNum: nowP.num || '', heroName: nowP.name, heroScore: nowInfo ? pct(nowInfo.understanding) : '—',
-      heroState: !nowInfo ? (D ? '확인 전' : S.error ? '불러오지 못함' : '불러오는 중') : nowInfo.passed ? '통과' : '재도전 필요',
-      updatedLabel: S.loadedAt ? `불러온 시각 ${S.loadedAt.getHours()}:${String(S.loadedAt.getMinutes()).padStart(2, '0')}` : S.error ? '불러오기 실패' : '불러오는 중…',
       theme: S.theme, themeIcon: S.theme === 'dark' ? '☀' : '☾',
       toggleTheme: () => this.applyTheme(S.theme === 'dark' ? 'light' : 'dark', true),
       logout: () => { try { localStorage.removeItem('st-rookie-token'); sessionStorage.removeItem('st-rookie-token'); } catch (e) {} window.top.location.href = '/login_ui/home-sleek.html'; },
@@ -407,37 +348,32 @@ class Component extends DCLogic {
       showAsk: true,
       processId: S.processId, selectedAttr: S.selectedId || '', chatRef: this.chatRef,
       // 학습 모듈 탭과 설계도·필기
-      moduleTabs: [['steps', '작동 단계'], ['blueprint', '설계도·필기']].map(([k, label]) => ({ label, on: S.moduleTab === k,
+      moduleTabs: [['steps', '작동 단계'], ['blueprint', '설계도·필기'], ['review', '복습'], ['mis', '내 오개념']].map(([k, label]) => ({ label, on: S.moduleTab === k,
+        // 복습·내 오개념 탭 옆 개수: 다시 볼 개념 수, 미해결 오개념 수(탭을 열지 않아도 보이게)
+        hasCount: !!D && (k === 'review' || k === 'mis'), count: k === 'review' ? reviews.length : open,
         onClick: () => (k === 'blueprint' ? this.openBlueprint() : this.setState({ moduleTab: k })) })),
       stepsDisplay: S.moduleTab === 'steps' ? 'block' : 'none', blueprintDisplay: S.moduleTab === 'blueprint' ? 'flex' : 'none',
+      reviewDisplay: S.moduleTab === 'review' ? 'flex' : 'none', misDisplay: S.moduleTab === 'mis' ? 'flex' : 'none',
       bpSrc: this._bpSrc || 'about:blank', drawMode: S.drawMode,
       bpProcesses: S.processes.map(x => ({ label: `${x.num} ${x.name}`, on: x.id === S.processId, onClick: () => this.goProcess(x.id) })),
       drawTabs: Object.entries(DRAW_MODES).map(([m, [label, tip]]) => ({ label, tip, on: S.drawMode === m, onClick: () => this.setState({ drawMode: m }) })),
       bpTitle: `${P?.name || ''} 공정 ${DRAW_MODES[S.drawMode][2]}`, bpNo: `SA-${P?.num || '00'}-${DRAW_MODES[S.drawMode][3]}`,
       messages: dmMessages(chat.messages), pending: chat.pending, pendingText: chat.pendingText || '', chips: chat.chips,
+      // 추천 질문은 두 개씩 보여 주고 화살표로 넘긴다
+      ...(() => { const all = chat.chips || [], pages = Math.max(1, Math.ceil(all.length / 2)), p = Math.min(S.chipPage || 0, pages - 1);
+        return { chipsPage: all.slice(p * 2, p * 2 + 2), chipMore: pages > 1, chipAtStart: p === 0, chipAtEnd: p === pages - 1,
+          chipPrev: () => this.setState({ chipPage: Math.max(0, p - 1) }), chipNext: () => this.setState({ chipPage: Math.min(pages - 1, p + 1) }) }; })(),
       // 이름 아래: 지금 답하는 기준(공정·설비). AI가 끊겼을 때만 그 사실을 빨간 글씨로
       tutorStatus: S.ai === 'off' ? 'AI 연결 안 됨' : P ? `${P.name}${E ? ` · ${E.name}` : ''}` : '설비를 고르면 그 기준으로 답해요',
       tutorStatusColor: S.ai === 'off' ? 'var(--bad)' : 'var(--muted)',
       // 포석호(튜터 캐릭터): 이름·동작 이름표·효과음 토글은 learning-chat.js의 vals(). 채팅을 아직 못 붙였으면 대기 동작
       tutorName: chat.tutorName || '포석호', tutorMotion: chat.tutorMotion || 'idle', tutorSfxSupported: !!chat.tutorSfxSupported, tutorSfxLabel: chat.tutorSfxLabel || '', onToggleTutorSfx: chat.onToggleTutorSfx || (() => {}),
-      cantSend: S.pending || !(chat.input || '').trim(), sendOpacity: S.pending || !(chat.input || '').trim() ? '.4' : '1',
+      cantSend: S.pending || !(chat.input || '').trim(), // 보내기: 보낼 수 있으면 주황 글자, 아니면 보조 글자색(흐리게 하지 않아 다크·라이트 모두 또렷하게)
+      sendColor: S.pending || !(chat.input || '').trim() ? 'var(--muted)' : 'var(--orange-text)',
       input: chat.input, onInput: chat.onInput, send: chat.send,
       // 복습 두 칸의 개수: 다시 볼 개념 수, 미해결 오개념 수(체크포인트 기록 기준, /api/me/dashboard)
       reviewCount: D ? String(reviews.length) : '—', reviewCountColor: D && reviews.length ? 'var(--mid)' : 'var(--muted)',
       misCount: D ? String(open) : '—', misCountColor: D && open ? 'var(--bad)' : 'var(--muted)',
-      statsSummary: T ? `통과 ${T.passed_sections}/${secs.length} · 평균 이해도 ${avg == null ? '—' : pct(avg)} · 미해결 오개념 ${open}개` : S.error ? '불러오지 못함' : '불러오는 중…',
-      kpis: [
-        { label: '통과한 섹션', value: T ? String(T.passed_sections) : '—', unit: `/ ${secs.length || '—'}`, sub: '이해도 80% 이상' },
-        { label: '평균 이해도', value: avg == null ? '—' : pct(avg), unit: '', sub: '응시한 섹션의 마지막 결과' },
-        { label: '미해결 오개념', value: D ? String(open) : '—', unit: '개', sub: '본인 기록만 표시' },
-        { label: '다시 볼 개념', value: D ? String(reviews.length) : '—', unit: '개', sub: '최근 이해도 확인 결과' },
-      ],
-      secCards: secs.map(section => { const info = T?.sections[section], p = process(section); return {
-        num: p.num, name: p.name, score: info ? pct(info.understanding) : '—',
-        status: !info ? '미응시' : info.passed ? '통과' : '재도전 필요',
-        color: !info ? 'var(--muted)' : scoreColor(info.understanding),
-        width: info ? pct(info.understanding) : '0%', attempts: info ? `${info.attempts}회 응시` : '아직 이해도 확인 전',
-      }; }),
       reviews, reviewEmpty: !!D && reviews.length === 0,
       misconceptions: misconceptions.slice(0, 8).map(m => ({ name: conceptName(m.section, m.concept_id), summary: m.summary,
         status: m.resolved ? '해결됨' : m.label, color: m.resolved ? 'var(--ok)' : 'var(--bad)' })),

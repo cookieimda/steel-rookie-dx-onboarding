@@ -25,7 +25,8 @@ const close = (a: number, b: number, eps = 1e-9) => Math.abs(a - b) < eps;
 
 test("브라우저가 없어도 모듈을 불러오고, 엘리먼트 클래스는 있되 등록은 하지 않는다", () => {
   assert.equal(typeof CpCharacter, "function");
-  assert.deepEqual(CpCharacter.observedAttributes, ["motion", "model", "fallback"]);
+  // framing(얼굴 가까이)·gaze(마우스 따라 보기)는 학습 기록 튜터 머리에서만 켜는 선택 속성
+  assert.deepEqual(CpCharacter.observedAttributes, ["motion", "model", "fallback", "framing", "gaze"]);
 });
 
 test("동작 선택: 같은 이름의 클립 → 그 이름의 몸 전체 움직임 → 대체 이름표 → idle", () => {
@@ -145,5 +146,7 @@ test("drawFace: 표정마다 캔버스 그리기 명령만 쓰고(브라우저 �
     set: () => true,
   });
   for (const expression of face.EXPRESSIONS) for (const blink of [false, true]) face.drawFace(ctx, { expression, blink, skin: "#cccccc" });
+  // 따라 보기(gaze): 끝 방향을 줘도 예외 없이 그린다
+  for (const expression of face.EXPRESSIONS) face.drawFace(ctx, { expression, skin: "#cccccc", gaze: { x: 1, y: -1 } });
   assert.ok(calls.includes("ellipse") && calls.includes("stroke"));
 });

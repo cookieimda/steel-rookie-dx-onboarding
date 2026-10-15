@@ -1,189 +1,197 @@
-/* 비스듬한 모서리(Diagonal) UI 공용 스타일. 설계: docs/learning-diagonal-ui.md
+/* 학습 페이지 공용 스타일. 설계: docs/learning-diagonal-ui.md
    - 쓰는 화면: login_ui/Trainee Dashboard.dc.html(학습 페이지). /3d-demo/ 페이지는 ../login_ui/diagonal.css로 읽는다.
    - 토큰 이름(--bg, --text, --line …)은 학습 페이지 인라인 스타일이 쓰던 이름을 그대로 둔다. 테마는 body[data-theme](저장값 st-rookie-theme).
-   - 모서리: .dg-cut은 왼쪽 위·오른쪽 아래를 --c만큼 자른다. 크기는 .dg-l(22px) · 기본(14px) · .dg-s(8px). 헤더는 .dg-cut-br(오른쪽 아래만).
-   - clip-path는 테두리도 잘라 내므로, 선이 있는 버튼·칩·입력창은 선 색 바탕 위에 ::before(1px 안쪽, --ghost-fill)를 같은 모양으로 덮어 그린다. */
+   - 모서리: 비스듬히 자르던 모양을 둥근 모서리로 바꿨다(2026-10-15). 클래스 이름 .dg-cut은 그대로 두고 --c만큼 둥글린다.
+     크기는 .dg-l(20px) · 기본(14px) · .dg-s(10px). 헤더는 .dg-cut-br.
+   - 판은 외곽선 없이 반투명(--glass, --blur)으로 뒤 배경이 비친다. 주황 버튼은 테두리 + 옅은 주황, 올리면 주황으로 채운다(2026-10-15).
+   - 글씨: 영문·숫자는 Montserrat, 한글은 Pretendard(Montserrat에 한글이 없어 뒤로 이어진다, 2026-10-15). */
 
 body {
-  --font-ko: "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
-  --font-en: "Chakra Petch", "Pretendard", sans-serif;
-  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
-  --cut-l: 22px; --cut: 14px; --cut-s: 8px;
+  --font-ko: "Montserrat", "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-en: "Montserrat", "Pretendard", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace; /* 도면 번호처럼 고정폭이 필요한 곳만 */
+  --cut-l: 20px; --cut: 14px; --cut-s: 10px; /* 둥근 모서리 반지름(이름은 예전 그대로) */
   --orange: #ff9e64; --orange-ink: #1a0b03;
   --orange-text: var(--orange); /* 주황 글자색용. 라이트 테마에서는 대비를 높인 값으로 덮어쓴다 */
   --ink-panel: #202024;
-  --bg: #141416; --nav: rgba(20, 20, 22, .92); --panel: #1d1d20; --panel2: rgba(255, 255, 255, .07); --chip-on: rgba(255, 255, 255, .16);
+  --bg: #121213; --nav: rgba(26, 24, 23, .5); --panel: rgba(34, 31, 29, .5); --panel2: rgba(255, 255, 255, .07); --chip-on: rgba(255, 255, 255, .16);
   --line: rgba(255, 255, 255, .13); --text: #f2f2f2; --muted: #b9b9be; --dim: #8e8e94;
   --accent: var(--orange); --accent-ink: var(--orange-ink); --bubble-in: #2a2a2e; --send: var(--orange);
   --ok: #6fcf97; --mid: #e8c25a; --bad: #ff6b6b;
   --ghost-fill: var(--bg);
-  --module-bg: #24211e; --module-panel: #1b1916; /* 학습 모듈 판: 살짝 따뜻한 회색(2026-10-15) */
-  --mtab-h: 40px; /* 학습 모듈 위 탭(작동 단계 | 설계도·필기) 높이. 오른쪽 튜터 열은 이만큼 내려 모듈 판 위쪽 선에 맞춘다 */
-  margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-ko); letter-spacing: -0.01em; -webkit-font-smoothing: antialiased;
+  --module-bg: rgba(36, 33, 30, .52); --module-panel: rgba(255, 255, 255, .04); /* 학습 모듈 판: 따뜻한 회색 반투명(2026-10-15) */
+  --mtab-h: 40px; /* 학습 모듈 위 탭(작동 단계 | 설계도·필기) 높이. 오른쪽 튜터 열은 이만큼 내려 모듈 판 위쪽에 맞춘다 */
+  /* 반투명 판(3D 화면 설비 설명창처럼): 뒤 배경이 흐리게 비친다. 판 외곽선은 두지 않는다(2026-10-15) */
+  --glass: rgba(34, 31, 29, .5); --glass-strong: rgba(26, 24, 23, .66); --blur: blur(18px) saturate(1.15);
+  --orange-glass: rgba(255, 158, 100, .12); /* 버튼 기본(주황 테두리 + 옅은 주황), 올리면 --orange */
+  /* 배경: 어두운 바탕에 따뜻한 빛 번짐 + 옅은 격자(참고 시안 Signalry) */
+  --page-bg:
+    radial-gradient(900px 620px at 80% 6%, rgba(255, 158, 100, .17), transparent 62%),
+    radial-gradient(760px 560px at 6% 0%, rgba(150, 132, 118, .16), transparent 60%),
+    radial-gradient(900px 700px at 50% 100%, rgba(255, 158, 100, .07), transparent 65%),
+    linear-gradient(rgba(255, 255, 255, .035) 1px, transparent 1px) 0 0 / 64px 64px,
+    linear-gradient(90deg, rgba(255, 255, 255, .035) 1px, transparent 1px) 0 0 / 64px 64px,
+    linear-gradient(180deg, #1b1816, #0f0f11 70%);
+  margin: 0; background: var(--page-bg); background-color: var(--bg); background-attachment: fixed; color: var(--text); font-family: var(--font-ko); letter-spacing: -0.01em; -webkit-font-smoothing: antialiased;
 }
 body[data-theme="light"] {
-  --orange-text: #c25a1c; /* 밝은 배경 위 주황 글자는 같은 계열의 진한 색(대비 약 4.5:1) */
-  --ink-panel: #1c1c1e;
-  --bg: #f3f2ee; --nav: rgba(243, 242, 238, .94); --panel: #ffffff; --panel2: rgba(0, 0, 0, .05); --chip-on: rgba(0, 0, 0, .1);
-  --line: rgba(0, 0, 0, .14); --text: #141414; --muted: #4f4f55; --dim: #6b6b71;
-  --bubble-in: #ececea; --ok: #177a42; --mid: #9a6200; --bad: #c53030;
+  --orange-text: #9a4512; /* 밝은 배경 위 주황 글자는 같은 계열의 진한 색(대비 4.5:1 이상, 2026-10-15 검증) */
+  --ink-panel: #b9a9a3;
+  --bg: #f4f0ed; --nav: rgba(250, 247, 244, .55); --panel: rgba(255, 255, 255, .5); --panel2: rgba(60, 40, 30, .06); --chip-on: rgba(60, 40, 30, .12);
+  --line: rgba(60, 40, 30, .14); --text: #1d1714; --muted: #574a44; --dim: #776a64;
+  --bubble-in: rgba(255, 255, 255, .6); --ok: #177a42; --mid: #9a6200; --bad: #c53030;
   --ghost-fill: var(--bg);
-  --module-bg: #f0ece6; --module-panel: #e7e1d9;
+  --module-bg: rgba(255, 255, 255, .46); --module-panel: rgba(255, 255, 255, .4);
+  --glass: rgba(255, 255, 255, .46); --glass-strong: rgba(255, 255, 255, .6);
+  --orange-glass: rgba(255, 140, 70, .12);
+  /* 라이트: 미색 바탕에 갈색·핑크 회색 빛(참고 시안 Playbit) */
+  --page-bg:
+    radial-gradient(900px 640px at 82% 4%, rgba(255, 158, 100, .16), transparent 62%),
+    radial-gradient(820px 600px at 8% 10%, rgba(196, 176, 170, .45), transparent 62%),
+    linear-gradient(rgba(90, 60, 50, .045) 1px, transparent 1px) 0 0 / 64px 64px,
+    linear-gradient(90deg, rgba(90, 60, 50, .045) 1px, transparent 1px) 0 0 / 64px 64px,
+    linear-gradient(180deg, #f7f3f0, #ece4df);
 }
 
-/* 어두운 패널(AI 튜터·평가 시험 띠): 라이트 테마에서도 어둡다. 안쪽 인라인 스타일이 쓰는 토큰을 어두운 값으로 다시 정한다 */
+/* 진한 판(AI 튜터·평가 시험 띠): 다크는 진한 반투명, 라이트는 갈색·핑크 회색 그라데이션. 안쪽 인라인 스타일이 쓰는 토큰을 다시 정한다 */
 .dg-ink {
-  --bg: var(--ink-panel); --panel: #26262a; --panel2: rgba(255, 255, 255, .07); --chip-on: rgba(255, 255, 255, .16);
-  --line: rgba(255, 255, 255, .14); --text: #f2f2f2; --muted: #b9b9be; --dim: #8e8e94; --bubble-in: #2c2c30;
-  --orange-text: var(--orange); /* 어두운 패널은 라이트 테마에서도 원래 주황 */
-  --ok: #6fcf97; --mid: #e8c25a; --bad: #ff6b6b; --ghost-fill: var(--ink-panel);
-  background: var(--ink-panel); color: var(--text);
+  --bg: transparent; --panel: rgba(255, 255, 255, .05); --panel2: rgba(255, 255, 255, .07); --chip-on: rgba(255, 255, 255, .16);
+  --line: rgba(255, 255, 255, .12); --text: #f2f2f2; --muted: #b9b9be; --dim: #8e8e94; --bubble-in: rgba(255, 255, 255, .08);
+  --orange-text: var(--orange);
+  --ok: #6fcf97; --mid: #e8c25a; --bad: #ff6b6b; --ghost-fill: transparent;
+  background: var(--glass-strong); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); color: var(--text);
+}
+/* 라이트: 갈색·핑크 회색 단색. 글자가 올라가는 판이라 그라데이션 대신 단색으로 두고 글자색을 진하게(대비 4.5:1 이상, 2026-10-15 검증) */
+body[data-theme="light"] .dg-ink {
+  --panel: rgba(255, 255, 255, .16); --panel2: rgba(255, 255, 255, .28); --chip-on: rgba(255, 255, 255, .45);
+  --line: rgba(60, 40, 30, .16); --text: #1d1714; --muted: #3a2f2a; --dim: #4f423c; --bubble-in: rgba(255, 255, 255, .42);
+  --orange-text: #7d3409; --orange-glass: rgba(255, 140, 70, .16);
+  --ok: #105c31; --mid: #6e4500; --bad: #8f1a1a;
+  background: #c9bab3;
 }
 
-/* ---- 모서리 자르기 ---- */
-.dg-cut { --c: var(--cut); clip-path: polygon(var(--c) 0, 100% 0, 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, 0 100%, 0 var(--c)); }
+/* ---- 둥근 모서리 ---- */
+.dg-cut { --c: var(--cut); border-radius: var(--c); }
 .dg-cut.dg-l { --c: var(--cut-l); }
 .dg-cut.dg-s { --c: var(--cut-s); }
-.dg-cut-br { --c: var(--cut); clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, 0 100%); }
+.dg-cut-br { --c: var(--cut); border-radius: var(--c); }
 
-/* 선이 있는 요소: 선 색 바탕 + 1px 안쪽 덮개 */
-.dg-btn-ghost, .dg-chip, .dg-input { position: relative; isolation: isolate; background: var(--line); }
-.dg-btn-ghost::before, .dg-chip::before, .dg-input::before {
-  content: ""; position: absolute; inset: 1px; z-index: -1; background: var(--ghost-fill);
-  clip-path: polygon(calc(var(--c, 0px) - .4px) 0, 100% 0, 100% calc(100% - var(--c, 0px) + .4px), calc(100% - var(--c, 0px) + .4px) 100%, 0 100%, 0 calc(var(--c, 0px) - .4px));
-}
-/* 키보드 포커스: 덮개를 2px 안으로 줄여 테두리를 두껍게 보인다 */
-.dg-btn-ghost:focus-visible::before, .dg-chip:focus-visible::before, .dg-input:focus-within::before { inset: 2px; }
+/* 반투명 판: 외곽선 없이 뒤 배경이 흐리게 비친다 */
+.dg-glass { background: var(--glass); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); }
 
 /* ---- 글자 ---- */
-.dg-label { font: 500 13px/1.2 var(--mono); letter-spacing: .26em; text-transform: uppercase; color: var(--muted); }
+.dg-label { font: 600 15px/1.2 var(--font-en); letter-spacing: .26em; text-transform: uppercase; color: var(--muted); }
 .dg-title { margin: 0; font: 700 clamp(32px, 4.4vw, 48px)/.95 var(--font-en); letter-spacing: .02em; text-transform: uppercase; }
 .dg-h2 { margin: 0; font: 700 22px/1.2 var(--font-ko); }
 .dg-sub { font-size: 15px; line-height: 1.5; color: var(--dim); }
 .dg-num { margin-right: .4em; font: 700 1em/1 var(--font-en); color: var(--orange-text); }
 
 /* ---- 버튼·탭·칩·입력창 ---- */
-.dg-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 40px; padding: 0 18px; border: 0; background: transparent; color: var(--text); font: 700 15px/1 var(--font-ko); white-space: nowrap; cursor: pointer; text-decoration: none; }
+.dg-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 40px; padding: 0 18px; border: 0; background: transparent; color: var(--text); font: 700 15px/1 var(--font-ko); white-space: nowrap; cursor: pointer; text-decoration: none; transition: background .2s, color .2s, box-shadow .2s; }
+/* 주 행동(평가 시험)만 주황으로 채운다. 그 밖의 버튼은 무채색 바탕(soft), 효과음처럼 켜고 끄는 버튼은 채도를 낮춘 주황빛(tint).
+   버튼에는 흐림·외곽선을 쓰지 않는다(2026-10-15 검증) */
 .dg-btn-primary { background: var(--orange); color: var(--orange-ink); }
-.dg-btn-primary:hover { filter: brightness(1.06); }
+.dg-btn-primary:hover { filter: brightness(1.08); }
+.dg-btn-soft { background: var(--panel2); color: var(--text); }
+.dg-btn-soft:hover { background: var(--chip-on); }
+.dg-btn-tint { background: rgba(214, 160, 122, .18); color: #e6bc9e; }
+.dg-btn-tint:hover { background: rgba(214, 160, 122, .3); }
+body[data-theme="light"] .dg-btn-tint { background: rgba(140, 90, 60, .14); color: #5c2f14; }
+body[data-theme="light"] .dg-btn-tint:hover { background: rgba(140, 90, 60, .24); }
 .dg-btn-plain { color: var(--muted); font-weight: 500; }
 .dg-btn-plain:hover { background: var(--panel2); color: var(--text); }
-.dg-btn-ghost { background: var(--line); }
-.dg-btn-ghost:hover, .dg-btn-ghost:focus-visible, .dg-chip:hover, .dg-chip:focus-visible { background: var(--orange); outline: none; }
-/* 포커스 테두리는 글자색: 주황 배경 버튼 위에서도 보이도록 */
+/* 포커스 테두리는 글자색 2px */
 .dg-btn-primary:focus-visible, .dg-btn-plain:focus-visible, .dg-seg button:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--text); }
+.dg-btn-soft:focus-visible, .dg-btn-tint:focus-visible, .dg-chip:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--text); }
 
 .dg-seg { display: flex; flex-wrap: wrap; gap: 2px; padding: 3px; background: var(--panel2); }
-.dg-seg button { height: 34px; padding: 0 16px; border: 0; background: transparent; color: var(--muted); font: 700 14px/1 var(--font-ko); white-space: nowrap; cursor: pointer; }
+.dg-seg button { height: 34px; padding: 0 16px; border: 0; background: transparent; color: var(--muted); font: 700 15px/1 var(--font-ko); white-space: nowrap; cursor: pointer; }
 .dg-seg button:hover { color: var(--text); }
 .dg-seg button[aria-selected="true"] { background: var(--orange); color: var(--orange-ink); }
-.dg-seg.dg-sm button { height: 30px; padding: 0 12px; font-size: 13px; }
+.dg-seg.dg-sm button { height: 30px; padding: 0 12px; font-size: 15px; }
 
-.dg-chip { flex: none; padding: 7px 13px; border: 0; color: var(--text); font: 500 14px/1.35 var(--font-ko); white-space: nowrap; text-align: left; cursor: pointer; }
-.dg-input { display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 4px 6px 4px 16px; }
-.dg-input:focus-within { background: var(--orange); }
+.dg-chip { flex: none; padding: 7px 13px; border: 0; background: var(--panel2); color: var(--text); font: 500 15px/1.35 var(--font-ko); white-space: nowrap; text-align: left; cursor: pointer; transition: background .2s, color .2s; }
+.dg-chip:hover { background: var(--orange); color: var(--orange-ink); }
+.dg-input { display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 4px 6px 4px 16px; background: var(--panel2); }
+.dg-input:focus-within { box-shadow: inset 0 0 0 1px var(--orange); }
+/* 입력창 안내 글자: 판 위에서도 또렷하게(기본 회색은 흐려서 보조 글자색으로, 2026-10-15) */
+.dg-input-field::placeholder { color: var(--muted); opacity: 1; }
+/* 추천 질문: 두 개씩 나란히, 글자는 단어 단위로 줄바꿈, 더 있으면 양옆 화살표 */
+.dg-chips { display: flex; align-items: stretch; gap: 6px; padding: 0 14px; }
+.dg-chips-row { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.dg-chips-row .dg-chip { padding: 5px 10px; white-space: normal; word-break: keep-all; overflow-wrap: anywhere; text-align: left; line-height: 1.25; } /* 두 줄이어도 단계 설명 높이 안에 들도록 촘촘히 */
+.dg-chips-nav { flex: none; width: 28px; border: 0; border-radius: 8px; background: var(--panel2); color: var(--text); font: 600 18px/1 var(--font-en); cursor: pointer; }
+.dg-chips-nav:hover { background: var(--chip-on); }
+.dg-chips-nav:disabled { opacity: .5; cursor: default; }
+.dg-chips-nav:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--text); }
 
 /* ---- ① 헤더 ---- */
-.dg-header { position: sticky; top: 12px; z-index: 20; width: min(1400px, calc(100% - 32px)); margin: 16px auto 0; min-height: 64px; padding: 10px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; background: var(--nav); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); --ghost-fill: var(--bg); }
+.dg-header { position: relative; z-index: 20; /* 스크롤을 따라오지 않고 맨 위에 둔다(2026-10-15) */ width: min(1320px, calc(100% - 96px)); margin: 24px auto 0; min-height: 64px; padding: 10px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; background: transparent; --ghost-fill: var(--bg); } /* 판 없이 바탕 위에(반투명은 학습 모듈·튜터에만, 2026-10-15 검증) */
 .dg-logo { display: flex; align-items: center; gap: 10px; color: var(--text); font: 700 19px/1 var(--font-en); letter-spacing: .06em; white-space: nowrap; text-decoration: none; }
-.dg-logo-mark { flex: none; width: 18px; height: 18px; background: var(--orange); clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px); }
-.dg-badge { padding: 5px 8px; background: var(--panel2); font: 500 14px/1 var(--mono); letter-spacing: .08em; white-space: nowrap; }
+.dg-logo-mark { flex: none; width: 18px; height: 18px; background: var(--orange); border-radius: 5px; }
 .dg-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 
-/* ---- ② 제목띠 ----
-   헤더는 가로 여백 0으로 로고·버튼을 본문 왼쪽·오른쪽 끝선에 맞추고, 주황 패널은 348px로 오른쪽 끝에 붙인다(2026-10-15 UI 편집) */
-.dg-main { width: min(1400px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 72px; display: flex; flex-direction: column; gap: 32px; }
-.dg-hero { display: grid; grid-template-columns: minmax(0, 1fr) 348px; gap: 20px; align-items: stretch; }
-.dg-hero-text { display: flex; flex-direction: column; justify-content: flex-end; gap: 12px; }
-.dg-hero-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
-.dg-alert { padding: 4px 10px; background: color-mix(in srgb, var(--bad) 14%, transparent); color: var(--bad); font-size: 14px; font-weight: 600; clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px); }
-.dg-now { display: flex; flex-direction: column; justify-content: space-between; gap: 14px; padding: 20px 24px; background: var(--orange); color: var(--orange-ink); }
-.dg-now .dg-label { color: var(--orange-ink); opacity: .75; }
-.dg-now .dg-num { color: var(--orange-ink); }
-.dg-now-name { font: 700 26px/1.1 var(--font-ko); }
-.dg-now-row { display: flex; align-items: baseline; gap: 10px; font-size: 15px; }
-.dg-now-row b { font: 700 40px/1 var(--font-en); }
+.dg-main { width: min(1320px, calc(100% - 96px)); margin: 0 auto; padding: 16px 0 120px; display: flex; flex-direction: column; gap: 12px; } /* 제목띠 없이 헤더 바로 아래에서 학습 모듈이 시작한다(2026-10-15) */
+.dg-alert { align-self: flex-start; padding: 4px 10px; background: color-mix(in srgb, var(--bad) 14%, transparent); color: var(--bad); font-size: 15px; font-weight: 600; border-radius: 6px; }
 
 /* ---- ③ 학습 모듈 탭 + 판: 고른 탭은 아래 판과 같은 바탕이라 브라우저 탭처럼 판에 이어진다(2026-10-15) ----
-   판(.dg-mframe, 2D 모듈 안 .root)은 오른쪽 위·왼쪽 아래를 자르고, 탭이 붙는 왼쪽 위는 자르지 않는다 */
-.dg-ftabs { position: relative; z-index: 1; display: flex; align-items: flex-end; gap: 2px; height: var(--mtab-h); margin-bottom: -1px; }
-.dg-ftabs button { --c: 10px; position: relative; isolation: isolate; height: 100%; padding: 0 20px; border: 0; background: transparent; color: var(--muted); font: 700 14px/1 var(--font-ko); white-space: nowrap; cursor: pointer;
-  clip-path: polygon(0 0, calc(100% - var(--c)) 0, 100% var(--c), 100% 100%, 0 100%); }
+   판(.dg-mframe, 2D 모듈 안 .root)은 네 모서리 중 탭이 붙는 왼쪽 위만 각지고 나머지는 둥글다. 탭은 위쪽 두 모서리가 둥글다 */
+.dg-ftabs { position: relative; z-index: 1; display: flex; align-items: flex-end; gap: 2px; height: var(--mtab-h); }
+.dg-ftabs button { --c: 12px; position: relative; height: 100%; padding: 0 20px; border: 0; border-radius: var(--c) var(--c) 0 0; background: transparent; color: var(--muted); font: 700 15px/1 var(--font-ko); white-space: nowrap; cursor: pointer; }
 .dg-ftabs button:hover { color: var(--text); background: var(--panel2); }
-.dg-ftabs button[aria-selected="true"] { background: var(--line); color: var(--text); cursor: default; }
-.dg-ftabs button[aria-selected="true"]::before { content: ""; position: absolute; inset: 1px 1px 0 1px; z-index: -1; background: var(--module-bg);
-  clip-path: polygon(0 0, calc(100% - var(--c) + .4px) 0, 100% calc(var(--c) - .4px), 100% 100%, 0 100%); }
-.dg-ftabs button[aria-selected="true"]::after { content: ""; position: absolute; left: 1px; right: var(--c); top: 1px; height: 2px; background: var(--orange); } /* 고른 탭 위 주황 줄 */
+/* 고른 탭: 판과 같은 반투명 바탕(선·주황 줄 없음, 2026-10-15) */
+.dg-ftabs button[aria-selected="true"] { background: var(--module-bg); color: var(--text); cursor: default; }
+/* 탭 옆 개수(복습·내 오개념) */
+.dg-tab-count { display: inline-block; min-width: 22px; margin-left: 8px; padding: 2px 7px; border-radius: 999px; background: var(--panel2); color: var(--text); font: 600 15px/1.2 var(--font-en); text-align: center; }
 .dg-ftabs button:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--text); }
-.dg-mframe { --c: 22px; position: relative; isolation: isolate; }
-.dg-mframe::before, .dg-mframe::after { content: ""; position: absolute; pointer-events: none; }
-.dg-mframe::before { inset: 0; z-index: -2; background: var(--line); clip-path: polygon(0 0, calc(100% - var(--c)) 0, 100% var(--c), 100% 100%, var(--c) 100%, 0 calc(100% - var(--c))); }
-.dg-mframe::after { inset: 1px; z-index: -1; background: var(--module-bg); clip-path: polygon(0 0, calc(100% - var(--c) + .4px) 0, 100% calc(var(--c) - .4px), 100% 100%, calc(var(--c) - .4px) 100%, 0 calc(100% - var(--c) + .4px)); }
+.dg-mframe { --c: 18px; position: relative; isolation: isolate; }
+.dg-mframe::after { content: ""; position: absolute; pointer-events: none; inset: 0; z-index: -1; background: var(--module-bg); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); border-radius: 0 var(--c) var(--c) var(--c); }
 
-/* ---- ④ 내 현황 · ⑤ 복습: 구역은 1px 선과 양쪽 끝 + 표시로 나눈다 ---- */
-.dg-section { position: relative; display: flex; flex-direction: column; gap: 18px; padding-top: 28px; border-top: 1px solid var(--line); }
-.dg-section::before, .dg-section::after { content: "+"; position: absolute; top: -11px; padding: 2px 3px; background: var(--bg); color: var(--dim); font: 400 16px/1 var(--mono); }
-.dg-section::before { left: -6px; }
-.dg-section::after { right: -6px; }
+/* ---- 등장: 창이 뜨듯 아래에서 살짝 커지며 열린다. 순서는 --d(지연)로 정한다. 탭을 바꾸면 그 판이 다시 열린다(2026-10-15) ---- */
+.dg-pop { animation: dg-pop .7s cubic-bezier(.2, .8, .2, 1) var(--d, 0s) backwards; }
+@keyframes dg-pop {
+  from { opacity: 0; transform: translateY(22px) scale(.965); clip-path: inset(0 0 100% 0 round 18px); filter: blur(6px); }
+  60% { clip-path: inset(0 0 0 0 round 18px); }
+  to { opacity: 1; transform: none; clip-path: inset(0 0 0 0 round 18px); filter: none; }
+}
+/* 탭 판(복습·내 오개념): 2D 모듈과 같은 높이감으로 여유 있게 */
+.dg-pane { flex-direction: column; gap: 28px; min-height: 640px; padding: 36px 40px; }
+.dg-pane .dg-section-head { align-items: center; }
+
+/* ---- 복습·내 오개념 목록 ---- */
 .dg-section-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; }
-.dg-card { --ghost-fill: var(--panel); background: var(--panel); }
 
-.dg-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
-.dg-stat { display: flex; flex-direction: column; gap: 8px; min-height: 200px; padding: 20px 22px; background: var(--orange); color: var(--orange-ink); }
-.dg-stat-value { margin-bottom: auto; font: 700 44px/1 var(--font-en); }
-.dg-stat-value small { margin-left: 6px; font: 600 16px/1 var(--font-ko); }
-.dg-stat-label { font: 700 15px/1.3 var(--font-ko); }
-.dg-stat-sub { font: 500 12px/1.3 var(--mono); letter-spacing: .04em; opacity: .75; }
-
-.dg-secs { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
-.dg-sec { display: flex; flex-direction: column; gap: 12px; padding: 18px 20px; }
-.dg-sec-top { display: flex; align-items: center; gap: 4px; font-size: 16px; }
-.dg-sec-score { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 15px; color: var(--muted); }
-.dg-sec-score span:first-child { font: 700 28px/1 var(--font-en); }
-.dg-bar { height: 6px; background: var(--line); }
-.dg-bar span { display: block; height: 100%; }
-
-.dg-two { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-/* 내 현황(왼쪽) + 복습(오른쪽)을 한 줄로. 왼쪽은 숫자 카드 4칸과 그 아래 공정 카드 4칸, 오른쪽은 두 목록을 위아래로(2026-10-15 UI 편집) */
-.dg-split { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 28px; align-items: start; }
-.dg-split .dg-stats, .dg-split .dg-secs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.dg-split .dg-two { grid-template-columns: 1fr; gap: 12px; }
-.dg-col { --ghost-fill: var(--panel); display: flex; flex-direction: column; gap: 8px; padding: 20px 22px; background: var(--panel); }
-.dg-col-head { display: flex; align-items: center; justify-content: space-between; font-size: 17px; }
 .dg-count { font: 700 24px/1 var(--font-en); }
 .dg-empty { padding: 12px 0; font-size: 15px; color: var(--muted); }
 .dg-list { display: flex; flex-direction: column; }
 .dg-row { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-top: 1px solid var(--line); }
 .dg-row-main { flex: 1; display: flex; flex-direction: column; gap: 3px; font-size: 16px; }
-.dg-tag { padding: 4px 9px; font-size: 14px; font-weight: 600; white-space: nowrap; clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px); }
+.dg-tag { padding: 4px 9px; font-size: 15px; font-weight: 600; white-space: nowrap; border-radius: 6px; }
 .dg-acc { border-top: 1px solid var(--line); }
 .dg-acc summary { display: flex; align-items: center; gap: 12px; padding: 14px 0; list-style: none; font-size: 16px; cursor: pointer; }
 .dg-acc summary::-webkit-details-marker { display: none; }
 .dg-acc summary strong { flex: 1; }
 .dg-acc summary span { font-size: 15px; font-weight: 600; white-space: nowrap; }
-.dg-acc summary i { font: 400 20px/1 var(--mono); font-style: normal; color: var(--dim); transition: transform .2s; }
+.dg-acc summary i { font: 400 20px/1 var(--font-en); font-style: normal; color: var(--dim); transition: transform .2s; }
 .dg-acc summary:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 .dg-acc[open] summary i { transform: rotate(45deg); color: var(--orange-text); }
 .dg-acc p { margin: 0 0 14px; font-size: 15px; line-height: 1.6; color: var(--muted); }
 
-/* ---- ⑥ 평가 시험 띠 ---- */
-.dg-band { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px 32px; min-height: 188px; padding: 36px 108px 36px 40px; }
-.dg-band-cta { height: 80px; min-width: 360px; padding: 0 32px; font-size: 20px; } /* 평가 시험 응시 버튼을 크게(2026-10-15 UI 편집) */
-.dg-band-text { display: flex; flex-direction: column; gap: 12px; }
-
 /* ---- 2D 학습 모듈(<process-2d>) 색: 바깥 문서 규칙이 모듈 안 :host 기본값보다 우선한다 ---- */
 process-2d {
+  --frame: transparent; --glass-blur: var(--blur); --peek-bg: #26231f; --stepcard-bg: rgba(255, 158, 100, .12); --chapters-bg: transparent; --chapters-pad: 0; /* 판 외곽선 없음, 판은 반투명, 미리보기 창은 불투명 */
   --bg: var(--module-bg); --panel: var(--module-panel); --chip: rgba(255, 255, 255, .08); --chip-on: rgba(255, 255, 255, .16); --line: rgba(255, 255, 255, .13);
   --text: #f2f2f2; --muted: #b9b9be; --dim: #8e8e94; --accent: #ff9e64; --accent-ink: #1a0b03;
   --lit: #ff9e64; --lit-ink: #1a0b03; --lit-bg: rgba(255, 158, 100, .14);
 }
 body[data-theme="light"] process-2d {
+  --peek-bg: #f7f3f0; --stepcard-bg: rgba(255, 140, 70, .12);
   --bg: var(--module-bg); --panel: var(--module-panel); --chip: rgba(0, 0, 0, .05); --chip-on: rgba(0, 0, 0, .1); --line: rgba(0, 0, 0, .14);
   --text: #141414; --muted: #4f4f55; --dim: #6b6b71; --accent: #ff9e64; --accent-ink: #1a0b03;
-  --lit: #c25a1c; --lit-ink: #ffffff; --lit-bg: rgba(255, 158, 100, .14);
+  --lit: #9a4512; --lit-ink: #ffffff; --lit-bg: rgba(255, 158, 100, .14);
 }
 
 /* ---- 좁은 화면 ---- */
-@media (max-width: 1100px) { .dg-hero, .dg-two, .dg-split { grid-template-columns: 1fr; } .dg-band { padding: 32px 40px; } }
-@media (max-width: 600px) { .dg-band { padding: 24px; } .dg-band-cta { min-width: 0; width: 100%; height: 64px; font-size: 18px; } .dg-split .dg-stats, .dg-split .dg-secs { grid-template-columns: repeat(2, minmax(0, 1fr)); } .dg-stat-value { font-size: 36px; } .dg-now-row b { font-size: 32px; } }
-@media (prefers-reduced-motion: reduce) { .dg-acc summary i { transition: none; } }
+@media (max-width: 1100px) { .dg-main { padding-top: 24px; } }
+@media (max-width: 600px) { .dg-ftabs { overflow-x: auto; scrollbar-width: none; } .dg-ftabs button { flex: none; padding: 0 12px; } .dg-header, .dg-main { width: calc(100% - 32px); } .dg-main { padding: 32px 0 72px; gap: 24px; } .dg-pane { min-height: 0; padding: 22px 18px; } }
+@media (prefers-reduced-motion: reduce) { .dg-acc summary i, .dg-btn, .dg-chip { transition: none; } .dg-pop { animation: none; transition: none; } }

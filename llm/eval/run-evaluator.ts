@@ -1,17 +1,16 @@
-// 평가자 정확도 평가: 실제 Gemini로 평가 세트를 채점해 일치율, 혼동 표, 형식 재시도, 같은 뜻 쌍 일치율, 틀린 케이스를 출력한다.
-// 실행: npm run eval:evaluator -- --set smoke|hard [--resume] [--records 파일.jsonl]
-//  - 기본 smoke, GEMINI_API_KEY 필요, npm test에는 포함하지 않는다.
-//  - 케이스마다 결과를 --records(기본 llm/eval/results/evaluator-{set}.jsonl)에 바로 기록한다.
+// 평가자 정확도 평가: 실제 모델로 평가 세트를 채점해 일치율, 혼동 표, 형식 재시도, 같은 뜻 쌍 일치율, 틀린 케이스를 출력한다.
+// 실행: npm run eval:evaluator -- --set smoke|hard [--resume] [--records 파일.jsonl] [--no-guards]
+//  - 기본 smoke, npm test에는 포함하지 않는다. 모델은 LLM_PROVIDER(기본 Gemini, GEMINI_API_KEY 필요 / ollama는 무료).
+//  - Ollama는 채점 보강(repairFormat·verifyBoundary)을 켜고 돌린다. --no-guards로 끄고 비교한다.
+//  - 케이스마다 결과를 --records(기본 llm/eval/results/evaluator-{set}.jsonl, Ollama는 evaluator-{set}-ollama.jsonl)에 바로 기록한다.
 //    --resume이면 같은 모델·프롬프트·루브릭으로 끝난 케이스를 건너뛰고, 보고서는 파일의 기록 전체로 만든다.
 //  - 무료 등급 요청 제한을 피하려고 케이스 사이에 EVAL_DELAY_MS(기본 1000ms)만큼 쉰다.
 //  - 429·시간 초과·연결 실패는 EVAL_RETRY_BASE_MS(기본 10000ms)부터 2배씩 늘려 최대 3회 다시 호출한다.
 //    그래도 실패하면 infra_error로 기록하고 일치율에서 뺀다. 연속 3케이스면 멈춘다.
-import { join } from "node:path";
 import { loadFinalRubrics } from "../../backend/src/rubrics.js";
 import { evaluatorSystemPrompt, evaluatorUserPrompt, GeminiEvaluator } from "../src/evaluator.js";
-import { DEFAULT_GEMINI_MODEL } from "../src/gemini.js";
 import { EVAL_SETS, loadEvalSet, SOURCES, type EvalCase, type EvalSetName } from "./eval-set.js";
-import { fingerprint, flag, InfraStreak, MAX_CONSECUTIVE_INFRA, isInfraError, option, openRecordFile, RESULTS_DIR, RetryingGeminiClient, sleep, type RunRecord } from "./run-log.js";
+import { evalProvider, fingerprint, flag, InfraStreak, MAX_CONSECUTIVE_INFRA, isInfraError, option, openRecordFile, resultsFile, RetryingLlmClient, sleep, type RunRecord } from "./run-log.js";
 
 const EXPECTED = ["correct", "partial", "wrong", "assisted"] as const;
 const PREDICTED = [...EXPECTED, "format_error"] as const;
@@ -29,6 +28,8 @@ interface EvaluatorRecord extends RunRecord {
   explain_from: number | null;
   attempts: number;
   format_problems: string[];
+  /** 채점 보강(형식 보정·경계 재확인)으로 바꾼 내용. */
+  adjustments?: string[];
   /** 연결 오류로 다시 호출한 이유(재시도 횟수 = 길이). */
   infra_retries: string[];
   error?: string;
@@ -47,16 +48,19 @@ const where = (c: EvalCase) => `${c.file}:${c.line}`;
 async function main(): Promise<void> {
   const set = option("set", "smoke") as EvalSetName;
   if (!EVAL_SETS.includes(set)) throw new Error(`--set은 ${EVAL_SETS.join("|")} 중 하나입니다: ${set}`);
-  if (!process.env.GEMINI_API_KEY) {
-    console.error("GEMINI_API_KEY가 없습니다. .env에 키를 넣고 다시 실행하세요.");
+  const p = await evalProvider();
+  if (!p) {
     process.exitCode = 1;
     return;
   }
-  const model = process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
-  const delayMs = Number(process.env.EVAL_DELAY_MS ?? 1000);
-  const records = openRecordFile<EvaluatorRecord>(option("records", join(RESULTS_DIR, `evaluator-${set}.jsonl`)), flag("resume"));
-  const client = new RetryingGeminiClient();
-  const evaluator = new GeminiEvaluator(client);
+  const model = p.model;
+  // 채점 보강(repairFormat·verifyBoundary)은 provider 설정을 따른다(Ollama 켬). --no-guards로 끄고 비교한다.
+  const guards = p.profile.evaluatorGuards && !flag("no-guards");
+  // 로컬 모델은 대기 없이 돌린다(요청 제한이 없다).
+  const delayMs = Number(process.env.EVAL_DELAY_MS ?? (p.provider === "gemini" ? 1000 : 0));
+  const records = openRecordFile<EvaluatorRecord>(option("records", resultsFile(`evaluator-${set}`, p.provider)), flag("resume"));
+  const client = new RetryingLlmClient();
+  const evaluator = new GeminiEvaluator(client, { repairFormat: guards, verifyBoundary: guards });
   const streak = new InfraStreak();
   const outcomes: Outcome[] = [];
   let total = 0;
@@ -64,7 +68,7 @@ async function main(): Promise<void> {
   let stale = 0;
   let stopped = false;
 
-  console.log(`결과 파일: ${records.path} (모델: ${model})`);
+  console.log(`결과 파일: ${records.path} (모델: ${model}, 채점 보강 ${guards ? "켬" : "끔"})`);
   for (const rubric of loadFinalRubrics()) {
     const cases = loadEvalSet(set, rubric.section);
     if (!cases.length) continue;
@@ -74,7 +78,8 @@ async function main(): Promise<void> {
       const concept = rubric.concepts.find((k) => k.concept_id === c.concept_id);
       if (!concept) throw new Error(`${where(c)} 루브릭에 없는 개념: ${c.concept_id}`);
       // 모델, 평가자 프롬프트(루브릭·용어집 포함), 질문·답변이 같아야 같은 결과로 본다.
-      const fp = fingerprint(model, evaluatorSystemPrompt(rubric, concept, c.phase), evaluatorUserPrompt(c.question, c.answer));
+      // 채점 보강을 켜면 다른 결과로 본다(끈 기록은 예전 지문 그대로).
+      const fp = fingerprint(model, evaluatorSystemPrompt(rubric, concept, c.phase), evaluatorUserPrompt(c.question, c.answer), ...(guards ? ["guards"] : []));
       const key = where(c);
       const prior = records.done(key, fp);
       if (prior) {
@@ -100,6 +105,7 @@ async function main(): Promise<void> {
           explain_from: d.evaluation?.explain_from ?? null,
           attempts: d.attempts,
           format_problems: d.formatProblems,
+          adjustments: d.adjustments,
           infra_retries: client.retries,
           at: new Date().toISOString(),
         };

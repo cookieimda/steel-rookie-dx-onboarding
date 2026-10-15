@@ -2,7 +2,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { LlmUnavailableError } from "../../backend/src/checkpoint/types.js";
+import { performance } from "node:perf_hooks";
 import type { GenerateRequest, LlmClient } from "./llm-client.js";
+import { currentTrace, type LlmCallRecord } from "./trace.js";
 
 /** GEMINI_MODEL이 비어 있을 때 쓰는 모델. */
 export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite";
@@ -55,9 +57,26 @@ export class GeminiClient implements LlmClient {
     const apiKey = this.options.apiKey ?? process.env.GEMINI_API_KEY;
     if (!apiKey) throw new LlmUnavailableError("GEMINI_API_KEY가 설정되지 않았습니다.", 503);
     const model = this.options.model ?? (process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL);
-    const doFetch = this.options.fetch ?? fetch;
     this.options.beforeCall?.();
+    // 요청 trace(trace.ts)가 있으면 호출마다 시간·실패 종류·토큰 수를 남긴다.
+    const trace = currentTrace();
+    const started = performance.now();
+    const usage: { tokens?: LlmCallRecord["tokens"] } = {};
+    // provider를 붙여 남긴다(ollama.ts는 ollama:모델). trace:report가 provider·모델별로 나눠 센다.
+    const label = `gemini:${model}`;
+    try {
+      const text = await this.call(req, apiKey, model, usage);
+      trace?.llm({ model: label, ms: Math.round(performance.now() - started), ok: true, streamed: !!req.onText, ...usage });
+      return text;
+    } catch (error) {
+      const failure = error instanceof GeminiCallError ? { failure: error.reason, ...(error.httpStatus ? { http_status: error.httpStatus } : {}) } : { failure: "error" };
+      trace?.llm({ model: label, ms: Math.round(performance.now() - started), ok: false, streamed: !!req.onText, ...failure });
+      throw error;
+    }
+  }
 
+  private async call(req: GenerateRequest, apiKey: string, model: string, usage: { tokens?: LlmCallRecord["tokens"] }): Promise<string> {
+    const doFetch = this.options.fetch ?? fetch;
     let response: Response;
     try {
       response = await doFetch(
@@ -87,8 +106,12 @@ export class GeminiClient implements LlmClient {
     if (!response.ok) {
       throw new GeminiCallError(`Gemini HTTP ${response.status}`, response.status === 429 ? "rate_limit" : "http", response.status);
     }
-    type Result = { candidates?: { content?: { parts?: { text?: string }[] } }[] };
-    const textOf = (r: Result) => r.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
+    type Result = { candidates?: { content?: { parts?: { text?: string }[] } }[]; usageMetadata?: UsageMetadata };
+    const textOf = (r: Result) => {
+      // 스트리밍은 조각마다 usageMetadata가 올 수 있고 마지막 값이 전체다.
+      if (r.usageMetadata) usage.tokens = tokensOf(r.usageMetadata);
+      return r.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
+    };
     if (req.onText) {
       let text = "";
       try {
@@ -111,6 +134,17 @@ export class GeminiClient implements LlmClient {
     }
     return textOf(result);
   }
+}
+
+interface UsageMetadata {
+  promptTokenCount?: number;
+  candidatesTokenCount?: number;
+  thoughtsTokenCount?: number;
+  totalTokenCount?: number;
+}
+
+function tokensOf(u: UsageMetadata): LlmCallRecord["tokens"] {
+  return { prompt: u.promptTokenCount, output: u.candidatesTokenCount, thoughts: u.thoughtsTokenCount, total: u.totalTokenCount };
 }
 
 /** 응답 본문을 줄 단위로 읽는다(SSE·NDJSON 스트리밍). 빈 줄은 건너뛴다. */

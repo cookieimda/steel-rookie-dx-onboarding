@@ -1,11 +1,14 @@
-// 긴 실제 Gemini 실행(eval:evaluator, eval:questions)의 공통 코드.
+// 긴 실제 모델 실행(eval:evaluator, eval:questions, eval:learning, eval:supplement)의 공통 코드.
+// - LLM_PROVIDER=gemini(기본)|ollama로 같은 평가를 provider별로 돌린다(evalProvider, resultsFile).
 // - 케이스마다 결과를 JSONL 파일에 바로 덧붙인다. 중간에 끊겨도 끝난 케이스는 남는다.
 // - --resume이면 같은 설정(fingerprint)으로 끝난 케이스를 건너뛴다. 연결 오류(infra_error)로 끝난 케이스는 다시 한다.
 // - 429·시간 초과·연결 실패는 지수 백오프로 최대 3회 다시 호출한다.
 import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { GeminiCallError, GeminiClient, type GeminiOptions, type GenerateRequest } from "../src/gemini.js";
+import { GeminiCallError, GeminiClient, type GeminiOptions, type GenerateRequest, type LlmClient } from "../src/gemini.js";
+import { OllamaClient } from "../src/ollama.js";
+import { createLlmClient, profileFor, providerInfo, type LlmProvider } from "../src/provider.js";
 
 export const RESULTS_DIR = join(process.cwd(), "llm", "eval", "results");
 export const MAX_INFRA_RETRIES = 3;
@@ -89,23 +92,24 @@ export function openRecordFile<T extends RunRecord>(path: string, resume: boolea
   }
 }
 
-/** 재시도할 수 있는 연결 오류를 지수 백오프(base, 2×base, 4×base)로 최대 3회 다시 호출한다. */
-export class RetryingGeminiClient extends GeminiClient {
+/**
+ * 재시도할 수 있는 연결 오류를 지수 백오프(base, 2×base, 4×base)로 최대 3회 다시 호출한다.
+ * 감싸는 클라이언트는 기본으로 LLM_PROVIDER의 것(provider.ts)이라 같은 평가를 Gemini·Ollama로 돌릴 수 있다.
+ */
+export class RetryingLlmClient implements LlmClient {
   /** 직전 reset() 이후 다시 호출한 횟수와 이유. */
   retries: string[] = [];
 
-  constructor(options: GeminiOptions = {}, private readonly baseDelayMs = Number(process.env.EVAL_RETRY_BASE_MS ?? 10_000)) {
-    super(options);
-  }
+  constructor(private readonly inner: LlmClient = createLlmClient(), private readonly baseDelayMs = Number(process.env.EVAL_RETRY_BASE_MS ?? 10_000)) {}
 
   reset(): void {
     this.retries = [];
   }
 
-  override async generate(req: GenerateRequest): Promise<string> {
+  async generate(req: GenerateRequest): Promise<string> {
     for (let retry = 0; ; retry++) {
       try {
-        return await super.generate(req);
+        return await this.inner.generate(req);
       } catch (error) {
         if (!(error instanceof GeminiCallError) || !error.retryable || retry >= MAX_INFRA_RETRIES) throw error;
         const wait = this.baseDelayMs * 2 ** retry;
@@ -115,6 +119,46 @@ export class RetryingGeminiClient extends GeminiClient {
       }
     }
   }
+}
+
+/** Gemini 옵션(가짜 fetch 등)으로 만드는 재시도 클라이언트(테스트용). */
+export class RetryingGeminiClient extends RetryingLlmClient {
+  constructor(options: GeminiOptions = {}, baseDelayMs?: number) {
+    super(new GeminiClient(options), baseDelayMs);
+  }
+}
+
+/** 평가 스크립트가 쓰는 provider 정보. */
+export interface EvalProvider {
+  provider: LlmProvider;
+  /** 결과 기록의 model 값. Gemini는 예전 기록과 이어지게 모델 이름만, 다른 provider는 provider:모델. */
+  model: string;
+  profile: ReturnType<typeof profileFor>;
+}
+
+/**
+ * LLM_PROVIDER에 맞는 평가 준비를 확인한다. Gemini는 GEMINI_API_KEY, Ollama는 서버·모델이 있어야 한다.
+ * 준비가 안 됐으면 이유를 출력하고 null(호출한 쪽은 exitCode 1로 끝낸다).
+ */
+export async function evalProvider(): Promise<EvalProvider | null> {
+  const info = providerInfo();
+  if (info.provider === "gemini" && !process.env.GEMINI_API_KEY) {
+    console.error("GEMINI_API_KEY가 없습니다. .env에 키를 넣거나 LLM_PROVIDER=ollama로 로컬 모델을 쓰세요.");
+    return null;
+  }
+  if (info.provider === "ollama") {
+    const { connected, reason } = await new OllamaClient().checkConnection();
+    if (!connected) {
+      console.error(reason === "model_missing" ? `Ollama에 ${info.model} 모델이 없습니다. 'ollama pull ${info.model}' 후 다시 실행하세요.` : "Ollama 서버에 연결하지 못했습니다. Ollama를 켜고 다시 실행하세요.");
+      return null;
+    }
+  }
+  return { provider: info.provider, model: info.provider === "gemini" ? info.model : info.label, profile: profileFor(info.provider) };
+}
+
+/** 기본 결과 파일 이름. Gemini는 예전 이름 그대로, 다른 provider는 이름 뒤에 -provider를 붙인다(기록이 섞이지 않게). */
+export function resultsFile(base: string, provider: LlmProvider): string {
+  return join(RESULTS_DIR, provider === "gemini" ? `${base}.jsonl` : `${base}-${provider}.jsonl`);
 }
 
 /** 연결 오류(재시도 후에도 실패, 또는 재시도하지 않는 HTTP 오류). 평가자 형식 오류와 따로 센다. */

@@ -1,9 +1,10 @@
 import { GeminiAdminSummarizer } from "../../llm/src/admin-summary.js";
 import { GeminiEvaluator } from "../../llm/src/evaluator.js";
-import { DEFAULT_GEMINI_MODEL, GeminiClient } from "../../llm/src/gemini.js";
 import { GeminiLearningAgent } from "../../llm/src/learning-agent.js";
 import { useApprovedSources } from "../../llm/src/ironmaking-sources.js";
+import { createLlmClient, profileFor, providerInfo } from "../../llm/src/provider.js";
 import { loadSectionChunks, Retriever } from "../../llm/src/retrieval.js";
+import { traceSinkFromEnv } from "../../llm/src/trace.js";
 import { GeminiTutor } from "../../llm/src/tutor.js";
 import { createAdminRouter } from "./admin/routes.js";
 import { createApp } from "./app.js";
@@ -44,12 +45,16 @@ const usage = new LlmUsage(db);
 const jobs = new EducationJobs(db);
 const education = new EducationRepository(db, rubrics);
 useApprovedSources(() => education.approvedSources());
+// LLM provider(LLM_PROVIDER=gemini 기본|ollama, docs/llm-providers.md). 모든 에이전트가 같은 클라이언트를 쓰고, provider별 설정은 profileFor가 정한다.
+const llmInfo = providerInfo();
+const profile = profileFor(llmInfo.provider);
 // 체크포인트·학습·관리자 호출마다 사용자의 하루 호출 수를 센다. 시험 작업 안에서는 요청을 보낸 사람이 아니라 작업 주인(jobUserId)으로 세고,
 // 작업을 취소하면 진행 중인 추론도 끊는다(jobAwareClient).
-const gemini = jobAwareClient(new GeminiClient({ beforeCall: () => usage.consume(jobUserId() ?? currentUserId()) }));
+const llm = jobAwareClient(createLlmClient({ beforeCall: () => usage.consume(jobUserId() ?? currentUserId()) }));
 // 평가자·튜터는 체크포인트·시험·보충학습이 함께 쓴다. 시험 작업에서는 단계(문제·채점·설명)를 작업 상태에 적는다(phase*).
-const evaluator = new GeminiEvaluator(gemini);
-const tutor = new GeminiTutor(gemini);
+// 로컬 모델은 판정 필드 형식과 wrong·partial 경계를 자주 틀려서 보강을 켠다(llm/src/evaluator.ts repairFormat·verifyBoundary).
+const evaluator = new GeminiEvaluator(llm, { repairFormat: profile.evaluatorGuards, verifyBoundary: profile.evaluatorGuards });
+const tutor = new GeminiTutor(llm);
 const engine = new CheckpointEngine({
   repo: new CheckpointRepository(db),
   evaluator: phaseEvaluator(evaluator),
@@ -63,17 +68,18 @@ const users = new UserRepository(db);
 const seeded = await seedDemoAccounts(users);
 if (seeded > 0) console.log(`시연 계정 ${seeded}개를 만들었습니다.`);
 
-// 학습 모드: 같은 GeminiClient를 써서 하루 호출 한도를 체크포인트와 함께 센다.
+// 학습 모드: 같은 LLM 클라이언트를 써서 하루 호출 한도를 체크포인트와 함께 센다.
 const learningRepo = new LearningRepository(db);
 // 체크포인트에 넘길 학습자 메모(buildLearnerNotes)도 같은 기록을 읽는다. 지금 final 루브릭에 없는 개념의 오개념은 뺀다.
 const currentConcepts = new Map(rubrics.map((r) => [r.section, new Set(r.concepts.map((c) => c.concept_id))]));
 useLearnerNotesSource({
   openMisconceptions: (userId, section) => learningRepo.openMisconceptions(userId, section).filter((m) => currentConcepts.get(section)?.has(m.concept_id)),
 });
-// 학습 답 저장(answer-cache.ts): 모델·학습 프롬프트·공개 자료가 바뀌면 버전이 바뀌어 다시 받는다.
+// 학습 답 저장(answer-cache.ts): provider·모델·학습 프롬프트·공개 자료가 바뀌면 버전이 바뀌어 다시 받는다(Gemini 답과 로컬 모델 답을 섞지 않는다).
 const readText = (path: string) => { try { return readFileSync(join(process.cwd(), path), "utf8"); } catch { return ""; } };
+const learningPrompt = profile.learning === "compact" ? "llm/prompts/learning-compact.md" : "llm/prompts/learning-system.md";
 const answerCache = new AnswerCache(
-  answerCacheVersion(process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL, ["llm/prompts/learning-system.md", "backend/data/ironmaking-sources.json", "content/materials/ironmaking/section.md"].map(readText)),
+  answerCacheVersion(llmInfo.label, [learningPrompt, "backend/data/ironmaking-sources.json", "content/materials/ironmaking/section.md"].map(readText)),
   process.env.ANSWER_CACHE_PATH || join(process.cwd(), "data", "answer-cache.json"),
 );
 const sceneCatalog = await loadSceneCatalog();
@@ -83,7 +89,7 @@ const retriever = new Retriever({
   glossaryFor: (s) => rubrics.find((r) => r.section === s)?.glossary ?? [],
   chunksFor: (s) => [...loadSectionChunks(s), ...education.approvedChunks(s)],
 });
-const learningAgent = new GeminiLearningAgent(gemini);
+const learningAgent = new GeminiLearningAgent(llm, undefined, profile.learning);
 // 체크포인트에서 아직 만점이 아닌 개념(튜터에 넘김)과 진행 중 여부. 학습 채팅과 보충학습이 함께 쓴다. 이해도 계산은 엔진(summarizeSection)이 한다.
 const checkpointProgress = (userId: string, section: Section) => {
   if (!rubrics.some((r) => r.section === section)) return null;
@@ -104,14 +110,16 @@ const learning = createLearningRouter({
   checkpointProgress,
   cache: answerCache,
   suggestedQuestions,
+  // 질문마다 단계별 기록을 data/traces/learning-날짜.jsonl에 남긴다(docs/agent-observability.md). 끄려면 TRACE_LOG=off.
+  traceSink: traceSinkFromEnv(),
 });
 
 const app = createApp({ engine, usage, learning });
 // 로그인·관리자 API(docs/auth-api.md). createApp의 /api 접속 비밀번호 검사가 먼저 적용된다.
 const auth = { users, secret: jwtSecret() };
 app.use(createAuthRouter(auth));
-// 관리자 AI 요약도 같은 GeminiClient로 관리자 계정의 하루 호출 수를 센다.
-app.use(createAdminRouter(db, auth, { summarizer: new GeminiAdminSummarizer(gemini) }));
+// 관리자 AI 요약도 같은 LLM 클라이언트로 관리자 계정의 하루 호출 수를 센다.
+app.use(createAdminRouter(db, auth, { summarizer: new GeminiAdminSummarizer(llm) }));
 app.use(createMeRouter(db, auth));
 // 평가 시험 API(/api/exams, /api/exam-jobs, /api/me/reviews·assignments·exam-history, /api/admin/education). 승인 자료가 바뀌면 검색·저장한 답을 다시 만든다.
 app.use(createEducationRouter({ auth, engine, jobs, repo: education,
@@ -127,8 +135,11 @@ const port = Number(process.env.PORT ?? 3000);
 app.listen(port, "127.0.0.1", () => {
   console.log(`제선 공정 알아보기: http://localhost:${port}`);
   console.log(`접속 비밀번호: ${passcodeRequired() ? "사용(TEST_PASSCODE)" : "사용 안 함"} · 사용자별 하루 LLM 호출 한도: ${usage.dailyLimit > 0 ? `${usage.dailyLimit}회` : "제한 없음"}`);
+  console.log(`LLM: ${llmInfo.label} · 학습 프롬프트 ${profile.learning} · 채점 보강 ${profile.evaluatorGuards ? "켬" : "끔"}`);
   // 추천 질문 답을 뒤에서 미리 받아 둔다(저장한 답이 있으면 건너뜀). 끄려면 WARM_ANSWERS=off.
-  if (process.env.WARM_ANSWERS?.trim().toLowerCase() === "off") return;
+  // 로컬 모델은 CPU에서 질문 하나에 수십 초라 미리 받기가 학습자 질문과 CPU를 다툰다. 그래서 기본으로 끄고 WARM_ANSWERS=on일 때만 받는다.
+  const warm = process.env.WARM_ANSWERS?.trim().toLowerCase();
+  if (warm === "off" || (llmInfo.provider === "ollama" && warm !== "on")) return;
   const items = warmItems(suggestedQuestions, sceneCatalog);
   console.log(`추천 질문 답 미리 받기: ${items.length}개(저장된 답 ${answerCache.size}개)`);
   const started = Date.now();

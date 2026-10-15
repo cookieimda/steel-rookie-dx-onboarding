@@ -70,6 +70,7 @@ POST /api/chat { question, session_id?, screen?: { process_id, equipment_id } }
 - 프롬프트에 화면 목록(`id (이름)`)을 넣고, `responseSchema`의 enum으로 `target_id`를 목록 안에서만 고르게 한다. 규칙: 설비를 다루면 `focus`+`highlight`, 다른 공정을 물으면 `goto_process`, 흐름·순서를 물으면 `play_animation`, 이미 보고 있는 설비면 빈 배열, 조작은 2개 이하. 근거가 없어 unverified로 답해도 화면 조작은 한다(화면을 보여 주는 것은 사실 주장이 아니고, 지금은 제선 밖 공정에 근거 자료가 없다).
 - 서버 정리(`normalizeSceneActions`): 목록에 없는 id·조작은 버린다. 다른 공정의 설비·공정이면 `goto_process`를 앞에 끼우고, 이미 그 공정이면 `goto_process`를 뺀다(같은 공정으로 이동하면 화면이 초기화된다). `focus`에는 `highlight`를 붙인다. 중복은 빼고 최대 4개.
 - 형식이 틀린 `scene_actions`는 답변을 살리고 빈 배열로 본다. grounded인데 근거가 없어 고정 답변으로 바꾸면 조작도 버린다. 안전 질문은 빈 배열.
+- `show_operation`(작동 보기, 2026-10-15): 설비의 작동 단계를 3D에서 차례로 보여 준다(`<steel-scene>`의 `walk`, 단계는 `data_v2.js`의 `steps`). 작동 단계가 있는 설비만(`scene-catalog.ts`의 `operation`, 제선은 소결기·코크스 오븐·고로·열풍로 4개) 허용하고, 한 답에 하나, `highlight`를 앞에 붙이며 같은 설비 `focus`와 `play_animation`은 뺀다. 화면은 투어를 시작만 하고 기다리지 않으며 2D 화면에서는 실패로 돌려준다. full 프롬프트는 화면 목록에 '작동 보기'를 표시하고 "어떻게 작동해?"는 작동 보기, "뭐 하는 설비야?"는 focus로 구분하게 한다. 작동 과정을 묻는 질문인데 모델이 작동 보기를 내지 않으면 서버가 붙인다(`operationTarget`, 대상은 질문 속 설비 이름 → 모델이 보여 준 설비 → 지금 화면의 설비). compact(로컬 모델)는 표시하지 않고 서버 규칙만 쓴다(3B 모델이 역할·작동 질문을 거꾸로 골랐다, [llm-providers.md](llm-providers.md)).
 - 화면은 다른 공정으로 이동한 뒤 3D 모델을 불러오도록 900ms 기다린다(공정 목록에서 다른 공정의 설비를 누를 때와 같은 값).
 
 ### 키워드 카드 (`keyword_card`)
@@ -171,6 +172,8 @@ CREATE TABLE learning_turns (
 - 제선 질문 24개(설비 6·지시어 2·흐름 2·다른 공정 2·전체 화면 1·용어집 2·오개념 4·FINEX 1·근거 없음 2·안전 2)를 실제 Gemini로 돌려 세 가지를 센다: 근거 판정(`grounded`·`unverified`·`safety_redirect`), 화면 조작, 오개념 감지.
 - 라우트와 같은 순서(안전 질문 차단 → `retrieve()` → 튜터 1회)로 부르고, 이전 대화·학습자 메모는 넣지 않는다. 공정·설비 목록은 서버처럼 `data_v2.js`에서 읽는다.
 - 케이스 형식: `expect.scene`은 들어 있어야 하는 조작(순서 무관, 더 있어도 됨)이고 `[]`이면 조작이 없어야 하며 `"any"`면 보지 않는다. `expect.misconception`은 감지돼야 하는 개념 id 또는 `null`. 선택 필드 `expect.answer_any`는 답에 하나라도 들어 있어야 하는 말이다(오개념 케이스에서 바로잡았는지 보려고 "아니"·"아닙" 등. 낱말 검사라 같은 뜻의 다른 표현은 놓칠 수 있다). 케이스의 id·개념·안전 기대가 실제 목록·루브릭·안전 규칙과 맞는지 `npm test`로 확인한다.
+- 답변 사실(선택): `expect.facts`는 답에 모두 들어 있어야 하는 사실이다. 사실마다 같은 뜻의 표현 목록 중 하나만 있으면 된다(루브릭 핵심 요소 기준, 예: `[["일산화탄소","CO"],["산소","환원"]]`). `expect.must_not`은 하면 안 되는 주장(정규식)이다. 문장 단위로 보고, "~이 아니에요"처럼 부정하며 바로잡는 문장은 위반으로 치지 않는다. 바로잡는 문장이 걸리지 않게 주어를 넣어 쓴다(예: `코크스.{0,20}불순물을?\s?(없애|제거|줄이|빼)`). 보고서에 "답변 사실" 줄이 붙고 전체 통과에 들어간다. 제선 11개 문항에 있다(오개념·고로·CO·토페도카·다음 공정·근거 없음).
+- 2026-10-15에 저장해 둔 답으로 다시 채점(모델 호출 없음): Gemini flash-lite(10/13 기록) 9/11(고로 개요에 '용선' 없음, 코크스 오개념에 '일산화탄소' 없음), Ollama qwen2.5:3b 10/11.
 - 결과 기록·`--resume`·연결 재시도는 `eval:evaluator`와 같은 `run-log.ts`를 쓴다(기본 기록 `llm/eval/results/learning-ironmaking.jsonl`). 채점은 보고서를 만들 때 하므로 기대값만 고치면 `--resume`으로 다시 부르지 않고 다시 채점된다.
 - 추천 질문(`frontend/3d-demo/learning-suggestions.js`)도 케이스로 만든다(유형 `chip`, grounded 기대, 화면 조작은 보지 않음). `--follow-up`이면 grounded 답의 '생각해 보기'를 같은 화면에서 다시 물어 근거 있는 답이 나오는지 센다.
 - 첫 측정(2026-10-06, `gemini-3.5-flash-lite`, 1회): 전체 통과 23/24(95.8%), 근거 판정 24/24, 화면 조작 16/17, 오개념 감지 24/24. 틀린 1개는 "용광로에서 나온 쇳물은 어떻게 옮겨?"에서 토페도카 대신 출선구로 카메라를 옮긴 것(답은 출선구 → 토페도카를 모두 설명).
@@ -178,6 +181,11 @@ CREATE TABLE learning_turns (
 - 자료 5건 추가·자료 질문 5개(유형 `material`) 추가·프롬프트 예시(다음 공정 이동, 꼬리 질문은 지금 섹션 안에서만) 뒤(같은 날, 1회): 전체 통과 51/51, 화면 조작 17/17, 꼬리 질문 grounded 45/46. 남은 1개는 "고로 안으로 불어넣는 뜨거운 바람은 어떻게 만드나요?"(열풍로 축열 원리 자료가 없음).
 - 시연 리허설에서 "코크스는 불순물 없애려고 넣는 거죠?"에 오개념은 기록됐지만 답이 바로잡지 않아, 프롬프트에 "오개념을 감지하면 답 첫 문장에서 부드럽게 바로잡기"를 넣고 오개념 케이스 2개에 `answer_any`를 붙였다. 다시 측정(같은 날, 1회): 전체 통과 51/51, 답변 내용 2/2, 꼬리 질문 grounded 46/46.
 - 학습 프롬프트·검색·공개 자료 메모·추천 질문을 바꾸면 다시 돌려 확인한다.
+- 보고서에 grounded 답의 근거 겹침(문장별 글자 겹침, 관찰용)도 나온다. 전체 통과에는 넣지 않는다([agent-observability.md](agent-observability.md) '근거 겹침').
+
+## 요청 기록 (trace)
+
+- `/api/chat` 요청마다 단계별 시간·검색 후보·LLM 호출과 토큰·모델 제안과 서버 검증 결과·unverified 원인을 `data/traces/learning-날짜.jsonl`에 남기고, `X-Trace-Id`·응답 `trace_id`로 돌려준다. 요약은 `npm run trace:report`. 상세는 [agent-observability.md](agent-observability.md), 전체 계획은 [agent-roadmap.md](agent-roadmap.md).
 
 ## 추천 질문 (`frontend/3d-demo/learning-suggestions.js`)
 

@@ -38,7 +38,8 @@
 - 답에 설비가 여러 개 나와도, 질문이 묻는 대상 설비 하나만 보여 줍니다. 예: "쇳물은 어떻게 옮겨?"는 옮기는 설비(토페도카), "열풍은 어디서 만들어?"는 만드는 설비(열풍로)입니다.
 - 다른 공정을 물으면 goto_process로 그 공정으로 이동합니다. 소재가 다음에 어느 공정으로 가는지 물을 때도 그 다음 공정으로 이동합니다. 예: 제선에서 "쇳물은 다음에 어디로 가?"는 goto_process steelmaking.
 - 공정의 흐름이나 순서를 물으면 play_animation으로 그 공정의 소재 흐름을 재생합니다.
-- target_id는 아래 화면 목록의 id만 씁니다. goto_process·play_animation은 공정 id, focus·highlight는 설비 id입니다.
+- 설비 하나가 어떻게 작동하는지(작동 원리·과정·단계)를 물으면 show_operation으로 그 설비의 작동 단계를 차례로 보여 줍니다. 화면 목록에 '작동 보기'라고 표시된 설비만 됩니다. 이미 그 설비를 보고 있어도 작동 보기는 합니다. show_operation을 쓰면 같은 설비의 focus는 쓰지 않습니다. 설비의 역할·정의만 물으면 focus입니다. 예: "고로는 어떻게 작동해?"는 show_operation blast_furnace, "고로는 뭐 하는 설비야?"는 focus blast_furnace.
+- target_id는 아래 화면 목록의 id만 씁니다. goto_process·play_animation은 공정 id, focus·highlight·show_operation은 설비 id입니다.
 - 근거가 없어 unverified로 답하더라도, 질문이 화면 목록의 설비나 공정을 가리키면 화면 조작은 합니다. 화면을 보여 주는 것은 사실 주장이 아닙니다.
 - 질문과 관계없는 설비를 보여 주지 마세요. 조작은 2개 이하로 합니다.
 

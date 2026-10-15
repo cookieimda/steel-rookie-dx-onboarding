@@ -51,6 +51,22 @@ test("runSceneActions: 3D가 끝내 띄우지 못하면 focus는 실패로 남�
   assert.equal(waits, 1, "공정 이동 뒤 한 번만 쉬고 3D를 기다리지 않는다");
 });
 
+test("runSceneActions: show_operation은 3D 작동 보기(walk)를 시작만 하고 끝날 때까지 기다리지 않는다, walk가 없는 2D 화면은 바로 실패", async () => {
+  const { page, scene, wait } = fakePage(3);
+  const walked: string[] = [];
+  // walk는 그 공정이 뜨기 전에는 설비를 못 찾아 false, 찾으면 투어가 끝날 때 끝나는 Promise(여기서는 끝나지 않음).
+  Object.assign(scene, { walk(id: string) { if (scene.process?.id !== "ironmaking") return false; walked.push(id); return new Promise(() => {}); } });
+  const results = await runSceneActions(page, [{ type: "goto_process", target_id: "ironmaking" }, { type: "show_operation", target_id: "torpedo_car" }], { wait, stepMs: 1, timeoutMs: 50 });
+  assert.deepEqual(results.map((r: { status: string }) => r.status), ["succeeded", "succeeded"]);
+  assert.deepEqual(walked, ["torpedo_car"]);
+
+  let waits = 0;
+  const flat = { ...page, scene: () => ({ focus: () => true }) };
+  const [r] = await runSceneActions(flat, [{ type: "show_operation", target_id: "torpedo_car" }], { wait: async () => void waits++, stepMs: 1, timeoutMs: 50 });
+  assert.equal(r.status, "failed");
+  assert.equal(waits, 0);
+});
+
 test("suggestionsFor: 전체 공정 화면은 제선 질문(설비 없이 '이 설비의 역할은?'을 내지 않음), 정해 둔 것이 없는 공정은 null", () => {
   assert.deepEqual(suggestionsFor("site", null), SUGGESTIONS.ironmaking.process);
   assert.ok(!suggestionsFor("site", null).some((q: string) => q.startsWith("이 설비")));

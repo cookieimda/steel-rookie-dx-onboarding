@@ -1,4 +1,4 @@
-// 운영 콘솔(관리자, /login_ui/admin-ops.html): 자료 검수 워크플로 · 작업 대기열 · 알림 발송 · 오답 패턴 · 신고된 설비 메모.
+// 운영 콘솔(관리자, /login_ui/admin-ops.html): 자료 검수 워크플로 · 작업 대기열 · 알림 발송 · 오답 패턴 · 3D 실습 통계 · 신고된 설비 메모.
 // 서버는 backend/src/education/workflow-routes.ts·job-routes.ts, notify/routes.ts, ops/routes.ts, lab/extras-routes.ts. 관리자 토큰이 필요하다.
 // 사용자 입력·서버 글은 모두 textContent로 넣는다.
 
@@ -22,7 +22,7 @@ const ACTION_LABEL = { created: '등록', submitted: '검수 요청', commented:
 const JOB_TONE = { queued: 'dim', running: 'mid', succeeded: 'ok', failed: 'bad', cancelled: 'dim' };
 const JOB_LABEL = { queued: '대기', running: '처리 중', succeeded: '완료', failed: '실패', cancelled: '취소' };
 
-const TABS = [['materials', '자료 검수'], ['jobs', '작업 대기열'], ['notify', '알림 발송'], ['patterns', '오답 패턴'], ['notes', '신고된 메모']];
+const TABS = [['materials', '자료 검수'], ['jobs', '작업 대기열'], ['notify', '알림 발송'], ['patterns', '오답 패턴'], ['practice', '3D 실습'], ['notes', '신고된 메모']];
 const state = { tab: (location.hash.match(/^#(\w+)/)?.[1]) || 'materials', stage: '', material: (location.hash.match(/material=([\w-]+)/)?.[1]) || null, timer: 0 };
 
 function renderTabs() {
@@ -32,7 +32,7 @@ async function show() {
   clearInterval(state.timer);
   notice();
   const pane = $('pane'); pane.replaceChildren(el('p', 'muted', '불러오는 중이에요…'));
-  try { await ({ materials: showMaterials, jobs: showJobs, notify: showNotify, patterns: showPatterns, notes: showNotes })[state.tab](pane); }
+  try { await ({ materials: showMaterials, jobs: showJobs, notify: showNotify, patterns: showPatterns, practice: showPractice, notes: showNotes })[state.tab](pane); }
   catch (e) { pane.replaceChildren(); notice(e.message); }
 }
 
@@ -184,6 +184,57 @@ async function showPatterns(pane) {
   pane.replaceChildren(wrap);
 }
 
+// ── 3D 실습 통계: 이상 상황 훈련·사고 사례·인과 퀴즈에서 어디서 막히는지(문항·단계 단위, 사람별 내용 없음) ──
+const pct = (x) => (x == null ? '—' : `${Math.round(x * 100)}%`);
+const rateBar = (x) => { const b = el('div', 'pbar'); const i = el('i'); i.style.width = `${Math.round((x ?? 0) * 100)}%`; b.append(i); return b; };
+async function showPractice(pane) {
+  const demo = state.practiceDemo !== false;
+  const data = await api('GET', `/api/admin/practice-stats${demo ? '' : '?include_demo=false'}`);
+  const wrap = el('div', 'ops-pane'), top = el('div', 'ops-row');
+  top.append(el('span', 'micro', '3D 화면의 자가 훈련 기록이에요. 이해도·통과와는 상관없고, 사람별 내용 없이 문항·단계 단위로만 모았어요.'),
+    btn(demo ? '시연 계정 빼고 보기' : '시연 계정 포함', guard(async () => { state.practiceDemo = !demo; await showPractice(pane); }), 'btn pill'));
+  // 인과 퀴즈
+  const c = data.causal, quiz = el('div', 'card ops-card'), tiles = el('div', 'stat-tiles');
+  for (const [k, v] of [['전체 정답률', pct(c.rate)], ['한 칸(바로 다음 값)', pct(c.one_hop)], ['두 칸(이어진 값)', pct(c.two_hop)], ['같은 공정 안', pct(c.same_process)], ['공정 넘어서', pct(c.cross_process)]]) {
+    const t = el('div'); t.append(el('span', 'micro', k), el('b', '', v)); tiles.append(t);
+  }
+  quiz.append(el('strong', '', '🧩 인과 퀴즈'), el('span', 'micro', `답 ${c.answers}칸 · ${c.learners}명. 두 칸·공정을 넘는 정답률이 낮으면 "같은/반대 방향을 곱한다"는 규칙을 수업에서 다시 짚어 주세요.`), tiles);
+  if (c.confusing.length) {
+    quiz.append(el('b', '', `가장 헷갈리는 연결 (답 ${data.min_link_answers}칸 이상)`));
+    for (const l of c.confusing) {
+      const row = el('div', 'pat-row');
+      row.append(el('span', '', `${l.path}${l.cross ? ' · 공정 넘음' : ''}`), rateBar(l.rate), el('span', 'micro', `정답 ${pct(l.rate)} · ${l.answers}칸`));
+      quiz.append(row);
+    }
+  } else quiz.append(el('p', 'muted', '헷갈린 연결이 아직 없어요.'));
+  // 이상 상황 훈련
+  const ft = el('div', 'card ops-card'), table = el('table', 'ops'), head = el('tr');
+  for (const h of ['이상 상황', '공정', '시도 · 사람', '평균 점수', '한 번에 끝냄', '가장 오래 걸린 단계']) head.append(el('th', '', h));
+  table.append(head);
+  for (const f of data.faults) {
+    const tr = el('tr'), score = el('td'), hard = f.steps.find((s) => s.step === f.hardest_step);
+    score.append(el('span', '', pct(f.avg_score)), rateBar(f.avg_score));
+    tr.append(el('td', '', f.title), el('td', '', SECTIONS[f.section] || f.section), el('td', '', `${f.attempts}회 · ${f.learners}명`), score, el('td', '', pct(f.first_try_rate)),
+      el('td', '', hard ? `${hard.label} (평균 ${hard.avg_tries}번)` : f.attempts ? '막힌 단계 없음' : '—'));
+    table.append(tr);
+  }
+  ft.append(el('strong', '', '🚨 이상 상황 훈련'), el('span', 'micro', '점수는 단계마다 몇 번 만에 맞혔는지로 내요(한 번에 맞히면 1).'), table);
+  // 사고 사례
+  const it = el('div', 'card ops-card'), t2 = el('table', 'ops'), h2 = el('tr');
+  for (const h of ['사고 사례', '공정', '시도 · 사람', '평균 점수', '가장 많이 틀린 문항']) h2.append(el('th', '', h));
+  t2.append(h2);
+  for (const s of data.incidents) {
+    const tr = el('tr'), score = el('td');
+    score.append(el('span', '', pct(s.avg_score)), rateBar(s.avg_score));
+    tr.append(el('td', '', s.title), el('td', '', SECTIONS[s.section] || s.section), el('td', '', `${s.attempts}회 · ${s.learners}명`), score,
+      el('td', '', s.weakest ? `${s.weakest.prompt} (정답 ${pct(s.weakest.rate)})` : s.attempts ? '모두 잘 맞힘' : '—'));
+    t2.append(tr);
+  }
+  it.append(el('strong', '', '📰 사고 사례'), t2);
+  wrap.append(top, quiz, ft, it);
+  pane.replaceChildren(wrap);
+}
+
 // ── 신고된 메모 ──
 async function showNotes(pane) {
   const data = await api('GET', '/api/admin/notes/reported');
@@ -211,7 +262,7 @@ $('theme').addEventListener('click', () => theme(document.body.dataset.theme ===
   try {
     const { user } = await api('GET', '/api/auth/me');
     if (user.role !== 'admin') { notice('관리자 계정만 볼 수 있어요.'); return; }
-    $('who').textContent = `${user.name} · 자료 검수 · 작업 대기열 · 알림 · 오답 패턴`;
+    $('who').textContent = `${user.name} · 자료 검수 · 작업 대기열 · 알림 · 오답 패턴 · 3D 실습`;
     renderTabs(); await show();
   } catch (e) { notice(e.message); }
 })();

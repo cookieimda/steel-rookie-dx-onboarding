@@ -137,3 +137,30 @@ test("사고 사례 갈림길: 사례마다 1개 이상, 갈림길마다 실제 
     }
   }
 });
+
+test("3D 실습 통계: 이상 상황 단계별 시도·사고 사례 약한 문항·인과 퀴즈 한 칸/두 칸·헷갈리는 연결, 시연 계정 빼기, 관리자만", async () => {
+  const sdb = openDatabase(":memory:"), users = new UserRepository(sdb);
+  const a = await users.create({ username: "trainee02", password: "password123", name: "가", employee_no: "S2" });
+  const b = await users.create({ username: "trainee03", password: "password123", name: "나", employee_no: "S3" });
+  sdb.prepare("UPDATE users SET is_demo = 1 WHERE id = ?").run(b.id);
+  const faults = loadFaults().faults, scenarios = loadIncidents().scenarios, f = faults[0], s = scenarios[0];
+  const now = new Date().toISOString();
+  const addFault = (u: User, tries: Record<string, number>) => sdb.prepare("INSERT INTO fault_attempts VALUES(?,?,?,?,?,?)").run(crypto.randomUUID(), u.id, f.id, JSON.stringify(tries), faultScore(tries as never), now);
+  addFault(a, { signal: 1, cause: 3, action: 1 });
+  addFault(b, { signal: 1, cause: 1, action: 1 });
+  const answers = Object.fromEntries(s.questions.map((q) => [q.id, q.answer]));
+  answers[s.questions[0].id] = (s.questions[0].answer + 1) % s.questions[0].options.length;
+  sdb.prepare("INSERT INTO incident_attempts VALUES(?,?,?,?,?,?)").run(crypto.randomUUID(), a.id, s.id, JSON.stringify({ answers }), 0.5, now);
+  const quiz = (u: User, hop: number, correct: number) => sdb.prepare("INSERT INTO causal_quiz_answers VALUES(?,?,?,?,?,?)").run(crypto.randomUUID(), u.id, "coke_rate>hm_temp>scrap_pct", hop, correct, now);
+  quiz(a, 1, 1); quiz(b, 1, 1); quiz(a, 2, 0); quiz(b, 2, 1);
+  const { practiceStats } = await import("../src/lab/practice-stats.js");
+  const all = practiceStats(sdb, { faults, scenarios });
+  assert.deepEqual([all.faults[0].attempts, all.faults[0].learners, all.faults[0].hardest_step, all.faults[0].first_try_rate], [2, 2, "cause", 0.5]);
+  assert.equal(all.faults[1].avg_score, null);
+  assert.equal(all.incidents[0].weakest?.id, s.questions[0].id);
+  assert.deepEqual([all.causal.one_hop, all.causal.two_hop, all.causal.cross_process], [1, 0.5, 0.5]);
+  assert.deepEqual(all.causal.confusing.map((l) => [l.path, l.rate]), [["코크스비 → 용선 온도 → 전로 고철 투입 여유", 0.5]]);
+  const real = practiceStats(sdb, { faults, scenarios }, { includeDemo: false });
+  assert.deepEqual([real.faults[0].attempts, real.causal.answers, real.causal.confusing.length], [1, 2, 0], "시연 계정 기록은 빠지고 헷갈리는 연결은 답 2칸 미만이라 없다");
+  assert.equal((await call("GET", "/api/admin/practice-stats")).status, 403, "신입사원은 볼 수 없다");
+});

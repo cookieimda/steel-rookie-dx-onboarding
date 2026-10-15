@@ -4,6 +4,7 @@
 //   GET  /api/lab/notes?equipment_id=   설비 메모(공개 + 내 비공개) · GET /api/lab/notes/summary  설비별 공개 메모 수
 //   POST /api/lab/notes · DELETE /api/lab/notes/:id · POST …/:id/vote · …/:id/replies · …/:id/report
 //   GET  /api/admin/notes/reported · POST /api/admin/notes/:id/hide {hidden}
+//   GET  /api/admin/practice-stats?include_demo=  3D 실습 통계(관리자)
 //   GET  /api/lab/faults · GET /api/lab/faults/:id · POST /api/lab/faults/:id/check {step, key} · POST /api/lab/faults/:id/complete {tries}  (이상 상황 훈련)
 import { randomUUID } from "node:crypto";
 import express from "express";
@@ -18,6 +19,7 @@ import { gradeIncident, scenarioView, type IncidentScenario } from "./incidents.
 import { maskName } from "./league.js";
 import { whatIf } from "./whatif.js";
 import { NODES, causalQuiz, checkHop, simulateCausal } from "./causal.js";
+import { practiceStats } from "./practice-stats.js";
 
 /** 신고가 이만큼 쌓이면 자동으로 숨긴다(관리자가 다시 열 수 있다). */
 export const AUTO_HIDE_REPORTS = 3;
@@ -198,6 +200,12 @@ export function createLabExtrasRouter({ db, auth, deck, incidents, faults = { di
     const n = Number(db.prepare("SELECT COUNT(*) AS n FROM equipment_note_reports WHERE note_id=?").get(String(r.id))?.n ?? 0);
     if (n >= AUTO_HIDE_REPORTS) db.prepare("UPDATE equipment_notes SET hidden=1, updated_at=? WHERE id=?").run(new Date().toISOString(), String(r.id));
     res.json({ reports: n, hidden: n >= AUTO_HIDE_REPORTS });
+  });
+  // 3D 실습 통계(이상 상황 훈련·사고 사례·인과 퀴즈). ?include_demo=false면 시연 계정을 뺀다.
+  router.get("/api/admin/practice-stats", login, requireAdmin, (req, res) => {
+    const v = req.query.include_demo;
+    if (v !== undefined && v !== "true" && v !== "false") return bad(res, 400, "include_demo는 true 또는 false여야 해요.");
+    res.json(practiceStats(db, { faults: faults.faults, scenarios: incidents.scenarios }, { includeDemo: v !== "false" }));
   });
   router.get("/api/admin/notes/reported", login, requireAdmin, (_req, res) => {
     const rows = db.prepare(`SELECT n.*, COUNT(r.user_id) AS reports, GROUP_CONCAT(r.reason, ' / ') AS reasons FROM equipment_notes n JOIN equipment_note_reports r ON r.note_id=n.id

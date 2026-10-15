@@ -168,3 +168,61 @@ export function checkHop(chainId: string, dir: number, hop: number, choice: "up"
   return { correct: choice === answer, answer, why: edge.why, from: edge.from, to: edge.to,
     sign_rule: Math.sign(edge.coef) > 0 ? "같은 방향(하나가 오르면 다른 것도 오름)" : "반대 방향(하나가 오르면 다른 것은 내림)" };
 }
+
+// ── 거꾸로 추론(진단형) 퀴즈: 결과(증상)를 보여 주고 원인(조정 변수와 방향)을 고르게 한다 ──
+// 원인 하나를 정상 범위 쪽으로 크게 움직여 바뀐 하류 값 중 증상 2개(범위 밖·다른 공정 우선)를 고른다.
+// 보기는 정답 + 같은 증상 방향을 만들지 않는 다른 원인 3개라서 답이 하나로 정해진다(헷갈리는 보기는 빼고 고른다).
+
+/** 원인 키 "변수:방향"(방향 1·-1) → 조정 값(기준에서 끝 쪽으로 80%, 간격에 맞춤). */
+export function diagnoseInput(key: string): Record<string, number> | null {
+  const [id, d] = key.split(":"), n = byId.get(id), dir = Number(d);
+  if (!n?.control || (dir !== 1 && dir !== -1)) return null;
+  const { min, max, step } = n.control;
+  const raw = n.base + (dir > 0 ? (max - n.base) : (n.base - min)) * 0.8 * dir;
+  return { [id]: round(Math.round(raw / step) * step, 4) };
+}
+
+const signOf = (x: number) => (x > 0 ? 1 : x < 0 ? -1 : 0);
+
+export function diagnoseQuiz(seed = 1, n = 4) {
+  let x = (Math.abs(Math.floor(seed)) % 2147483646) + 1;
+  const rand = () => (x = (x * 48271) % 2147483647) / 2147483647;
+  const keys = NODES.filter((c) => c.control).flatMap((c) => [`${c.id}:1`, `${c.id}:-1`]);
+  const shuffle = <T,>(a: T[]) => a.map((v) => ({ v, k: rand() })).sort((p, q) => p.k - q.k).map((o) => o.v);
+  const out = [];
+  for (const key of shuffle(keys)) {
+    if (out.length >= n) break;
+    const r = simulateCausal(diagnoseInput(key)!), cause = key.split(":")[0];
+    const moved = r.nodes.filter((m) => !m.control && m.delta);
+    if (!moved.length) continue;
+    const proc = byId.get(cause)!.process;
+    // 증상: 범위 밖 > 다른 공정 > 원인에서 먼 순서(위상 순서 뒤쪽)
+    const order = topoOrder();
+    const symptoms = [...moved].sort((a, b) => (b.status === "warn" ? 1 : 0) - (a.status === "warn" ? 1 : 0) || (b.process !== proc ? 1 : 0) - (a.process !== proc ? 1 : 0) || order.indexOf(b.id) - order.indexOf(a.id)).slice(0, 2);
+    const pattern = (res: CausalResult) => symptoms.map((s) => signOf(res.nodes.find((m) => m.id === s.id)!.delta)).join(",");
+    const truth = pattern(r);
+    const distractors = shuffle(keys.filter((k) => k !== key && pattern(simulateCausal(diagnoseInput(k)!)) !== truth)).slice(0, 3);
+    if (distractors.length < 3) continue;
+    out.push({
+      id: key,
+      symptoms: symptoms.map((s) => ({ id: s.id, label: s.label, process: s.process, equipment_id: s.equipment_id, dir: signOf(s.delta), warn: s.status === "warn", value: s.value, unit: s.unit, digits: s.digits })),
+      options: shuffle([key, ...distractors]).map((k) => { const [id, d] = k.split(":"), c = byId.get(id)!; return { key: k, label: c.label, process: c.process, equipment_id: c.equipment_id, dir: Number(d) }; }),
+    });
+  }
+  return out;
+}
+
+/** 고른 원인 채점: 맞았는지, 진짜 원인과 그 원인에서 번진 이야기. 고른 원인이 같은 증상을 만들면(보기 밖이라도) 맞음으로 본다. */
+export function checkDiagnose(id: string, choice: string, symptomIds: string[]) {
+  const truthIn = diagnoseInput(id), pickIn = diagnoseInput(choice);
+  if (!truthIn || !pickIn) return null;
+  const truth = simulateCausal(truthIn), pick = simulateCausal(pickIn);
+  const pat = (r: CausalResult) => symptomIds.map((s) => signOf(r.nodes.find((m) => m.id === s)?.delta ?? 0)).join(",");
+  const [cid, d] = id.split(":"), c = byId.get(cid)!;
+  return {
+    correct: choice === id || (symptomIds.length > 0 && pat(pick) === pat(truth)),
+    answer: { key: id, label: c.label, dir: Number(d), process: c.process, equipment_id: c.equipment_id },
+    story: truth.story, edges: truth.edges.filter((e) => e.active).map((e) => ({ from: e.from, to: e.to, effect: e.effect })),
+    nodes: truth.nodes.filter((m) => m.delta).map((m) => ({ id: m.id, equipment_id: m.equipment_id })),
+  };
+}

@@ -216,8 +216,8 @@ export async function attachSimLab() {
   if (typeof ResizeObserver === 'function') new ResizeObserver(fitPanel).observe(launch);
   addEventListener('resize', fitPanel); fitPanel();
   let mode = null;
-  const TITLES = { map: '공정 인과 지도', whatif: '조업 실험', fault: '이상 상황 훈련', quiz: '인과 퀴즈', incident: '사고 사례 갈림길' };
-  const launcherOf = { map: bMap, whatif: bWhatif, fault: bFault, quiz: bMap, incident: bFault };
+  const TITLES = { map: '공정 인과 지도', whatif: '조업 실험', fault: '이상 상황 훈련', quiz: '인과 퀴즈', incident: '사고 사례 갈림길', diagnose: '거꾸로 추론' };
+  const launcherOf = { map: bMap, whatif: bWhatif, fault: bFault, quiz: bMap, incident: bFault, diagnose: bMap };
   function open(next, preset, opt = {}) {
     const prev = mode;
     mode = next; fx.clear(); panel.classList.remove('compact');
@@ -227,7 +227,7 @@ export async function attachSimLab() {
     else if (prev && panel.contains(document.activeElement)) launcherOf[prev]?.focus();
     bWhatif.setAttribute('aria-pressed', String(mode === 'whatif')); bFault.setAttribute('aria-pressed', String(mode === 'fault')); bMap.setAttribute('aria-pressed', String(mode === 'map'));
     panel.hidden = !mode; panel.replaceChildren();
-    if (mode === 'whatif') void whatifPanel(preset); else if (mode === 'fault') void (opt.fault ? faultDrill(opt.fault) : faultList()); else if (mode === 'map') void causalMap(preset, opt.var, opt.tour, !!opt.fromLink && Object.keys(preset).length > 0); else if (mode === 'quiz') void causalQuizPanel(opt.process); else if (mode === 'incident') void incidentPanel(opt.scenario, Number(opt.at), Number(opt.pick));
+    if (mode === 'whatif') void whatifPanel(preset); else if (mode === 'fault') void (opt.fault ? faultDrill(opt.fault) : faultList()); else if (mode === 'map') void causalMap(preset, opt.var, opt.tour, !!opt.fromLink && Object.keys(preset).length > 0); else if (mode === 'quiz') void causalQuizPanel(opt.process); else if (mode === 'diagnose') void diagnosePanel(); else if (mode === 'incident') void incidentPanel(opt.scenario, Number(opt.at), Number(opt.pick));
   }
   const head = (title, foldable = false) => {
     const h = el('h3'); h.append(el('span', '', title)); h.tabIndex = -1;
@@ -273,7 +273,7 @@ export async function attachSimLab() {
     ];
     const pr = el('div'); pr.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;';
     for (const [label, v] of PRESETS) pr.append(btn(label, () => { for (const k of Object.keys(input)) delete input[k]; Object.assign(input, v); void run(); }, 'sl-btn ghost'));
-    presets.append(pr, btn('🧩 인과 퀴즈로 확인하기', () => open('quiz'), 'sl-btn'));
+    presets.append(pr, btn('🧩 인과 퀴즈로 확인하기', () => open('quiz'), 'sl-btn'), btn('🔍 거꾸로 추론: 증상 → 원인', () => open('diagnose'), 'sl-btn ghost'));
     const controls = el('div', 'sl-box sl-hide'), story = el('div'), detail = el('div'), byProc = el('div'), note = el('p', 'sl-muted');
     panel.append(presets, controls, story, detail, byProc, note);
     let timer = 0, data = null, first = true, picked = startVar, lastCard = null;
@@ -449,7 +449,7 @@ export async function attachSimLab() {
           scoreLine.textContent = ''; show();
           box.querySelector('button')?.focus();
         }, 'sl-btn'));
-        tools.append(btn('새 문제로 다시', () => open('quiz'), misses ? 'sl-btn ghost' : 'sl-btn'));
+        tools.append(btn('새 문제로 다시', () => open('quiz'), misses ? 'sl-btn ghost' : 'sl-btn'), btn('🔍 거꾸로 추론해 보기', () => open('diagnose'), 'sl-btn ghost'));
         box.replaceChildren(el('b', '', `${round > 1 ? `다시 풀기 ${round - 1}회차 끝` : '다 풀었어요'} · ${right} / ${total} 칸 맞힘`),
           el('p', 'sl-muted', misses ? '틀린 칸은 "같은 방향/반대 방향" 규칙을 떠올려 보세요. 두 칸을 지나면 방향은 규칙 두 개를 곱한 것과 같아요.' : (round > 1 ? '틀렸던 칸을 모두 바로잡았어요!' : '모든 칸을 맞혔어요!')), tools);
         say(`${right} / ${total} 칸 맞힘.${misses ? ` 틀린 칸 ${misses}개를 다시 풀 수 있어요.` : ''}`);
@@ -499,6 +499,69 @@ export async function attachSimLab() {
         }, 'sl-opt'));
       }
       q.append(row); box.append(q);
+    }
+    show();
+  }
+
+  // ── 거꾸로 추론(진단형): 하류에서 바뀐 값(증상)을 3D에 보여 주고, 어떤 원인을 어느 쪽으로 바꿨는지 고른다 ──
+  async function diagnosePanel() {
+    panel.append(head('🔍 거꾸로 추론'), el('p', 'sl-muted', '현장에서는 결과가 먼저 보여요. 3D에 표시된 증상을 보고, 어느 값을 올리거나 내려서 생긴 일인지 골라 보세요.'));
+    let qs;
+    try { qs = (await api('GET', `/api/lab/causal/diagnose?seed=${Date.now() % 100000}`)).questions; } catch (e) { panel.append(el('p', 'sl-bad', e.message)); return; }
+    const box = el('div', 'sl-box'), scoreLine = el('p', 'sl-muted');
+    panel.append(box, scoreLine, btn('🗺 인과 지도로 돌아가기', () => open('map'), 'sl-btn ghost'));
+    let qi = 0, right = 0;
+    const arrow = (d) => (d > 0 ? '▲' : '▼'), move = (d) => (d > 0 ? '올림' : '내림');
+    plantView();
+    function drawSymptoms(q) {
+      fx.clear();
+      for (const sy of q.symptoms) {
+        fx.ring(sy.equipment_id, sy.warn ? 0xff4d4d : sy.dir > 0 ? 0xff7a3d : 0x5aa0ff, true);
+        fx.tag(sy.equipment_id, `증상 · ${sy.label} ${arrow(sy.dir)}`, sy.warn ? 'warn' : sy.dir > 0 ? 'hot' : 'cold', 6);
+      }
+    }
+    function show() {
+      if (qi >= qs.length) {
+        fx.clear();
+        box.replaceChildren(el('b', '', `다 풀었어요 · ${right} / ${qs.length} 맞힘`),
+          el('p', 'sl-muted', '증상에서 거꾸로 올라갈 때는 "이 값을 바꿀 수 있는 앞 단계 값은 무엇이고, 같은 방향일까 반대 방향일까?"를 차례로 따져 보세요.'),
+          btn('새 문제로 다시', () => open('diagnose'), 'sl-btn'));
+        say(`${right} / ${qs.length} 맞힘.`);
+        return;
+      }
+      const q = qs[qi];
+      drawSymptoms(q);
+      const symptoms = el('div');
+      for (const sy of q.symptoms) symptoms.append(el('div', sy.warn ? 'sl-bad' : '', `${SECTION[sy.process]} · ${sy.label} ${arrow(sy.dir)} ${sy.dir > 0 ? '올랐어요' : '내려갔어요'}${sy.warn ? ' (정상 범위 밖)' : ''}`));
+      const list = el('div'); list.style.cssText = 'display:flex;flex-direction:column;gap:6px;'; list.setAttribute('role', 'group'); list.setAttribute('aria-label', '원인 보기');
+      box.replaceChildren(el('small', 'sl-muted', `${qi + 1} / ${qs.length} · 증상`), symptoms, el('b', '', '무엇을 바꿔서 생긴 일일까요?'), list);
+      say(`${qi + 1}번. 증상: ${q.symptoms.map((sy) => `${sy.label} ${sy.dir > 0 ? '오름' : '내림'}`).join(', ')}. 원인을 고르세요.`);
+      for (const o of q.options) {
+        const b = btn(`${SECTION[o.process]} · ${o.label} ${arrow(o.dir)} ${move(o.dir)}`, async () => {
+          for (const x of list.querySelectorAll('button')) x.disabled = true;
+          let r;
+          try { r = await api('POST', '/api/lab/causal/diagnose/check', { id: q.id, choice: o.key, symptoms: q.symptoms.map((sy) => sy.id) }); } catch (e) { box.append(el('p', 'sl-bad', e.message)); return; }
+          if (r.correct) right++;
+          scoreLine.textContent = `지금까지 ${right} / ${qi + 1} 맞힘`;
+          b.classList.add(r.correct ? 'right' : 'wrong');
+          if (!r.correct) for (const x of list.querySelectorAll('button')) if (x.dataset.key === r.answer.key) x.classList.add('right');
+          const verdict = `${r.correct ? '✓ 맞아요' : '✗ 아니에요'} — ${SECTION[r.answer.process]} · ${eulReul(r.answer.label)} ${r.answer.dir > 0 ? '올린' : '내린'} 결과예요.`;
+          box.append(el('p', r.correct ? 'sl-ok' : 'sl-bad', verdict));
+          const path = el('div', 'sl-box'); path.append(el('b', '', '원인에서 증상까지'));
+          r.story.forEach((st, i) => path.append(el('div', st.status === 'warn' ? 'sl-bad' : '', `${i + 1}. ${st.text}`)));
+          box.append(path);
+          // 3D: 원인 설비(청록) → 번진 연결을 흐름으로, 증상은 그대로
+          drawSymptoms(q);
+          const eqOf = new Map(r.nodes.map((n) => [n.id, n.equipment_id]));
+          for (const e of r.edges) { const a = eqOf.get(e.from), bq = eqOf.get(e.to); if (a && bq && a !== bq) fx.flow(a, bq, e.effect > 0 ? 0xff7a3d : 0x5aa0ff); }
+          fx.ring(r.answer.equipment_id, 0x2bd4b4, true); fx.tag(r.answer.equipment_id, `원인 · ${r.answer.label} ${arrow(r.answer.dir)}`, 'ok', 8);
+          say(verdict.replace(/[▲▼✓✗]/g, ''));
+          if (!r.correct) box.append(tutorBtn(`${q.symptoms.map((sy) => `${iGa(sy.label)} ${sy.dir > 0 ? '오르고' : '내려가고'}`).join(' ')} 있을 때 왜 ${eulReul(o.label)} ${o.dir > 0 ? '올린' : '내린'} 것이 원인이 아니고 ${eulReul(r.answer.label)} ${r.answer.dir > 0 ? '올린' : '내린'} 것이 원인이야? 거꾸로 추론하는 순서를 알려 줘.`));
+          const next = btn(qi + 1 < qs.length ? '다음 문제 ▶' : '결과 보기', () => { qi++; show(); }, 'sl-btn'); box.append(next); next.focus();
+        }, 'sl-opt');
+        b.dataset.key = o.key;
+        list.append(b);
+      }
     }
     show();
   }
@@ -723,7 +786,7 @@ export async function attachSimLab() {
   }
   // 학습 기록의 '오늘의 실습 경로' 링크(?p=공정&lab=map&var=… · lab=quiz&process=… · lab=fault&fault=…)로 들어오면 그 실습을 바로 연다.
   const qs = new URLSearchParams(location.search), lab = qs.get('lab');
-  if (['map', 'quiz', 'fault', 'whatif', 'incident'].includes(lab)) {
+  if (['map', 'quiz', 'fault', 'whatif', 'incident', 'diagnose'].includes(lab)) {
     const id = (k) => (/^[a-z0-9_-]{1,40}$/.test(qs.get(k) || '') ? qs.get(k) : undefined);
     // set=coke_rate:290,cast_speed:1.4 (id는 영문·숫자·_, 값은 숫자만. 범위는 서버가 다시 자른다)
     const preset = Object.fromEntries((qs.get('set') || '').split(',').map((kv) => kv.split(':')).filter(([k, v]) => /^[a-z0-9_]{1,40}$/.test(k || '') && Number.isFinite(Number(v)) && v !== '').slice(0, 10).map(([k, v]) => [k, Number(v)]));

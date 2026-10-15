@@ -71,3 +71,26 @@ test("을/를: 받침과 끝 괄호", async () => {
   const { eulReul } = await import("../src/lab/causal.js");
   assert.deepEqual(["코크스비", "용선 황(S)", "출강 온도", "송풍량", "CO"].map(eulReul), ["코크스비를", "용선 황(S)을", "출강 온도를", "송풍량을", "CO를"]);
 });
+
+test("거꾸로 추론 퀴즈: 증상 2개, 보기 4개 중 정답만 같은 증상을 만들고(답이 하나), 조정 값은 범위 안", async () => {
+  const { diagnoseQuiz, checkDiagnose, diagnoseInput, NODES } = await import("../src/lab/causal.js");
+  for (const seed of [1, 7, 42, 99, 12345]) {
+    const qs = diagnoseQuiz(seed, 4);
+    assert.equal(qs.length, 4, `seed ${seed}`);
+    for (const q of qs) {
+      assert.ok(q.symptoms.length >= 1 && q.symptoms.length <= 2);
+      assert.equal(new Set(q.options.map((o) => o.key)).size, 4);
+      assert.ok(q.options.some((o) => o.key === q.id));
+      const ids = q.symptoms.map((s) => s.id);
+      for (const o of q.options) assert.equal(checkDiagnose(q.id, o.key, ids)!.correct, o.key === q.id, `${q.id} vs ${o.key}`);
+      assert.ok(q.symptoms.every((s) => s.dir !== 0));
+    }
+  }
+  for (const c of NODES.filter((n) => n.control)) for (const d of [1, -1]) {
+    const v = diagnoseInput(`${c.id}:${d}`)![c.id];
+    assert.ok(v >= c.control!.min && v <= c.control!.max && (v - c.base) * d > 0, `${c.id}:${d} → ${v}`);
+  }
+  assert.equal(diagnoseInput("hm_temp:1"), null, "조정할 수 없는 변수");
+  const r = checkDiagnose("coke_rate:-1", "coke_rate:-1", ["hm_temp"])!;
+  assert.ok(r.correct && r.story.length > 0 && r.edges.length > 0);
+});

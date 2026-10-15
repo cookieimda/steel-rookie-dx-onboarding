@@ -19,7 +19,7 @@ import { checkStep, faultScore, faultView, type FaultDrill } from "./faults.js";
 import { gradeIncident, scenarioView, type IncidentScenario } from "./incidents.js";
 import { maskName } from "./league.js";
 import { whatIf } from "./whatif.js";
-import { NODES, causalQuiz, checkHop, simulateCausal } from "./causal.js";
+import { NODES, causalQuiz, checkDiagnose, checkHop, diagnoseQuiz, simulateCausal } from "./causal.js";
 import { practiceStats } from "./practice-stats.js";
 import { practicePath } from "./practice-path.js";
 import { SECTION_ORDER, type Section } from "../checkpoint/types.js";
@@ -111,6 +111,16 @@ export function createLabExtrasRouter({ db, auth, deck, incidents, faults = { di
   router.get("/api/lab/causal/quiz", login, (req, res) => {
     const process = SECTION_ORDER.includes(req.query.process as Section) ? String(req.query.process) : undefined;
     res.json({ chains: causalQuiz(Number(req.query.seed) || Date.now() % 100000, 5, process) });
+  });
+  // 거꾸로 추론 퀴즈(진단형): 증상 → 원인 고르기. 기록하지 않는 자가 점검(사원증 XP 없음).
+  router.get("/api/lab/causal/diagnose", login, (req, res) => res.json({ questions: diagnoseQuiz(Number(req.query.seed) || Date.now() % 100000, 4) }));
+  router.post("/api/lab/causal/diagnose/check", login, express.json(), (req, res) => {
+    const key = z.string().regex(/^[a-z0-9_]{1,40}:-?1$/);
+    const body = z.object({ id: key, choice: key, symptoms: z.array(z.string().regex(/^[a-z0-9_]{1,40}$/)).max(4) }).safeParse(req.body);
+    if (!body.success) return bad(res, 400, "문제·고른 원인·증상을 보내 주세요.");
+    const out = checkDiagnose(body.data.id, body.data.choice, body.data.symptoms);
+    if (!out) return bad(res, 404, "없는 원인이에요.");
+    res.json(out);
   });
   // 오늘의 실습 경로: 내 3D 실습 기록으로 가장 약한 공정을 골라 인과 지도 → 인과 퀴즈 → 이상 상황 훈련을 권한다.
   router.get("/api/lab/practice-path", login, (_req, res) => res.json(practicePath(db, me(res).id, faults.faults)));

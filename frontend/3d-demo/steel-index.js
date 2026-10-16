@@ -15,6 +15,7 @@ import { createSection } from './steel-index-section.js';
 import { attachLabConsole } from './lab-console.js';
 import { createWorkFx } from './work-fx.js';
 import { createOutline } from './lab-outline.js';
+import { tuneRenderer, tuneShadowLight, tuneBloom, shadowTick, autoQuality } from './perf-mode.js'; // 발표 모드·자동 화질
 
 const { PROCESSES } = DATA;
 const ORANGE = 0xffa63d, RIPPLE = 0xffcc66; // 공정 자리 발광 테두리·선택 설비 물결은 노랑~주황 불빛(2026-10-14 요청, 전에는 물결이 시안)
@@ -31,6 +32,7 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'hi
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+tuneRenderer(renderer);
 renderer.clippingPlanes = [new THREE.Plane(new THREE.Vector3(0, 1, 0), 0.001)]; // 바닥판 밑면(= 테이블 윗면, y=-STAGE_H) 아래는 그리지 않는다
 stage.appendChild(renderer.domElement);
 
@@ -44,7 +46,7 @@ let home = { yaw: -0.58, pitch: 0.4, dist: 70, target: new THREE.Vector3(0, 3, 0
 // ---- 조명 --------------------------------------------------------------------------------------
 const hemi = new THREE.HemisphereLight(0xbfd2e0, 0x1a1410, 0.55); scene.add(hemi);
 const key = new THREE.DirectionalLight(0xfff1e0, 1.4); key.position.set(-35, 70, 60); key.castShadow = true;
-key.shadow.mapSize.set(2048, 2048); key.shadow.bias = -0.0004; key.shadow.normalBias = 0.04;
+key.shadow.mapSize.set(2048, 2048); key.shadow.bias = -0.0004; key.shadow.normalBias = 0.04; tuneShadowLight(key);
 Object.assign(key.shadow.camera, { left: -50, right: 50, top: 45, bottom: -45, near: 10, far: 260 });
 scene.add(key, key.target);
 const fill = new THREE.DirectionalLight(0x7fb0ff, 0.4); fill.position.set(60, 40, -30); scene.add(fill);
@@ -387,7 +389,7 @@ renderer.domElement.addEventListener('wheel', (e) => { e.preventDefault(); orbit
 // ---- 루프 ---------------------------------------------------------------------------------------------
 const composer = new EffectComposer(renderer);
 const renderPass = new RenderPass(scene, camera); composer.addPass(renderPass);
-const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.15, 0.3, 1.6); composer.addPass(bloom); const outline = createOutline(scene, camera); composer.addPass(outline.pass); composer.addPass(new OutputPass());
+const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.15, 0.3, 1.6); composer.addPass(bloom); tuneBloom(bloom); const outline = createOutline(scene, camera); composer.addPass(outline.pass); composer.addPass(new OutputPass());
 function resize() { const w = stage.clientWidth || 1, h = stage.clientHeight || 1; renderer.setSize(w, h, false); composer.setSize(w, h); bloom.resolution.set(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); applyViewOffset();  if (cur && !curEq) { home = fitHome(cur); animateTo(home, 450); } }
 // 오른쪽 패널이 열리면 패널 폭의 절반만큼 장면을 왼쪽으로 밀어, 고른 설비가 패널에 가리지 않고 남은 영역 가운데에 온다(2026-10-14 요청). 천천히 옮겨 간다
 let viewOff = 0;
@@ -397,6 +399,7 @@ function viewOffsetTick() {
   if (Math.abs(want - viewOff) < 0.5) return; viewOff += (want - viewOff) * (REDUCED ? 1 : 0.12); if (Math.abs(want - viewOff) < 0.5) viewOff = want; applyViewOffset();
 }
 new ResizeObserver(resize).observe(stage); resize();
+autoQuality({ renderer, composer });
 // 아래 카드 크기를 손잡이로 바꾼 뒤(lab-dock.js) 설비를 고르지 않은 전체 보기면 새 3D 뷰 크기에 맞춰 다시 담는다
 addEventListener('lab-dock-resized', () => { if (cur && !curEq && view === '3d') { home = fitHome(cur); animateTo(home, 500); } });
 
@@ -440,7 +443,7 @@ function frame(now) {
   const o = orbit; camera.position.set(o.target.x + o.dist * Math.sin(o.yaw) * Math.cos(o.pitch), o.target.y + o.dist * Math.sin(o.pitch), o.target.z + o.dist * Math.cos(o.yaw) * Math.cos(o.pitch)); camera.lookAt(o.target);
   if (curEq && !REDUCED) { warm.intensity = 14 + 3 * Math.sin(now / 420); ripples.forEach((r, k) => { const ph = ((now / 2200) + k * 0.5) % 1; r.scale.setScalar(rippleR * (0.8 + 0.8 * ph)); r.material.opacity = 0.15 * (1 - ph); }); }
   driveTick(now); section.tick(now); labConsole.tick(now); work.tick(now);
-  composer.render(); placeHud();
+  shadowTick(renderer, now); composer.render(); placeHud();
 }
 
 applyTheme();

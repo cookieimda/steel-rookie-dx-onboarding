@@ -1,7 +1,8 @@
 // 답변 근거 겹침 지표: 답의 문장마다 인용한 근거 조각과 글자가 얼마나 겹치는지 센다. 판정이 아니라 관찰용 지표다.
 // - 해요체로 바꿔 쓴 답도 내용어(코크스, 환원제, 일산화탄소…)는 근거와 같은 글자를 쓰므로 글자 2-gram 겹침으로 본다.
 // - 숫자·단위(1,200℃ 등)가 근거에 없으면 겹침이 낮아진다. 근거 없는 수치를 찾는 데 쓴다.
-// - 답의 status는 바꾸지 않는다. trace(trace.ts)와 eval:learning 보고서에 남겨 기준선을 만든 뒤에 쓸지 정한다(docs/agent-observability.md).
+// - Gemini 답의 status는 바꾸지 않는다. trace(trace.ts)와 eval:learning 보고서에 남겨 기준선을 만든다(docs/agent-observability.md).
+// - 로컬 모델은 근거와 겹치는 문장이 하나도 없는 답(lowSupport)을 서버가 unverified로 낮추고 안내를 붙인다(backend/src/learning/routes.ts groundingCheck).
 
 /**
  * 문장 하나를 근거로 뒷받침된다고 보는 2-gram 겹침 비율. 2026-10-13 Gemini 답 95개(157문장)로 정했다(docs/agent-observability.md '근거 겹침'):
@@ -20,6 +21,18 @@ export interface GroundingSupport {
   rate: number | null;
   /** 겹침이 가장 낮은 문장과 그 비율(센 문장이 없으면 null). 보고서에서 근거 밖 문장을 찾을 때 본다. */
   weakest: { text: string; overlap: number } | null;
+}
+
+/**
+ * 근거 없이 지어낸 답으로 볼 최소 문장 수. 이 수 이상의 문장이 하나도 근거와 겹치지 않으면(supported 0) lowSupport다.
+ * 2026-10-16 로컬 qwen2.5:3b grounded 답 31개 중 겹침 0은 3개였고, 2문장 이상인 2개(here-bf, unknown-cost "고로 건설비")는
+ * 지어낸 답, 1문장인 1개(overview-bf)는 맞는 답을 바꿔 쓴 것이었다. 그래서 한 문장 답은 보지 않는다.
+ */
+export const LOW_SUPPORT_MIN_SENTENCES = 2;
+
+/** 근거와 겹치는 문장이 하나도 없는 답인지(문장이 LOW_SUPPORT_MIN_SENTENCES 이상일 때만). */
+export function lowSupport(s: GroundingSupport): boolean {
+  return s.sentences >= LOW_SUPPORT_MIN_SENTENCES && s.supported === 0;
 }
 
 /** 공백·문장부호를 지운 글자열. 숫자의 쉼표(1,200)도 지운다. */

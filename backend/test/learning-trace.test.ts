@@ -10,7 +10,7 @@ import express from "express";
 import { groundingLines } from "../../llm/eval/run-learning.js";
 import { formatKind, formatReport, quantile, readTraces, summarizeKind, summarizeTraces } from "../../llm/eval/trace-report.js";
 import { GeminiClient } from "../../llm/src/gemini.js";
-import { groundingSupport, splitSentences, SUPPORT_THRESHOLD } from "../../llm/src/grounding.js";
+import { groundingSupport, LOW_SUPPORT_MIN_SENTENCES, lowSupport, splitSentences, SUPPORT_THRESHOLD } from "../../llm/src/grounding.js";
 import { GeminiLearningAgent, LearningFormatError, modelProposal, type LearningAgent, type LearningInput, type LearningReply } from "../../llm/src/learning-agent.js";
 import { Retriever, type Chunk } from "../../llm/src/retrieval.js";
 import { currentTrace, localDate, routePattern, runWithTrace, Trace, TraceLog, traceMiddleware, traceSinkFromEnv, type TraceRecord } from "../../llm/src/trace.js";
@@ -301,6 +301,13 @@ test("groundingSupport: 근거와 겹치는 문장을 세고, 짧은 문장은 �
   assert.ok(g.weakest!.overlap < SUPPORT_THRESHOLD);
   assert.deepEqual(groundingSupport("네.", ["x"]), { sentences: 0, supported: 0, rate: null, weakest: null });
   assert.equal(groundingSupport("코크스가 철광석의 산소를 떼어내요.", []).supported, 0);
+});
+
+test("lowSupport: 두 문장 이상인데 근거와 겹치는 문장이 하나도 없을 때만", () => {
+  const evidence = ["고로에서는 코크스가 산화하며 철광석의 산소를 떼어낸다."];
+  assert.equal(lowSupport(groundingSupport("고로 하나를 짓는 데는 10억에서 100억 원이 들어요. 내화물 벽돌 값이 가장 비싸요.", evidence)), true);
+  assert.equal(lowSupport(groundingSupport("코크스가 철광석의 산소를 떼어내요. 쇳물은 1,500℃ 정도로 뜨거워요.", evidence)), false, "한 문장이라도 겹치면 아니다");
+  assert.equal(lowSupport(groundingSupport("고로는 제철소의 심장으로 불리는 큰 설비예요.", evidence)), false, `${LOW_SUPPORT_MIN_SENTENCES}문장보다 짧은 답은 보지 않는다`);
 });
 
 test("eval:learning 보고서: grounded 답의 근거 겹침 줄을 만든다", () => {

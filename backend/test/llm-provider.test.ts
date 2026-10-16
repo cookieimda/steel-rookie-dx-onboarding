@@ -48,8 +48,8 @@ test("provider: 기본은 gemini, ollama 선택, 모르는 값과 PRIVATE_LLM_ON
   assert.ok(createLlmClient({}, {}) instanceof GeminiClient);
   assert.deepEqual(providerInfo({ LLM_PROVIDER: "ollama", OLLAMA_MODEL: "exaone3.5:2.4b" }), { provider: "ollama", model: "exaone3.5:2.4b", label: "ollama:exaone3.5:2.4b" });
   assert.equal(providerInfo({ GEMINI_MODEL: "gemini-x" }).label, "gemini:gemini-x");
-  assert.deepEqual(profileFor("ollama"), { learning: "compact", evaluatorGuards: true });
-  assert.deepEqual(profileFor("gemini"), { learning: "full", evaluatorGuards: false });
+  assert.deepEqual(profileFor("ollama"), { learning: "compact", evaluatorGuards: true, groundingCheck: true });
+  assert.deepEqual(profileFor("gemini"), { learning: "full", evaluatorGuards: false, groundingCheck: false });
 });
 
 test("createLlmClient: beforeCall(호출 수 제한)을 어느 provider에도 넣는다", async () => {

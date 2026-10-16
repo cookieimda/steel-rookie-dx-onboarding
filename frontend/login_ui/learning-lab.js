@@ -25,7 +25,10 @@ export const SUBTABS = [['review', '간격 반복'], ['league', '주간 리그']
   ['incident', '사고 사례'], ['whatif', 'What-if'], ['notes', '설비 메모'], ['patterns', '내 오답 유형']];
 const GRADE_LABEL = { 0: '다시', 3: '어려움', 4: '보통', 5: '쉬움' };
 const GRADE_TONE = { 0: 'bad', 3: 'mid', 4: 'ok', 5: 'easy' };
-const TAB_LABEL = { steps: '작동 단계', blueprint: '설계도·필기', review: '복습', mis: '내 오개념', card: '사원증', lab: '학습 랩' };
+const TAB_LABEL = { steps: '작동 단계', lab: '학습 랩', blueprint: '설계도·필기', card: '사원증' };
+// 지난 리플레이 기록에 남은 옛 탭(2026-10-16에 복습은 사원증 안으로 옮기고 내 오개념 탭은 뺐다)
+const OLD_TAB_LABEL = { review: '복습', mis: '내 오개념' };
+const tabLabel = k => TAB_LABEL[k] || OLD_TAB_LABEL[k] || k || '';
 const PROCESS_LABEL = { ironmaking: '제선', steelmaking: '제강', continuous_casting: '연주', rolling: '열간압연' };
 const SPEEDS = [1, 2, 4, 8];
 
@@ -37,8 +40,8 @@ const short = (s, n = 60) => { const t = String(s ?? ''); return t.length > n ? 
 export function describeEvent(e) {
   const d = e.data || {};
   switch (e.type) {
-    case 'start': return `학습 기록 화면을 열었어요 · ${TAB_LABEL[d.tab] || d.tab || ''}`;
-    case 'tab': return `탭 이동 → ${TAB_LABEL[d.tab] || d.tab}`;
+    case 'start': return `학습 기록 화면을 열었어요 · ${tabLabel(d.tab)}`;
+    case 'tab': return `탭 이동 → ${tabLabel(d.tab)}`;
     case 'lab': return `학습 랩 → ${(SUBTABS.find(([k]) => k === d.sub) || [, d.sub])[1]}`;
     case 'select': return `${PROCESS_LABEL[d.process] || d.process || ''}${d.name ? ` · ${d.name}` : ''} 선택`;
     case 'ask': return `튜터에게 질문: ${short(d.text)}`;

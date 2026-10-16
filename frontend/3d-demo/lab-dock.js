@@ -1,8 +1,9 @@
 // 3D 공정 화면 대시보드 배치(레퍼런스: 왼쪽 위 3D 뷰 · 그 아래 카드 · 오른쪽 What-if 열).
-// 아래 카드는 탭 3개: [조업 전광판] 표 + 실험 변경 이력 차트(3D 공중 전광판을 대신한다) / [단계 설명] 설비 설명 패널(#right) / [온도 흐름] 왼쪽 패널.
+// 아래 카드는 탭 3개: [조업 전광판] 표 + 오른쪽(온도 지표는 원호 다이얼, 나머지는 실험 변경 이력 차트. 3D 공중 전광판·What-if 위 다이얼을 대신한다) / [단계 설명] 설비 설명 패널(#right) / [온도 흐름] 왼쪽 패널.
 // 단계 설명과 온도 흐름은 기존 패널을 옮기지 않고, 이 카드 자리에 겹쳐 보이게 CSS(lab-console-glass.css, body.lab-dock)로 배치한다.
 // 폭 1001px 이상에서만 이 배치를 쓰고, 그보다 좁으면 원래 화면 그대로다.
-import { displayNumber } from './lab-display-data.js';
+import { displayNumber, tempPosition } from './lab-display-data.js';
+import { arcGaugeHtml } from './lab-gauge-arc.js';
 
 const TABS = [['board', '조업 전광판'], ['steps', '단계 설명'], ['temp', '온도 흐름']];
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -48,7 +49,12 @@ export function createDock() {
     </div>`;
   document.body.appendChild(card);
   const right = document.getElementById('right');
-  let tab = 'board', rows = [], picked = null, name = '';
+  let tab = 'board', rows = [], picked = null, name = '', pid = '';
+  // 온도 지표(℃)는 이력 선 대신 원호 다이얼로 보인다. 범위는 lab-console.js의 What-if 계기와 같은 규칙(제선 1380~1560℃)
+  const dial = (r) => {
+    const low = pid === 'ironmaking' ? 1380 : Math.floor((r.base - 150) / 50) * 50, high = pid === 'ironmaking' ? 1560 : low + 300;
+    return arcGaugeHtml({ title: r.label, value: displayNumber(r.value, r.digits), pos: tempPosition(r.value, low, high), low, high, direction: r.direction, delta: displayNumber(Math.abs(r.delta), r.digits) });
+  };
   const series = new Map();
 
   function setTab(next) {
@@ -62,9 +68,9 @@ export function createDock() {
       ? `<table><caption>${esc(name)} 조업 전광판</caption><thead><tr><th>지표</th><th>계산값</th><th>기준값</th><th>등락</th><th>실험 변경 이력</th></tr></thead><tbody>${rows.map((r) => {
           const t = tone(r.direction), delta = t === 'flat' ? '—' : `${t === 'up' ? '▲ +' : '▼ −'}${displayNumber(Math.abs(r.delta), r.digits)}`;
           return `<tr class="${t}${r === row ? ' on' : ''}" data-row="${esc(r.id)}" tabindex="0" aria-selected="${r === row}"><td>${esc(r.label)}</td><td class="v">${displayNumber(r.value, r.digits)} <small>${esc(r.unit)}</small></td><td class="b">${displayNumber(r.base, r.digits)}</td><td class="d">${delta}</td><td>${spark(series.get(r.id) || [], t)}</td></tr>`;
-        }).join('')}</tbody></table><p class="lab-board-legend">▲ 상승 빨강 · ▼ 하락 파랑 · 줄을 누르면 오른쪽 차트가 그 지표로 바뀌어요</p>`
+        }).join('')}</tbody></table><p class="lab-board-legend">▲ 상승 빨강 · ▼ 하락 파랑 · 줄을 누르면 오른쪽이 그 지표로 바뀌어요(온도는 다이얼, 나머지는 실험 변경 이력)</p>`
       : '<p class="lab-dock-empty">오른쪽 What-if에서 조건을 바꾸면 계산 결과가 이 표에 나와요.</p>';
-    card.querySelector('[data-board-chart]').innerHTML = chart(row, row ? series.get(row.id) || [] : []);
+    card.querySelector('[data-board-chart]').innerHTML = row?.unit === '℃' ? dial(row) : chart(row, row ? series.get(row.id) || [] : []);
     card.querySelectorAll('[data-row]').forEach((tr) => {
       const pick = () => { picked = tr.dataset.row; render(); };
       tr.onclick = pick; tr.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } };
@@ -84,7 +90,7 @@ export function createDock() {
 
   return {
     /** 공정이 바뀌면 이력을 비운다. */
-    setProcess(p) { name = p?.name || ''; rows = []; picked = null; series.clear(); render(); },
+    setProcess(p) { name = p?.name || ''; pid = p?.id || ''; rows = []; picked = null; series.clear(); render(); },
     /** lab-display-data.js의 displayRows 결과(계산할 때마다). */
     update(next) {
       rows = next;

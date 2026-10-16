@@ -87,6 +87,7 @@ export function createDock() {
 
   const sync = () => document.body.classList.toggle('lab-dock', wide.matches);
   wide.addEventListener('change', sync); sync(); setTab('board'); render();
+  attachSplitter();
 
   return {
     /** 공정이 바뀌면 이력을 비운다. */
@@ -98,4 +99,45 @@ export function createDock() {
       render();
     },
   };
+}
+
+/**
+ * 3D 뷰와 아래 카드 사이의 위아래 크기 조절 손잡이(블렌더의 영역 경계처럼). 끌면 카드 높이(--dock-b)가 바뀌고 3D 뷰가 그만큼 늘거나 준다.
+ * 정한 높이는 이 브라우저에 기억한다. 두 번 누르면 기본 높이, 키보드 ↑↓(Shift는 크게)로도 조절한다.
+ */
+function attachSplitter() {
+  const KEY = 'st-rookie:dock-height', MIN = 180, TOP_ROOM = 240; // 카드 최소 높이, 3D 뷰에 남길 최소 높이
+  const split = document.createElement('div');
+  split.className = 'lab-dock-split'; split.tabIndex = 0;
+  split.setAttribute('role', 'separator'); split.setAttribute('aria-orientation', 'horizontal'); split.setAttribute('aria-label', '3D 뷰와 아래 카드 크기 조절');
+  split.title = '끌어서 크기 조절 · 두 번 누르면 기본 크기';
+  document.body.appendChild(split);
+  const clamp = (h) => Math.round(Math.min(innerHeight - TOP_ROOM, Math.max(MIN, h)));
+  const current = () => document.querySelector('.lab-dock-card')?.getBoundingClientRect().height || 0;
+  function apply(h, save = true) {
+    if (h == null) document.body.style.removeProperty('--dock-b');
+    else document.body.style.setProperty('--dock-b', `${clamp(h)}px`);
+    split.setAttribute('aria-valuenow', String(Math.round(current())));
+    if (save) try { h == null ? localStorage.removeItem(KEY) : localStorage.setItem(KEY, String(clamp(h))); } catch {}
+  }
+  try { const saved = Number(localStorage.getItem(KEY)); if (saved) apply(saved, false); } catch {}
+
+  let drag = null;
+  split.addEventListener('pointerdown', (e) => {
+    drag = { y: e.clientY, h: current() }; split.setPointerCapture(e.pointerId);
+    document.body.classList.add('lab-dock-resizing'); e.preventDefault();
+  });
+  split.addEventListener('pointermove', (e) => { if (drag) apply(drag.h + (drag.y - e.clientY), false); });
+  const done = () => dispatchEvent(new Event('lab-dock-resized')); // steel-index.js가 카메라를 새 3D 뷰 크기에 다시 맞춘다
+  const end = () => { if (!drag) return; drag = null; document.body.classList.remove('lab-dock-resizing'); apply(current()); done(); };
+  split.addEventListener('pointerup', end); split.addEventListener('pointercancel', end);
+  split.addEventListener('dblclick', () => { apply(null); done(); });
+  split.addEventListener('keydown', (e) => {
+    const step = e.shiftKey ? 60 : 20;
+    if (e.key === 'ArrowUp') { apply(current() + step); done(); e.preventDefault(); }
+    else if (e.key === 'ArrowDown') { apply(current() - step); done(); e.preventDefault(); }
+    else if (e.key === 'Home' || e.key === 'Enter') { apply(null); done(); e.preventDefault(); }
+  });
+  // 창 높이가 줄면 저장한 높이가 3D 뷰를 너무 덮지 않게 다시 맞춘다
+  addEventListener('resize', () => { if (document.body.style.getPropertyValue('--dock-b')) apply(current(), false); });
 }

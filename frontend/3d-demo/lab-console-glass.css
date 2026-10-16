@@ -293,3 +293,22 @@ body.lab-dock .lab-inputs .lab-gauge-slot { display: none; }
 .lab-board-chart .lab-arc svg { width: 100%; height: 100%; }
 .lab-board-chart .lab-arc-gauge .lab-scale { width: min(100%, 300px); margin-top: -8px; }
 .lab-board-chart .lab-arc-gauge > p { margin: 0; font-size: 12px; }
+
+/* 3D 뷰 ↔ 아래 카드 크기 조절 손잡이(lab-dock.js): 두 카드 사이 16px 틈 전체가 잡는 곳, 평소엔 옅은 선, 올리거나 끌면 밝은 선 + 가운데 손잡이 */
+.lab-dock-split { display: none; }
+body.lab-dock .lab-dock-split {
+  display: block; position: fixed; z-index: 7; left: var(--dock-g); width: var(--dock-w);
+  bottom: calc(var(--dock-b) + var(--dock-g)); height: var(--dock-g); cursor: row-resize; touch-action: none; outline: none;
+}
+body.lab-dock .lab-dock-split::before { /* 가로선 */
+  content: ""; position: absolute; left: 24px; right: 24px; top: 50%; height: 1px; transform: translateY(-50%);
+  background: rgba(255, 255, 255, .06); transition: background .15s, height .15s;
+}
+body.lab-dock .lab-dock-split::after { /* 가운데 손잡이 */
+  content: ""; position: absolute; left: 50%; top: 50%; width: 44px; height: 4px; border-radius: 4px; transform: translate(-50%, -50%);
+  background: rgba(255, 255, 255, .18); transition: background .15s, width .15s;
+}
+body.lab-dock .lab-dock-split:hover::before, body.lab-dock .lab-dock-split:focus-visible::before, body.lab-dock.lab-dock-resizing .lab-dock-split::before { height: 2px; background: rgba(141, 255, 191, .55); }
+body.lab-dock .lab-dock-split:hover::after, body.lab-dock .lab-dock-split:focus-visible::after, body.lab-dock.lab-dock-resizing .lab-dock-split::after { width: 64px; background: #8dffbf; }
+body.lab-dock-resizing, body.lab-dock-resizing * { cursor: row-resize !important; user-select: none; }
+@media (prefers-reduced-motion: reduce) { .lab-dock-split::before, .lab-dock-split::after { transition: none; } }

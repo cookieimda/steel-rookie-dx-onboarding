@@ -397,6 +397,8 @@ function viewOffsetTick() {
   if (Math.abs(want - viewOff) < 0.5) return; viewOff += (want - viewOff) * (REDUCED ? 1 : 0.12); if (Math.abs(want - viewOff) < 0.5) viewOff = want; applyViewOffset();
 }
 new ResizeObserver(resize).observe(stage); resize();
+// 아래 카드 크기를 손잡이로 바꾼 뒤(lab-dock.js) 설비를 고르지 않은 전체 보기면 새 3D 뷰 크기에 맞춰 다시 담는다
+addEventListener('lab-dock-resized', () => { if (cur && !curEq && view === '3d') { home = fitHome(cur); animateTo(home, 500); } });
 
 function riseTick(now) {
   if (sinking) {

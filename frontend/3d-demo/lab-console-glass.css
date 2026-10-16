@@ -178,9 +178,9 @@
 .lab-arc { position: relative; margin: 4px auto 0; max-width: 260px; }
 .lab-arc svg { display: block; width: 100%; height: auto; overflow: visible; }
 .lab-arc-track { fill: none; stroke: rgba(255, 255, 255, .1); stroke-width: 10; stroke-linecap: round; }
-.lab-arc-fill { fill: none; stroke: url(#labArcHeat); stroke-width: 10; stroke-linecap: round; filter: drop-shadow(0 0 6px rgba(243, 150, 69, .35)); }
+.lab-arc-fill { fill: none; stroke-width: 10; stroke-linecap: round; filter: drop-shadow(0 0 8px rgba(240, 138, 60, .45)); } /* 색은 다이얼마다 만든 주황 그라데이션(stroke 속성) */
 .lab-arc-ticks line { stroke: rgba(255, 255, 255, .28); stroke-width: 1.4; stroke-linecap: round; }
-.lab-arc-knob { fill: #fff; stroke: rgba(13, 17, 20, .9); stroke-width: 3; filter: drop-shadow(0 0 6px rgba(255, 255, 255, .45)); }
+.lab-arc-knob { fill: #fff; stroke: #f08a3c; stroke-width: 3; filter: drop-shadow(0 0 8px rgba(255, 194, 122, .6)); }
 .lab-arc-val { position: absolute; left: 0; right: 0; top: 47%; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
 .lab-arc-val strong { font: 200 30px/1 var(--f-num); color: var(--ink-hi); letter-spacing: -.02em; }
 .lab-arc-val strong small { font: 300 14px var(--f-num); color: var(--ink-lo); margin-left: 2px; }
@@ -207,6 +207,7 @@ body.lab-dock.process-lab.panel .lab-inputs { visibility: visible; }
 
 /* 아래 탭 카드 */
 .lab-dock-card { display: none; }
+.lab-dock-card, .lab-dock-card * { box-sizing: border-box; } /* height:100% + 안쪽 여백이 카드 밖으로 넘치지 않게 */
 body.lab-dock .lab-dock-card {
   position: fixed; left: var(--dock-g); bottom: var(--dock-g); width: var(--dock-w); height: var(--dock-b); z-index: 5;
   display: flex; flex-direction: column; color: var(--ink);
@@ -226,7 +227,7 @@ body.lab-dock[data-lab-tab="steps"]:not(.panel) .lab-dock-empty[data-dock-pane="
 .lab-dock-empty { margin: 0; padding: 22px; color: var(--ink-lo); font-size: 14px; line-height: 1.7; }
 
 /* 조업 전광판: 왼쪽 표 + 오른쪽 고른 지표의 실험 변경 이력 차트 */
-.lab-board { height: 100%; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 20px; padding: 10px 18px 12px; }
+.lab-board { height: 100%; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 20px; padding: 10px 18px 12px; } /* 줄 높이를 카드에 묶어 안의 다이얼·차트가 넘치지 않게 */
 .lab-board-table { min-width: 0; overflow-x: hidden; overflow-y: auto; } /* 세로로만 넘겨 본다(알약 스크롤바) */
 .lab-board table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
 .lab-board caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
@@ -246,7 +247,7 @@ body.lab-dock[data-lab-tab="steps"]:not(.panel) .lab-dock-empty[data-dock-pane="
 .lab-spark polyline, .lab-spark line { fill: none; stroke: rgba(255, 255, 255, .45); stroke-width: 1.6; stroke-linejoin: round; }
 .lab-spark.up polyline { stroke: #ff8a7a; } .lab-spark.down polyline { stroke: var(--up); }
 .lab-board-legend { margin: 8px 0 0; font-size: 12px; color: var(--ink-xlo); }
-.lab-board-chart { min-width: 0; display: flex; flex-direction: column; gap: 6px; padding-left: 18px; border-left: 1px solid rgba(255, 255, 255, .06); }
+.lab-board-chart { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 6px; padding-left: 18px; border-left: 1px solid rgba(255, 255, 255, .06); }
 .lab-dock-chart-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .lab-dock-chart-head b { font: 500 14px var(--f-body); color: var(--ink-hi); }
 .lab-dock-chart-head span { font-size: 12px; color: var(--ink-xlo); }
@@ -285,6 +286,10 @@ body.lab-dock .lab-temperature .lab-chart { grid-column: 2; grid-row: 1 / span 5
 
 /* 온도 다이얼은 대시보드 배치에서 What-if 열 대신 전광판 오른쪽에(용선 온도 줄) — 같은 숫자가 두 곳에 겹쳐 보이지 않게 */
 body.lab-dock .lab-inputs .lab-gauge-slot { display: none; }
-.lab-board-chart .lab-arc-gauge { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; padding: 10px 14px; }
-.lab-board-chart .lab-arc { width: 100%; max-width: 250px; }
-.lab-board-chart .lab-arc-gauge > p { margin-top: 2px; }
+/* 카드 높이 안에서 다이얼이 줄어든다(잘리지 않게): 제목 · 다이얼(남는 높이 전부) · 눈금 범위 · 안내 */
+.lab-board-chart .lab-arc-gauge { flex: 1 1 0; min-height: 0; overflow: hidden; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; justify-items: center; gap: 2px; padding: 10px 14px; }
+.lab-board-chart .lab-arc-gauge > span { justify-self: start; }
+.lab-board-chart .lab-arc { width: 100%; max-width: none; height: 100%; min-height: 0; margin: 0; }
+.lab-board-chart .lab-arc svg { width: 100%; height: 100%; }
+.lab-board-chart .lab-arc-gauge .lab-scale { width: min(100%, 300px); margin-top: -8px; }
+.lab-board-chart .lab-arc-gauge > p { margin: 0; font-size: 12px; }

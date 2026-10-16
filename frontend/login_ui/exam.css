@@ -128,13 +128,28 @@ h1 { font: 700 clamp(32px, 4.4vw, 48px)/.95 var(--font-en); letter-spacing: .02e
 .bar > span { display: block; height: 100%; width: 0; border-radius: 999px; background: var(--text); }
 .process-card .btn { align-self: flex-start; margin-top: 2px; }
 
-/* 시험 판(왼쪽, 반투명) + 복습·배정·기록(오른쪽, 학습 기록 튜터 칸과 같은 348px). 좁은 화면에서는 세로로 쌓는다 */
-.work-grid { display: grid; grid-template-columns: minmax(0, 1fr) 348px; gap: 24px; align-items: start; }
+/* 시험 판(왼쪽, 반투명) + 학습 캘린더(오른쪽). 칸 나누기는 아래 '줄 맞춤'. 좁은 화면에서는 세로로 쌓는다 */
 .exam-panel { padding: 28px 32px 32px; display: flex; flex-direction: column; gap: 24px; min-width: 0; background: var(--module-bg); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); }
 .exam-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .exam-head-text { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .exam-sub { font-size: 15px; color: var(--muted); }
 .exam-head-tools { display: flex; align-items: center; gap: 8px; flex: none; margin-left: auto; }
+/* 왼쪽 칸: 평소에는 시험지 묶음만, 시험 집중 화면(2026-10-16)에서는 시험 판만. 집중 화면은 요약 판·캘린더도 숨기고 시험 판을 한 줄 전체로 쓴다. [← 시험지 목록]으로 돌아간다 */
+/* 줄 맞춤(2026-10-16): 위 요약 판(안쪽 여백 8px · 세 칸 · 간격 8px)과 같은 격자로 — 왼쪽 칸은 앞 두 칸, 캘린더는 셋째 칸에 맞추고, 시험지 묶음은 캘린더와 위쪽 끝을 맞춘다 */
+.work-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 0 8px; align-items: stretch; }
+.work-main { grid-column: span 2; display: flex; flex-direction: column; justify-content: flex-start; gap: 24px; min-width: 0; }
+.work-grid .cal-card { flex: 1; }
+body.exam-focus .exam-panel { flex: 1; }
+body:not(.exam-focus) .exam-panel { display: none; }
+body.exam-focus .kpis, body.exam-focus .deck, body.exam-focus .aside-stack { display: none; }
+body.exam-focus .work-main { grid-column: 1 / -1; }
+body.exam-focus .hero { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+body:not(.exam-focus) .hero-stage { display: none; }
+/* 단계 표시는 박스 없이 글자만. 지금 개념 번호는 진행 점(.dots .current)과 같은 강조색 */
+.hero-stage, .hero-stage[data-tone] { margin-right: 8px; font-size: 20px; font-weight: 700; padding: 0; background: none; }
+.hero-stage .stage-now { color: var(--accent); margin-right: .3em; }
+#back-deck { background: var(--panel2); color: var(--text); }
+#back-deck:hover { background: var(--chip-on); }
 /* 효과음 켜고 끄기: 무채색 바탕(외곽선 없음) */
 #sfx { background: var(--panel2); color: var(--text); }
 #sfx:hover { background: var(--chip-on); }
@@ -455,7 +470,8 @@ body[data-theme="light"] .forge-screen::backdrop { background: rgba(244, 240, 23
 @media (max-width: 1100px) {
   .hero { grid-template-columns: 1fr; }
   .hero-text { padding-top: 0; }
-  .work-grid { grid-template-columns: 1fr; }
+  .work-grid { grid-template-columns: 1fr; gap: 24px; padding: 0; }
+  .work-main { grid-column: auto; }
   .process-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 740px) {

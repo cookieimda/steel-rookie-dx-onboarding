@@ -557,9 +557,15 @@
           <sc-if value="{{ m.isOk }}" hint-placeholder-val="{{ false }}">
             <div style="align-self:flex-start;max-width:94%;display:flex;flex-direction:column;gap:8px;">
               <div style="background:var(--chrome3);padding:11px 14px;border-radius:12px 12px 12px 4px;font-size:15px;line-height:1.65;text-wrap:pretty;">{{ m.text }}</div>
-              <sc-for list="{{ m.citations }}" as="c" hint-placeholder-count="0">
-                <span style="font-size:12px;color:var(--muted);padding-left:4px;">근거 · {{ c.title }}</span>
-              </sc-for>
+              <!-- 근거는 접어 두고 '근거 N개'를 누르면 펼친다(2026-10-16). 제목을 누르면 출처가 새 탭에서 열린다. -->
+              <sc-if value="{{ m.hasCitations }}" hint-placeholder-val="{{ false }}">
+                <details style="padding-left:4px;font-size:12px;color:var(--muted);">
+                  <summary style="cursor:pointer;">{{ m.citeLabel }}</summary>
+                  <div style="display:flex;flex-direction:column;gap:2px;margin-top:4px;">
+                    <sc-for list="{{ m.citations }}" as="c" hint-placeholder-count="0"><a href="{{ c.url }}" target="_blank" rel="noopener noreferrer" style="color:var(--muted);text-decoration:underline;text-underline-offset:2px;">{{ c.title }}</a></sc-for>
+                  </div>
+                </details>
+              </sc-if>
               <sc-if value="{{ m.hasFollowUp }}" hint-placeholder-val="{{ false }}">
                 <button onClick="{{ m.askFollowUp }}" style="text-align:left;display:flex;flex-direction:column;gap:2px;background:transparent;border:1px dashed var(--accent);border-radius:8px;padding:8px 12px;color:var(--text);cursor:pointer;" style-hover="background:rgba(242,242,242,.1);border-style:solid;"><span style="font-size:12px;color:var(--accent);font-weight:600;">생각해 보기</span><span style="font-size:13px;line-height:1.5;">{{ m.followUp }}</span></button>
               </sc-if>
@@ -911,7 +917,7 @@ class Component extends DCLogic {
     const aiDown = S.ai === 'down';
     const lastUser = [...S.messages].reverse().find(m => m.role === 'user');
     const chatV = this.checkpoint.lockLearning(this.chat.vals(D));
-    const messages = chatV.messages.map(m => ({ ...m, isError: m.role === 'assistant' && m.evidence === 'error', isOk: m.isAssistant && m.evidence !== 'error', retry: () => { this.pingAI(); if (lastUser) this.ask(lastUser.text); } }));
+    const messages = chatV.messages.map(m => ({ ...m, isError: m.role === 'assistant' && m.evidence === 'error', isOk: m.isAssistant && m.evidence !== 'error', hasCitations: !!m.citations?.length, citeLabel: `근거 ${m.citations?.length || 0}개`, retry: () => { this.pingAI(); if (lastUser) this.ask(lastUser.text); } }));
     const lightVp = !dark;
     // 2D 뷰: 탑뷰(실사) / 평면도·정면도(선화) + 표제란
     const is2d = !site && S.view === '2d', dm = S.drawMode || 'top', bpMode = is2d && dm !== 'top';

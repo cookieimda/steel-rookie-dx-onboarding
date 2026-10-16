@@ -690,7 +690,15 @@
                 <sc-if value="{{ m.hasKeywordCard }}" hint-placeholder-val="{{ false }}">
                   <div class="dg-cut dg-s" style="padding:9px 12px;background:var(--panel2);display:flex;flex-direction:column;gap:6px;"><span style="font-size:15px;color:var(--muted);">핵심 용어 · {{ m.keywordCard.title }}</span><div style="display:flex;flex-wrap:wrap;gap:4px;"><sc-for list="{{ m.keywordCard.keywords }}" as="k" hint-placeholder-count="0"><span style="font-size:15px;padding:2px 8px;background:var(--panel2);">{{ k.text }}</span></sc-for></div></div>
                 </sc-if>
-                <sc-for list="{{ m.citations }}" as="c" hint-placeholder-count="0"><span style="font-size:15px;color:var(--muted);padding:0 6px;line-height:1.45;">근거 · {{ c.title }}</span></sc-for>
+                <!-- 근거는 접어 두고 '근거 N개'를 누르면 펼친다(2026-10-16). 제목을 누르면 출처가 새 탭에서 열린다. -->
+                <sc-if value="{{ m.hasCitations }}" hint-placeholder-val="{{ false }}">
+                  <details style="padding:0 6px;font-size:15px;color:var(--muted);line-height:1.45;">
+                    <summary style="cursor:pointer;">{{ m.citeLabel }}</summary>
+                    <div style="display:flex;flex-direction:column;gap:2px;margin-top:4px;">
+                      <sc-for list="{{ m.citations }}" as="c" hint-placeholder-count="0"><a href="{{ c.url }}" target="_blank" rel="noopener noreferrer" style="color:var(--muted);text-decoration:underline;text-underline-offset:2px;">{{ c.title }}</a></sc-for>
+                    </div>
+                  </details>
+                </sc-if>
                 <sc-if value="{{ m.hasFollowUp }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ m.askFollowUp }}" class="dg-chip dg-cut dg-s" style="white-space:normal;">{{ m.followUp }}</button></sc-if>
               </div>
             </div>
@@ -754,7 +762,7 @@ function dmMessages(list) {
     return { ...m, isIn: !out, justify: out ? 'flex-end' : 'flex-start', align: out ? 'flex-end' : 'flex-start', gapTop: i === 0 ? '0' : first ? '12px' : '2px',
       bg: out ? 'var(--orange)' : safety || error ? 'transparent' : 'var(--bubble-in)',
       border: safety ? '1px solid var(--bad)' : error ? '1px solid var(--line)' : '0', color: out ? 'var(--orange-ink)' : safety ? 'var(--bad)' : error ? 'var(--muted)' : 'var(--text)',
-      hasKeywordCard: !!m.hasKeywordCard, keywordCard: m.keywordCard || { title: '', keywords: [] }, citations: m.citations || [], hasFollowUp: !!m.hasFollowUp };
+      hasKeywordCard: !!m.hasKeywordCard, keywordCard: m.keywordCard || { title: '', keywords: [] }, citations: m.citations || [], hasCitations: !!m.citations?.length, citeLabel: `근거 ${m.citations?.length || 0}개`, hasFollowUp: !!m.hasFollowUp };
   });
 }
 const token = () => { try { return localStorage.getItem('st-rookie-token') || sessionStorage.getItem('st-rookie-token'); } catch (e) { return null; } };

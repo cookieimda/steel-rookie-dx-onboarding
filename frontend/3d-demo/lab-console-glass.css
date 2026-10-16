@@ -1,0 +1,93 @@
+/* 3D 공정 화면(steel-index) 유리 패널: lab-console.css(ssoyoum) 뒤에 읽어 색·투명도·글자 무게만 덮어쓴다. 배치·크기·동작은 lab-console.css 그대로.
+   레퍼런스(가운데 3D + 양옆 조절 패널) 명도 대비: 배경보다 4~8%만 밝은 반투명 판 + 흐림, 얇은 밝은 테두리,
+   라벨은 흐리게(55%), 주요 숫자는 얇고 크고 밝게(95%). 색은 의미가 있는 곳(오름 파랑·내림 빨강·온도 스펙트럼·선택 표시)에만 쓴다. */
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500&display=swap");
+
+:root {
+  --glass: rgba(34, 38, 50, .42);        /* 판: 남회색 바탕보다 살짝 밝게, 3D가 비치게 */
+  --glass-2: rgba(255, 255, 255, .045);   /* 판 안의 작은 칸 */
+  --glass-3: rgba(255, 255, 255, .08);    /* 버튼·누름 */
+  --glass-line: rgba(255, 255, 255, .09); /* 얇은 테두리 */
+  --glass-hi: rgba(255, 255, 255, .07);   /* 위쪽 가장자리 빛 */
+  --ink-hi: rgba(255, 255, 255, .95);     /* 주요 숫자 */
+  --ink: rgba(255, 255, 255, .82);        /* 본문 */
+  --ink-lo: rgba(255, 255, 255, .55);     /* 라벨 */
+  --ink-xlo: rgba(255, 255, 255, .36);    /* 눈금·보조 */
+  --up: #7aa7ff; --down: #ff6b6b;
+  --f-num: "Manrope", "Noto Sans KR", system-ui, sans-serif;
+  --blur: blur(18px) saturate(1.15);
+}
+
+/* ---- 3D 바탕: 거의 검정(#0d1114)을 레퍼런스처럼 짙은 남회색으로 올린다 ----
+   screen 합성이라 검은 곳만 밝아지고 밝은 설비 모델은 거의 그대로다. 장면 색(steel-index.js)은 건드리지 않는다. */
+#stage::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; mix-blend-mode: screen;
+  background: radial-gradient(ellipse 70% 60% at 50% 46%, rgba(52, 60, 82, .55), rgba(30, 35, 50, .42) 60%, rgba(14, 16, 24, .25) 100%);
+}
+
+/* ---- 양옆 패널 ---- */
+.lab-pane, .process-lab .right {
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  border: 1px solid var(--glass-line); border-radius: 16px;
+  box-shadow: inset 0 1px 0 var(--glass-hi), 0 24px 60px rgba(0, 0, 0, .35);
+  color: var(--ink);
+}
+.lab-pane-head { background: transparent; border-bottom: 1px solid rgba(255, 255, 255, .06); padding: 20px 22px 16px; }
+.lab-pane-head > span { color: var(--ink-xlo); letter-spacing: .16em; }
+.lab-pane-head h2 { font: 300 26px/1.25 var(--f-num); letter-spacing: -.01em; color: var(--ink-hi); }
+.lab-pane-head > b { color: var(--ink-lo); font-size: 14px; }
+.lab-pane-body { scrollbar-color: rgba(255, 255, 255, .18) transparent; }
+
+/* 큰 값: 얇고 밝게 */
+.lab-step-value > span { color: var(--ink-lo); font-size: 14px; }
+.lab-step-value > strong { font: 200 34px/1.25 var(--f-num); letter-spacing: -.01em; color: var(--ink-hi); }
+.lab-gauge strong { font: 200 34px/1.4 var(--f-num); color: var(--ink-hi); }
+.lab-gauge strong small { font: 300 16px var(--f-num); color: var(--ink-lo); }
+.lab-temperature-result b { font: 300 24px var(--f-num); color: var(--ink-hi); }
+
+/* 판 안의 칸: 테두리 대신 아주 옅은 면 */
+.lab-gauge, .lab-temperature-result > div, .lab-status {
+  background: var(--glass-2); border: 1px solid rgba(255, 255, 255, .06); border-radius: 12px; box-shadow: none;
+}
+.lab-temperature-result > div, .lab-status { border-left-width: 1px; }
+.lab-gauge > span, .lab-temperature-result span, .lab-scale, .lab-gauge p, .lab-muted, .lab-pane summary { color: var(--ink-lo); }
+.lab-status { color: var(--ink); }
+.lab-temperature-result small { color: var(--ink-lo); }
+
+/* 온도 그래프: 흐린 격자 + 밝은 가는 선, 고른 단계만 따뜻한 점 */
+.lab-chart { background: linear-gradient(rgba(255, 255, 255, .045) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, .045) 1px, transparent 1px); background-size: 22px 22px; }
+.lab-chart path { stroke: rgba(255, 255, 255, .12); }
+.lab-chart text { fill: var(--ink-xlo); }
+.lab-chart polyline { stroke: rgba(255, 255, 255, .85); stroke-width: 1.6; }
+.lab-chart circle { fill: var(--hot); stroke: rgba(13, 17, 20, .9); stroke-width: 2; }
+
+/* 슬라이더: 가는 밝은 선 + 흰 손잡이. 값은 얇은 숫자 */
+.lab-slider { border-bottom: 1px solid rgba(255, 255, 255, .06); color: var(--ink); }
+.lab-slider output { font: 400 15px var(--f-num); color: var(--ink-hi); }
+.lab-slider input { -webkit-appearance: none; appearance: none; background: transparent; min-height: 28px; }
+.lab-slider input::-webkit-slider-runnable-track { height: 2px; border-radius: 2px; background: rgba(255, 255, 255, .2); }
+.lab-slider input::-moz-range-track { height: 2px; border-radius: 2px; background: rgba(255, 255, 255, .2); }
+.lab-slider input::-moz-range-progress { height: 2px; border-radius: 2px; background: rgba(255, 255, 255, .75); }
+.lab-slider input::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; margin-top: -6px; border-radius: 50%; background: #fff; border: 0; box-shadow: 0 0 0 4px rgba(255, 255, 255, .1), 0 2px 6px rgba(0, 0, 0, .5); }
+.lab-slider input::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 0; box-shadow: 0 0 0 4px rgba(255, 255, 255, .1), 0 2px 6px rgba(0, 0, 0, .5); }
+.lab-slider input:focus-visible { outline: 2px solid rgba(255, 255, 255, .6); outline-offset: 4px; }
+
+/* 버튼: 유리 위 옅은 면 */
+.lab-button { background: var(--glass-3); border: 1px solid var(--glass-line); border-radius: 10px; color: var(--ink); }
+.lab-button:hover { background: rgba(255, 255, 255, .13); border-color: rgba(255, 255, 255, .2); color: var(--ink-hi); }
+
+/* 온도 스펙트럼 바늘은 흰색 유지, 바는 조금 얇게 */
+.lab-spectrum { height: 6px; border-radius: 6px; margin: 16px 0 10px; }
+.lab-spectrum i { top: -6px; height: 18px; width: 2px; border-radius: 2px; }
+
+/* ---- 위 알약 바·아래 재생 바도 같은 유리 ---- */
+.top .tabs, .top .seg, .top .rb { background: rgba(26, 29, 38, .5); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); box-shadow: inset 0 0 0 1px var(--glass-line); }
+.top .rb:hover, .top .tabs button:hover { background: rgba(255, 255, 255, .1); }
+.bar { background: rgba(26, 29, 38, .5); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); border: 1px solid var(--glass-line); box-shadow: inset 0 1px 0 var(--glass-hi), 0 18px 40px rgba(0, 0, 0, .35); }
+.bar .play { background: var(--glass-3); border-color: var(--glass-line); }
+
+/* 흐림을 못 쓰는 브라우저는 판을 조금 더 진하게 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .lab-pane, .process-lab .right, .top .tabs, .top .seg, .top .rb, .bar { background: rgba(22, 25, 33, .9); }
+}

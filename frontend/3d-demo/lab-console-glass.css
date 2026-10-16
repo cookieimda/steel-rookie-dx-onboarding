@@ -22,7 +22,8 @@
    screen 합성이라 어두운 곳만 밝아지고 밝은 설비 모델은 거의 그대로다. 장면 색(steel-index.js)은 건드리지 않는다. */
 #stage::after {
   content: ""; position: absolute; inset: 0; pointer-events: none; mix-blend-mode: screen;
-  background: linear-gradient(to top, rgba(74, 77, 86, .62) 0%, rgba(52, 55, 64, .44) 28%, rgba(26, 28, 34, .2) 58%, rgba(0, 0, 0, 0) 85%);
+  /* 회색이 화면 위 30% 지점(패널 머리 아래)까지 올라오고, 그 위만 검정으로 잦아든다 */
+  background: linear-gradient(to top, rgba(86, 89, 98, .7) 0%, rgba(70, 73, 82, .6) 30%, rgba(52, 55, 64, .46) 52%, rgba(36, 38, 46, .32) 70%, rgba(14, 15, 19, .1) 86%, rgba(0, 0, 0, 0) 100%);
 }
 
 /* ---- 양옆 패널 ---- */
@@ -118,6 +119,9 @@
 .top .rb:hover, .top .tabs button:hover { background: rgba(255, 255, 255, .1); }
 .bar { background: rgba(26, 29, 38, .5); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); border: 1px solid var(--glass-line); box-shadow: inset 0 1px 0 var(--glass-hi), 0 18px 40px rgba(0, 0, 0, .35); }
 .bar .play { background: var(--glass-3); border-color: var(--glass-line); }
+/* 아래 재생 바의 설비 이름은 '…'로 자르지 않고 다 보인다. 넘치면 바 안에서 옆으로 넘겨 본다(.track overflow-x) */
+.bar .stop, .process-lab .bar .stop { max-width: none; flex-shrink: 0; }
+.bar .stop span { overflow: visible; text-overflow: clip; white-space: nowrap; }
 
 /* 흐림을 못 쓰는 브라우저는 판을 조금 더 진하게 */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {

@@ -14,6 +14,7 @@ import { icon, stepIcon, parseTemp, heatOf } from './steel-index-ui.js';
 import { createSection } from './steel-index-section.js';
 import { attachLabConsole } from './lab-console.js';
 import { createWorkFx } from './work-fx.js';
+import { createOutline } from './lab-outline.js';
 
 const { PROCESSES } = DATA;
 const ORANGE = 0xffa63d, RIPPLE = 0xffcc66; // 공정 자리 발광 테두리·선택 설비 물결은 노랑~주황 불빛(2026-10-14 요청, 전에는 물결이 시안)
@@ -80,6 +81,7 @@ glow.rotation.x = -Math.PI / 2; glow.position.y = 0.12; glow.renderOrder = 1; sc
 // 선택한 설비: 바닥에 굵은 링을 두지 않고, 15% 불투명 물결 두 개가 바깥으로 퍼진다(2026-10-13 요청)
 const ripples = [0, 1].map(() => { const r = new THREE.Mesh(new THREE.RingGeometry(0.97, 1, 96), new THREE.MeshBasicMaterial({ color: RIPPLE, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })); r.rotation.x = -Math.PI / 2; r.position.y = 0.1; r.renderOrder = 2; r.raycast = () => {}; scene.add(r); return r; });
 let rippleR = 3;
+ripples.forEach((r) => { r.visible = false; }); // 선택 설비는 바닥 물결 대신 카메라 기준 외곽선으로 보인다(lab-outline.js)
 
 // ---- 공정·설비 -------------------------------------------------------------------------------------
 const loader = new GLTFLoader();
@@ -302,7 +304,7 @@ function driveTick(now) { if (!drive) return; const T = 9000, u = Math.max(0, no
   warm.position.set(drive.warm0.x + ox, drive.warm0.y, drive.warm0.z + oz); ripples.forEach((r, i) => r.position.set(drive.rip0[i].x + ox, drive.rip0[i].y, drive.rip0[i].z + oz)); work.setOffset(ox, 0, oz);
   drive.e.box.setFromObject(n); }
 const _dv = new THREE.Vector3();
-function clearDim(p) { stopDrive(); section.hide(); work.stop(); warm.intensity = 0; ripples.forEach((r) => { r.material.opacity = 0; }); p.eqs.forEach((q) => q.node.traverse((o) => { if (!o.isMesh || !o.material.userData.color) return; const m = o.material; m.color.copy(m.userData.color); if (m.userData.emissive) { m.emissive.copy(m.userData.emissive); m.emissiveIntensity = m.userData.emissiveI; } })); }
+function clearDim(p) { outline.clear(); stopDrive(); section.hide(); work.stop(); warm.intensity = 0; ripples.forEach((r) => { r.material.opacity = 0; }); p.eqs.forEach((q) => q.node.traverse((o) => { if (!o.isMesh || !o.material.userData.color) return; const m = o.material; m.color.copy(m.userData.color); if (m.userData.emissive) { m.emissive.copy(m.userData.emissive); m.emissiveIntensity = m.userData.emissiveI; } })); }
 function enterStep(e, userAct = true) {
   if (!cur || !e || !e.up || sinking) return;
   if (userAct && tour) stopTour();
@@ -315,7 +317,7 @@ function enterStep(e, userAct = true) {
   const c = e.box.getCenter(new THREE.Vector3()), s = e.box.getSize(new THREE.Vector3());
   warm.position.set(c.x, e.box.max.y + 2, c.z); warm.intensity = 14;
   ripples.forEach((r) => r.position.set(c.x, 0.1, c.z)); rippleR = Math.max(2.5, Math.max(s.x, s.z) * 0.62);
-  startDrive(e);
+  startDrive(e); outline.select(e.node);
   cur.eqs.forEach((q) => q.node.traverse((o) => { if (!o.isMesh || !o.material.userData.color) return; const m = o.material; if (q === e) { m.color.copy(m.userData.color); if (m.userData.emissive) { m.emissive.copy(m.userData.emissive); m.emissiveIntensity = m.userData.emissiveI; } } else { m.color.copy(m.userData.color).multiplyScalar(0.6); if (m.userData.emissive) m.emissiveIntensity = m.userData.emissiveI * 0.5; } }));
   if (view === 'board') setView('3d', false); // 설비를 고르면 대시보드 보기에서 나온다
   animateTo(eqPose(e, orbit.yaw), 1200);
@@ -381,7 +383,7 @@ renderer.domElement.addEventListener('wheel', (e) => { e.preventDefault(); orbit
 // ---- 루프 ---------------------------------------------------------------------------------------------
 const composer = new EffectComposer(renderer);
 const renderPass = new RenderPass(scene, camera); composer.addPass(renderPass);
-const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.15, 0.3, 1.6); composer.addPass(bloom); composer.addPass(new OutputPass());
+const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.15, 0.3, 1.6); composer.addPass(bloom); const outline = createOutline(scene, camera); composer.addPass(outline.pass); composer.addPass(new OutputPass());
 function resize() { const w = stage.clientWidth || 1, h = stage.clientHeight || 1; renderer.setSize(w, h, false); composer.setSize(w, h); bloom.resolution.set(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); applyViewOffset();  if (cur && !curEq) { home = fitHome(cur); animateTo(home, 450); } }
 // 오른쪽 패널이 열리면 패널 폭의 절반만큼 장면을 왼쪽으로 밀어, 고른 설비가 패널에 가리지 않고 남은 영역 가운데에 온다(2026-10-14 요청). 천천히 옮겨 간다
 let viewOff = 0;

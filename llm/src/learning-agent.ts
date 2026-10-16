@@ -12,6 +12,7 @@ import { escapeDelimited, GeminiCallError, renderPrompt, type GenerateRequest, t
 import { politeText } from "./polite.js";
 import type { Retrieved, Screen } from "./retrieval.js";
 import { compactLearningInput } from "./learning-context.js";
+import { affirms, checkMisconception, isAssertion, misconceptionSummary, topicCandidates, type WrongIdea } from "./misconception-check.js";
 import { currentTrace } from "./trace.js";
 
 const MAX_ATTEMPTS = 2;
@@ -70,7 +71,8 @@ export interface LearningInput {
   /** 이 섹션의 미해결 오개념 요약(학습자 메모). */
   openMisconceptions: { concept_id: string; summary: string }[];
   /** 오개념을 붙일 수 있는 개념(루브릭). 비어 있으면 오개념을 기록하지 않는다. */
-  concepts: { concept_id: string; name: string }[];
+  /** wrong: 루브릭 criteria.wrong(틀린 생각 예). 로컬 모델의 오개념 확인(misconception-check.ts)에만 쓰고 답 프롬프트에는 넣지 않는다. */
+  concepts: { concept_id: string; name: string; wrong?: string }[];
   glossary?: GlossaryEntry[];
   /** 화면 조작에 쓸 공정·설비 목록. 없으면 scene_actions는 항상 빈 배열이다. */
   scene?: SceneCatalog;
@@ -466,11 +468,32 @@ export class GeminiLearningAgent implements LearningAgent {
       const result = parseLearningReply(raw, input);
       if (typeof result !== "string") {
         record(modelProposal(raw));
-        return result;
+        return this.profile === "compact" ? this.withMisconceptionCheck(result, input) : result;
       }
       formatProblems.push(result);
     }
     record(null);
     throw new LearningFormatError(`학습 모드 응답 형식 오류(${MAX_ATTEMPTS}회): ${formatProblems.at(-1)}`);
+  }
+
+  /**
+   * 로컬 모델이 단정하는 말에서 오개념을 비워 두면 짧은 확인 호출로 채운다(misconception-check.ts). 답은 바꾸지 않는다.
+   * 확인 호출이 실패해도(연결·하루 한도) 답은 그대로 돌려준다.
+   */
+  private async withMisconceptionCheck(reply: LearningReply, input: LearningInput): Promise<LearningReply> {
+    // 단정하는 말이고, 튜터가 맞다고 받지 않았고, 질문에 개념 주제어가 있을 때만 부른다(맞는 말·엉뚱한 개념을 고르던 문제, misconception-check.ts).
+    if (reply.detected_misconception || !isAssertion(input.question) || affirms(reply.answer)) return reply;
+    const ideas = topicCandidates(input.question, input.concepts.filter((c): c is WrongIdea => !!c.wrong));
+    if (!ideas.length) return reply;
+    const trace = currentTrace();
+    try {
+      const picked = await checkMisconception(this.gemini, input.question, ideas);
+      trace?.set("misconception_check", { picked });
+      const idea = ideas.find((i) => i.concept_id === picked);
+      return idea ? { ...reply, detected_misconception: { concept_id: idea.concept_id, summary: misconceptionSummary(input.question, idea.name) } } : reply;
+    } catch (error) {
+      trace?.set("misconception_check", { picked: null, error: (error as Error)?.message ?? String(error) });
+      return reply;
+    }
   }
 }

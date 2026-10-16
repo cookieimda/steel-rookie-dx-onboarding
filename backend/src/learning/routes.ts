@@ -182,7 +182,8 @@ export function createLearningRouter({ repo, retriever, agent, rubrics, scene, s
       chunks,
       history: args.history,
       openMisconceptions: args.openMisconceptions,
-      concepts: rubric?.concepts.map((c) => ({ concept_id: c.concept_id, name: c.name })) ?? [],
+      // wrong(루브릭 틀린 생각 예)은 로컬 모델의 오개념 확인 호출에만 쓴다(llm/src/misconception-check.ts).
+      concepts: rubric?.concepts.map((c) => ({ concept_id: c.concept_id, name: c.name, wrong: c.wrong })) ?? [],
       glossary: rubric?.glossary ?? [],
       scene,
       // 체크포인트 진행 중에는 카드를 고를 수 없게 목록을 비운다.

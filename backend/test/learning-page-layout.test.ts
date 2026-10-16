@@ -43,8 +43,8 @@ test("헤더·학습 영역: 구역 표시, 버튼 이름, 튜터 패널, 헤더
   assert.match(template, /class="dg-ink dg-cut tutor[ "]/);
 });
 
-test("구역 순서: 헤더 → 불러오기 오류 줄 → 학습 영역(복습 → 내 오개념)", () => {
-  const at = ["header", "hero", "workspace", "review", "misconceptions"].map(k => template.indexOf(`data-sec="${k}"`));
+test("구역 순서: 헤더 → 불러오기 오류 줄 → 학습 영역(사원증 → 그 안의 복습)", () => {
+  const at = ["header", "hero", "workspace", "card", "review"].map(k => template.indexOf(`data-sec="${k}"`));
   at.forEach((n, i) => assert.ok(n > 0, `data-sec ${i}번째 없음`));
   assert.deepEqual([...at].sort((a, b) => a - b), at);
 });
@@ -54,10 +54,11 @@ test("템플릿에 모서리 값을 직접 쓰지 않는다(모서리는 공용 
   assert.doesNotMatch(template, /class="(card|folder|ftab)/);
 });
 
-test("평가 시험은 헤더 버튼 하나(아래 띠 없음), 오개념은 펼쳐 보기", () => {
+test("평가 시험은 헤더 버튼 하나(아래 띠 없음), 내 오개념 탭 없음", () => {
   assert.match(template, /<a href="\/exam" target="_top" class="dg-btn dg-btn-primary[^"]*">평가 시험<\/a>/);
   assert.doesNotMatch(template, /data-sec="exam"|PROVE &amp; PASS/);
-  assert.match(template, /<details class="dg-acc">/);
+  assert.doesNotMatch(template, /data-sec="misconceptions"/);
+  assert.doesNotMatch(page, /\['mis', /);
 });
 
 test("최종 검토 반영: 칩 포커스 2px, 펼침 줄 포커스", () => {
@@ -70,11 +71,13 @@ test("UI 편집 반영: 튜터 칸 348px", () => {
   assert.match(page, /\.learn\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) 348px/);
 });
 
-test("복습·내 오개념·사원증·학습 랩은 학습 모듈 탭에서 연다(내 현황 탭 없음)", () => {
-  assert.match(page, /\['steps', '작동 단계'\], \['blueprint', '설계도·필기'\], \['review', '복습'\], \['mis', '내 오개념'\], \['card', '사원증'\], \['lab', '학습 랩'\]\]/);
+test("사원증(복습 포함)·학습 랩은 학습 모듈 탭에서 연다(내 현황·복습 탭 없음)", () => {
+  assert.match(page, /\['steps', '작동 단계'\], \['lab', '학습 랩'\], \['blueprint', '설계도·필기'\], \['card', '사원증'\]\]/);
+  const card = template.slice(template.indexOf('data-sec="card"'), template.indexOf('data-sec="lab"'));
+  assert.ok(card.includes('data-sec="review"'), "복습은 사원증 판 안에");
   assert.doesNotMatch(template, /data-sec="status"/);
   const learn = template.slice(template.indexOf('data-sec="workspace"'), template.indexOf('<div class="side">'));
-  for (const k of ["review", "misconceptions", "card", "lab"]) assert.ok(learn.includes(`data-sec="${k}"`), `학습 모듈 안에 ${k}`);
+  for (const k of ["review", "card", "lab"]) assert.ok(learn.includes(`data-sec="${k}"`), `학습 모듈 안에 ${k}`);
   assert.doesNotMatch(template, /dg-split/);
 });
 

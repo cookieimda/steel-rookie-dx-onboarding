@@ -141,13 +141,12 @@
     /* 헤더의 불꽃·직급 칩(듀오링고 상단 막대처럼). 누르면 사원증 탭 */
     .ec-chip { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
     .ec-chip em { font-style: normal; color: var(--muted); font-weight: 600; }
+    .ec-review { display: flex; flex-direction: column; gap: 16px; padding: 0 22px 22px; }
     @media (max-width: 900px) { .ec { grid-template-columns: 1fr; } }
     @media (prefers-reduced-motion: reduce) { .ec-card, .ec-card::after, .ec-flame.on, .ec-promo-box, .ec-confetti i { animation: none !important; transition: none !important; } }
     /* ── 학습 랩 탭(2026-10-15): 간격 반복·주간 리그·보고서·세션 리플레이. 로직은 learning-lab.js, 서버는 backend/src/lab/ ── */
     .lb { flex-direction: column; gap: 16px; padding: 20px 22px 22px; min-width: 0; }
     .lb-sub { display: flex; flex-wrap: wrap; gap: 6px; }
-    .dg-mis-map { display: inline-block; margin-top: 6px; font-size: 15px; font-weight: 700; color: var(--orange); text-decoration: none; }
-    .dg-mis-map:hover, .dg-mis-map:focus-visible { text-decoration: underline; }
     /* 오늘의 실습 경로(학습 랩 맨 위): 가장 약한 공정 → 3D 인과 지도·인과 퀴즈·이상 상황 훈련 */
     .lb-path { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: var(--cut); border: 1px solid color-mix(in srgb, var(--orange) 45%, transparent); background: color-mix(in srgb, var(--orange) 8%, var(--panel2)); }
     .lb-path-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
@@ -389,43 +388,6 @@
         </div>
         <span style="font-size:15px;color:var(--dim);">도면 위에 펜·형광펜으로 그리거나 텍스트(T)로 메모하면 공정·도면마다 내 계정에 저장돼요. 도면 이동·확대는 3D 화면의 2D 뷰에서 할 수 있어요.</span>
       </section>
-      <!-- 복습·내 오개념: 학습 모듈 탭에서 연다(2026-10-15). 탭을 열 때 창이 뜨듯 들어온다(dg-pop). 복습: 다시 볼 개념(이해도 확인 최근 결과 기준) -->
-      <section class="dg-mframe dg-pane dg-pop" data-sec="review" aria-label="복습" style="display:{{ reviewDisplay }};">
-        <div class="dg-section-head">
-          <span class="dg-label">[ REVIEW ]</span>
-          <h2 class="dg-h2">다시 볼 개념</h2>
-          <span class="dg-count" style="color:{{ reviewCountColor }};">{{ reviewCount }}</span>
-          <span class="dg-sub">이해도 확인에서 최근에 받은 결과 기준</span>
-        </div>
-        <sc-if value="{{ reviewEmpty }}" hint-placeholder-val="{{ false }}"><span class="dg-empty">복습할 개념이 없습니다.</span></sc-if>
-        <div class="dg-list">
-          <sc-for list="{{ reviews }}" as="r" hint-placeholder-count="3">
-            <div class="dg-row">
-              <span class="dg-row-main"><strong>{{ r.name }}</strong><span class="dg-sub">{{ r.section }} · {{ r.date }}</span></span>
-              <span class="dg-tag" style="color:{{ r.color }};background:color-mix(in srgb, {{ r.color }} 14%, transparent);">{{ r.verdict }}</span>
-            </div>
-          </sc-for>
-        </div>
-      </section>
-      <!-- 내 오개념: 줄을 눌러 설명을 펼친다(본인 화면에만 보임) -->
-      <section class="dg-mframe dg-pane dg-pop" data-sec="misconceptions" aria-label="내 오개념" style="display:{{ misDisplay }};">
-        <div class="dg-section-head">
-          <span class="dg-label">[ MISCONCEPTIONS ]</span>
-          <h2 class="dg-h2">내 오개념</h2>
-          <span class="dg-count" style="color:{{ misCountColor }};">{{ misCount }}</span>
-          <span class="dg-sub">내용과 답변은 본인에게만 표시됩니다</span>
-        </div>
-        <sc-if value="{{ misEmpty }}" hint-placeholder-val="{{ false }}"><span class="dg-empty">기록된 오개념이 없습니다.</span></sc-if>
-        <div class="dg-list">
-          <sc-for list="{{ misconceptions }}" as="m" hint-placeholder-count="3">
-            <details class="dg-acc">
-              <summary><strong>{{ m.name }}</strong><span style="color:{{ m.color }};">{{ m.status }}</span><i aria-hidden="true">+</i></summary>
-              <p>{{ m.summary }}</p>
-              <sc-if value="{{ m.hasMap }}" hint-placeholder-val="{{ false }}"><a class="dg-mis-map" href="{{ m.mapHref }}">🗺 인과 지도에서 이 개념 보기 · {{ m.mapVars }}</a></sc-if>
-            </details>
-          </sc-for>
-        </div>
-      </section>
       <!-- 사원증: 왼쪽 카드(직급·재질이 공부할수록 올라감), 오른쪽 연속 학습일·직급 사다리·오늘의 미션·배지 -->
       <section class="dg-mframe dg-pane dg-pop" data-sec="card" aria-label="사원증" style="display:{{ cardDisplay }};padding:0;">
         <sc-if value="{{ cardMissing }}" hint-placeholder-val="{{ false }}"><span class="dg-empty" style="padding:22px;">{{ cardMissingText }}</span></sc-if>
@@ -484,6 +446,24 @@
           </div>
         </div>
         </sc-if>
+        <!-- 복습: 사원증 탭 아래에 둔다(2026-10-16). 다시 볼 개념(이해도 확인 최근 결과 기준) -->
+        <div class="ec-review" data-sec="review" aria-label="복습">
+          <div class="dg-section-head">
+            <span class="dg-label">[ REVIEW ]</span>
+            <h2 class="dg-h2">다시 볼 개념</h2>
+            <span class="dg-count" style="color:{{ reviewCountColor }};">{{ reviewCount }}</span>
+            <span class="dg-sub">이해도 확인에서 최근에 받은 결과 기준</span>
+          </div>
+          <sc-if value="{{ reviewEmpty }}" hint-placeholder-val="{{ false }}"><span class="dg-empty">복습할 개념이 없습니다.</span></sc-if>
+          <div class="dg-list">
+            <sc-for list="{{ reviews }}" as="r" hint-placeholder-count="3">
+              <div class="dg-row">
+                <span class="dg-row-main"><strong>{{ r.name }}</strong><span class="dg-sub">{{ r.section }} · {{ r.date }}</span></span>
+                <span class="dg-tag" style="color:{{ r.color }};background:color-mix(in srgb, {{ r.color }} 14%, transparent);">{{ r.verdict }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
       </section>
       <!-- 학습 랩: 간격 반복·주간 리그·보고서·세션 리플레이(learning-lab.js, 서버 backend/src/lab/) -->
       <section class="dg-mframe dg-pane dg-pop lb" data-sec="lab" aria-label="학습 랩" style="display:{{ labDisplay }};">
@@ -797,7 +777,7 @@ const initialsOf = name => { const s = (name || '').trim(); return /[가-힣]/.t
 class Component extends DCLogic {
   state = { data: null, processes: [], error: null, theme: 'light', loadedAt: null, ai: null, sideTab: 'ask',
     processId: 'ironmaking', selectedId: 'sinter_plant', messages: [], input: '', pending: false, lastReq: null, lastRes: null, lastResults: [], speed: 1,
-    moduleTab: 'steps', drawMode: 'plan' }; // 학습 모듈 탭(steps 작동 단계 | blueprint 설계도·필기 | review 복습 | mis 내 오개념)과 도면(top·plan·front)
+    moduleTab: 'steps', drawMode: 'plan' }; // 학습 모듈 탭(steps 작동 단계 | lab 학습 랩 | blueprint 설계도·필기 | card 사원증(복습 포함))과 도면(top·plan·front)
   chatRef = React.createRef();
   componentDidMount() {
     document.body.dataset.theme = this.state.theme;
@@ -834,7 +814,6 @@ class Component extends DCLogic {
     if (!auth) { this.setState({ error: '로그인한 뒤 학습 현황을 볼 수 있습니다.' }); return; }
     // 학습 랩(learning-lab.js): 이 화면의 리플레이 기록을 시작한다(본인만 보고 [기록 끄기]로 멈춘다)
     import('./learning-lab.js').then(({ createLearningLab }) => { this.lab = createLearningLab(this); this.lab.track('start', { tab: this.state.moduleTab, process: this.state.processId }); this.lab.startBell(); this.forceUpdate(); });
-    fetch('/api/lab/causal/concepts', { headers: { authorization: 'Bearer ' + auth } }).then(r => (r.ok ? r.json() : null)).then(j => { if (j) this.setState({ causalConcepts: j.concepts }); }).catch(() => {});
     fetch('/api/me/dashboard', { headers: { authorization: 'Bearer ' + auth } })
       .then(async response => { if (!response.ok) throw new Error('학습 현황을 DB에서 불러오지 못했습니다.'); return response.json(); })
       .then(data => { this.setState({ data, loadedAt: new Date() }); this.checkPromotion(data); }, error => this.setState({ error: error.message }));
@@ -943,8 +922,6 @@ class Component extends DCLogic {
     const S = this.state, D = S.data;
     const process = section => S.processes.find(p => p.id === section) || { num: '', name: section, equipment: [] };
     const conceptName = (section, id, name) => name || process(section).equipment.find(e => e.id === id)?.name || `${process(section).name} 관련 개념`;
-    const misconceptions = D?.misconceptions || [];
-    const open = misconceptions.filter(m => !m.resolved).length;
     const reviews = (D?.review_concepts || []).map(r => ({
       name: conceptName(r.section, r.concept_id, r.concept_name), section: process(r.section).name,
       date: r.updated_at.slice(0, 10), verdict: r.recheck_verdict === 'partial' || r.verdict === 'partial' ? '부분 이해' : r.verdict === 'assisted' ? '도움 받음' : '재확인 필요',
@@ -965,12 +942,11 @@ class Component extends DCLogic {
       showAsk: true,
       processId: S.processId, selectedAttr: S.selectedId || '', chatRef: this.chatRef,
       // 학습 모듈 탭과 설계도·필기
-      moduleTabs: [['steps', '작동 단계'], ['blueprint', '설계도·필기'], ['review', '복습'], ['mis', '내 오개념'], ['card', '사원증'], ['lab', '학습 랩']].map(([k, label]) => ({ label, on: S.moduleTab === k,
-        // 복습·내 오개념 탭 옆 개수: 다시 볼 개념 수, 미해결 오개념 수(탭을 열지 않아도 보이게)
-        hasCount: !!D && (k === 'review' || k === 'mis'), count: k === 'review' ? reviews.length : open,
+      moduleTabs: [['steps', '작동 단계'], ['lab', '학습 랩'], ['blueprint', '설계도·필기'], ['card', '사원증']].map(([k, label]) => ({ label, on: S.moduleTab === k,
+        // 사원증 탭 옆 개수: 다시 볼 개념 수(탭을 열지 않아도 보이게)
+        hasCount: !!D && k === 'card', count: reviews.length,
         onClick: () => (k === 'blueprint' ? this.openBlueprint() : k === 'lab' ? this.openLab() : this.setState({ moduleTab: k })) })),
       stepsDisplay: S.moduleTab === 'steps' ? 'block' : 'none', blueprintDisplay: S.moduleTab === 'blueprint' ? 'flex' : 'none',
-      reviewDisplay: S.moduleTab === 'review' ? 'flex' : 'none', misDisplay: S.moduleTab === 'mis' ? 'flex' : 'none',
       cardDisplay: S.moduleTab === 'card' ? 'block' : 'none', labDisplay: S.moduleTab === 'lab' ? 'flex' : 'none',
       ...(this.lab ? this.lab.vals() : {}),
       ...this.cardVals(D),
@@ -991,15 +967,9 @@ class Component extends DCLogic {
       cantSend: S.pending || !(chat.input || '').trim(), // 보내기: 보낼 수 있으면 주황 글자, 아니면 보조 글자색(흐리게 하지 않아 다크·라이트 모두 또렷하게)
       sendColor: S.pending || !(chat.input || '').trim() ? 'var(--muted)' : 'var(--orange-text)',
       input: chat.input, onInput: chat.onInput, send: chat.send,
-      // 복습 두 칸의 개수: 다시 볼 개념 수, 미해결 오개념 수(체크포인트 기록 기준, /api/me/dashboard)
+      // 복습 개수: 다시 볼 개념 수(/api/me/dashboard)
       reviewCount: D ? String(reviews.length) : '—', reviewCountColor: D && reviews.length ? 'var(--mid)' : 'var(--muted)',
-      misCount: D ? String(open) : '—', misCountColor: D && open ? 'var(--bad)' : 'var(--muted)',
       reviews, reviewEmpty: !!D && reviews.length === 0,
-      // 인과 지도 연결(/api/lab/causal/concepts): 그 개념의 첫 변수 설명 카드로 3D 인과 지도를 연다
-      misconceptions: misconceptions.slice(0, 8).map(m => { const cv = S.causalConcepts?.[m.concept_id]; return { name: conceptName(m.section, m.concept_id, m.concept_name), summary: m.summary,
-        status: m.resolved ? '해결됨' : m.label, color: m.resolved ? 'var(--ok)' : 'var(--bad)',
-        hasMap: !!cv, mapHref: cv ? `/3d-demo/causal-lab.html?p=${cv.section}&lab=map&var=${cv.vars[0]}` : '', mapVars: cv ? `${cv.vars.length}개 값` : '' }; }),
-      misEmpty: !!D && misconceptions.length === 0,
     };
   }
 }

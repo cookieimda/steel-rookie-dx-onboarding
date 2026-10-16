@@ -11,6 +11,7 @@ import { profileFor, providerInfo } from "../../../llm/src/provider.js";
 import type { EducationJobs, EducationJob } from "./jobs.js";
 import { EducationRepository, hashOf, koreanDay } from "./repository.js";
 import { MaterialWorkflow } from "./workflow.js";
+import type { ConceptTopic } from "../me/concept-topic.js";
 
 const Section = z.enum(SECTION_ORDER);
 const Day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((day) => {
@@ -34,6 +35,8 @@ const idOf = (req: Request) => String(req.params.id);
 export interface EducationDeps {
   auth: AuthDeps; engine: CheckpointEngine; jobs: EducationJobs; repo: EducationRepository;
   onMaterialsChanged?: (section: Section) => void; metadata?: () => Record<string, unknown>;
+  /** 복습 항목의 표시 경로·다시 볼 핵심(me/concept-topic.ts). 없으면 topic을 붙이지 않는다. */
+  topicOf?: (section: string, conceptId: string, explainFrom?: number | null) => ConceptTopic;
 }
 /**
  * 채점 이력에 남기는 모델 정보: 지금 provider·모델(llm/src/provider.ts)과 채점 보강을 켰는지, 프롬프트 해시.
@@ -46,7 +49,7 @@ function examMetadata(): Record<string, unknown> {
   return { provider: info.provider, model: info.model, evaluator_guards: guards, prompt_hash: hashOf(prompts.map((name) => readFileSync(join(process.cwd(), "llm", "prompts", `${name}.md`), "utf8"))) };
 }
 
-export function createEducationRouter({ auth, engine, jobs, repo, onMaterialsChanged, metadata }: EducationDeps) {
+export function createEducationRouter({ auth, engine, jobs, repo, onMaterialsChanged, metadata, topicOf }: EducationDeps) {
   const router = Router(), login = requireUser(auth), db = repo.db;
   // 자료 검수 단계 기록(012). 등록·승인·반려도 같은 기록을 남긴다(workflow-routes.ts가 검수 요청·수정 요청·수정본을 더한다).
   const workflow = new MaterialWorkflow(db);
@@ -101,7 +104,10 @@ export function createEducationRouter({ auth, engine, jobs, repo, onMaterialsCha
   router.delete("/api/exam-jobs/:id", login, handle((req, res) => res.json(jobs.cancel(idOf(req), owner(res)))));
   router.get("/api/me/exam-history", login, handle((req, res) => res.json({ events: repo.history(owner(res), typeof req.query.attempt === "string" ? req.query.attempt : undefined) })));
   router.get("/api/admin/exam-history/:id", login, requireAdmin, handle((req, res) => res.json({ events: repo.history(idOf(req), undefined, true) })));
-  router.get("/api/me/reviews", login, handle((_req, res) => res.json({ today: koreanDay(), tasks: repo.reviews(owner(res)) })));
+  router.get("/api/me/reviews", login, handle((_req, res) => res.json({ today: koreanDay(), tasks: repo.reviews(owner(res)).map((t) => {
+    const row = t as typeof t & Record<string, unknown>;
+    return topicOf ? { ...t, topic: topicOf(String(row.section), String(row.concept_id), row.explain_from == null ? null : Number(row.explain_from)) } : t;
+  }) })));
   router.post("/api/me/reviews/:id/complete", login, handle((req, res) => {
     if (!repo.completeReview(owner(res), idOf(req))) throw new CheckpointError(404, "복습 항목을 찾지 못했어요.");
     res.json({ completed: true });

@@ -58,7 +58,8 @@ export class EducationRepository {
   }
   reviews(userId: string) {
     this.syncReviews(userId);
-    return this.db.prepare("SELECT * FROM review_tasks WHERE user_id=? ORDER BY completed_at IS NOT NULL,due_date,concept_name").all(userId)
+    // explain_from: 그 시험에서 처음 놓친 핵심 요소(복습 화면의 '다시 볼 핵심', me/concept-topic.ts).
+    return this.db.prepare("SELECT t.*,c.explain_from FROM review_tasks t LEFT JOIN concept_results c ON c.attempt_id=t.based_attempt AND c.concept_id=t.concept_id WHERE t.user_id=? ORDER BY t.completed_at IS NOT NULL,t.due_date,t.concept_name").all(userId)
       .map((r) => ({ ...r, due: String(r.due_date) <= koreanDay(), completed: r.completed_at !== null }));
   }
   completeReview(userId: string, id: string) {

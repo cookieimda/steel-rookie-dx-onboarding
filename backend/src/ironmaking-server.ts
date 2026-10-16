@@ -13,6 +13,8 @@ import { createAuthRouter } from "./auth/routes.js";
 import { jwtSecret } from "./auth/tokens.js";
 import { UserRepository } from "./auth/users.js";
 import { createMeRouter } from "./me/routes.js";
+import { createTopicResolver } from "./me/concept-topic.js";
+import { defaultDemoSections } from "./admin/trainee-stats.js";
 import { loadDeck } from "./lab/deck.js";
 import { createLabRouter } from "./lab/routes.js";
 import { createLabExtrasRouter } from "./lab/extras-routes.js";
@@ -138,7 +140,8 @@ const auth = { users, secret: jwtSecret() };
 app.use(createAuthRouter(auth));
 // 관리자 AI 요약도 같은 LLM 클라이언트로 관리자 계정의 하루 호출 수를 센다.
 app.use(createAdminRouter(db, auth, { summarizer: new GeminiAdminSummarizer(llm) }));
-app.use(createMeRouter(db, auth));
+// 오개념·복습 표시 경로(공정 › 소단원 › 개념)에 설비 이름을 쓴다(me/concept-topic.ts).
+app.use(createMeRouter(db, auth, { scene: sceneCatalog }));
 // 학습 랩(학습 기록 화면의 '학습 랩' 탭): 간격 반복·주간 리그·xAPI 기록·세션 리플레이.
 const deck = await loadDeck();
 app.use(createLabRouter({ db, auth, deck }));
@@ -169,6 +172,8 @@ if (notifyEvery > 0) setInterval(() => { try { notifier.generateAll(); void noti
 // 평가 시험 API(/api/exams, /api/exam-jobs, /api/me/reviews·assignments·exam-history, /api/admin/education). 승인 자료가 바뀌면 검색·저장한 답을 다시 만든다.
 app.use(createEducationRouter({ auth, engine, jobs, repo: education,
   onMaterialsChanged: (section) => { retriever.invalidate(section); answerCache.clear(); },
+  // 복습 항목에 공정 › 소단원 › 개념과 다시 볼 핵심을 붙인다(me/concept-topic.ts).
+  topicOf: createTopicResolver({ rubrics, demo: defaultDemoSections(), scene: sceneCatalog }),
 }));
 // 보충학습(docs/supplementary-learning.md): 오개념이 있는 개념을 설명 → 확인 문제 → 채점 → 해결/다시 설명. 요청마다 trace(kind supplement).
 app.use("/api/learning/supplements", traceMiddleware("supplement", traceSink));

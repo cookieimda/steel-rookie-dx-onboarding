@@ -16,7 +16,14 @@
 // - 카메라: 네 구역 전체가 화면에 꼭 차는 거리(overviewPose)보다 멀리 빠지지 않는다. 지도 버튼은 그 시점으로 간다. 앞 구역 오른쪽 변에서 나와 돌아 내려가 다음 구역 왼쪽 변으로 들어간다(구역 경계로 경로를 만든다).
 // - 공정 구역: 제선 → 제강 → 연주 → 열연이 1·2·3·4 순서로 땅에서 솟는다(받침 없음, 지역 클리핑으로 땅 위만 그림). 구역 둘레 발광 테두리·연결선·투광등·물결은 노랑~주황 불빛(0xffa63d·0xffb352·0xffcc66, 2026-10-14 요청), 지금 구역은 15% 물결.
 // - 칩(번호·이름·[들어가기])과 흐름 라벨은 한꺼번에 띄우지 않는다: 구역이 솟을 때 3초만 보이고, 그 구역(또는 칩)에 마우스를 올리면 다시 보인다.
-// - 진행: ▶/⏸, [다음 공정], ← →, 숫자 키, Space. Enter = 지금 구역 들어가기. 수치는 data_v2.js에서만.
+// - 진행: ▶/⏸, [다음 공정], ← →, 숫자 키, Space. Enter = 지금 구역 들어가기(공정 화면). 수치는 data_v2.js에서만.
+// - 칩 버튼 두 개, 역할을 나눈다(2026-10-16 요청).
+//   [▶ 재생]: 다른 공정·소품·연결선·트럭을 숨기고 이 공정만 남겨 그 자리에서 확대, v4 단면 보기처럼 설비·단계를 재생한다(intro-tour.js: 단면 층·불티·작동 연출·외곽선,
+//   오른쪽 단계 설명 패널, 아래 설비 재생 바). 단계 설명은 이제 여기서만 본다(공정 화면 아래 카드에서 뺐다). Space 멈춤, ← → 설비 옮기기.
+//   [들어가기](Enter): 공정 화면(steel-index: 3D · 조업 전광판 · What-if 대시보드)으로 간다.
+//   재생하는 동안 트럭·열차·불빛 깜빡임은 멈춘다.
+// - 렉 줄이기(2026-10-16): 공정 모델 재질 공유 + 재질별 정적 병합(batchStatic), 그림자 지도는 무언가 솟거나 자랄 때만 다시 그림(shadowDirty),
+//   트럭·열차는 그림자를 드리우지 않음. 네 공정 전체 보기 기준 그리기 776 → 139번, 삼각형 495k → 249k(겉모습은 같다).
 // - 조작 안내(2026-10-15 요청): 들어오면 조작 안내 카드를 먼저 보이고, [시작하기] 뒤 위 연출이 시작된다. 보기 버튼 이름은 '2D | 3D'(2D = 위에서 본 전체 보기).
 //   2D에서 드래그하면 위에서 본 채로 평면 회전만 하고, 위아래로 끌거나 V 키를 누르면 3D로 바뀐다(markView로 위 토글도 같이).
 
@@ -31,6 +38,8 @@ import { PROCESSES } from './data_v2.js';
 import { icon } from './steel-index-ui.js';
 import { makeStockpile, makeSlabYard, makeSlabStack, makeCoilYard } from './plant-props.js';
 import { mergeGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/utils/BufferGeometryUtils.js/+esm';
+import { tuneRenderer, tuneShadowLight, tuneBloom, autoQuality } from './perf-mode.js'; // 발표 모드·자동 화질
+import { createIntroTour } from './intro-tour.js'; // [▶ 재생]: 단면·단계 재생
 
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const $ = (id) => document.getElementById(id);
@@ -53,6 +62,10 @@ const stage = $('stage'), hud = $('hud');
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5)); renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.localClippingEnabled = true;
+tuneRenderer(renderer);
+// 그림자 캐시(게임의 정적 그림자): 그림자 지도를 매 프레임 다시 그리지 않고, 공정이 솟거나 소품·소나무가 자라는 동안에만 다시 그린다(shadowDirty).
+// 다 솟은 뒤에는 그림자 패스 그리기가 0번이 된다. 트럭·열차는 밤에 그림자가 거의 안 보여 그림자를 드리우지 않는다
+renderer.shadowMap.autoUpdate = false; renderer.shadowMap.needsUpdate = true; let shadowDirty = true;
 stage.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
@@ -66,7 +79,7 @@ const camera = new THREE.PerspectiveCamera(27, 1, 1, 2000); // 세로 화각 27�
 
 const hemi = new THREE.HemisphereLight(0x5a6f96, 0x0a0c10, 0.6); scene.add(hemi);
 const moon = new THREE.DirectionalLight(0xaecbff, 0.9); moon.position.set(120, 220, -90); moon.castShadow = true; moon.shadow.mapSize.set(2048, 2048); moon.shadow.bias = -0.0004; moon.shadow.normalBias = 0.05;
-Object.assign(moon.shadow.camera, { left: -150, right: 150, top: 150, bottom: -150, near: 20, far: 520 }); scene.add(moon, moon.target);
+Object.assign(moon.shadow.camera, { left: -150, right: 150, top: 150, bottom: -150, near: 20, far: 520 }); scene.add(moon, moon.target); tuneShadowLight(moon);
 
 // ---- 바다 -------------------------------------------------------------------------------------------------------
 const sea = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000), new THREE.MeshStandardMaterial({ color: 0x0b1a2e, roughness: 0.28, metalness: 0, envMapIntensity: 0.12, emissive: 0x2a6fb5, emissiveIntensity: 0 })); // 새벽빛이 오면 바다만 스스로 밝아진다
@@ -149,12 +162,32 @@ const loader = new GLTFLoader();
 const above = (y) => [new THREE.Plane(new THREE.Vector3(0, 1, 0), -y)]; // y 이상만 그린다
 function glowTex() { const c = document.createElement('canvas'); c.width = 256; c.height = 192; const x = c.getContext('2d'); x.shadowColor = '#fff'; x.shadowBlur = 24; x.strokeStyle = 'rgba(255,255,255,.95)'; x.lineWidth = 4; x.beginPath(); x.roundRect(28, 28, 200, 136, 14); x.stroke(); x.stroke(); return new THREE.CanvasTexture(c); }
 const GLOW = glowTex();
-function tune(m) {
-  m = m.clone(); const nm = m.name || ''; m.envMapIntensity = 0.3;
+// 재질 공유: 같은 원본 재질은 한 번만 복제해 같이 쓴다(메시마다 복제하던 343개 → 공정당 14~25개). 아래 정적 병합이 재질별로 묶는 기준이 된다
+const tuned = new Map();
+function tune(src) {
+  if (tuned.has(src)) return tuned.get(src);
+  const m = src.clone(); tuned.set(src, m); const nm = m.name || ''; m.envMapIntensity = 0.3;
   if (/^(Steel|Steel_Dark|Struct_Gray|Roll_Steel|Coil_Cooled|Chrome_Rod)$/.test(nm)) { m.roughness = Math.max(0.28, m.roughness); m.envMapIntensity = 0.45; }
   if (nm === 'Concrete') m.color.setRGB(0.5, 0.51, 0.52);
   if (/^(Molten_Steel|Hot_Slab|Slag_Hot)$/.test(nm)) { m.emissiveIntensity = 1.6; m.toneMapped = false; } // 빛번짐 완화 2.6 → 1.6
   m.clippingPlanes = above(0.0); return m;
+}
+// 정적 병합(게임의 static batching): 움직이지 않는 공정 모델의 보이는 메시를 재질별로 한 덩어리로 합친다.
+// 그리기 횟수가 메시 수(공정당 63~117)에서 재질 수(14~25)로 준다. 모양·색은 그대로이고, 솟는 연출은 root를 움직이므로 그대로 된다
+// GLB 정점은 끼워 넣은(interleaved) 형식이라 그대로는 합칠 수 없다: 위치·법선을 낱 배열로 풀어 새 형상을 만든다
+function plainGeometry(src) {
+  const g = new THREE.BufferGeometry();
+  for (const k of ['position', 'normal']) { const a = src.attributes[k]; if (!a) continue; const out = new Float32Array(a.count * 3); for (let i = 0; i < a.count; i++) { out[i * 3] = a.getX(i); out[i * 3 + 1] = a.getY(i); out[i * 3 + 2] = a.getZ(i); } g.setAttribute(k, new THREE.BufferAttribute(out, 3)); }
+  if (src.index) g.setIndex(new THREE.BufferAttribute(Uint32Array.from(src.index.array), 1));
+  return g;
+}
+function batchStatic(root) {
+  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert(), groups = new Map(), _mx = new THREE.Matrix4();
+  root.traverse((o) => { if (!o.isMesh) return; let vis = true; for (let q = o; q && q !== root; q = q.parent) if (!q.visible) vis = false; if (!vis) return;
+    const g = plainGeometry(o.geometry).applyMatrix4(_mx.multiplyMatrices(inv, o.matrixWorld)); if (!groups.has(o.material)) groups.set(o.material, []); groups.get(o.material).push(g); });
+  const merged = [];
+  for (const [mat, list] of groups) { const geo = list.length > 1 ? mergeGeometries(list) : list[0]; if (!geo) return; const m = new THREE.Mesh(geo, mat); m.castShadow = m.receiveShadow = true; m.raycast = () => {}; merged.push(m); }
+  root.children.slice().forEach((c) => root.remove(c)); merged.forEach((m) => root.add(m));
 }
 const procs = PROCESSES.map((p, i) => ({ id: p.id, data: p, i, c: SITE[p.id], root: null, glow: null, ripples: [], hit: null, flood: null, warm: null, foot: null, modelTop: 10, t0: null, up: false, upAt: 0, chip: null, showUntil: 0, hoverZone: false, hoverOff: 0, hoverChip: false }));
 let loaded = 0;
@@ -168,6 +201,10 @@ const loadAll = () => Promise.all(procs.map((p) => new Promise((resolve) => {
     const all = new THREE.Box3().setFromObject(root); if (fb.isEmpty()) fb.copy(all);
     const w = fb.max.x - fb.min.x + 5, d = fb.max.z - fb.min.z + 5, cx = (fb.min.x + fb.max.x) / 2, cz = (fb.min.z + fb.max.z) / 2;
     p.foot = { w, d, cx, cz }; p.modelTop = all.max.y;
+    // 시뮬레이터용 설비 상자(솟은 뒤의 자리 = 지금 자리). 병합하면 설비 노드가 사라지므로 먼저 잰다
+    p.eqs = p.data.equipment.map((e) => { const node = root.getObjectByName(`EQ_${e.id}`); return node ? { id: e.id, data: e, box: new THREE.Box3().setFromObject(node) } : null; }).filter(Boolean);
+    p.bounds = all.clone();
+    batchStatic(root);
     // 구역 둘레 주황 발광 테두리(받침 대신)
     const glow = new THREE.Mesh(new THREE.PlaneGeometry(w + 10, d + 10), new THREE.MeshBasicMaterial({ map: GLOW, color: 0xffa63d, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })); glow.rotation.x = -Math.PI / 2; glow.position.set(cx, 0.06, cz); scene.add(glow);
     for (let k = 0; k < 2; k++) { const r = new THREE.Mesh(new THREE.RingGeometry(0.97, 1, 96), new THREE.MeshBasicMaterial({ color: 0xffcc66, transparent: true, opacity: 0, depthWrite: false })); r.rotation.x = -Math.PI / 2; r.position.set(cx, 0.08, cz); scene.add(r); p.ripples.push(r); }
@@ -300,9 +337,11 @@ function buildSurroundings() {
   });
 }
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _Y = new THREE.Vector3(0, 1, 0);
+const P_DONE = (p) => (p.pines?.done ?? true) && (p.props || []).every((it) => it.full);
 function growSurroundings(p, now) { // 구역이 솟기 시작한 뒤 소품은 위로 자라고, 소나무는 톡 돋는다
   if (p.t0 == null) return; const t = now - p.t0;
-  (p.props || []).forEach((it) => { const k = REDUCED ? 1 : Math.min(1, Math.max(0, (t - it.delay) / 900)); it.g.visible = k > 0; if (k > 0 && !it.full) { it.g.scale.y = it.S * Math.max(0.0001, k >= 1 ? 1 : easeOutBack(k, 1.1)); if (k >= 1) it.full = true; } });
+  if (!P_DONE(p)) shadowDirty = true;
+  (p.props || []).forEach((it) => { const k = REDUCED ? 1 : Math.min(1, Math.max(0, (t - it.delay) / 900)); it.g.visible = k > 0 && !p.hidden; if (k > 0 && !it.full) { it.g.scale.y = it.S * Math.max(0.0001, k >= 1 ? 1 : easeOutBack(k, 1.1)); if (k >= 1) it.full = true; } });
   const P = p.pines; if (!P || P.done) return; let all = true;
   P.list.forEach((q, i) => { const k = REDUCED ? 1 : Math.min(1, Math.max(0, (t - q.delay) / 500)); if (k < 1) all = false; const sc = q.s * (k <= 0 ? 0 : k >= 1 ? 1 : easeOutBack(k, 1.4)); _q.setFromAxisAngle(_Y, q.ry); _m.compose(_p.set(q.x, 0, q.z), _q, _s.setScalar(Math.max(0, sc))); P.inst.setMatrixAt(i, _m); });
   P.inst.instanceMatrix.needsUpdate = true; if (all) P.done = true;
@@ -312,13 +351,51 @@ function growSurroundings(p, now) { // 구역이 솟기 시작한 뒤 소품은 
 // ---- 칩: 번호 · 이름 · [들어가기] -----------------------------------------------------------------------------------
 procs.forEach((p) => {
   const el = document.createElement('div'); el.className = 'pc';
-  el.innerHTML = `<div class="box"><span class="num">${p.i + 1}</span><span class="nm">${esc(p.data.name)}</span><button type="button" aria-label="${esc(p.data.name)} 공정 들어가기">들어가기 →</button></div><div class="stem"></div><div class="dot"></div>`;
-  el.querySelector('button').onclick = () => enter(p);
+  el.innerHTML = `<div class="box"><span class="num">${p.i + 1}</span><span class="nm">${esc(p.data.name)}</span><button type="button" class="play" data-play aria-label="${esc(p.data.name)} 공정 재생">▶ 재생</button><button type="button" data-enter aria-label="${esc(p.data.name)} 공정 화면으로 들어가기">들어가기 →</button></div><div class="stem"></div><div class="dot"></div>`;
+  el.querySelector('[data-play]').onclick = () => startTour(p); el.querySelector('[data-enter]').onclick = () => enter(p);
   el.onmouseenter = () => { p.hoverChip = true; }; el.onmouseleave = () => { p.hoverChip = false; p.hoverOff = performance.now(); };
   hud.appendChild(el); p.chip = el;
 });
+// [들어가기](또는 Enter): 공정 화면(steel-index: 3D · 조업 전광판 · What-if)으로 간다
 function enter(p) { location.href = `/3d-demo/steel-index.html?p=${encodeURIComponent(p.id)}`; }
-const chipVisible = (p, now) => p.up && (now < p.showUntil || p.hoverZone || p.hoverChip || now - p.hoverOff < HOVER_GRACE);
+// 재생 중에는 오른쪽 단계 카드만큼 장면을 왼쪽으로 민다(카메라 view offset)
+function shiftView() { const w = stage.clientWidth || 1, h = stage.clientHeight || 1, dx = tour && typeof tourMod !== 'undefined' ? tourMod.panelWidth() / 2 : 0; if (dx) camera.setViewOffset(w, h, dx, 0, w, h); else camera.clearViewOffset(); }
+
+// ---- [▶ 재생]: 고른 공정만 남기고(isolate) 그 자리에서 확대해 v4 단면 보기처럼 설비·단계를 재생한다(intro-tour.js) -----------------------
+// 다른 공정(모델·테두리·조명·소품·소나무)·연결선·트럭·열차는 숨긴다(p.hidden). 재생 모듈은 composer가 생긴 뒤 아래(후처리)에서 만든다(tourMod)
+function isolate(p) { // p = 남길 공정, null이면 모두 다시 보인다
+  procs.forEach((q) => { q.hidden = !!p && q !== p; if (q.pines) q.pines.inst.visible = !q.hidden; if (q.glow) q.glow.visible = !q.hidden; });
+  const T = traffic, show = !p; if (T.body) { T.body.visible = T.lamps.visible = T.pool.visible = show; if (!show) T.train.cars.forEach((c) => (c.g.visible = false)); }
+  lightLayers.forEach((l) => { l.visible = !p; }); // 땅·도시 불빛(보케): 확대하면 화면 앞에 큰 팔각형으로 겹쳐 보여 재생 중에는 숨긴다
+  document.body.classList.toggle('touring', !!p); shadowDirty = true;
+}
+let tour = false;
+async function startTour(p) {
+  if (!p.up) return; goTo(p.i); pause(); isolate(p); tour = true; anim = null;
+  try { if (!(await tourMod.start(p))) throw new Error('설비 없음'); } catch (e) { console.warn('[intro] 재생을 시작하지 못했어요', e); tour = false; isolate(null); return; }
+  shiftView();
+}
+function stopTour() { if (tourMod.active) tourMod.stop(); }
+function tourEnded(p) { tour = false; isolate(null); shiftView(); animateTo(zonePose(p), 1300); }
+const chipVisible = (p, now) => p.up && (p.hinting || now < p.showUntil || p.hoverZone || p.hoverChip || now - p.hoverOff < HOVER_GRACE);
+
+// ---- 첫 클릭 안내: 구역을 처음 눌렀을 때 한 번만(이 브라우저에 기억) 칩의 두 버튼에 선을 긋고 무엇이 보이는지 알려 준다 ---------------------------
+// 안내는 칩 안에 붙여 칩과 함께 움직인다. 선 좌표는 칩 버튼 위치를 재서 정한다. 아무 곳이나 누르거나 10초가 지나면 사라진다
+const HINT_KEY = 'st-rookie:chip-hint';
+let hintDone = (() => { try { return localStorage.getItem(HINT_KEY) === '1'; } catch { return false; } })();
+function showChipHint(p) {
+  if (hintDone) return; hintDone = true; try { localStorage.setItem(HINT_KEY, '1'); } catch {}
+  const pc = p.chip, at = (b) => { const r = b.getBoundingClientRect(), o = pc.getBoundingClientRect(); return { x: r.left - o.left + r.width / 2, top: r.top - o.top, bottom: r.bottom - o.top }; };
+  const pb = at(pc.querySelector('[data-play]')), eb = at(pc.querySelector('[data-enter]')), W = 300;
+  const ax = pb.x - W - 40, ay = pb.top - 64, bx = eb.x + 40, by = eb.bottom + 64; // 글 위치: 재생은 왼쪽 위, 들어가기는 오른쪽 아래
+  const el = document.createElement('div'); el.className = 'chip-hint'; el.setAttribute('role', 'note');
+  el.innerHTML = `<svg width="1" height="1" aria-hidden="true"><path d="M${ax} ${ay} H${ax + W} L${pb.x} ${pb.top - 6}"/><path d="M${eb.x} ${eb.bottom + 6} L${bx} ${by} H${bx + W}"/><circle cx="${pb.x}" cy="${pb.top - 6}" r="3"/><circle cx="${eb.x}" cy="${eb.bottom + 6}" r="3"/></svg>
+    <p style="left:${ax}px;top:${ay - 8}px;width:${W}px;transform:translateY(-100%)"><b>▶ 재생</b>을 누르면 공정을 설비 하나하나, 단계별 설명과 함께 보여 드려요.</p>
+    <p style="left:${bx}px;top:${by + 10}px;width:${W}px"><b>들어가기</b>에서 조건을 바꾸면 공정이 서로 어떻게 영향을 주는지 볼 수 있어요.</p>`;
+  pc.appendChild(el); p.hinting = true;
+  const close = () => { if (!p.hinting) return; p.hinting = false; p.hoverOff = performance.now(); el.classList.add('out'); setTimeout(() => el.remove(), 400); removeEventListener('pointerdown', close, true); clearTimeout(timer); };
+  const timer = setTimeout(close, 10000); setTimeout(() => addEventListener('pointerdown', close, true), 0);
+}
 
 // ---- 카메라 --------------------------------------------------------------------------------------------------
 const orbit = { yaw: -0.42, pitch: 0.62, dist: 420, target: new THREE.Vector3(-8, 0, 0) };
@@ -365,7 +442,9 @@ $('icPlay').src = icon('play', '#111111', 1.8);
 function pause() { playing = false; $('icPlay').src = icon('play', '#111111', 1.8); $('btnPlay').title = '재생'; $('btnPlay').setAttribute('aria-label', '재생'); }
 function play() { playing = true; $('icPlay').src = icon('stop', '#111111', 1.8); $('btnPlay').title = '멈춤'; $('btnPlay').setAttribute('aria-label', '멈춤'); if (finished || cur >= procs.length - 1) { finished = false; goTo(0, true); } }
 $('btnPlay').onclick = () => (playing ? pause() : play());
-$('btnNext').onclick = () => { goTo(Math.min(procs.length - 1, cur + 1)); pause(); };
+// [다음 공정 ›] — 마지막 공정(열간압연)에서는 [‹ 이전 공정]으로 바뀌어 앞 공정(연주)으로 돌아간다
+const atLast = () => cur >= procs.length - 1;
+$('btnNext').onclick = () => { goTo(atLast() ? cur - 1 : Math.min(procs.length - 1, cur + 1)); pause(); };
 // auto: 자동 재생이 부른 것. 2D·3D 전체 보기를 고른 뒤(wide)에는 자동 재생이 카메라를 구역으로 끌고 가지 않는다(구역을 직접 고르면 다가간다)
 let wide = false;
 function goTo(i, auto = false) {
@@ -373,10 +452,11 @@ function goTo(i, auto = false) {
   procs.forEach((p, k) => { if (k <= i && p.t0 == null) p.t0 = now + (k === i ? (REDUCED ? 0 : 700) : 0); p.chip.classList.toggle('cur', k === i); p.stop.classList.toggle('cur', k === i); p.stop.classList.toggle('up', k < i); });
   if (procs[i].up) procs[i].showUntil = now + SHOW_MS; // 이미 솟은 구역을 고르면 칩을 다시 3초
   $('tlFill').style.width = `${(i / (procs.length - 1)) * 100}%`;
+  $('btnNext').textContent = atLast() ? '‹ 이전 공정' : '다음 공정 ›';
   if (view === '3d' && !(auto && wide)) { wide = false; animateTo(zonePose(procs[i]), 1700); }
 }
 function finish() { finished = true; pause(); procs.forEach((p) => p.stop.classList.add('up')); } // 멀리 빠지지 않고 마지막 구역 가까이에서 천천히 돈다(전체는 [지도]나 휠로)
-addEventListener('keydown', (e) => { if (guideOpen) { if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') { e.preventDefault(); closeGuide(); } return; } if (e.key === ' ') { e.preventDefault(); playing ? pause() : play(); } else if (e.key === 'ArrowRight') { goTo(Math.min(procs.length - 1, cur + 1)); pause(); } else if (e.key === 'ArrowLeft') { goTo(Math.max(0, cur - 1)); pause(); } else if (e.key === 'Enter' && cur >= 0) enter(procs[cur]); else if (e.key === 'v' || e.key === 'V') setView(view === 'map' ? '3d' : 'map'); else { const n = parseInt(e.key, 10); if (n >= 1 && n <= procs.length) { goTo(n - 1); pause(); } } });
+addEventListener('keydown', (e) => { if (tour) { if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName || '')) return; if (e.key === 'Escape') stopTour(); else if (e.key === ' ') { e.preventDefault(); tourMod.toggle(); } else if (e.key === 'ArrowRight') tourMod.stepEq(1); else if (e.key === 'ArrowLeft') tourMod.stepEq(-1); return; } if (guideOpen) { if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') { e.preventDefault(); closeGuide(); } return; } if (e.key === ' ') { e.preventDefault(); playing ? pause() : play(); } else if (e.key === 'ArrowRight') { goTo(Math.min(procs.length - 1, cur + 1)); pause(); } else if (e.key === 'ArrowLeft') { goTo(Math.max(0, cur - 1)); pause(); } else if (e.key === 'Enter' && cur >= 0) enter(procs[cur]); else if (e.key === 'v' || e.key === 'V') setView(view === 'map' ? '3d' : 'map'); else { const n = parseInt(e.key, 10); if (n >= 1 && n <= procs.length) { goTo(n - 1); pause(); } } });
 
 // ---- 지도 / 3D ---------------------------------------------------------------------------------------------------
 // 2D(view 'map')에서는 드래그해도 위에서 본 채로 평면 회전만 한다. 위아래로 TILT_PX 넘게 드래그하거나 V 키를 누르면 3D로 바뀐다(위 토글도 같이)
@@ -397,17 +477,19 @@ renderer.domElement.addEventListener('pointermove', (e) => { if (drag) { const d
     if (view === 'map') { drag.tilt += dy; if (Math.abs(drag.tilt) > TILT_PX) markView('3d'); } // 2D: 기울이지 않고, 위아래로 충분히 끌면 3D로
     else orbit.pitch = Math.min(1.52, Math.max(0.3, orbit.pitch + dy * 0.003)); drag.x = e.clientX; drag.y = e.clientY; anim = null; return; } setHot(pick(e)); });
 renderer.domElement.addEventListener('pointerleave', () => setHot(null));
-renderer.domElement.addEventListener('pointerup', (e) => { const d = drag; drag = null; stage.classList.remove('dragging'); if (!d || d.moved) return; const p = pick(e); if (p) { goTo(p.i); pause(); p.showUntil = performance.now() + SHOW_MS; } });
-renderer.domElement.addEventListener('wheel', (e) => { e.preventDefault(); orbit.dist = Math.min(maxDist(), Math.max(50, orbit.dist * (1 + e.deltaY * 0.0012))); anim = null; }, { passive: false });
+renderer.domElement.addEventListener('pointerup', (e) => { const d = drag; drag = null; stage.classList.remove('dragging'); if (!d || d.moved) return; if (tour) return; const p = pick(e); if (p) { goTo(p.i); pause(); p.showUntil = performance.now() + SHOW_MS; requestAnimationFrame(() => showChipHint(p)); } }); // 칩이 자리 잡은 다음 프레임에 첫 클릭 안내
+renderer.domElement.addEventListener('wheel', (e) => { e.preventDefault(); orbit.dist = Math.min(maxDist(), Math.max(tour ? 10 : 50, orbit.dist * (1 + e.deltaY * 0.0012))); anim = null; }, { passive: false });
 
 // ---- 후처리: 블룸 → 출력 ---------------------------------------------------------------------------------
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.3, 0.4, 0.97); // 불빛·쇳물만 번지게 임계값을 높게(빛번짐 완화)
-composer.addPass(bloom);
+composer.addPass(bloom); tuneBloom(bloom);
 composer.addPass(new OutputPass());
-function resize() { const w = stage.clientWidth || 1, h = stage.clientHeight || 1; renderer.setSize(w, h, false); composer.setSize(w, h); bloom.resolution.set(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+const tourMod = createIntroTour({ scene, renderer, composer, hud, getCamera: () => camera, loader, reduced: REDUCED, animateTo: (pose, ms) => { anim = null; animateTo(pose, ms); }, yawOf: (p) => zonePose(p).yaw, onEnd: tourEnded });
+function resize() { const w = stage.clientWidth || 1, h = stage.clientHeight || 1; renderer.setSize(w, h, false); composer.setSize(w, h); bloom.resolution.set(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); shiftView(); }
 new ResizeObserver(resize).observe(stage); resize();
+autoQuality({ renderer, composer });
 
 // ---- 새벽빛(세상이 밝아짐) -------------------------------------------------------------------------------------------
 // 땅에 깔리는 푸른 빛 웅덩이: 가운데가 밝고 가장자리로 갈수록 사라지는 원형 그라데이션(가산). 솟은 구역들의 가운데에서 커진다
@@ -462,7 +544,7 @@ function buildTraffic() {
   const N = TRUCK_MAX, path = mkPath(TRUCK_PATH);
   for (let i = 0; i < N; i++) traffic.trucks.push({ path, dir: 1, s: 0, on: false, vis: 0, wait: 0 });
   const body = new THREE.InstancedMesh(truckGeometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.2, envMapIntensity: 0.4 }), N);
-  body.castShadow = true; body.frustumCulled = false; body.raycast = () => {}; const col = new THREE.Color();
+  body.castShadow = false; body.frustumCulled = false; body.raycast = () => {}; const col = new THREE.Color();
   for (let i = 0; i < N; i++) { body.setColorAt(i, col.set(TRUCK_COLORS[i % TRUCK_COLORS.length]).multiplyScalar(0.7)); body.setMatrixAt(i, new THREE.Matrix4().makeScale(0, 0, 0)); } body.instanceColor.needsUpdate = true; scene.add(body);
   // 전조등·후미등: 트럭마다 점 2개(앞 흰빛, 뒤 빨강) + 열차 기관차 전조등 1개(마지막 칸)
   const lg = new THREE.BufferGeometry(), lc = new Float32Array((N * 2 + 1) * 3); lg.setAttribute('position', new THREE.BufferAttribute(new Float32Array((N * 2 + 1) * 3).fill(-9), 3));
@@ -482,7 +564,7 @@ function buildTraffic() {
     const g = new THREE.Group();
     if (!i) { g.add(new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.62, 0.66).translate(0, 0.45, 0), locoM)); g.add(new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.32, 0.6).translate(0.55, 0.92, 0), cabM)); }
     else { g.add(new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.6, 0.7).translate(0, 0.45, 0), hopM)); const ore = new THREE.Mesh(new THREE.BoxGeometry(1.32, 0.2, 0.56).translate(0, 0.8, 0), oreM); g.add(ore); ores.push(ore); }
-    g.traverse((m) => { if (m.isMesh) m.castShadow = true; }); g.visible = false; scene.add(g); cars.push({ g, len: i ? 1.5 : 2.0 });
+    g.visible = false; scene.add(g); cars.push({ g, len: i ? 1.5 : 2.0 });
   }
   let off = 0; cars.forEach((c, i) => { if (i) off += cars[i - 1].len / 2 + 0.22 + c.len / 2; c.off = off; }); // 기관차 앞에서부터 각 칸 가운데까지의 거리
   traffic.train = { rail, cars, ores, total: off + 2, s: 0, dir: 1, run: false, next: 0, loaded: true };
@@ -534,11 +616,12 @@ const V = new THREE.Vector3();
 function rise(p, now) {
   if (!p.root) return;
   const t = p.t0 == null ? -1 : now - p.t0, k1 = t < 0 ? 0 : REDUCED ? 1 : Math.min(1, t / 700), k2 = t < 0 ? 0 : REDUCED ? 1 : Math.min(1, Math.max(0, (t - 250) / 1300));
-  p.root.visible = k2 > 0; p.root.position.y = -RISE_DEPTH * (1 - (k2 >= 1 ? 1 : easeOutBack(k2)));
+  if (k2 > 0 && !p.up) shadowDirty = true;
+  p.root.visible = k2 > 0 && !p.hidden && !p.swapped; p.root.position.y = -RISE_DEPTH * (1 - (k2 >= 1 ? 1 : easeOutBack(k2))); // swapped: 재생 중에는 설비 단위 모델(intro-tour.js)이 대신 보인다
   p.glow.material.opacity = k1 <= 0 ? 0 : k1 < 1 ? 0.6 + 0.6 * Math.sin(k1 * Math.PI) : 0.5;
-  p.warm.intensity = 220 * easeOut(k2); // 은은한 주황 반사만(세면 모델이 하얗게 타고 블룸이 번진다)
+  p.warm.intensity = p.hidden ? 0 : 220 * easeOut(k2); // 은은한 주황 반사만(세면 모델이 하얗게 타고 블룸이 번진다)
   if (k2 >= 1 && !p.up) { p.up = true; p.upAt = now; p.showUntil = now + SHOW_MS; } // 솟은 직후 3초만 칩을 보인다
-  const on = p.up && p.i === cur && !REDUCED, r0 = Math.max(p.foot.w, p.foot.d) * 0.62; // 지금 구역: 15% 물결
+  const on = p.up && p.i === cur && !REDUCED && !tour, r0 = Math.max(p.foot.w, p.foot.d) * 0.62; // 지금 구역: 15% 물결(재생 중에는 확대해 보므로 끈다)
   p.ripples.forEach((r, k) => { if (!on) { r.material.opacity = 0; return; } const ph = ((now / 2200) + k * 0.5) % 1; r.scale.setScalar(r0 * (0.9 + 0.7 * ph)); r.material.opacity = 0.15 * (1 - ph); });
 }
 function placeHud(now) {
@@ -549,10 +632,11 @@ function placeHud(now) {
 function frame(now) {
   requestAnimationFrame(frame);
   procs.forEach((p) => { rise(p, now); growSurroundings(p, now); });
-  trafficTick(now);
+  const busy = tour; // [재생] 중에는 장식(트럭·열차·불빛 깜빡임)을 멈춘다(계산·업로드를 쉰다)
+  if (!busy) trafficTick(now);
   dawnTick();
-  const focusD = camera.position.distanceTo(orbit.target); lightLayers.forEach((l) => { const u = l.material.uniforms; u.uT.value = now / 1000; u.uFocus.value = focusD; u.uCoc.value = 0; }); // 흐림 없음: 3D에서도 전체가 선명하게(2026-10-15 요청)
-  links.forEach((l) => { const on = l.a.up && l.b.up; if (on && !l.on) { l.t0 = now; l.showUntil = now + SHOW_MS; } l.on = on; l.mesh.visible = on; if (on) { l.mesh.material.uniforms.reach.value = REDUCED ? 1 : Math.min(1, (now - l.t0) / 1400); l.mesh.material.uniforms.t.value = now / 1000; } });
+  const focusD = camera.position.distanceTo(orbit.target); if (!busy) lightLayers.forEach((l) => { const u = l.material.uniforms; u.uT.value = now / 1000; u.uFocus.value = focusD; u.uCoc.value = 0; }); // 흐림 없음: 3D에서도 전체가 선명하게(2026-10-15 요청)
+  links.forEach((l) => { const on = l.a.up && l.b.up; if (on && !l.on) { l.t0 = now; l.showUntil = now + SHOW_MS; } l.on = on; l.mesh.visible = on && !tour; if (on) { l.mesh.material.uniforms.reach.value = REDUCED ? 1 : Math.min(1, (now - l.t0) / 1400); l.mesh.material.uniforms.t.value = now / 1000; } });
   // 연결선이 제선에서 열연까지 다 그어지면(마지막 선이 다 뻗은 뒤): 위에서 전체를 보여 주며 선이 세 번 깜빡이고, 그 뒤 선 밝기를 낮춘다(한 번만)
   if (!finale.t0 && links.length === procs.length - 1 && links.every((l) => l.on && now - l.t0 >= 1400)) { finale.t0 = now; } // 3D 대각선 전체 보기 그대로 깜빡인다(2D로 바꾸지 않는다)
   if (finale.t0) { const ft = now - finale.t0, gain = REDUCED ? FINALE.low : ft < FINALE.blink ? FINALE.low + (1.6 - FINALE.low) * (0.5 + 0.5 * Math.cos(ft / FINALE.blink * Math.PI * 6)) : Math.max(FINALE.low, 1.6 - (1.6 - FINALE.low) * Math.min(1, (ft - FINALE.blink) / 800));
@@ -561,7 +645,15 @@ function frame(now) {
   if (anim) { const k = Math.min(1, (now - anim.t0) / anim.dur), s = easeInOut(k); orbit.yaw = anim.from.yaw + (anim.to.yaw - anim.from.yaw) * s; orbit.pitch = anim.from.pitch + (anim.to.pitch - anim.from.pitch) * s; orbit.dist = anim.from.dist + (anim.to.dist - anim.from.dist) * s; orbit.target.lerpVectors(anim.from.target, anim.to.target, s); if (k >= 1) anim = null; }
   else if (!drag && !REDUCED && finished && view === '3d') orbit.yaw += 0.0003;
   const o = orbit; camera.position.set(o.target.x + o.dist * Math.sin(o.yaw) * Math.cos(o.pitch), o.target.y + o.dist * Math.sin(o.pitch), o.target.z + o.dist * Math.cos(o.yaw) * Math.cos(o.pitch)); camera.lookAt(o.target);
+  tourMod.tick(now);
+  if (shadowDirty) { renderer.shadowMap.needsUpdate = true; shadowDirty = false; }
   composer.render();
   placeHud(now);
 }
-loadAll().then(() => { buildLinks(); buildTraffic(); buildSurroundings(); buildAmbientLights(); $('load').classList.add('off'); startMap(); requestAnimationFrame(frame); });
+// 셰이더 미리 준비: 공정 모델은 솟기 전까지 숨겨 두어 처음 보일 때 셰이더를 만드느라 0.2초쯤 멈췄다. 숨긴 채로 한 번 컴파일해 둔다
+function warmUp() {
+  const hidden = []; scene.traverse((o) => { if (!o.visible) { hidden.push(o); o.visible = true; } });
+  try { renderer.compile(scene, camera); } catch (e) { console.warn('셰이더 미리 준비 실패', e); }
+  hidden.forEach((o) => { o.visible = false; });
+}
+loadAll().then(() => { buildLinks(); buildTraffic(); buildSurroundings(); buildAmbientLights(); warmUp(); $('load').classList.add('off'); startMap(); requestAnimationFrame(frame); });

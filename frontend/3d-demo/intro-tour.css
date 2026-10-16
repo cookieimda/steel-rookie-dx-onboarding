@@ -1,0 +1,89 @@
+/* 첫 화면 [▶ 재생](intro-tour.js): 오른쪽 단계 카드 + 아래 설비 재생 바 + 2D 화살표.
+   카드·바는 반투명 유리(뒤 3D가 비치는 어두운 판 + 흐림). 테두리·외곽선·밑줄은 쓰지 않는다(2026-10-16 요청): 면은 바탕 톤과 간격으로만 나눈다.
+   발표 모드에서는 흐림이 꺼진다(perf-mode.js). 색·글자는 steel-intro.html의 밤 UI 변수(--text·--molten·--f-body·--f-mono)를 따른다 */
+.pc .box button.play { background: rgba(255,255,255,.1); color: var(--text); }
+.pc .box button.play:hover { background: rgba(255,255,255,.18); }
+body.touring .ttl, body.touring .pc, body.touring .fl { opacity: 0 !important; pointer-events: none !important; }
+body.tour-on .flow { display: none; }
+.tpanel, .tbar { background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0) 45%), rgba(20,22,28,.55); box-shadow: 0 24px 60px -18px rgba(0,0,0,.6); -webkit-backdrop-filter: blur(18px) saturate(1.2); backdrop-filter: blur(18px) saturate(1.2); }
+
+/* ---- 오른쪽 단계 카드: 지금 단계 하나만 ---- */
+.tpanel { position: fixed; top: 76px; right: 16px; bottom: 18px; width: 360px; z-index: 6; /* 아래 끝을 재생 바 아래 끝선(bottom 18px)에 맞춰, 설명이 잘리지 않게 위아래로 길게 */ display: none; flex-direction: column; color: var(--text); border-radius: 20px; overflow: hidden; }
+body.tour-on .tpanel { display: flex; }
+.tpanel header { display: flex; gap: 12px; align-items: center; padding: 18px 20px 12px; flex: none; }
+.tpanel header small { font: 400 12px var(--f-mono); letter-spacing: .08em; color: rgba(255,255,255,.5); }
+.tpanel header h2 { margin: 4px 0 0; font: 800 22px/1.2 var(--f-body); }
+.tp-body { flex: 1; min-height: 0; overflow-y: auto; /* flex 1: 내용이 짧아도 카드 길이·아래 버튼 자리는 그대로(가운데가 빈다) */ padding: 4px 20px 16px; display: flex; flex-direction: column; gap: 12px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.2) transparent; }
+.tp-prog { display: flex; align-items: center; gap: 10px; }
+.tp-prog span { font: 500 12px var(--f-mono); letter-spacing: .1em; color: #ffb37a; white-space: nowrap; }
+.tp-prog div { flex: 1; display: flex; gap: 4px; }
+.tp-prog i { flex: 1; height: 3px; border-radius: 2px; background: rgba(255,255,255,.14); }
+.tp-prog i.done { background: rgba(255,158,100,.5); } .tp-prog i.on { background: #ff9e64; }
+.tpanel h3 { margin: 2px 0 0; font: 700 20px/1.3 var(--f-body); }
+.tp-text { margin: 0; font: 400 15px/1.65 var(--f-body); color: rgba(255,255,255,.82); }
+.tp-caret { color: var(--molten); } /* 타자 효과 커서 */
+.tp-heat { padding: 14px 16px; border-radius: 14px; background: radial-gradient(circle at 15% 25%, var(--hA), transparent 70%), rgba(0,0,0,.22); display: flex; flex-direction: column; gap: 8px; }
+.tp-heat > span { font-size: 13px; color: rgba(255,255,255,.7); }
+.tp-heat strong { font: 800 30px/1.1 var(--f-body); color: var(--hC); }
+.tp-hbar { position: relative; height: 6px; border-radius: 3px; background: linear-gradient(90deg, #3b5bd6, #f59e0b, #ef4444); opacity: .55; }
+.tp-hbar .fill { position: absolute; top: -3px; height: 12px; border-radius: 6px; background: #fff; opacity: .9; }
+.tp-scale { display: flex; justify-content: space-between; font: 400 11px var(--f-mono); color: rgba(255,255,255,.45); }
+.tp-heat em { font: 600 14px/1.5 var(--f-body); font-style: normal; color: rgba(255,255,255,.85); }
+.tp-note { font-size: 12px; line-height: 1.5; color: rgba(255,255,255,.42); }
+.tp-fml { padding: 10px 12px; border-radius: 12px; background: rgba(0,0,0,.22); display: flex; flex-direction: column; gap: 8px; }
+.tp-fml small { font-size: 13px; color: rgba(255,255,255,.7); }
+.tp-fml div { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tp-fml span { padding: 6px 10px; border-radius: 8px; background: rgba(255,255,255,.1); font: 700 14px/1 var(--f-mono); }
+.tp-fml span.hot { background: rgba(255,158,100,.24); color: #ffd27a; }
+.tp-fml i { font-style: normal; color: #9aa3ad; } .tp-fml b { color: #ff9e64; }
+.tpanel footer { display: flex; gap: 8px; padding: 12px 16px 16px; flex: none; }
+.tpanel footer button { flex: 1; height: 42px; border-radius: 12px; border: 0; background: rgba(255,255,255,.08); color: var(--text); font: 700 15px var(--f-body); cursor: pointer; }
+.tpanel footer button:hover { background: rgba(255,255,255,.14); }
+.tpanel footer button.primary { background: #f2f2f2; color: #111; }
+.tpanel footer button.primary:hover { background: #fff; }
+
+/* ---- 아래 설비 재생 바: 글이 두 줄이어도, 지금 설비 표시(커진 마름모)가 커져도 잘리지 않게 위아래 여유를 둔다 ---- */
+.tbar { position: fixed; left: calc((100vw - 392px) / 2); bottom: 18px; transform: translateX(-50%); z-index: 6; display: none; align-items: center; gap: 14px; min-height: 92px; padding: 0 14px; border-radius: 28px; max-width: calc(100vw - 420px); box-sizing: border-box; }
+body.tour-on .tbar { display: flex; }
+.tbar .tb-play { width: 46px; height: 46px; flex: none; border-radius: 50%; border: 0; background: rgba(255,255,255,.1); display: grid; place-items: center; cursor: pointer; }
+.tbar .tb-play:hover { background: rgba(255,255,255,.16); }
+.tbar .tb-track { display: flex; position: relative; min-width: 0; overflow-x: auto; overflow-y: visible; padding: 16px 4px 14px; scrollbar-width: none; }
+.tbar .tb-track::before { content: ""; position: absolute; left: 18px; right: 18px; top: 24px; height: 2px; background: rgba(255,255,255,.12); } /* 설비 사이를 잇는 진행 선 */
+.tbar .tb-stop { position: relative; min-width: 84px; max-width: 120px; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 0 6px; border: 0; background: transparent; color: rgba(255,255,255,.6); font: 500 14px/1.25 var(--f-body); cursor: pointer; }
+.tbar .tb-stop span { max-width: 100%; text-align: center; }
+.tbar .tb-stop i { width: 10px; height: 10px; margin-top: 3px; border-radius: 50%; background: #3a3a40; transition: transform .2s var(--ease); }
+.tbar .tb-stop.done i { background: var(--molten); }
+.tbar .tb-stop.cur { color: #ffb37a; font-weight: 700; }
+.tbar .tb-stop.cur i { background: #ff9e64; transform: scale(1.5) rotate(45deg); border-radius: 2px; }
+.tbar .tb-speed { height: 36px; min-width: 40px; padding: 0 8px; border: 0; border-radius: 999px; background: transparent; color: var(--text); font: 700 15px var(--f-mono); cursor: pointer; flex: none; }
+.tbar .tb-speed:hover { background: rgba(255,255,255,.08); }
+/* 나가기: ✕만으로는 알아보기 어려워 글자를 붙이고 굵게 */
+.tbar .tb-x { display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 14px; border: 0; border-radius: 999px; background: rgba(255,255,255,.1); color: #fff; font: 700 15px var(--f-body); cursor: pointer; flex: none; white-space: nowrap; }
+.tbar .tb-x:hover { background: rgba(255,255,255,.18); }
+
+/* ---- 첫 클릭 안내(steel-intro.js showChipHint): 칩 두 버튼에서 뻗은 선 + 설명 글. 상자 없이 글과 선만 ---- */
+.chip-hint { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; transition: opacity .4s var(--ease); }
+.chip-hint.out { opacity: 0; }
+.chip-hint svg { position: absolute; left: 0; top: 0; overflow: visible; }
+.chip-hint path { fill: none; stroke: rgba(255,255,255,.85); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 600; stroke-dashoffset: 600; animation: hintLine .9s var(--ease) .1s forwards; filter: drop-shadow(0 1px 4px rgba(0,0,0,.7)); }
+.chip-hint circle { fill: #fff; }
+.chip-hint p { position: absolute; margin: 0; font: 600 16px/1.55 var(--f-body); color: #fff; white-space: normal; text-shadow: 0 1px 10px rgba(0,0,0,.9), 0 0 2px rgba(0,0,0,.8); opacity: 0; animation: hintText .5s var(--ease) .6s forwards; }
+.chip-hint p b { color: #ffb37a; }
+@keyframes hintLine { to { stroke-dashoffset: 0; } }
+@keyframes hintText { to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .chip-hint path, .chip-hint p { animation: none; stroke-dashoffset: 0; opacity: 1; } }
+
+/* ---- 3D 위 핫스팟 핀(단면 말풍선을 바꾼 것)은 첫 화면 재생에서는 보이지 않는다 ---- */
+.sfx.lh-hot { display: none !important; }
+/* ---- 2D 화살표(intro-tour.js): 화면 좌표로 그린 선 + 화살촉 ---- */
+.sfx.sfx-arrow2d { position: absolute; width: 0; height: 0; pointer-events: none; z-index: 4; }
+.sfx.sfx-arrow2d .sfx-in { transform: none !important; }
+.sfx.sfx-arrow2d svg { display: block; overflow: visible; transition: opacity .25s; filter: drop-shadow(0 0 4px rgba(0,0,0,.6)); }
+.sfx.sfx-arrow2d line { stroke: var(--c); stroke-width: 2.5; stroke-linecap: round; }
+.sfx.sfx-arrow2d path { fill: var(--c); }
+
+@media (max-width: 900px) {
+  .tpanel { top: auto; left: 12px; right: 12px; bottom: 120px; width: auto; max-height: 38vh; }
+  .tbar { left: 50%; max-width: calc(100vw - 24px); }
+}
+@media (prefers-reduced-motion: reduce) { .tbar .tb-stop i, .sfx.sfx-arrow2d svg { transition: none; } }

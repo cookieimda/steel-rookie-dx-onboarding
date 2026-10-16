@@ -2,6 +2,7 @@ import { WI_SLIDERS } from '../login_ui/lab-extras.js';
 import { parseTemp } from './steel-index-ui.js';
 import { displayRows, displayNumber, tempPosition } from './lab-display-data.js';
 import { createLabWorld } from './lab-world-display.js';
+import { arcGaugeHtml } from './lab-gauge-arc.js';
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 export function attachLabConsole({ api, scene, camera, reduced, pickEquipment }) {
@@ -69,7 +70,7 @@ export function attachLabConsole({ api, scene, camera, reduced, pickEquipment })
     left.querySelector('[data-lab-temperature-result]').innerHTML = thermometers;
     if (thermometer) {
       const low = process.id === 'ironmaking' ? 1380 : Math.floor((thermometer.base - 150) / 50) * 50, high = process.id === 'ironmaking' ? 1560 : low + 300;
-      right.querySelector('[data-lab-gauge]').innerHTML = `<div class="lab-gauge"><span>온도 시뮬레이션 · ${escape(thermometer.label)}</span><strong>${displayNumber(thermometer.value, thermometer.digits)}<small> ℃</small></strong><div class="lab-spectrum"><i style="left:${tempPosition(thermometer.value, low, high)}%"></i></div><div class="lab-scale"><span>${low}℃</span><span>${high}℃</span></div><p>파랑 → 초록 → 노랑 → 주황 → 빨강<br>온도의 위치이며 안전 판정은 아닙니다.</p></div>`;
+      right.querySelector('[data-lab-gauge]').innerHTML = arcGaugeHtml({ title: thermometer.label, value: displayNumber(thermometer.value, thermometer.digits), pos: tempPosition(thermometer.value, low, high), low, high, direction: thermometer.direction, delta: displayNumber(Math.abs(thermometer.delta), thermometer.digits) }); // 원호 다이얼(lab-gauge-arc.js)
     } else right.querySelector('[data-lab-gauge]').innerHTML = '<p class="lab-muted">이 공정은 온도 대신 속도·품질 지표의 영향을 계산합니다.</p>';
     right.querySelector('[data-lab-quotes]').textContent = rows.map(r => `${r.label}: ${displayNumber(r.value, r.digits)} ${r.unit}, 기준 대비 ${displayNumber(r.delta, r.digits)}`).join('. ');
     right.querySelector('[data-lab-assumptions]').textContent = process.id === 'ironmaking' ? reply.assumptions.join(' ') : reply.note;

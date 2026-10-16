@@ -179,7 +179,8 @@ function renderTrack(p) {
 function startTour() { if (!cur || seq || sinking) return; tour = { t0: performance.now() }; document.body.classList.add('touring'); $('icPlay').src = icon('stop', '#f2f2f2', 1.6); $('btnPlay').title = '멈추기'; enterStep(curEq || cur.eqs[0], false); }
 function stopTour() { tour = null; document.body.classList.remove('touring', 'peek'); $('icPlay').src = icon('play', '#f2f2f2', 1.6); $('btnPlay').title = '설비 차례로 보기'; }
 // 재생 중 알약 바: 마우스가 화면 위쪽 56px 안에 오면 내려오고, 110px 아래로 내려가면 다시 숨는다(바 위에 있는 동안은 유지). 키보드로 바에 초점이 가도 내려온다
-addEventListener('pointermove', (e) => { if (!tour) return; const on = document.body.classList.contains('peek'), want = e.clientY < (on ? 110 : 56); if (want !== on) document.body.classList.toggle('peek', want); });
+// 위 알약 바는 재생 중이 아니어도 평소에 숨기고(lab-console-glass.css), 마우스를 화면 맨 위로 가져가면 body.peek로 내려온다
+addEventListener('pointermove', (e) => { const on = document.body.classList.contains('peek'), want = e.clientY < (on ? 110 : 56); if (want !== on) document.body.classList.toggle('peek', want); });
 $('top').addEventListener('focusin', () => document.body.classList.add('peek'));
 
 // ---- 오른쪽 패널 ------------------------------------------------------------------------------------------
@@ -246,10 +247,12 @@ function renderPanel() {
 
 
 // ---- 설비 칩(3D 위). 외관: 지금 설비 하나, 평면: 모든 설비 번호 -----------------------------------------------------
+// 칩에 강조할 숫자: 그 설비 작동 단계 중 가장 높은 온도(학습 자료 예시값). 숫자가 없으면 '상온'
+const peakTemp = (d) => { const hi = Math.max(0, ...(d.steps || []).map((s) => parseTemp(s.temp)?.[1] ?? 0)); return hi > 40 ? `${hi.toLocaleString('ko-KR')}℃` : '상온'; };
 function tagFor(e) {
   if (e.tag) return e.tag;
   const t = document.createElement('div'); t.className = 'tag'; t.style.cssText = 'position:absolute;left:0;top:0;transform:translate(-50%,-100%);opacity:0;transition:opacity .3s;display:flex;flex-direction:column;align-items:center;gap:6px;white-space:nowrap;pointer-events:none;';
-  t.innerHTML = `<span class="k" style="display:inline-flex;align-items:center;gap:8px;padding:7px 12px 7px 7px;background:rgba(13,17,20,.86);border:1px solid rgba(255,255,255,.2);color:#fff;font:600 15px/1 var(--f-body);border-radius:999px;backdrop-filter:blur(6px)"><i style="width:22px;height:22px;border-radius:50%;background:var(--hot);color:#1a1200;font:700 12px/1 var(--f-mono);font-style:normal;display:grid;place-items:center">${e.i + 1}</i><span class="nm">${esc(e.data.name)}</span></span><span class="ld" style="width:1px;height:22px;background:linear-gradient(#c9d1d6,transparent)"></span>`;
+  t.innerHTML = `<span class="k" style="display:inline-flex;align-items:center;gap:8px;padding:7px 12px 7px 7px;background:rgba(13,17,20,.86);border:1px solid rgba(255,255,255,.2);color:#fff;font:600 15px/1 var(--f-body);border-radius:999px;backdrop-filter:blur(6px)"><i style="width:22px;height:22px;border-radius:50%;background:var(--hot);color:#1a1200;font:700 12px/1 var(--f-mono);font-style:normal;display:grid;place-items:center">${e.i + 1}</i><span class="nm">${esc(e.data.name)}</span><small class="tl">최고 온도</small><b class="tv">${peakTemp(e.data)}</b></span><span class="ld" style="width:1px;height:22px;background:linear-gradient(#c9d1d6,transparent)"></span>`;
   hud.appendChild(t); return (e.tag = t);
 }
 

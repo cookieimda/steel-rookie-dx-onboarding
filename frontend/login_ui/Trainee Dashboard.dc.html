@@ -32,9 +32,9 @@
     .side > .tutor { flex: 1 1 0; min-height: 0; overflow: hidden; }
     .tutor { display: flex; flex-direction: column; }
     .tutor [data-al="head"], .tutor [data-al="foot"] { flex: none; }
-    /* 머리 아래 선 = 2D 그림 위쪽, 추천 질문 위 = 설비 목록 위, 입력창 아래 = 설비 목록 아래(2026-10-15 그림 아래 가로 목록). 값은 alignTutor()가 재서 body에 넣는다(없으면 기본 배치) */
+    /* 머리 아래 선 = 2D 그림 위쪽, 입력창 아래 = 설비 목록 아래(추천 질문은 입력창 바로 위)(2026-10-15 그림 아래 가로 목록). 값은 alignTutor()가 재서 body에 넣는다(없으면 기본 배치) */
     .tutor [data-al="head"] { height: var(--tutor-head-h, auto); }
-    .tutor [data-al="foot"] { box-sizing: border-box; height: var(--tutor-foot-h, auto); padding-bottom: var(--tutor-foot-pb, 14px); }
+    .tutor [data-al="foot"] { box-sizing: border-box; padding-bottom: var(--tutor-foot-pb, 14px); } /* 높이는 내용대로: 남는 칸은 대화가 쓰고, 추천 질문이 입력창에서 떨어져 뜨지 않는다(2026-10-16) */
     .tutor [data-al="chat"] { overscroll-behavior: contain; }
     /* 포석호(<cp-character>, 튜터 패널 머리): 기본 220×260 대신 x-import의 style이 정한 상자(감싸는 div)를 채운다 */
     .tutor cp-character { display: block; width: 100%; height: 100%; background: var(--panel2); }
@@ -847,7 +847,7 @@ class Component extends DCLogic {
   // AI 튜터 머리·추천 질문·입력창을 2D 모듈 선에 맞춘다(2026-10-15): 머리 아래 선 = 그림 위쪽, 추천 질문 위 = 설비 목록(그림 아래 가로 줄) 위, 입력창 아래 = 설비 목록 아래.
   // 2D 모듈 안(Shadow DOM)을 재서 body에 CSS 변수로 넣는다(템플릿이 다시 그려도 지워지지 않게). 좁은 화면(세로로 쌓임)·설계도 탭이면 기본 배치로 둔다
   alignTutor() {
-    const B = document.body.style, reset = () => ['--tutor-head-h', '--tutor-foot-h', '--tutor-foot-pb'].forEach(k => B.removeProperty(k));
+    const B = document.body.style, reset = () => ['--tutor-head-h', '--tutor-foot-pb'].forEach(k => B.removeProperty(k));
     const sr = this.module()?.shadowRoot, tutor = document.querySelector('.tutor');
     const stage = sr?.querySelector('.stage'), step = sr?.querySelector('#chapters');
     if (!tutor || !stage || !step || this.state.moduleTab !== 'steps' || matchMedia('(max-width: 1100px)').matches) { reset(); return; }
@@ -856,7 +856,6 @@ class Component extends DCLogic {
     if (pb < 0 || g.top <= t.top) { reset(); return; }
     B.setProperty('--tutor-head-h', `${Math.round(g.top - t.top)}px`);
     B.setProperty('--tutor-foot-pb', `${pb}px`);
-    B.setProperty('--tutor-foot-h', `${Math.round(s.height) + pb}px`);
   }
   // 학습 랩 탭을 열면 고른 하위 탭(처음은 간격 반복)을 불러온다
   openLab() { this.setState({ moduleTab: 'lab' }); this.lab?.open(this.state.labTab || 'review'); }

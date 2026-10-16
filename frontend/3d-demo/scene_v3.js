@@ -1402,7 +1402,7 @@ class SteelScene extends HTMLElement {
     const far = this.orbit.dist > 120;
     const playing = this.touring || this.playing; // 애니메이션 재생 중에는 설비 이름표를 숨긴다
     this.eqs.forEach(e => { v.copy(e.anchor).project(this.camera); const vis = v.z < 1 && !far && !playing && (!this.zone || this.zone.root.visible); const lx = Math.round((v.x + 1) / 2 * w), ly = Math.round((1 - v.y) / 2 * h); if (e._lx !== lx || e._ly !== ly || e._vis !== vis) { e._lx = lx; e._ly = ly; e._vis = vis; e.label.style.display = vis ? 'flex' : 'none'; if (vis) e.label.style.transform = `translate(${lx - 7}px, ${ly}px) translate(0,-50%)`; } });
-    this._declutter(now);
+    if (this._calloutOn()) this._layoutCallouts(w, h); else { this._declutter(now); if (this._co) this._co.svg.style.display = 'none'; }
     (this.interiorLabels || []).forEach(l => { if (!l._pos || l._dock || l._hide) return; if (l.style.display === 'none' && l._card) return; v.copy(l._pos).project(this.camera); const vis = v.z < 1; l.style.display = vis ? 'flex' : 'none'; if (vis) { let px = (v.x + 1) / 2 * w; if (l._card && l._up) { const cw = l.offsetWidth || 260; px = Math.min(Math.max(px - cw / 2, 8), w - cw - 8); l.style.transform = 'translate(0,-100%)'; } else if (l._card) { const cw = l.offsetWidth || 260, leftLimit = this.labels.dataset.leftLimit ? +this.labels.dataset.leftLimit : 8, rightLimit = w - 8; if (px + cw <= rightLimit) { l.style.transform = 'translate(0,-50%)'; } else { const alt = l._posL.clone().project(this.camera), lx = (alt.x + 1) / 2 * w; if (lx - cw >= leftLimit) { px = lx; l.style.transform = 'translate(-100%,-50%)'; } else { px = Math.min(Math.max(px - cw / 2, leftLimit), rightLimit - cw); l.style.transform = 'translate(0,-100%)'; const upv = l._pos.clone(); upv.y = (this.interiorTop ?? upv.y); } } } l.style.left = px + 'px'; l.style.top = ((1 - v.y) / 2 * h) + 'px'; } });
     if (this._hl) { const k = (Math.sin((now - this._hl.t0) / 1000 * Math.PI * 1.25) + 1) / 2; this._hl.meshes.forEach(([o, c, sat]) => o.material.color.copy(c).lerp(sat, 0.35 + 0.65 * k)); this._hl.glows.forEach(g => { g.material.opacity = 0.08 + 0.32 * k; }); this._dirty = true; }
     if (this.dark && this._neons) this._neons.forEach(m => { m.uniforms.t.value = now / 1000; });
@@ -1517,11 +1517,45 @@ class SteelScene extends HTMLElement {
     }
     this._dirty = true;
   }
+  // [callouts 속성, 설계도 페이지] 2D 도면에서 이름표가 설비를 가리지 않게: 설비 자리에는 하얀 점만 두고,
+  // 이름표는 도면 바깥 위(위쪽 절반 설비)·아래(아래쪽 절반) 줄로 빼서 하얀 지시선으로 잇는다.
+  _calloutOn() { return !!this._2d && this.hasAttribute('callouts'); }
+  _layoutCallouts(w, h) {
+    if (!this._co) { const NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg');
+      Object.assign(svg.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible', zIndex: '0' });
+      this.labels.prepend(svg); this._co = { svg, NS, key: '' }; }
+    const C = this._co; C.svg.style.display = '';
+    const m = this._zoneModel(); if (!m) return;
+    if (C.model !== m || C.mode !== this._drawMode) { C.model = m; C.mode = this._drawMode; C.box = new THREE.Box3().setFromObject(m); C.key = ''; }
+    const list = this.eqs.filter(e => e._vis);
+    const key = `${w}|${h}|${list.map(e => `${e.id}:${e._lx},${e._ly}`).join(';')}`; if (key === C.key) return; C.key = key;
+    // 도면(공정 모델) 화면 범위
+    const b = C.box, v = new THREE.Vector3(); let top = Infinity, bot = -Infinity;
+    for (let i = 0; i < 8; i++) { v.set(i & 1 ? b.max.x : b.min.x, i & 2 ? b.max.y : b.min.y, i & 4 ? b.max.z : b.min.z).project(this.camera); const y = (1 - v.y) / 2 * h; top = Math.min(top, y); bot = Math.max(bot, y); }
+    const mid = (top + bot) / 2, GAP = 10, PAD = 8;
+    list.forEach(e => { const nm = e.label.querySelector('.nm'); if (nm.style.display === 'none') nm.style.display = 'flex'; e._compact = false; e._cw = e.label.offsetWidth || e._cw || 120; e._ch = e.label.offsetHeight || e._ch || 26; });
+    const rows = [list.filter(e => e._ly < mid), list.filter(e => e._ly >= mid)];
+    const lines = [];
+    rows.forEach((row, r) => {
+      if (!row.length) return;
+      const lh = Math.max(...row.map(e => e._ch));
+      const cy = r === 0 ? Math.max(lh / 2 + PAD, top - 16 - lh / 2) : Math.min(h - lh / 2 - PAD, bot + 16 + lh / 2);
+      // 설비 x 순서대로 놓고 겹치면 오른쪽으로 밀고, 오른쪽 끝을 넘으면 왼쪽으로 되민다
+      row.sort((a, c) => a._lx - c._lx);
+      const xs = row.map(e => e._lx - e._cw / 2);
+      for (let i = 0; i < row.length; i++) { xs[i] = Math.max(xs[i], PAD); if (i) xs[i] = Math.max(xs[i], xs[i - 1] + row[i - 1]._cw + GAP); }
+      for (let i = row.length - 1; i >= 0; i--) { const lim = i === row.length - 1 ? w - PAD : xs[i + 1] - GAP; if (xs[i] + row[i]._cw > lim) xs[i] = lim - row[i]._cw; }
+      row.forEach((e, i) => { const x = Math.round(xs[i]), y = Math.round(cy); e.label.style.transform = `translate(${x}px, ${y}px) translate(0,-50%)`;
+        const ex = Math.min(Math.max(e._lx, x + 12), x + e._cw - 12); // 지시선이 이름표에 닿는 점(설비 x에 가깝게)
+        lines.push([e._lx, e._ly, ex, r === 0 ? y + e._ch / 2 : y - e._ch / 2]); });
+    });
+    C.svg.innerHTML = lines.map(([x1, y1, x2, y2]) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#ffffff" stroke-opacity=".85" stroke-width="1.3"/><circle cx="${x1}" cy="${y1}" r="3.6" fill="#ffffff" stroke="rgba(9,14,21,.55)" stroke-width="1"/>`).join('');
+  }
   _zoneModel(z = this.zone) { return z?.root.children.find(c => c.name && c.name.startsWith('GLB_')) || z?.root; }
   // 지금 공정 크기에 맞춰 직교 카메라 범위를 잡는다(keepZoom이면 확대·이동 유지)
   _fit2d(keepZoom) { const c = this._ortho, m = this._zoneModel(); if (!c || !m) return;
     const box = new THREE.Box3().setFromObject(m); if (box.isEmpty()) return; const ctr = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3()), front = this._drawMode === 'front';
-    const A = (this.clientWidth || 1) / (this.clientHeight || 1), wd = sz.x, ht = front ? sz.y : sz.z, hw = Math.max(wd / 2, ht / 2 * A) * 1.18, hh = hw / A;
+    const A = (this.clientWidth || 1) / (this.clientHeight || 1), wd = sz.x, ht = front ? sz.y : sz.z, hw = this.hasAttribute('callouts') ? Math.max(wd / 2 * 1.18, ht / 2 * A * 1.34) : Math.max(wd / 2, ht / 2 * A) * 1.18, hh = hw / A; // callouts: 위아래에 이름표 줄 자리를 남긴다
     Object.assign(c, { left: -hw, right: hw, top: hh, bottom: -hh }); if (!keepZoom || !this._2dCenter) { c.zoom = 1; this._2dCenter = ctr.clone(); }
     this._place2d(); c.updateProjectionMatrix(); this._dirty = true; }
   _place2d() { const c = this._ortho, p = this._2dCenter; if (!c || !p) return;

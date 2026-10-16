@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash, randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import type { LlmClient, GenerateRequest } from "../../../llm/src/llm-client.js";
+import { runWithTrace, Trace, type TraceSink } from "../../../llm/src/trace.js";
 import { CheckpointError, type Evaluator, type Tutor } from "../checkpoint/types.js";
 
 export type JobState = "queued" | "running" | "succeeded" | "failed" | "cancelled";
@@ -68,7 +69,8 @@ export class EducationJobs {
   private controllers = new Map<string, AbortController>();
   private working = false;
   private disposed = false;
-  constructor(private readonly db: DatabaseSync) {
+  /** traceSink: 작업마다 trace(kind exam)를 받는다. 없으면 남기지 않는다. */
+  constructor(private readonly db: DatabaseSync, private readonly traceSink?: TraceSink) {
     db.prepare("UPDATE education_jobs SET state='failed', phase='interrupted', error_json=?, updated_at=? WHERE state IN ('queued','running')")
       .run(JSON.stringify({ status: 503, message: "서버가 다시 시작되어 처리가 중단됐어요. 시험 상태를 확인한 뒤 다시 시도해 주세요." }), new Date().toISOString());
   }
@@ -177,13 +179,20 @@ export class EducationJobs {
         this.controllers.set(item.id, controller);
         this.db.prepare("UPDATE education_jobs SET attempts=attempts+1 WHERE id=?").run(item.id);
         this.update(item.id, "running", "preparing");
+        // 작업 하나를 trace(kind exam)로 감싸 채점·문제·설명 호출의 시간·모델·토큰을 남긴다(docs/agent-observability.md).
+        const trace = new Trace("exam");
+        const job = this.get(item.id, item.userId);
+        trace.set("job", { id: item.id, kind: job.kind, queue_ms: Date.now() - Date.parse(job.created_at) });
+        let outcome = "succeeded";
         try {
           const result = await context.run({ userId: item.userId, signal: controller.signal,
             phase: (phase) => { if (!controller.signal.aborted) this.update(item.id, "running", phase); },
             progress: (value) => { if (!controller.signal.aborted) this.db.prepare("UPDATE education_jobs SET progress=?,updated_at=? WHERE id=?").run(Math.max(0, Math.min(1, value)), new Date().toISOString(), item.id); },
-          }, item.task);
+          }, () => runWithTrace(trace, item.task));
           if (!controller.signal.aborted) { this.update(item.id, "succeeded", "completed", result); this.db.prepare("UPDATE education_jobs SET progress=1 WHERE id=?").run(item.id); }
+          else outcome = "cancelled";
         } catch (error) {
+          outcome = controller.signal.aborted ? "cancelled" : "failed";
           if (!controller.signal.aborted) {
             const status = error instanceof CheckpointError ? error.status : 503, job = this.get(item.id, item.userId);
             // 일시 오류면 기다렸다가 같은 작업을 다시 넣는다(최대 max_attempts번).
@@ -193,8 +202,11 @@ export class EducationJobs {
               this.timers.add(timer);
             } else this.update(item.id, "failed", "failed", null, { message: (error as Error).message, status });
           }
+          trace.set("error", { message: (error as Error)?.message ?? String(error) });
         } finally {
           this.controllers.delete(item.id);
+          trace.set("outcome", outcome);
+          this.traceSink?.(trace.toRecord());
           const settled = this.row(item.id, item.userId);
           if (settled && !settled.kind.startsWith("exam") && (settled.state === "succeeded" || settled.state === "failed")) {
             try { this.onSettled?.(settled); } catch (e) { console.warn("작업 완료 알림 실패", e); }

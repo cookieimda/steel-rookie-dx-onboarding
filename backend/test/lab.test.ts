@@ -1,4 +1,4 @@
-// 학습 랩(backend/src/lab/): 간격 반복(SM-2), 주간 리그, xAPI 문장, 세션 리플레이, 소크라테스 모드.
+// 학습 랩(backend/src/lab/): 간격 반복(SM-2), 주간 리그, xAPI 문장, 세션 리플레이. 소크라테스 모드는 뺐고 지난 기록만 센다.
 import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
 import { after, before, test } from "node:test";
@@ -10,7 +10,6 @@ import { deleteUserData } from "../src/db/user-data.js";
 import { buildDeck, type DeckCard } from "../src/lab/deck.js";
 import { computeLeague, maskName, weekStart } from "../src/lab/league.js";
 import { createLabRouter } from "../src/lab/routes.js";
-import { coverage, offlineReply, openingQuestion } from "../src/lab/socratic.js";
 import { nextReview, NEW_PER_DAY } from "../src/lab/spaced.js";
 import { actorOf, statementFor } from "../src/lab/xapi.js";
 import type { CardEvent } from "../src/me/employee-card.js";
@@ -104,18 +103,6 @@ test("xAPI: 기록 종류별 동사·대상·결과, 같은 기록은 같은 id"
   assert.equal(statementFor({ kind: "sr_review", at: "2026-10-15T01:00:00Z", object_id: "eq:blast_furnace", grade: 0 }, actor, names)!.result?.success, false);
 });
 
-test("소크라테스(오프라인): 첫 질문, 핵심을 말하면 닿음, 아니면 힌트 단계가 오른다", () => {
-  const card = deck[0];
-  assert.match(openingQuestion(card), /^소결기를 처음 본다고/);
-  assert.match(openingQuestion(deck[2]), /^고로를/);
-  assert.ok(coverage("가루 철광석을 구워서 덩어리로 만들어요", card.role) >= 0.35);
-  const hit = offlineReply(card, "가루 철광석을 구워서 덩어리로 만들어요", 0);
-  assert.equal(hit.understood, true);
-  const miss = offlineReply(card, "잘 모르겠어요", 0);
-  assert.deepEqual([miss.understood, miss.hint_level], [false, 1]);
-  assert.equal(offlineReply(card, "모름", 3).hint_level, 3);
-});
-
 // ── HTTP ──
 const secret = new TextEncoder().encode("lab-test-secret-lab-test-secret-lab-test");
 const db = openDatabase(":memory:");
@@ -130,7 +117,7 @@ before(async () => {
   kim = await users.create({ username: "trainee01", password: "password123", name: "김신입", employee_no: "T1" });
   lee = await users.create({ username: "trainee02", password: "password123", name: "이신입", employee_no: "T2" });
   const app = express();
-  app.use(createLabRouter({ db, auth: { users, secret }, deck, llm: null, now: () => clock }));
+  app.use(createLabRouter({ db, auth: { users, secret }, deck, now: () => clock }));
   server = app.listen(0);
   await new Promise((r) => server.once("listening", r));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -178,24 +165,14 @@ test("HTTP 리플레이: 본인 세션만 쓰고 읽고 지운다, 형식이 틀
   assert.equal((await call("GET", `/api/me/lab/replays/${id}`, kim)).status, 404);
 });
 
-test("HTTP 소크라테스(LLM 없음): 시작 → 힌트 → 닿음 → 정답 보기, 본 뒤에는 더 답할 수 없다", async () => {
-  const start = await call("POST", "/api/me/lab/socratic", kim, { equipment_id: "sinter_plant" });
-  assert.equal(start.status, 201);
-  assert.equal(start.json.turns.length, 1);
-  const id = start.json.session.id;
-  const miss = await call("POST", `/api/me/lab/socratic/${id}/turns`, kim, { text: "잘 모르겠어요" });
-  assert.deepEqual([miss.json.mode, miss.json.understood, miss.json.session.hint_level, miss.json.session.state], ["offline", false, 1, "active"]);
-  const hit = await call("POST", `/api/me/lab/socratic/${id}/turns`, kim, { text: "가루 철광석을 구워서 덩어리로 만들어요" });
-  assert.deepEqual([hit.json.understood, hit.json.just_reached, hit.json.session.state], [true, true, "reached"]);
-  assert.equal((await call("GET", `/api/me/lab/socratic/${id}`, lee)).status, 404);
-  const other = await call("POST", "/api/me/lab/socratic", kim, { equipment_id: "coke_oven" });
-  const reveal = await call("POST", `/api/me/lab/socratic/${other.json.session.id}/reveal`, kim);
-  assert.equal(reveal.json.session.state, "revealed");
-  assert.match(reveal.json.turns.at(-1).text, /석탄을 공기 없이/);
-  assert.equal((await call("POST", `/api/me/lab/socratic/${other.json.session.id}/turns`, kim, { text: "다시" })).status, 409);
-  const list = await call("GET", "/api/me/lab/socratic", kim);
-  assert.equal(list.json.sessions.length, 2);
-  assert.equal(list.json.llm, false);
+test("소크라테스 모드는 뺐다: API는 없고, 지난 기록(스스로 닿음·정답 봄)은 테이블에 남아 아래 xAPI·리그가 센다", async () => {
+  const auth = { authorization: `Bearer ${await signToken(kim, secret)}` };
+  assert.equal((await fetch(`${base}/api/me/lab/socratic`, { headers: auth })).status, 404);
+  assert.equal((await fetch(`${base}/api/me/lab/socratic`, { method: "POST", headers: auth })).status, 404);
+  const at = NOW.toISOString();
+  const add = db.prepare("INSERT INTO socratic_sessions (id, user_id, section, equipment_id, state, hint_level, created_at, updated_at) VALUES (?, ?, 'ironmaking', ?, ?, 1, ?, ?)");
+  add.run("soc-reached", kim.id, "sinter_plant", "reached", at, at);
+  add.run("soc-revealed", kim.id, "coke_oven", "revealed", at, at);
 });
 
 test("HTTP xAPI: 복습·소크라테스·화면 문장이 모두 문장이 되고 동사로 거른다, 내려받기는 첨부 파일", async () => {

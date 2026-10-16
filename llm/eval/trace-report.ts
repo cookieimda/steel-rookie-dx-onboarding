@@ -1,4 +1,5 @@
-// 학습 모드 trace 요약: 서버가 남긴 data/traces/learning-*.jsonl(llm/src/trace.ts)을 읽어 실패 원인·지연·호출·검증 결과를 센다.
+// trace 요약: 서버가 남긴 data/traces/*.jsonl(llm/src/trace.ts)을 읽는다. 학습 모드는 실패 원인·지연·호출·검증 결과를 자세히,
+// 체크포인트·보충학습·시험(checkpoint·supplement·exam)은 요청별 시간과 모델별 호출을 센다.
 // 실행: npm run trace:report [-- --dir data/traces] [--since 2026-10-15] [--until 2026-10-31] [--list 10]
 // 모델을 부르지 않는다(무료). 지표 정의는 docs/agent-observability.md.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -270,6 +271,46 @@ export function formatReport(s: TraceSummary): string {
   return lines.join("\n");
 }
 
+/** 학습 밖 경로(checkpoint·supplement·exam) 요약: 요청 수, 결과, 전체 시간, 모델별 LLM 호출 수·평균 시간·실패·토큰. */
+export interface KindSummary {
+  kind: string;
+  requests: number;
+  outcomes: Record<string, number>;
+  total_p50: number | null;
+  total_p95: number | null;
+  /** 경로(:id로 묶음)별 요청 수(체크포인트·보충학습). */
+  routes: Record<string, number>;
+  models: Record<string, { calls: number; failed: number; ms_p50: number | null; tokens: number }>;
+}
+
+export function summarizeKind(kind: string, records: (TraceRecord & { outcome?: string; request?: { route?: string } })[]): KindSummary {
+  const calls = records.flatMap((r) => r.llm_calls ?? []);
+  const models: KindSummary["models"] = {};
+  for (const model of [...new Set(calls.map((c) => c.model))].sort()) {
+    const mine = calls.filter((c) => c.model === model);
+    models[model] = { calls: mine.length, failed: mine.filter((c) => !c.ok).length, ms_p50: quantile(mine.map((c) => c.ms), 0.5), tokens: mine.reduce((n, c) => n + (c.tokens?.total ?? 0), 0) };
+  }
+  return {
+    kind,
+    requests: records.length,
+    outcomes: countBy(records, (r) => r.outcome ?? "unknown"),
+    total_p50: quantile(records.map((r) => r.total_ms), 0.5),
+    total_p95: quantile(records.map((r) => r.total_ms), 0.95),
+    routes: countBy(records, (r) => r.request?.route),
+    models,
+  };
+}
+
+export function formatKind(s: KindSummary): string {
+  const lines = [`[${s.kind}] 요청 ${s.requests}개 · 결과: ${entries(s.outcomes)} · 전체 p50/p95 ${ms(s.total_p50)} / ${ms(s.total_p95)}`];
+  if (Object.keys(s.routes).length) lines.push(`  경로: ${entries(s.routes)}`);
+  for (const [model, m] of Object.entries(s.models)) lines.push(`  ${model}: 호출 ${m.calls}회(실패 ${m.failed}) · 호출당 p50 ${ms(m.ms_p50)} · 토큰 ${m.tokens}`);
+  return lines.join("\n");
+}
+
+/** 학습 밖에서 trace를 남기는 경로 종류(서버 ironmaking-server.ts). */
+export const OTHER_KINDS = ["checkpoint", "supplement", "exam"] as const;
+
 /** dir의 {kind}-YYYY-MM-DD.jsonl 중 날짜 범위에 드는 파일을 읽는다. 깨진 줄은 건너뛰고 개수를 돌려준다. */
 export function readTraces(dir: string, { kind = "learning", since = "", until = "" } = {}): { records: LearningTrace[]; broken: number; files: string[] } {
   if (!existsSync(dir)) return { records: [], broken: 0, files: [] };
@@ -287,16 +328,21 @@ export function readTraces(dir: string, { kind = "learning", since = "", until =
 
 function main(): void {
   const dir = option("dir", process.env.TRACE_DIR || join(process.cwd(), "data", "traces"));
-  const { records, broken, files } = readTraces(dir, { since: option("since", ""), until: option("until", "") });
-  if (!records.length) {
-    console.log(`${dir}에 학습 모드 trace가 없습니다. 서버(npm start)로 질문하면 쌓입니다(TRACE_LOG=off면 남기지 않음).`);
+  const range = { since: option("since", ""), until: option("until", "") };
+  const { records, broken, files } = readTraces(dir, range);
+  const others = OTHER_KINDS.map((kind) => ({ kind, records: readTraces(dir, { kind, ...range }).records })).filter((o) => o.records.length);
+  if (!records.length && !others.length) {
+    console.log(`${dir}에 trace가 없습니다. 서버(npm start)로 질문하면 쌓입니다(TRACE_LOG=off면 남기지 않음).`);
     return;
   }
-  console.log(`파일 ${files.length}개(${files[0]} ~ ${files.at(-1)})${broken ? `, 깨진 줄 ${broken}개 건너뜀` : ""}\n`);
-  const range = { since: option("since", ""), until: option("until", "") };
-  const ui = readTraces(dir, { kind: "learning-ui", ...range }).records as unknown as UiTrace[];
-  const restores = readTraces(dir, { kind: "learning-restore", ...range }).records;
-  console.log(formatReport(summarizeTraces(records, Number(option("list", "10")), ui, restores)));
+  if (records.length) {
+    console.log(`[학습 모드] 파일 ${files.length}개(${files[0]} ~ ${files.at(-1)})${broken ? `, 깨진 줄 ${broken}개 건너뜀` : ""}\n`);
+    const ui = readTraces(dir, { kind: "learning-ui", ...range }).records as unknown as UiTrace[];
+    const restores = readTraces(dir, { kind: "learning-restore", ...range }).records;
+    console.log(formatReport(summarizeTraces(records, Number(option("list", "10")), ui, restores)));
+  }
+  // 체크포인트·보충학습·시험: 요청(작업)별 시간과 모델별 호출(채점이 몇 초 걸리는지, 어느 provider였는지).
+  if (others.length) console.log(`\n${others.map((o) => formatKind(summarizeKind(o.kind, o.records as never))).join("\n")}`);
 }
 
 // 테스트에서 import할 때는 실행하지 않는다.

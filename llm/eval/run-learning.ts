@@ -53,6 +53,8 @@ const CaseLine = z.object({
     facts: z.array(z.array(z.string().min(1)).min(1)).optional(),
     /** 하면 안 되는 주장(정규식). 문장 단위로 보고, 부정하며 바로잡는 문장("~이 아니에요")은 위반으로 치지 않는다(claimViolations). */
     must_not: z.array(z.string().min(1)).optional(),
+    /** 인용해야 하는 자료 id(하나라도). 검색 평가 세트(llm/eval/retrieval)의 사람이 붙인 정답 출처를 옮겨 쓴다. */
+    sources_any: z.array(z.string().min(1)).min(1).optional(),
   }),
   note: z.string().optional(),
 });
@@ -132,6 +134,8 @@ export interface Checks {
   /** 빠진 사실(표현 목록의 첫 말)과 위반한 주장 문장. */
   missing_facts: string[];
   violations: string[];
+  /** sources_any가 없거나 인용 자료를 모르면 null. 인용한 조각의 자료 id 중 하나라도 있으면 true. */
+  sources: boolean | null;
 }
 
 /** 부정하며 바로잡는 문장 표시("~이 아니에요", "~하지 않아요", "틀린"). */
@@ -148,8 +152,11 @@ export function missingFacts(answer: string, facts: string[][]): string[] {
   return facts.filter((alts) => !alts.some((w) => answer.includes(w))).map((alts) => alts[0]!);
 }
 
-/** 기대와 비교한다. scene이 "any"면, answer_any·facts·must_not이 없으면 그 항목은 null(보지 않음). */
-export function score(c: LearningCase, r: Pick<LearningRecord, "status" | "scene_actions" | "misconception" | "answer">): Checks {
+/**
+ * 기대와 비교한다. scene이 "any"면, answer_any·facts·must_not·sources_any가 없으면 그 항목은 null(보지 않음).
+ * citedSources: 답이 인용한 조각들의 자료 id(조각 id → 자료 id는 검색 결과로 바꾼다). 모르면 출처 검사는 null.
+ */
+export function score(c: LearningCase, r: Pick<LearningRecord, "status" | "scene_actions" | "misconception" | "answer">, citedSources?: string[]): Checks {
   const scene =
     c.expect.scene === "any"
       ? null
@@ -160,10 +167,11 @@ export function score(c: LearningCase, r: Pick<LearningRecord, "status" | "scene
   const missing_facts = c.expect.facts ? missingFacts(r.answer, c.expect.facts) : [];
   const violations = c.expect.must_not ? claimViolations(r.answer, c.expect.must_not) : [];
   const content = c.expect.facts || c.expect.must_not ? missing_facts.length === 0 && violations.length === 0 : null;
-  return { status: r.status === c.expect.status, scene, misconception: r.misconception === c.expect.misconception, answer, content, missing_facts, violations };
+  const sources = c.expect.sources_any && citedSources ? citedSources.some((s) => c.expect.sources_any!.includes(s)) : null;
+  return { status: r.status === c.expect.status, scene, misconception: r.misconception === c.expect.misconception, answer, content, missing_facts, violations, sources };
 }
 
-const passed = (k: Checks) => k.status && k.scene !== false && k.misconception && k.answer !== false && k.content !== false;
+const passed = (k: Checks) => k.status && k.scene !== false && k.misconception && k.answer !== false && k.content !== false && k.sources !== false;
 const pct = (n: number, d: number) => (d ? `${((n / d) * 100).toFixed(1)}%` : "-");
 const fmt = (actions: SceneAction[]) => (actions.length ? actions.map((a) => `${a.type}:${a.target_id}`).join(", ") : "(없음)");
 
@@ -219,9 +227,11 @@ async function main(): Promise<void> {
     const fp = safety ? fingerprint("safety", c.question) : fingerprint(model, learningSystemPrompt(sent(input), profile), learningUserPrompt(sent(input)), followUp ? "follow-up" : "");
     const prior = records.done(c.id, fp);
     // 근거 겹침(grounding.ts)은 보고서에서 인용한 조각 본문으로 센다. 기록 파일에는 남기지 않는다(조각은 같은 fingerprint면 같다).
+    // 인용 자료(출처 검사)도 같은 조각에서 꺼낸다(조각 id → 자료 id).
     const evidenceOf = (r: LearningRecord) => input.chunks.filter((ch) => r.source_ids.includes(ch.id)).map((ch) => ch.text);
+    const citedOf = (r: LearningRecord) => [...new Set(input.chunks.filter((ch) => r.source_ids.includes(ch.id)).flatMap((ch) => ch.source_ids))];
     if (prior) {
-      done.push({ c, r: prior, evidence: evidenceOf(prior) });
+      done.push({ c, r: prior, evidence: evidenceOf(prior), cited: citedOf(prior) });
       skipped++;
       process.stdout.write("-");
       continue;
@@ -273,8 +283,8 @@ async function main(): Promise<void> {
       }
     }
     records.append(record);
-    done.push({ c, r: record, evidence: evidenceOf(record) });
-    process.stdout.write(record.infra_error ? "E" : passed(score(c, record)) ? "." : "x");
+    done.push({ c, r: record, evidence: evidenceOf(record), cited: citedOf(record) });
+    process.stdout.write(record.infra_error ? "E" : passed(score(c, record, citedOf(record))) ? "." : "x");
     if (streak.push(record.infra_error)) {
       console.error(`\n연결 오류가 ${MAX_CONSECUTIVE_INFRA}케이스 연속으로 나서 멈춥니다: ${record.error}`);
       console.error("원인(요청 한도·API 키·네트워크)을 확인한 뒤 --resume으로 이어서 실행하세요.");
@@ -295,6 +305,8 @@ interface Done {
   r: LearningRecord;
   /** 답이 인용한 조각 본문(근거 겹침용). */
   evidence: string[];
+  /** 답이 인용한 자료 id(출처 검사용). */
+  cited: string[];
 }
 
 /** grounded 답의 근거 겹침(grounding.ts) 요약 줄. 판정이 아니라 관찰 지표라 전체 통과에는 넣지 않는다. */
@@ -316,7 +328,7 @@ export function groundingLines(rows: Pick<Done, "c" | "r" | "evidence">[], listL
 function report(all: Done[]): void {
   // 연결 오류는 튜터의 답이 아니므로 일치율에서 뺀다(개수만 표시).
   const infra = all.filter((o) => o.r.infra_error);
-  const rows = all.filter((o) => !o.r.infra_error).map((o) => ({ ...o, k: score(o.c, o.r) }));
+  const rows = all.filter((o) => !o.r.infra_error).map((o) => ({ ...o, k: score(o.c, o.r, o.cited) }));
   const scene = rows.filter((o) => o.k.scene !== null);
   console.log(`\n전체 통과(모든 항목): ${rows.filter((o) => passed(o.k)).length}/${rows.length} (${pct(rows.filter((o) => passed(o.k)).length, rows.length)})`);
   console.log(`  근거 판정: ${rows.filter((o) => o.k.status).length}/${rows.length} (${pct(rows.filter((o) => o.k.status).length, rows.length)})`);
@@ -329,6 +341,8 @@ function report(all: Done[]): void {
     const claims = facts.filter((o) => o.k.violations.length).length;
     console.log(`  답변 사실(facts·must_not): ${facts.filter((o) => o.k.content).length}/${facts.length} (빠진 사실 ${facts.filter((o) => o.k.missing_facts.length).length}개 · 하면 안 되는 주장 ${claims}개)`);
   }
+  const cited = rows.filter((o) => o.k.sources !== null);
+  if (cited.length) console.log(`  필수 출처(sources_any): ${cited.filter((o) => o.k.sources).length}/${cited.length}`);
   console.log(`  형식 오류(format_error): ${rows.filter((o) => o.r.status === "format_error").length}개, 연결 오류(infra_error, 제외): ${infra.length}개`);
   const times = rows.map((o) => o.r.ms).filter((x): x is number => typeof x === "number").sort((a, b) => a - b);
   if (times.length) console.log(`  답 시간: p50 ${(times[Math.ceil(times.length * 0.5) - 1]! / 1000).toFixed(1)}초 · p95 ${(times[Math.ceil(times.length * 0.95) - 1]! / 1000).toFixed(1)}초 (n=${times.length})`);
@@ -355,8 +369,8 @@ function report(all: Done[]): void {
 
   const misses = rows.filter((o) => !passed(o.k));
   console.log(`\n틀린 케이스 ${misses.length}개`);
-  for (const { c, r, k } of misses) {
-    const what = [!k.status && `근거 ${c.expect.status}→${r.status}`, k.scene === false && `화면 기대 ${fmt(c.expect.scene as SceneAction[])} → ${fmt(r.scene_actions)}`, !k.misconception && `오개념 ${c.expect.misconception}→${r.misconception}`, k.answer === false && `답에 ${c.expect.answer_any!.join("·")} 중 하나도 없음`, k.missing_facts.length && `빠진 사실 ${k.missing_facts.join("·")}`, k.violations.length && `하면 안 되는 주장 "${k.violations.join(" / ").slice(0, 120)}"`].filter(Boolean);
+  for (const { c, r, k, cited } of misses) {
+    const what = [!k.status && `근거 ${c.expect.status}→${r.status}`, k.scene === false && `화면 기대 ${fmt(c.expect.scene as SceneAction[])} → ${fmt(r.scene_actions)}`, !k.misconception && `오개념 ${c.expect.misconception}→${r.misconception}`, k.answer === false && `답에 ${c.expect.answer_any!.join("·")} 중 하나도 없음`, k.missing_facts.length && `빠진 사실 ${k.missing_facts.join("·")}`, k.violations.length && `하면 안 되는 주장 "${k.violations.join(" / ").slice(0, 120)}"`, k.sources === false && `출처 ${c.expect.sources_any!.join("·")} 중 인용 없음(인용: ${cited.join(",") || "없음"})`].filter(Boolean);
     console.log(`- ${c.id} [${c.type}] ${c.question}`);
     console.log(`    ${what.join(" | ")}`);
     if (r.answer) console.log(`    답변: ${r.answer.slice(0, 160)}`);

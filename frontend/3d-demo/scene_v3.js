@@ -232,9 +232,13 @@ class SteelScene extends HTMLElement {
   _styleLabels() {
     const id = this.getAttribute('selected');
     this.eqs.forEach(e => { const on = e.id === id, act = on || e.id === this.hoverId, dot = e.label.querySelector('i'), nm = e.label.querySelector('.nm');
-      Object.assign(e.label.style, { color: '#ffffff', opacity: act || !id ? '1' : '0.8', fontWeight: '600', alignItems: 'center', gap: '6px', padding: '0', background: 'transparent', border: 'none', boxShadow: 'none', zIndex: on ? '3' : act ? '2' : '1' });
-      Object.assign(nm.style, { padding: '5px 10px', borderRadius: '7px', background: on ? 'rgba(9,14,21,.94)' : 'rgba(18,24,32,.8)', border: '1px solid ' + (on ? UI : 'rgba(255,255,255,.16)'), boxShadow: on ? '0 0 0 3px rgba(255,158,100,.22), 0 6px 18px rgba(0,0,0,.28)' : '0 4px 12px rgba(0,0,0,.2)', backdropFilter: 'blur(6px)', webkitBackdropFilter: 'blur(6px)' });
-      const sz = on ? 24 : 20; Object.assign(dot.style, { width: sz + 'px', height: sz + 'px', borderRadius: '50%', background: UI, color: UI_INK, border: '2px solid #ffffff', boxSizing: 'border-box', boxShadow: on ? '0 0 0 4px rgba(255,158,100,.35), 0 0 12px ' + UI : '0 2px 6px rgba(0,0,0,.35)' }); });
+      // 이름표 한 장: [번호 | 설비 이름]. 번호는 고정폭 숫자, 선택되면 번호 칸만 주황으로 채운다(2026-10-16, 동그란 번호 배지 대신)
+      Object.assign(e.label.style, { color: '#ffffff', opacity: act || !id ? '1' : '0.8', fontWeight: '600', alignItems: 'stretch', gap: '0', padding: '0', overflow: 'hidden', borderRadius: '8px',
+        background: on ? 'rgba(9,14,21,.94)' : 'rgba(14,19,26,.8)', border: '1px solid ' + (on ? UI : act ? 'rgba(255,255,255,.34)' : 'rgba(255,255,255,.14)'),
+        boxShadow: on ? '0 0 0 3px rgba(255,158,100,.2), 0 8px 20px rgba(0,0,0,.3)' : '0 4px 14px rgba(0,0,0,.22)', backdropFilter: 'blur(8px)', webkitBackdropFilter: 'blur(8px)', zIndex: on ? '3' : act ? '2' : '1' });
+      Object.assign(nm.style, { padding: '6px 11px 6px 9px', borderRadius: '0', background: 'transparent', border: 'none', boxShadow: 'none', backdropFilter: 'none', webkitBackdropFilter: 'none', letterSpacing: '-0.01em' });
+      Object.assign(dot.style, { width: 'auto', height: 'auto', padding: '0 8px 0 9px', borderRadius: '0', background: on ? UI : 'transparent', color: on ? UI_INK : UI, border: 'none', borderRight: e._compact ? 'none' : '1px solid ' + (on ? 'transparent' : 'rgba(255,255,255,.14)'),
+        boxSizing: 'border-box', boxShadow: 'none', fontSize: '11px', fontWeight: '600', letterSpacing: '0.06em', fontVariantNumeric: 'tabular-nums' }); });
   }
 
   // 멀리 보이는 제철소 실루엣 + 불티
@@ -654,7 +658,7 @@ class SteelScene extends HTMLElement {
       z.root.add(g);
       const box = new THREE.Box3().setFromObject(g);
       const lab = document.createElement('div');
-      lab.innerHTML = `<i>${i + 1}</i><span class="nm" style="display:flex;flex-direction:column;gap:2px"><b>${e.name}</b><u></u></span>`;
+      lab.innerHTML = `<i>${String(i + 1).padStart(2, '0')}</i><span class="nm" style="display:flex;flex-direction:column;gap:2px"><b>${e.name}</b><u></u></span>`;
       const tip = lab.querySelector('u'); tip.textContent = e.role; tip.style.cssText = 'text-decoration:none;display:none;font-size:11px;font-weight:400;opacity:0;max-height:0;overflow:hidden;white-space:normal;max-width:220px;line-height:1.4;color:inherit;transition:max-height .22s ease, opacity .22s ease';
       Object.assign(lab.style, { position: 'absolute', left: '0', top: '0', willChange: 'transform', display: 'none', alignItems: 'flex-start', gap: '8px', padding: '4px 6px', fontFamily: '"IBM Plex Sans KR", sans-serif', fontSize: '13px', fontWeight: '500', letterSpacing: '0.02em', lineHeight: '1', whiteSpace: 'nowrap', pointerEvents: 'auto', cursor: 'pointer', textShadow: 'none', transition: 'opacity .2s' });
       lab.querySelector('i').style.cssText = 'flex:none;display:flex;align-items:center;justify-content:center;font-style:normal;font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:700;color:' + UI_INK;
@@ -1088,7 +1092,7 @@ class SteelScene extends HTMLElement {
     order.forEach(e => { const x = e._lx - 7, y = e._ly, keep = e.id === sel || e.id === this.hoverId;
       const full = [x - 2, y - 15, x + (e._w || 140) + 4, y + 15], dot = [x - 2, y - 12, x + 24, y + 12];
       const compact = !keep && (moving || hit(full)); taken.push(compact ? dot : full);
-      if (compact !== e._compact) { e._compact = compact; const nm = e.label.querySelector('.nm'); nm.style.display = compact ? 'none' : 'flex'; if (!compact) e._w = nm.offsetWidth + 30; e.label.style.zIndex = e.id === sel ? '4' : compact ? '1' : '2'; } }); // 번호만 남은 핀은 이름표 아래로
+      if (compact !== e._compact) { e._compact = compact; const nm = e.label.querySelector('.nm'); nm.style.display = compact ? 'none' : 'flex'; e.label.querySelector('i').style.borderRight = compact ? 'none' : '1px solid rgba(255,255,255,.14)'; if (!compact) e._w = nm.offsetWidth + 30; e.label.style.zIndex = e.id === sel ? '4' : compact ? '1' : '2'; } }); // 번호만 남은 핀은 이름표 아래로
     if (moving) this._dirty = true;
   }
   _hover(id) {
@@ -1101,11 +1105,11 @@ class SteelScene extends HTMLElement {
       // 라벨: 밑줄·역할 툴팁
       const tip = e.label.querySelector('u');
       e.label.style.fontWeight = on ? '700' : '500';
-      e.label.style.color = on ? accent : '';
+      e.label.style.color = '';
       if (tip) { tip.style.display = on ? 'block' : 'none'; tip.style.maxHeight = on ? '40px' : '0'; tip.style.opacity = on ? '1' : '0'; }
       if (!this.dimmed) e.label.style.opacity = on || !sel || e.id === sel ? '1' : '0.55';
       if (on && !this.dimmed) this._styleLabels(); // keep selected styling
-      if (on) { e.label.style.color = accent; e.label.querySelector('i').style.background = accent; }
+      if (on) { e.label.style.borderColor = 'rgba(255,255,255,.34)'; }
     });
     if (this.hoverRing) this.hoverRing.visible = false;
     const e = this.eqs.find(q => q.id === id);
@@ -1400,8 +1404,9 @@ class SteelScene extends HTMLElement {
     (this.zoneArrows || []).forEach(a => { v.copy(a.pos).project(this.camera); const lx = Math.round((v.x + 1) / 2 * w), ly = Math.round((1 - v.y) / 2 * h); const q0 = a.p0.clone().project(this.camera), q1 = a.p1.clone().project(this.camera), ang = Math.round(Math.atan2(-(q1.y - q0.y) * h, (q1.x - q0.x) * w) * 180 / Math.PI); if (a._lx !== lx || a._ly !== ly || a._ang !== ang) { a._lx = lx; a._ly = ly; a._ang = ang; a.el.style.transform = `translate(${lx}px, ${ly}px) translate(-50%,-50%) rotate(${ang}deg)`; } });
     if (this._zoomKey !== (this.orbit.dist > 120)) { this._zoomKey = this.orbit.dist > 120; this._styleZoneLabels(); }
     const far = this.orbit.dist > 120;
-    this.eqs.forEach(e => { v.copy(e.anchor).project(this.camera); const vis = v.z < 1 && !far && (!this.zone || this.zone.root.visible); const lx = Math.round((v.x + 1) / 2 * w), ly = Math.round((1 - v.y) / 2 * h); if (e._lx !== lx || e._ly !== ly || e._vis !== vis) { e._lx = lx; e._ly = ly; e._vis = vis; e.label.style.display = vis ? 'flex' : 'none'; if (vis) e.label.style.transform = `translate(${lx - 7}px, ${ly}px) translate(0,-50%)`; } });
-    this._declutter(now);
+    const playing = this.touring || this.playing; // 애니메이션 재생 중에는 설비 이름표를 숨긴다
+    this.eqs.forEach(e => { v.copy(e.anchor).project(this.camera); const vis = v.z < 1 && !far && !playing && (!this.zone || this.zone.root.visible); const lx = Math.round((v.x + 1) / 2 * w), ly = Math.round((1 - v.y) / 2 * h); if (e._lx !== lx || e._ly !== ly || e._vis !== vis) { e._lx = lx; e._ly = ly; e._vis = vis; e.label.style.display = vis ? 'flex' : 'none'; if (vis) e.label.style.transform = `translate(${lx - 7}px, ${ly}px) translate(0,-50%)`; } });
+    if (this._calloutOn()) this._layoutCallouts(w, h); else { this._declutter(now); if (this._co) this._co.svg.style.display = 'none'; }
     (this.interiorLabels || []).forEach(l => { if (!l._pos || l._dock || l._hide) return; if (l.style.display === 'none' && l._card) return; v.copy(l._pos).project(this.camera); const vis = v.z < 1; l.style.display = vis ? 'flex' : 'none'; if (vis) { let px = (v.x + 1) / 2 * w; if (l._card && l._up) { const cw = l.offsetWidth || 260; px = Math.min(Math.max(px - cw / 2, 8), w - cw - 8); l.style.transform = 'translate(0,-100%)'; } else if (l._card) { const cw = l.offsetWidth || 260, leftLimit = this.labels.dataset.leftLimit ? +this.labels.dataset.leftLimit : 8, rightLimit = w - 8; if (px + cw <= rightLimit) { l.style.transform = 'translate(0,-50%)'; } else { const alt = l._posL.clone().project(this.camera), lx = (alt.x + 1) / 2 * w; if (lx - cw >= leftLimit) { px = lx; l.style.transform = 'translate(-100%,-50%)'; } else { px = Math.min(Math.max(px - cw / 2, leftLimit), rightLimit - cw); l.style.transform = 'translate(0,-100%)'; const upv = l._pos.clone(); upv.y = (this.interiorTop ?? upv.y); } } } l.style.left = px + 'px'; l.style.top = ((1 - v.y) / 2 * h) + 'px'; } });
     if (this._hl) { const k = (Math.sin((now - this._hl.t0) / 1000 * Math.PI * 1.25) + 1) / 2; this._hl.meshes.forEach(([o, c, sat]) => o.material.color.copy(c).lerp(sat, 0.35 + 0.65 * k)); this._hl.glows.forEach(g => { g.material.opacity = 0.08 + 0.32 * k; }); this._dirty = true; }
     if (this.dark && this._neons) this._neons.forEach(m => { m.uniforms.t.value = now / 1000; });
@@ -1516,11 +1521,45 @@ class SteelScene extends HTMLElement {
     }
     this._dirty = true;
   }
+  // [callouts 속성, 설계도 페이지] 2D 도면에서 이름표가 설비를 가리지 않게: 설비 자리에는 하얀 점만 두고,
+  // 이름표는 도면 바깥 위(위쪽 절반 설비)·아래(아래쪽 절반) 줄로 빼서 하얀 지시선으로 잇는다.
+  _calloutOn() { return !!this._2d && this.hasAttribute('callouts'); }
+  _layoutCallouts(w, h) {
+    if (!this._co) { const NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg');
+      Object.assign(svg.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible', zIndex: '0' });
+      this.labels.prepend(svg); this._co = { svg, NS, key: '' }; }
+    const C = this._co; C.svg.style.display = '';
+    const m = this._zoneModel(); if (!m) return;
+    if (C.model !== m || C.mode !== this._drawMode) { C.model = m; C.mode = this._drawMode; C.box = new THREE.Box3().setFromObject(m); C.key = ''; }
+    const list = this.eqs.filter(e => e._vis);
+    const key = `${w}|${h}|${list.map(e => `${e.id}:${e._lx},${e._ly}`).join(';')}`; if (key === C.key) return; C.key = key;
+    // 도면(공정 모델) 화면 범위
+    const b = C.box, v = new THREE.Vector3(); let top = Infinity, bot = -Infinity;
+    for (let i = 0; i < 8; i++) { v.set(i & 1 ? b.max.x : b.min.x, i & 2 ? b.max.y : b.min.y, i & 4 ? b.max.z : b.min.z).project(this.camera); const y = (1 - v.y) / 2 * h; top = Math.min(top, y); bot = Math.max(bot, y); }
+    const mid = (top + bot) / 2, GAP = 10, PAD = 8;
+    list.forEach(e => { const nm = e.label.querySelector('.nm'); if (nm.style.display === 'none') nm.style.display = 'flex'; e._compact = false; e._cw = e.label.offsetWidth || e._cw || 120; e._ch = e.label.offsetHeight || e._ch || 26; });
+    const rows = [list.filter(e => e._ly < mid), list.filter(e => e._ly >= mid)];
+    const lines = [];
+    rows.forEach((row, r) => {
+      if (!row.length) return;
+      const lh = Math.max(...row.map(e => e._ch));
+      const cy = r === 0 ? Math.max(lh / 2 + PAD, top - 16 - lh / 2) : Math.min(h - lh / 2 - PAD, bot + 16 + lh / 2);
+      // 설비 x 순서대로 놓고 겹치면 오른쪽으로 밀고, 오른쪽 끝을 넘으면 왼쪽으로 되민다
+      row.sort((a, c) => a._lx - c._lx);
+      const xs = row.map(e => e._lx - e._cw / 2);
+      for (let i = 0; i < row.length; i++) { xs[i] = Math.max(xs[i], PAD); if (i) xs[i] = Math.max(xs[i], xs[i - 1] + row[i - 1]._cw + GAP); }
+      for (let i = row.length - 1; i >= 0; i--) { const lim = i === row.length - 1 ? w - PAD : xs[i + 1] - GAP; if (xs[i] + row[i]._cw > lim) xs[i] = lim - row[i]._cw; }
+      row.forEach((e, i) => { const x = Math.round(xs[i]), y = Math.round(cy); e.label.style.transform = `translate(${x}px, ${y}px) translate(0,-50%)`;
+        const ex = Math.min(Math.max(e._lx, x + 12), x + e._cw - 12); // 지시선이 이름표에 닿는 점(설비 x에 가깝게)
+        lines.push([e._lx, e._ly, ex, r === 0 ? y + e._ch / 2 : y - e._ch / 2]); });
+    });
+    C.svg.innerHTML = lines.map(([x1, y1, x2, y2]) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#ffffff" stroke-opacity=".85" stroke-width="1.3"/><circle cx="${x1}" cy="${y1}" r="3.6" fill="#ffffff" stroke="rgba(9,14,21,.55)" stroke-width="1"/>`).join('');
+  }
   _zoneModel(z = this.zone) { return z?.root.children.find(c => c.name && c.name.startsWith('GLB_')) || z?.root; }
   // 지금 공정 크기에 맞춰 직교 카메라 범위를 잡는다(keepZoom이면 확대·이동 유지)
   _fit2d(keepZoom) { const c = this._ortho, m = this._zoneModel(); if (!c || !m) return;
     const box = new THREE.Box3().setFromObject(m); if (box.isEmpty()) return; const ctr = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3()), front = this._drawMode === 'front';
-    const A = (this.clientWidth || 1) / (this.clientHeight || 1), wd = sz.x, ht = front ? sz.y : sz.z, hw = Math.max(wd / 2, ht / 2 * A) * 1.18, hh = hw / A;
+    const A = (this.clientWidth || 1) / (this.clientHeight || 1), wd = sz.x, ht = front ? sz.y : sz.z, hw = this.hasAttribute('callouts') ? Math.max(wd / 2 * 1.18, ht / 2 * A * 1.34) : Math.max(wd / 2, ht / 2 * A) * 1.18, hh = hw / A; // callouts: 위아래에 이름표 줄 자리를 남긴다
     Object.assign(c, { left: -hw, right: hw, top: hh, bottom: -hh }); if (!keepZoom || !this._2dCenter) { c.zoom = 1; this._2dCenter = ctr.clone(); }
     this._place2d(); c.updateProjectionMatrix(); this._dirty = true; }
   _place2d() { const c = this._ortho, p = this._2dCenter; if (!c || !p) return;

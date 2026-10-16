@@ -160,11 +160,19 @@ function goSlide(i) {
   const dir = next - (state.slide ?? 0);
   state.slide = next; placeSlides(dir);
 }
-async function openAttempt(id) {
+/** 시도를 연다. focus면 시험 집중 화면(요약 판·시험지 묶음을 숨기고 시험 판과 캘린더만)으로 바꾼다. */
+async function openAttempt(id, focus = true) {
   state.view = await api.request('GET', `/api/exams/${id}`);
   state.draft = read(`draft:${id}`) || '';
   save('attempt', id);
   renderExam(); renderSections();
+  if (focus) setFocus(true);
+}
+/** 시험 집중 화면 켜고 끄기. 켜면 시험 판이 맨 위에 오도록 올린다. */
+function setFocus(on) {
+  const changed = document.body.classList.contains('exam-focus') !== on;
+  document.body.classList.toggle('exam-focus', on); $('back-deck').hidden = !on;
+  if (changed) scrollTo({ top: 0, behavior: stage.reduced.matches ? 'auto' : 'smooth' });
 }
 /** 이번 차례의 튜터 발화: 마지막 사용자 메시지 뒤의 발화. 대화 기록이 없으면 이번 응답의 발화(tutor). */
 function currentTurn(view) {
@@ -272,6 +280,8 @@ function renderExam() {
     : view.state === 'error' ? ['재평가 필요', 'bad'] : view.state === 'awaiting_ready' ? ['응시 준비', 'text'] : [`${view.concept?.index || 1} / ${view.concept?.total || 1} 개념`, 'text'];
   const stageChip = $('exam-stage'); stageChip.hidden = !phase;
   if (phase) { stageChip.textContent = phase[0]; stageChip.dataset.tone = phase[1]; }
+  // 'n / 전체 개념'은 지금 개념 번호(n)만 진행 점과 같은 강조색으로
+  if (phase && view.state === 'awaiting_answer') stageChip.replaceChildren(el('b', 'stage-now', String(view.concept?.index || 1)), `/ ${view.concept?.total || 1} 개념`);
   renderStage(speechFor(view));
   const root = $('exam-body'); root.replaceChildren();
   // 진행 순서(아이콘 4단계): 응시 전에는 크게, 응시 중에는 지금 단계를 표시한 얇은 띠로
@@ -502,6 +512,8 @@ $('theme').addEventListener('click', () => theme(document.body.dataset.theme ===
 lightQuery.addEventListener('change', () => { if (!savedTheme()) theme(systemTheme()); });
 stage.mobile.addEventListener('change', sizeCharacter);
 $('sfx').addEventListener('click', () => { setSfxOn(!sfxOn()); renderSfx(); });
+// 시험지 목록으로: 집중 화면을 끄고 지금 시험의 공정 시험지를 보여 준다(시험 판은 아래에 그대로 남는다)
+$('back-deck').addEventListener('click', () => { setFocus(false); const at = state.sections.findIndex((s) => s.section === state.view?.section); if (at >= 0) goSlide(at); });
 document.querySelectorAll('[data-leave]').forEach((node) => node.addEventListener('click', (event) => { event.preventDefault(); void leave(node.getAttribute('href')); }));
 $('cancel-job').addEventListener('click', cancel);
 // 시험지 넘기기: 화살표 버튼 · 키보드 ←→ · 끌어서 넘기기(40px 이상)
@@ -535,7 +547,8 @@ async function boot() {
     state.user = (await api.request('GET', '/api/auth/me')).user; $('profile').textContent = `${state.user.name} · ${state.user.employee_no}`;
     await refreshSections(); $('where').dataset.tone = 'ok'; renderExam(); await refreshAside();
     const jobId = read('job'), submission = read('submission'), attempt = read('attempt');
-    if (attempt) { try { await openAttempt(attempt); } catch { save('attempt', null); } }
+    // 페이지를 열면 늘 첫 화면(요약 판 · 시험지 묶음 · 캘린더)부터. 복원한 시도는 시험지 카드의 [이어서 응시]·[결과 보기]로 연다
+    if (attempt) { try { await openAttempt(attempt, false); } catch { save('attempt', null); } }
     if (jobId) await watch(jobId); else if (submission) await dispatch(submission.path, submission.body, submission);
   } catch (error) {
     $('where').dataset.tone = 'bad';

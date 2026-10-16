@@ -8,13 +8,15 @@ import test from "node:test";
 import { pathToFileURL } from "node:url";
 import express from "express";
 import { groundingLines } from "../../llm/eval/run-learning.js";
-import { formatReport, quantile, readTraces, summarizeTraces } from "../../llm/eval/trace-report.js";
+import { formatKind, formatReport, quantile, readTraces, summarizeKind, summarizeTraces } from "../../llm/eval/trace-report.js";
 import { GeminiClient } from "../../llm/src/gemini.js";
 import { groundingSupport, splitSentences, SUPPORT_THRESHOLD } from "../../llm/src/grounding.js";
 import { GeminiLearningAgent, LearningFormatError, modelProposal, type LearningAgent, type LearningInput, type LearningReply } from "../../llm/src/learning-agent.js";
 import { Retriever, type Chunk } from "../../llm/src/retrieval.js";
-import { currentTrace, localDate, runWithTrace, Trace, TraceLog, traceSinkFromEnv, type TraceRecord } from "../../llm/src/trace.js";
+import { currentTrace, localDate, routePattern, runWithTrace, Trace, TraceLog, traceMiddleware, traceSinkFromEnv, type TraceRecord } from "../../llm/src/trace.js";
 import { openDatabase } from "../src/db/database.js";
+import { EducationJobs } from "../src/education/jobs.js";
+import { UserRepository } from "../src/auth/users.js";
 import { LearningRepository } from "../src/learning/repository.js";
 import { createLearningRouter, unverifiedReason } from "../src/learning/routes.js";
 import { withRequestUser } from "../src/request-user.js";
@@ -358,6 +360,59 @@ test("trace 요약: 결과·unverified 원인·지연 분위수·서버 검증�
   assert.match(text, /모델별/);
   assert.match(text, /unverified 원인: no_chunks 1/);
   assert.match(text, /버린 source id 1\/2/);
+});
+
+test("traceMiddleware: 요청을 trace로 감싸 경로(:id로 묶음)·HTTP 상태·LLM 호출을 남기고, sink가 없으면 그냥 지나간다", async () => {
+  assert.equal(routePattern("/api/checkpoints/3f2c1a9e-1b2c-4d5e-8f90-1234567890ab/messages"), "/api/checkpoints/:id/messages");
+  const traces: TraceRecord[] = [];
+  const app = express();
+  app.use("/api/checkpoints", traceMiddleware("checkpoint", (r) => traces.push(r)));
+  const client = new GeminiClient({ apiKey: "k", model: "m", fetch: fakeFetch([geminiBody("ok", 50)]) });
+  app.post("/api/checkpoints/:id/messages", async (_req, res) => {
+    await client.generate({ system: "", prompt: "", temperature: 0, maxOutputTokens: 1 });
+    res.status(201).json({ ok: true });
+  });
+  app.get("/api/other", (_req, res) => { res.json({}); });
+  const server = app.listen(0);
+  await new Promise((r) => server.once("listening", r));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  try {
+    const res = await fetch(`${base}/api/checkpoints/3f2c1a9e-1b2c-4d5e-8f90-1234567890ab/messages`, { method: "POST" });
+    assert.ok(res.headers.get("x-trace-id"));
+    await fetch(`${base}/api/other`);
+    await new Promise((r) => setTimeout(r, 20));
+    assert.equal(traces.length, 1, "감싼 경로만 남긴다");
+    const [r] = traces;
+    assert.deepEqual([r!.kind, (r!.request as { route: string }).route, r!.http_status, r!.outcome, r!.llm_calls.length, r!.llm_tokens], ["checkpoint", "/api/checkpoints/:id/messages", 201, "ok", 1, 50]);
+    const s = summarizeKind("checkpoint", traces as never);
+    assert.deepEqual([s.requests, s.models["gemini:m"]!.calls, s.models["gemini:m"]!.tokens], [1, 1, 50]);
+    assert.match(formatKind(s), /\[checkpoint\] 요청 1개/);
+  } finally {
+    server.close();
+  }
+  let passed = false;
+  traceMiddleware("checkpoint", undefined)({ method: "GET", originalUrl: "/", get: () => undefined }, { statusCode: 200, setHeader: () => { throw new Error("헤더를 건드리면 안 됨"); }, on: () => undefined }, () => { passed = true; });
+  assert.ok(passed);
+});
+
+test("EducationJobs: 시험 작업마다 trace(kind exam)에 작업 종류·결과·LLM 호출을 남긴다", async () => {
+  const traces: TraceRecord[] = [];
+  const db = openDatabase(":memory:");
+  const users = new UserRepository(db);
+  const u1 = await users.create({ username: "trace_u1", password: "password123", name: "가", employee_no: "TR01" });
+  const u2 = await users.create({ username: "trace_u2", password: "password123", name: "나", employee_no: "TR02" });
+  const jobs = new EducationJobs(db, (r) => traces.push(r));
+  const client = new GeminiClient({ apiKey: "k", model: "m", fetch: fakeFetch([geminiBody("ok", 30), 500]) });
+  const call = () => client.generate({ system: "", prompt: "", temperature: 0, maxOutputTokens: 1 });
+  try {
+    jobs.submit(u1.id, "exam-answer", "key-aaaaaaaa", { a: 1 }, { section: "ironmaking" }, async () => { await call(); return { ok: true }; });
+    jobs.submit(u2.id, "exam-answer", "key-bbbbbbbb", { a: 2 }, { section: "ironmaking" }, async () => { await call(); return {}; });
+    for (let i = 0; i < 100 && traces.length < 2; i++) await new Promise((r) => setTimeout(r, 10));
+    assert.deepEqual(traces.map((t) => [t.kind, t.outcome, (t.job as { kind: string }).kind, t.llm_calls.length]), [["exam", "succeeded", "exam-answer", 1], ["exam", "failed", "exam-answer", 1]]);
+    assert.equal(traces[1]!.llm_calls[0]!.http_status, 500);
+  } finally {
+    jobs.dispose();
+  }
 });
 
 test("readTraces: 날짜 범위의 파일만 읽고 깨진 줄은 건너뛴다", () => {

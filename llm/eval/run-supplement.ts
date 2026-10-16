@@ -18,7 +18,7 @@ import { loadSceneCatalog } from "../../backend/src/learning/scene-catalog.js";
 import { SupplementEngine, type SupplementView } from "../../backend/src/learning/supplement.js";
 import { SupplementRepository } from "../../backend/src/learning/supplement-repository.js";
 import { loadFinalRubrics, type Rubric, type RubricConcept } from "../../backend/src/rubrics.js";
-import { GeminiEvaluator } from "../src/evaluator.js";
+import { evaluatorGuardOptions, GeminiEvaluator } from "../src/evaluator.js";
 import { GeminiLearningAgent, type LearningAgent, type LearningInput } from "../src/learning-agent.js";
 import type { LlmClient } from "../src/llm-client.js";
 import { findLeaks, hasLeak } from "../src/question-check.js";
@@ -166,7 +166,7 @@ export async function runScenario(s: Scenario, deps: { rubrics: Rubric[]; scene:
   const guards = deps.profile?.evaluatorGuards ?? false;
   const parts = deps.dry
     ? dryParts(s)
-    : { agent: new GeminiLearningAgent(deps.client!, undefined, deps.profile?.learning ?? "full"), tutor: new GeminiTutor(deps.client!), evaluator: new GeminiEvaluator(deps.client!, { repairFormat: guards, verifyBoundary: guards }) };
+    : { agent: new GeminiLearningAgent(deps.client!, undefined, deps.profile?.learning ?? "full"), tutor: new GeminiTutor(deps.client!), evaluator: new GeminiEvaluator(deps.client!, evaluatorGuardOptions(guards)) };
   const engine = new SupplementEngine({
     repo, learningRepo, rubrics: deps.rubrics, scene: deps.scene, ...parts,
     retriever: new Retriever({ glossaryFor: (sec) => deps.rubrics.find((r) => r.section === sec)?.glossary ?? [] }),

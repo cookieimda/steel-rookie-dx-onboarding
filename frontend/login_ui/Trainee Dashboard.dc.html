@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="./support.js"></script>
 </head>
-<body>
+<body data-theme="light">
 <x-dc>
 <helmet>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -15,7 +15,7 @@
   <script type="module" src="./sketch-pad.js"></script>
   <style>
     /* 색·글꼴·모서리 토큰과 dg- 클래스는 공용 diagonal.css(설계: docs/learning-diagonal-ui.md). 여기에는 이 페이지 배치만 둔다.
-       테마는 저장값(st-rookie-theme) → 시스템 설정 순서로 정한다 */
+       테마는 밝은 테마로 고정한다(다크 모드 뺌). 저장값 st-rookie-theme은 3D 화면이 쓰므로 여기서는 읽지도 쓰지도 않는다 */
     html, body { margin: 0; min-height: 100%; }
     * { box-sizing: border-box; }
     /* 스크롤바(가로·세로): 화면 전체를 AI 튜터 채팅창과 같은 얇은 테마색으로. 페이지 스크롤바는 html에 있어 body 변수 대신 같은 값을 직접 쓴다 */
@@ -30,11 +30,13 @@
     /* 튜터 열은 모듈 위 탭 높이(--mtab-h)만큼 내려 튜터 위쪽 = 모듈 판 위쪽, 튜터 아래쪽 = 모듈 판 아래쪽(2026-10-15) */
     .side { display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; margin-top: var(--mtab-h); } /* 판은 탭 바로 아래에서 시작한다(선 없음, 2026-10-15) */
     .side > .tutor { flex: 1 1 0; min-height: 0; overflow: hidden; }
+    /* 모듈이 화면보다 길어도 튜터는 첫 화면 안에서 끝나 입력창이 스크롤 없이 보인다. --tutor-top(튜터 위쪽의 문서 기준 위치)은 alignTutor()가 넣는다(2026-10-16) */
+    .side > .tutor { max-height: calc(100dvh - var(--tutor-top, 0px) - 24px); }
     .tutor { display: flex; flex-direction: column; }
     .tutor [data-al="head"], .tutor [data-al="foot"] { flex: none; }
-    /* 머리 아래 선 = 2D 그림 위쪽, 추천 질문 위 = 설비 목록 위, 입력창 아래 = 설비 목록 아래(2026-10-15 그림 아래 가로 목록). 값은 alignTutor()가 재서 body에 넣는다(없으면 기본 배치) */
+    /* 머리 아래 선 = 2D 그림 위쪽, 입력창 아래 = 설비 목록 아래(추천 질문은 입력창 바로 위)(2026-10-15 그림 아래 가로 목록). 값은 alignTutor()가 재서 body에 넣는다(없으면 기본 배치) */
     .tutor [data-al="head"] { height: var(--tutor-head-h, auto); }
-    .tutor [data-al="foot"] { box-sizing: border-box; height: var(--tutor-foot-h, auto); padding-bottom: var(--tutor-foot-pb, 14px); }
+    .tutor [data-al="foot"] { box-sizing: border-box; padding-bottom: var(--tutor-foot-pb, 14px); } /* 높이는 내용대로: 남는 칸은 대화가 쓰고, 추천 질문이 입력창에서 떨어져 뜨지 않는다(2026-10-16) */
     .tutor [data-al="chat"] { overscroll-behavior: contain; }
     /* 포석호(<cp-character>, 튜터 패널 머리): 기본 220×260 대신 x-import의 style이 정한 상자(감싸는 div)를 채운다 */
     .tutor cp-character { display: block; width: 100%; height: 100%; background: var(--panel2); }
@@ -44,7 +46,7 @@
     @media (max-width: 1100px) {
       .learn { grid-template-columns: 1fr; }
       .side { margin-top: 0; }
-      .side > .tutor { flex: none; height: clamp(420px, calc(100dvh - 140px), 620px); }
+      .side > .tutor { flex: none; height: clamp(420px, calc(100dvh - 140px), 620px); max-height: none; }
     }
     /* ── 사원증 탭(2026-10-15): 공부할수록 직급·재질이 올라가는 카드 + 연속 학습일·오늘의 미션·배지(말해보카·듀오링고 참고). 값은 /api/me/dashboard의 employee_card(backend/src/me/employee-card.ts) ── */
     .ec { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 22px; padding: 22px; align-items: start; }
@@ -123,6 +125,15 @@
     .ec-missions li.done .ec-m { color: var(--muted); text-decoration: line-through; }
     .ec-missions small { margin-left: auto; color: var(--orange-text); font-weight: 700; white-space: nowrap; }
     /* 배지(도장) */
+    .ec-badgebox { grid-column: 1 / -1; }
+    .ec-badgebox summary { display: flex; align-items: center; justify-content: space-between; cursor: pointer; list-style: none; }
+    .ec-badgebox summary::-webkit-details-marker { display: none; }
+    .ec-badgebox summary i { font-style: normal; font-size: 20px; font-weight: 700; color: var(--muted); transition: transform .2s; }
+    .ec-badgebox[open] summary i { transform: rotate(45deg); }
+    .ec-badgebox summary:focus-visible { outline: 2px solid var(--text); outline-offset: 4px; }
+    /* 닫으면 배지 칸을 display:none으로 뺀다. 브라우저 기본 접기(content-visibility)만 쓰면 판의 blur 배경 위에 닫기 전 그림이 흔적으로 남는다 */
+    .ec-badgebox:not([open]) { gap: 0; }
+    .ec-badgebox:not([open]) .ec-badges { display: none; }
     .ec-badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 10px; }
     .ec-badge { display: flex; flex-direction: column; align-items: center; gap: 5px; text-align: center; padding: 10px 6px; border-radius: var(--cut-s); background: var(--panel2); }
     .ec-badge b { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; font-size: 24px; border: 2px dashed var(--line); filter: grayscale(1); opacity: .5; }
@@ -141,13 +152,12 @@
     /* 헤더의 불꽃·직급 칩(듀오링고 상단 막대처럼). 누르면 사원증 탭 */
     .ec-chip { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
     .ec-chip em { font-style: normal; color: var(--muted); font-weight: 600; }
+    .ec-review { display: flex; flex-direction: column; gap: 16px; padding: 0 22px 22px; }
     @media (max-width: 900px) { .ec { grid-template-columns: 1fr; } }
     @media (prefers-reduced-motion: reduce) { .ec-card, .ec-card::after, .ec-flame.on, .ec-promo-box, .ec-confetti i { animation: none !important; transition: none !important; } }
-    /* ── 학습 랩 탭(2026-10-15): 간격 반복·주간 리그·xAPI 기록·세션 리플레이·소크라테스. 로직은 learning-lab.js, 서버는 backend/src/lab/ ── */
+    /* ── 학습 랩 탭(2026-10-15): 간격 반복·주간 리그·보고서·세션 리플레이. 로직은 learning-lab.js, 서버는 backend/src/lab/ ── */
     .lb { flex-direction: column; gap: 16px; padding: 20px 22px 22px; min-width: 0; }
     .lb-sub { display: flex; flex-wrap: wrap; gap: 6px; }
-    .dg-mis-map { display: inline-block; margin-top: 6px; font-size: 15px; font-weight: 700; color: var(--orange); text-decoration: none; }
-    .dg-mis-map:hover, .dg-mis-map:focus-visible { text-decoration: underline; }
     /* 오늘의 실습 경로(학습 랩 맨 위): 가장 약한 공정 → 3D 인과 지도·인과 퀴즈·이상 상황 훈련 */
     .lb-path { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: var(--cut); border: 1px solid color-mix(in srgb, var(--orange) 45%, transparent); background: color-mix(in srgb, var(--orange) 8%, var(--panel2)); }
     .lb-path-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
@@ -204,15 +214,13 @@
     .lb-hist { display: flex; flex-wrap: wrap; gap: 6px; }
     .lb-hist span { font-size: 15px; padding: 4px 10px; border-radius: var(--cut-s); background: var(--panel2); }
     .lb-hist .up { color: var(--ok); } .lb-hist .down { color: var(--bad); }
-    /* xAPI */
+    /* 칩(거르기·고르기) */
     .lb-chips { display: flex; flex-wrap: wrap; gap: 6px; }
     .lb-chips button { height: 32px; padding: 0 12px; border-radius: var(--cut-s); border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 15px; cursor: pointer; }
     .lb-chips button[aria-pressed="true"] { border-color: var(--orange); color: var(--orange-text); font-weight: 700; }
-    .lb-xa { display: flex; flex-direction: column; gap: 4px; max-height: 460px; overflow-y: auto; }
-    .lb-xa details { border-radius: var(--cut-s); background: var(--panel2); }
-    .lb-xa summary { display: grid; grid-template-columns: 96px 92px 1fr auto; gap: 10px; padding: 9px 12px; font-size: 15px; cursor: pointer; list-style: none; }
-    .lb-xa summary::-webkit-details-marker { display: none; }
-    .lb-xa pre { margin: 0; padding: 10px 12px; font-family: var(--mono); font-size: 15px; white-space: pre-wrap; word-break: break-all; color: var(--muted); border-top: 1px solid var(--line); }
+    /* 보고서: learner-report.html 미리보기(인쇄 미리보기처럼 A4 종이가 세로로 이어진다)와 새 창 링크 */
+    .lb-report { width: 100%; height: 760px; border: 0; border-radius: var(--cut); background: #5f6368; }
+    .lb-link { display: inline-flex; align-items: center; text-decoration: none; }
     /* 리플레이 */
     .lb-rp { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 14px; }
     .lb-list { display: flex; flex-direction: column; gap: 6px; max-height: 520px; overflow-y: auto; }
@@ -231,18 +239,13 @@
     .lb-ev { display: flex; flex-direction: column; gap: 2px; max-height: 220px; overflow-y: auto; }
     .lb-ev button { display: grid; grid-template-columns: 52px 1fr; gap: 8px; padding: 5px 8px; border: 0; border-radius: var(--cut-s); background: transparent; color: var(--dim); font-size: 15px; text-align: left; cursor: pointer; }
     .lb-ev button.past { color: var(--muted); } .lb-ev button.now { color: var(--text); background: color-mix(in srgb, var(--orange) 16%, transparent); font-weight: 700; }
-    /* 소크라테스 */
+    /* 두 칸 배치(왼쪽 목록 + 오른쪽 본문)·고르기·입력: 사고 사례 등 추가 기능이 쓴다 */
     .lb-soc { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 14px; }
     .lb-select { height: 38px; padding: 0 10px; border-radius: var(--cut-s); border: 1px solid var(--line); background: var(--panel2); color: var(--text); font-size: 15px; width: 100%; }
-    .lb-chat { display: flex; flex-direction: column; gap: 8px; min-height: 240px; max-height: 420px; overflow-y: auto; padding: 4px; }
-    .lb-chat .lb-bubble { white-space: pre-wrap; font-size: 16px; }
-    .lb-hints { display: inline-flex; gap: 4px; align-items: center; }
-    .lb-hints i { width: 10px; height: 10px; border-radius: 50%; background: var(--line); } .lb-hints i.on { background: var(--mid); }
-    .lb-banner { padding: 10px 14px; border-radius: var(--cut-s); background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); font-weight: 700; font-size: 16px; animation: lb-in .4s ease; }
     .lb-input { display: flex; gap: 8px; }
     .lb-input input { flex: 1; min-width: 0; height: 40px; padding: 0 12px; border-radius: var(--cut-s); border: 1px solid var(--line); background: var(--panel2); color: var(--text); font-size: 15px; }
-    @media (max-width: 900px) { .lb-rp, .lb-soc { grid-template-columns: 1fr; } .lb-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .lb-xa summary { grid-template-columns: 1fr 1fr; } }
-    @media (prefers-reduced-motion: reduce) { .lb-flash, .lb-back, .lb-banner { animation: none !important; } }
+    @media (max-width: 900px) { .lb-rp, .lb-soc { grid-template-columns: 1fr; } .lb-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (prefers-reduced-motion: reduce) { .lb-flash, .lb-back { animation: none !important; } }
     /* ── 학습 랩 추가(2026-10-15): 사고 사례 · What-if · 설비 메모 · 내 오답 유형 · 알림 벨(lab-extras.js) ── */
     .lb-area { width: 100%; padding: 10px 12px; border-radius: var(--cut-s); border: 1px solid var(--line); background: var(--panel2); color: var(--text); font-size: 15px; font-family: inherit; resize: vertical; }
     .ic-time { list-style: none; margin: 0; padding: 0 0 0 14px; border-left: 3px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
@@ -347,7 +350,6 @@
       </span>
       <!-- 사원증 칩: 연속 학습일과 직급. 누르면 학습 모듈의 사원증 탭을 연다 -->
       <sc-if value="{{ hasCard }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ openCard }}" title="내 사원증 보기" class="dg-btn dg-btn-plain dg-cut dg-s ec-chip"><span aria-hidden="true">{{ chipFlame }}</span>{{ streakNow }}일 <em>· {{ rankTitle }}</em></button></sc-if>
-      <button type="button" onClick="{{ toggleTheme }}" aria-label="테마 전환" class="dg-btn dg-btn-plain dg-cut dg-s" style="width:40px;padding:0;">{{ themeIcon }}</button>
       <button type="button" onClick="{{ logout }}" class="dg-btn dg-btn-plain dg-cut dg-s">로그아웃</button>
       <a href="/3d-demo/steel-index.html" target="_top" class="dg-btn dg-btn-soft dg-cut dg-s">3D 공정 화면</a>
       <a href="/exam" target="_top" class="dg-btn dg-btn-primary dg-cut dg-s">평가 시험</a>
@@ -396,43 +398,6 @@
           <x-import component-from-global-scope="sketch-pad" process="{{ processId }}" mode="{{ drawMode }}" hint-size="100%,100%" style="position:absolute;inset:0;"></x-import>
         </div>
         <span style="font-size:15px;color:var(--dim);">도면 위에 펜·형광펜으로 그리거나 텍스트(T)로 메모하면 공정·도면마다 내 계정에 저장돼요. 도면 이동·확대는 3D 화면의 2D 뷰에서 할 수 있어요.</span>
-      </section>
-      <!-- 복습·내 오개념: 학습 모듈 탭에서 연다(2026-10-15). 탭을 열 때 창이 뜨듯 들어온다(dg-pop). 복습: 다시 볼 개념(이해도 확인 최근 결과 기준) -->
-      <section class="dg-mframe dg-pane dg-pop" data-sec="review" aria-label="복습" style="display:{{ reviewDisplay }};">
-        <div class="dg-section-head">
-          <span class="dg-label">[ REVIEW ]</span>
-          <h2 class="dg-h2">다시 볼 개념</h2>
-          <span class="dg-count" style="color:{{ reviewCountColor }};">{{ reviewCount }}</span>
-          <span class="dg-sub">이해도 확인에서 최근에 받은 결과 기준</span>
-        </div>
-        <sc-if value="{{ reviewEmpty }}" hint-placeholder-val="{{ false }}"><span class="dg-empty">복습할 개념이 없습니다.</span></sc-if>
-        <div class="dg-list">
-          <sc-for list="{{ reviews }}" as="r" hint-placeholder-count="3">
-            <div class="dg-row">
-              <span class="dg-row-main"><strong>{{ r.name }}</strong><span class="dg-sub">{{ r.section }} · {{ r.date }}</span></span>
-              <span class="dg-tag" style="color:{{ r.color }};background:color-mix(in srgb, {{ r.color }} 14%, transparent);">{{ r.verdict }}</span>
-            </div>
-          </sc-for>
-        </div>
-      </section>
-      <!-- 내 오개념: 줄을 눌러 설명을 펼친다(본인 화면에만 보임) -->
-      <section class="dg-mframe dg-pane dg-pop" data-sec="misconceptions" aria-label="내 오개념" style="display:{{ misDisplay }};">
-        <div class="dg-section-head">
-          <span class="dg-label">[ MISCONCEPTIONS ]</span>
-          <h2 class="dg-h2">내 오개념</h2>
-          <span class="dg-count" style="color:{{ misCountColor }};">{{ misCount }}</span>
-          <span class="dg-sub">내용과 답변은 본인에게만 표시됩니다</span>
-        </div>
-        <sc-if value="{{ misEmpty }}" hint-placeholder-val="{{ false }}"><span class="dg-empty">기록된 오개념이 없습니다.</span></sc-if>
-        <div class="dg-list">
-          <sc-for list="{{ misconceptions }}" as="m" hint-placeholder-count="3">
-            <details class="dg-acc">
-              <summary><strong>{{ m.name }}</strong><span style="color:{{ m.color }};">{{ m.status }}</span><i aria-hidden="true">+</i></summary>
-              <p>{{ m.summary }}</p>
-              <sc-if value="{{ m.hasMap }}" hint-placeholder-val="{{ false }}"><a class="dg-mis-map" href="{{ m.mapHref }}">🗺 인과 지도에서 이 개념 보기 · {{ m.mapVars }}</a></sc-if>
-            </details>
-          </sc-for>
-        </div>
       </section>
       <!-- 사원증: 왼쪽 카드(직급·재질이 공부할수록 올라감), 오른쪽 연속 학습일·직급 사다리·오늘의 미션·배지 -->
       <section class="dg-mframe dg-pane dg-pop" data-sec="card" aria-label="사원증" style="display:{{ cardDisplay }};padding:0;">
@@ -483,17 +448,36 @@
               </div>
               <div class="ec-howto"><sc-for list="{{ howto }}" as="h" hint-placeholder-count="5"><span class="ec-how">{{ h.label }} <b>+{{ h.xp }}</b></span></sc-for></div>
             </div>
-            <div class="ec-box">
-              <h3>배지 <small>{{ badgeCount }}</small></h3>
-              <div class="ec-badges">
-                <sc-for list="{{ badges }}" as="b" hint-placeholder-count="10"><div class="ec-badge {{ b.cls }}" title="{{ b.description }}"><b aria-hidden="true">{{ b.icon }}</b><strong>{{ b.name }}</strong><small>{{ b.sub }}</small></div></sc-for>
-              </div>
-            </div>
           </div>
+          <!-- 배지: 카드 아래 왼쪽 칸까지 가로로 넓히고, 접어 두었다가 머리 줄을 눌러 펼친다 -->
+          <details class="ec-box ec-badgebox">
+            <summary><h3>배지 <small>{{ badgeCount }}</small></h3><i aria-hidden="true">+</i></summary>
+            <div class="ec-badges">
+              <sc-for list="{{ badges }}" as="b" hint-placeholder-count="10"><div class="ec-badge {{ b.cls }}" title="{{ b.description }}"><b aria-hidden="true">{{ b.icon }}</b><strong>{{ b.name }}</strong><small>{{ b.sub }}</small></div></sc-for>
+            </div>
+          </details>
         </div>
         </sc-if>
+        <!-- 복습: 사원증 탭 아래에 둔다(2026-10-16). 다시 볼 개념(이해도 확인 최근 결과 기준) -->
+        <div class="ec-review" data-sec="review" aria-label="복습">
+          <div class="dg-section-head">
+            <span class="dg-label">[ REVIEW ]</span>
+            <h2 class="dg-h2">다시 볼 개념</h2>
+            <span class="dg-count" style="color:{{ reviewCountColor }};">{{ reviewCount }}</span>
+            <span class="dg-sub">이해도 확인에서 최근에 받은 결과 기준</span>
+          </div>
+          <sc-if value="{{ reviewEmpty }}" hint-placeholder-val="{{ false }}"><span class="dg-empty">복습할 개념이 없습니다.</span></sc-if>
+          <div class="dg-list">
+            <sc-for list="{{ reviews }}" as="r" hint-placeholder-count="3">
+              <div class="dg-row">
+                <span class="dg-row-main"><strong>{{ r.name }}</strong><span class="dg-sub">{{ r.section }} · {{ r.date }}</span></span>
+                <span class="dg-tag" style="color:{{ r.color }};background:color-mix(in srgb, {{ r.color }} 14%, transparent);">{{ r.verdict }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
       </section>
-      <!-- 학습 랩: 간격 반복·주간 리그·xAPI 기록·세션 리플레이·소크라테스(learning-lab.js, 서버 backend/src/lab/) -->
+      <!-- 학습 랩: 간격 반복·주간 리그·보고서·세션 리플레이(learning-lab.js, 서버 backend/src/lab/) -->
       <section class="dg-mframe dg-pane dg-pop lb" data-sec="lab" aria-label="학습 랩" style="display:{{ labDisplay }};">
         <div class="dg-section-head"><span class="dg-label">[ LEARNING LAB ]</span><h2 class="dg-h2">학습 랩</h2><span class="dg-sub">복습 일정·리그·학습 기록을 한곳에서</span></div>
         <!-- 오늘의 실습 경로: 내 3D 실습 기록으로 가장 약한 공정을 골라 3D 화면의 실습으로 바로 보낸다(GET /api/lab/practice-path) -->
@@ -556,16 +540,12 @@
           </div>
         </div>
 
-        <!-- ③ xAPI 기록: 내 학습 기록을 xAPI 1.0.3 문장으로. 사내 LMS·LRS로 옮길 수 있다 -->
-        <div class="lb-pane" style="display:{{ labShowXapi }};">
-          <div class="lb-row" style="justify-content:space-between;"><span class="lb-muted">xAPI 1.0.3 형식 · {{ xaTotal }} · 줄을 누르면 문장(JSON)이 보여요</span><button type="button" class="lb-btn ghost" onClick="{{ xaDownload }}">JSON 내려받기</button></div>
-          <div class="lb-chips" aria-label="동사로 거르기"><sc-for list="{{ xaVerbs }}" as="c" hint-placeholder-count="4"><button type="button" aria-pressed="{{ c.on }}" onClick="{{ c.onClick }}">{{ c.label }}</button></sc-for></div>
-          <!-- 종류(활동)로 거르기: 설비·인과 퀴즈·이상 상황 훈련·갈림길·3D 살펴봄 등. 같은 칩을 다시 누르면 풀린다 -->
-          <div class="lb-chips" aria-label="종류로 거르기"><sc-for list="{{ xaKinds }}" as="c" hint-placeholder-count="4"><button type="button" aria-pressed="{{ c.on }}" onClick="{{ c.onClick }}">{{ c.label }}</button></sc-for></div>
-          <sc-if value="{{ xaEmpty }}" hint-placeholder-val="{{ false }}"><span class="lb-muted">아직 기록이 없어요. 튜터에게 질문하거나 복습하면 문장이 생겨요.</span></sc-if>
-          <div class="lb-xa"><sc-for list="{{ xaRows }}" as="x" hint-placeholder-count="5">
-            <details><summary><span class="lb-muted">{{ x.when }}</span><strong>{{ x.verb }}</strong><span>{{ x.obj }}</span><span class="lb-muted">{{ x.res }}</span></summary><pre>{{ x.json }}</pre></details>
-          </sc-for></div>
+        <!-- ③ 보고서: 공정 하나의 내 학습 기록을 A4 보고서로 미리 보고 PDF로 저장한다(learner-report.html, 데이터 규칙은 learner-report-model.js) -->
+        <div class="lb-pane" style="display:{{ labShowReport }};">
+          <div class="lb-row" style="justify-content:space-between;"><span class="lb-muted">공정을 고르면 내 이해도 확인·오개념·복습 기록을 A4 보고서로 보여 줘요.</span>
+            <span class="lb-row" style="gap:8px;"><a class="lb-btn ghost lb-link" href="{{ reOpenHref }}" target="_blank" rel="noopener">새 창에서 열기</a><a class="lb-btn lb-link" href="{{ rePrintHref }}" target="_blank" rel="noopener">PDF로 저장</a></span></div>
+          <div class="lb-chips" aria-label="공정 고르기"><sc-for list="{{ reSections }}" as="c" hint-placeholder-count="4"><button type="button" aria-pressed="{{ c.on }}" onClick="{{ c.onClick }}">{{ c.label }}</button></sc-for></div>
+          <iframe class="lb-report" title="학습 보고서 미리보기" src="{{ reSrc }}"></iframe>
         </div>
 
         <!-- ④ 세션 리플레이: 이 화면에서 한 조작을 다시 재생(본인만). 기록은 끌 수 있다 -->
@@ -592,31 +572,6 @@
                 <input type="range" class="lb-seek" min="0" max="{{ rpTotal }}" step="100" value="{{ rpPos }}" onChange="{{ rpSeek }}" aria-label="재생 위치">
                 <div class="lb-ev"><sc-for list="{{ rpEvents }}" as="e" hint-placeholder-count="5"><button type="button" class="{{ e.cls }}" onClick="{{ e.onClick }}"><span style="font-family:var(--mono);">{{ e.t }}</span><span>{{ e.text }}</span></button></sc-for></div>
                 <button type="button" class="lb-btn ghost" onClick="{{ rpDelete }}" style="align-self:flex-start;">이 기록 지우기</button>
-              </sc-if>
-            </div>
-          </div>
-        </div>
-
-        <!-- ⑤ 소크라테스: 답 대신 질문으로 이끈다. LLM이 없으면 서버의 오프라인 튜터가 이어 간다 -->
-        <div class="lb-pane" style="display:{{ labShowSocratic }};">
-          <span class="lb-muted">포석호가 답을 바로 알려 주지 않고 질문으로 이끌어요. 설비가 하는 일을 내 말로 설명하면 성공(+25 XP)이에요. {{ soOfflineText }}</span>
-          <div class="lb-soc">
-            <div style="display:flex;flex-direction:column;gap:8px;">
-              <select class="lb-select" value="{{ soEq }}" onChange="{{ soPick }}" aria-label="설비"><sc-for list="{{ soEquipment }}" as="o" hint-placeholder-count="4"><option value="{{ o.value }}">{{ o.label }}</option></sc-for></select>
-              <button type="button" class="lb-btn" onClick="{{ soStart }}" disabled="{{ soBusy }}">새 대화 시작</button>
-              <div class="lb-list"><sc-for list="{{ soSessions }}" as="x" hint-placeholder-count="0"><button type="button" class="{{ x.cls }}" aria-pressed="{{ x.on }}" onClick="{{ x.onClick }}">{{ x.label }}<span>{{ x.sub }}</span></button></sc-for></div>
-            </div>
-            <div class="lb-box" style="min-width:0;">
-              <sc-if value="{{ soNone }}" hint-placeholder-val="{{ true }}"><span class="lb-muted">설비를 고르고 [새 대화 시작]을 눌러 보세요.</span></sc-if>
-              <sc-if value="{{ soHas }}" hint-placeholder-val="{{ false }}">
-                <div class="lb-row" style="justify-content:space-between;"><strong>{{ soTitle }}</strong><span class="lb-row" style="gap:8px;"><span class="lb-muted">힌트</span><span class="lb-hints"><sc-for list="{{ soHints }}" as="h" hint-placeholder-count="3"><i class="{{ h.cls }}"></i></sc-for></span><span class="lb-chip">{{ soState }}</span></span></div>
-                <sc-if value="{{ soHasBanner }}" hint-placeholder-val="{{ false }}"><div class="lb-banner">{{ soBanner }}</div></sc-if>
-                <div class="lb-chat" aria-live="polite"><sc-for list="{{ soTurns }}" as="t" hint-placeholder-count="2"><div class="lb-bubble {{ t.cls }}">{{ t.text }}</div></sc-for></div>
-                <form class="lb-input" onSubmit="{{ soSend }}">
-                  <input value="{{ soInput }}" onChange="{{ soOnInput }}" placeholder="내 생각을 적어 보세요" aria-label="답" disabled="{{ soClosed }}">
-                  <button type="submit" class="lb-btn" disabled="{{ soCantSend }}">보내기</button>
-                </form>
-                <div class="lb-row"><button type="button" class="lb-btn ghost" onClick="{{ soReveal }}" disabled="{{ soClosed }}">정답 보기</button><sc-if value="{{ soSuggestReveal }}" hint-placeholder-val="{{ false }}"><span class="lb-muted">많이 고민했어요. 정답을 보고 정리해도 괜찮아요.</span></sc-if></div>
               </sc-if>
             </div>
           </div>
@@ -804,10 +759,6 @@ function dmMessages(list) {
 }
 const token = () => { try { return localStorage.getItem('st-rookie-token') || sessionStorage.getItem('st-rookie-token'); } catch (e) { return null; } };
 // 테마: 사용자가 고른 값(localStorage) → 시스템 설정. 시스템 설정이 바뀌면 고른 값이 없을 때만 따라간다.
-const THEME_KEY = 'st-rookie-theme';
-const savedTheme = () => { try { const t = localStorage.getItem(THEME_KEY); return t === 'light' || t === 'dark' ? t : null; } catch (e) { return null; } };
-const lightQuery = () => (typeof matchMedia === 'function' ? matchMedia('(prefers-color-scheme: light)') : null);
-const systemTheme = () => (lightQuery()?.matches ? 'light' : 'dark');
 // AI 튜터: 3D 화면(v4)과 같은 팀 학습 모드 채팅(frontend/3d-demo/learning-chat.js)을 그대로 붙인다.
 // learning-chat.js가 쓰는 것: state(processId·selectedId·messages·input·pending·lastResults·speed), data(data_v2.js), chatRef, scene(), goProcess(), scrollChat().
 // 여기서 scene()은 2D 모듈(<process-2d>)이고, 튜터의 focus·highlight는 그 설비 선택, play_animation은 자동 재생이 된다.
@@ -836,13 +787,12 @@ const withRo = word => { const c = (word || '').charCodeAt(word.length - 1) - 0x
 const initialsOf = name => { const s = (name || '').trim(); return /[가-힣]/.test(s) ? s.slice(-2) : s.split(/\s+/).map(w => w[0] || '').join('').slice(0, 2).toUpperCase() || '?'; };
 
 class Component extends DCLogic {
-  state = { data: null, processes: [], error: null, theme: savedTheme() || systemTheme(), loadedAt: null, ai: null, sideTab: 'ask',
+  state = { data: null, processes: [], error: null, theme: 'light', loadedAt: null, ai: null, sideTab: 'ask',
     processId: 'ironmaking', selectedId: 'sinter_plant', messages: [], input: '', pending: false, lastReq: null, lastRes: null, lastResults: [], speed: 1,
-    moduleTab: 'steps', drawMode: 'plan' }; // 학습 모듈 탭(steps 작동 단계 | blueprint 설계도·필기 | review 복습 | mis 내 오개념)과 도면(top·plan·front)
+    moduleTab: 'steps', drawMode: 'plan' }; // 학습 모듈 탭(steps 작동 단계 | lab 학습 랩 | blueprint 설계도·필기 | card 사원증(복습 포함))과 도면(top·plan·front)
   chatRef = React.createRef();
   componentDidMount() {
     document.body.dataset.theme = this.state.theme;
-    lightQuery()?.addEventListener('change', () => { if (!savedTheme()) this.applyTheme(systemTheme(), false); });
     import('../3d-demo/data_v2.js').then(async m => {
       this.data = m; this.setState({ processes: m.PROCESSES });
       const { createLearningChat } = await import('../3d-demo/learning-chat.js');
@@ -876,7 +826,6 @@ class Component extends DCLogic {
     if (!auth) { this.setState({ error: '로그인한 뒤 학습 현황을 볼 수 있습니다.' }); return; }
     // 학습 랩(learning-lab.js): 이 화면의 리플레이 기록을 시작한다(본인만 보고 [기록 끄기]로 멈춘다)
     import('./learning-lab.js').then(({ createLearningLab }) => { this.lab = createLearningLab(this); this.lab.track('start', { tab: this.state.moduleTab, process: this.state.processId }); this.lab.startBell(); this.forceUpdate(); });
-    fetch('/api/lab/causal/concepts', { headers: { authorization: 'Bearer ' + auth } }).then(r => (r.ok ? r.json() : null)).then(j => { if (j) this.setState({ causalConcepts: j.concepts }); }).catch(() => {});
     fetch('/api/me/dashboard', { headers: { authorization: 'Bearer ' + auth } })
       .then(async response => { if (!response.ok) throw new Error('학습 현황을 DB에서 불러오지 못했습니다.'); return response.json(); })
       .then(data => { this.setState({ data, loadedAt: new Date() }); this.checkPromotion(data); }, error => this.setState({ error: error.message }));
@@ -892,11 +841,6 @@ class Component extends DCLogic {
       this.setState({ promo: { level: card.rank.level, title: card.rank.title, material: card.rank.material }, confetti });
     }
   }
-  applyTheme(theme, save) {
-    document.body.dataset.theme = theme;
-    if (save) { try { localStorage.setItem(THEME_KEY, theme); } catch (e) {} }
-    this.setState({ theme });
-  }
   // 설계도 iframe은 처음 열 때 한 번만 주소를 정하고(다시 불러오면 도면을 처음부터 그린다), 공정·도면·테마는 postMessage로 바꾼다.
   openBlueprint() {
     if (!this._bpSrc) this._bpSrc = `/3d-demo/blueprint.html?p=${encodeURIComponent(this.state.processId)}&mode=${this.state.drawMode}&theme=${this.state.theme}`;
@@ -905,16 +849,17 @@ class Component extends DCLogic {
   // AI 튜터 머리·추천 질문·입력창을 2D 모듈 선에 맞춘다(2026-10-15): 머리 아래 선 = 그림 위쪽, 추천 질문 위 = 설비 목록(그림 아래 가로 줄) 위, 입력창 아래 = 설비 목록 아래.
   // 2D 모듈 안(Shadow DOM)을 재서 body에 CSS 변수로 넣는다(템플릿이 다시 그려도 지워지지 않게). 좁은 화면(세로로 쌓임)·설계도 탭이면 기본 배치로 둔다
   alignTutor() {
-    const B = document.body.style, reset = () => ['--tutor-head-h', '--tutor-foot-h', '--tutor-foot-pb'].forEach(k => B.removeProperty(k));
+    const B = document.body.style, reset = () => ['--tutor-head-h', '--tutor-foot-pb'].forEach(k => B.removeProperty(k));
     const sr = this.module()?.shadowRoot, tutor = document.querySelector('.tutor');
+    if (tutor) B.setProperty('--tutor-top', `${Math.round(tutor.getBoundingClientRect().top + scrollY)}px`);
     const stage = sr?.querySelector('.stage'), step = sr?.querySelector('#chapters');
     if (!tutor || !stage || !step || this.state.moduleTab !== 'steps' || matchMedia('(max-width: 1100px)').matches) { reset(); return; }
     const t = tutor.getBoundingClientRect(), g = stage.getBoundingClientRect(), s = step.getBoundingClientRect();
     const pb = Math.round(t.bottom - s.bottom);
-    if (pb < 0 || g.top <= t.top) { reset(); return; }
+    if (g.top <= t.top) { reset(); return; }
     B.setProperty('--tutor-head-h', `${Math.round(g.top - t.top)}px`);
-    B.setProperty('--tutor-foot-pb', `${pb}px`);
-    B.setProperty('--tutor-foot-h', `${Math.round(s.height) + pb}px`);
+    // 튜터가 화면 높이로 잘려 설비 목록보다 위에서 끝나면 아래 맞춤은 하지 않는다
+    if (pb < 0) B.removeProperty('--tutor-foot-pb'); else B.setProperty('--tutor-foot-pb', `${pb}px`);
   }
   // 학습 랩 탭을 열면 고른 하위 탭(처음은 간격 반복)을 불러온다
   openLab() { this.setState({ moduleTab: 'lab' }); this.lab?.open(this.state.labTab || 'review'); }
@@ -990,8 +935,6 @@ class Component extends DCLogic {
     const S = this.state, D = S.data;
     const process = section => S.processes.find(p => p.id === section) || { num: '', name: section, equipment: [] };
     const conceptName = (section, id, name) => name || process(section).equipment.find(e => e.id === id)?.name || `${process(section).name} 관련 개념`;
-    const misconceptions = D?.misconceptions || [];
-    const open = misconceptions.filter(m => !m.resolved).length;
     const reviews = (D?.review_concepts || []).map(r => ({
       name: conceptName(r.section, r.concept_id, r.concept_name), section: process(r.section).name,
       date: r.updated_at.slice(0, 10), verdict: r.recheck_verdict === 'partial' || r.verdict === 'partial' ? '부분 이해' : r.verdict === 'assisted' ? '도움 받음' : '재확인 필요',
@@ -1002,8 +945,7 @@ class Component extends DCLogic {
     const chat = chat0;
     return {
       loadError: S.error,
-      theme: S.theme, themeIcon: S.theme === 'dark' ? '☀' : '☾',
-      toggleTheme: () => this.applyTheme(S.theme === 'dark' ? 'light' : 'dark', true),
+      theme: S.theme,
       logout: () => { try { localStorage.removeItem('st-rookie-token'); sessionStorage.removeItem('st-rookie-token'); } catch (e) {} window.top.location.href = '/login_ui/home-sleek.html'; },
       // AI 튜터
       aiDot: S.ai === 'ok' ? 'var(--ok)' : S.ai === 'off' ? 'var(--bad)' : 'var(--dim)',
@@ -1013,12 +955,11 @@ class Component extends DCLogic {
       showAsk: true,
       processId: S.processId, selectedAttr: S.selectedId || '', chatRef: this.chatRef,
       // 학습 모듈 탭과 설계도·필기
-      moduleTabs: [['steps', '작동 단계'], ['blueprint', '설계도·필기'], ['review', '복습'], ['mis', '내 오개념'], ['card', '사원증'], ['lab', '학습 랩']].map(([k, label]) => ({ label, on: S.moduleTab === k,
-        // 복습·내 오개념 탭 옆 개수: 다시 볼 개념 수, 미해결 오개념 수(탭을 열지 않아도 보이게)
-        hasCount: !!D && (k === 'review' || k === 'mis'), count: k === 'review' ? reviews.length : open,
+      moduleTabs: [['steps', '작동 단계'], ['lab', '학습 랩'], ['blueprint', '설계도·필기'], ['card', '사원증']].map(([k, label]) => ({ label, on: S.moduleTab === k,
+        // 사원증 탭 옆 개수: 다시 볼 개념 수(탭을 열지 않아도 보이게)
+        hasCount: !!D && k === 'card', count: reviews.length,
         onClick: () => (k === 'blueprint' ? this.openBlueprint() : k === 'lab' ? this.openLab() : this.setState({ moduleTab: k })) })),
       stepsDisplay: S.moduleTab === 'steps' ? 'block' : 'none', blueprintDisplay: S.moduleTab === 'blueprint' ? 'flex' : 'none',
-      reviewDisplay: S.moduleTab === 'review' ? 'flex' : 'none', misDisplay: S.moduleTab === 'mis' ? 'flex' : 'none',
       cardDisplay: S.moduleTab === 'card' ? 'block' : 'none', labDisplay: S.moduleTab === 'lab' ? 'flex' : 'none',
       ...(this.lab ? this.lab.vals() : {}),
       ...this.cardVals(D),
@@ -1039,15 +980,9 @@ class Component extends DCLogic {
       cantSend: S.pending || !(chat.input || '').trim(), // 보내기: 보낼 수 있으면 주황 글자, 아니면 보조 글자색(흐리게 하지 않아 다크·라이트 모두 또렷하게)
       sendColor: S.pending || !(chat.input || '').trim() ? 'var(--muted)' : 'var(--orange-text)',
       input: chat.input, onInput: chat.onInput, send: chat.send,
-      // 복습 두 칸의 개수: 다시 볼 개념 수, 미해결 오개념 수(체크포인트 기록 기준, /api/me/dashboard)
+      // 복습 개수: 다시 볼 개념 수(/api/me/dashboard)
       reviewCount: D ? String(reviews.length) : '—', reviewCountColor: D && reviews.length ? 'var(--mid)' : 'var(--muted)',
-      misCount: D ? String(open) : '—', misCountColor: D && open ? 'var(--bad)' : 'var(--muted)',
       reviews, reviewEmpty: !!D && reviews.length === 0,
-      // 인과 지도 연결(/api/lab/causal/concepts): 그 개념의 첫 변수 설명 카드로 3D 인과 지도를 연다
-      misconceptions: misconceptions.slice(0, 8).map(m => { const cv = S.causalConcepts?.[m.concept_id]; return { name: conceptName(m.section, m.concept_id, m.concept_name), summary: m.summary,
-        status: m.resolved ? '해결됨' : m.label, color: m.resolved ? 'var(--ok)' : 'var(--bad)',
-        hasMap: !!cv, mapHref: cv ? `/3d-demo/causal-lab.html?p=${cv.section}&lab=map&var=${cv.vars[0]}` : '', mapVars: cv ? `${cv.vars.length}개 값` : '' }; }),
-      misEmpty: !!D && misconceptions.length === 0,
     };
   }
 }

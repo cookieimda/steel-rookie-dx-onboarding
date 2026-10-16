@@ -22,7 +22,8 @@
 | 관리자 통계 | `backend/src/lab/practice-stats.ts` | 퀴즈·훈련·사고 사례·수업·거꾸로 추론·퍼즐 집계(사람별 내용 없음) |
 | 수업 | `backend/src/lab/lessons.ts`, `content/lessons/lessons.json` | 수업 3개. 서버 시작 때 훈련·사례 참조를 검사하고 틀리면 시작하지 않는다 |
 | 사고 사례·훈련 | `backend/src/lab/incidents.ts`·`content/scenarios/incidents.json`, `backend/src/lab/faults.ts`·`content/faults/faults.json` | 갈림길(다른 선택), 훈련 원인의 인과 지도 조건(`causal`) |
-| 사원증·xAPI | `backend/src/me/employee-card.ts`, `backend/src/lab/xapi.ts` | 실습 XP·배지('인과 탐정'·'갈림길 탐험가'·'보상 판단'), xAPI 기록과 종류 거르기 |
+| 사원증·xAPI | `backend/src/me/employee-card.ts`, `backend/src/lab/xapi.ts` | 실습 XP·배지('인과 탐정'·'갈림길 탐험가'·'보상 판단'), xAPI 기록(서버에 남기고 API로 거름. 학습 랩의 xAPI 화면은 '보고서' 탭으로 바뀜) |
+| 학습 보고서 | `frontend/login_ui/learner-report.html`·`learner-report.js`·`learner-report-model.js`, `backend/test/learner-report-model.test.ts` | 공정 하나의 내 학습 기록을 A4 보고서로 그리고 브라우저 인쇄로 PDF 저장. 학습 랩 '보고서' 탭이 iframe으로 띄운다. API 6개를 따로 불러 하나가 실패해도 나온다 |
 | 3D 실습 화면 | `frontend/3d-demo/sim-lab.js` | 모든 실습 패널·3D 효과(링·흐름·빛·이름표)·카메라 따라가기. `attachSimLab(opts)`로 장면에 붙는다 |
 | 인과 실습 공간 | `frontend/3d-demo/causal-lab.html`·`causal-lab.js` | 첫 화면 공장 부지를 밝은 낮 장면으로 옮기고 실습 4가지만 붙인 독립 페이지 |
 | 학습 기록 | `frontend/login_ui/Trainee Dashboard.dc.html`, `learning-lab.js`, `lab-extras.js` | 오늘의 실습 경로·내 3D 실습 요약·오개념 → 인과 지도 링크·갈림길 |
@@ -57,7 +58,7 @@
 
 ### 6. 학습 기록·운영
 - 오늘의 실습 경로와 내 3D 실습 요약(학습 기록 › 학습 랩 맨 위).
-- 오개념 → 인과 지도: '내 오개념' 항목에서 그 개념의 변수 카드로 연다. 이 브랜치 마지막 변경으로 링크가 v4가 아니라 인과 실습 공간(`/3d-demo/causal-lab.html?p=…&lab=map&var=…`)으로 간다.
+- 오개념 → 인과 지도: 2026-10-16에 학습 기록의 '내 오개념' 탭을 빼면서 화면 링크도 없앴다. API `/api/lab/causal/concepts`와 인과 실습 공간 주소(`/3d-demo/causal-lab.html?p=…&lab=map&var=…`)는 그대로라 다른 화면에서 다시 연결할 수 있다. 복습(다시 볼 개념)은 사원증 탭 아래로 옮겼다.
 - 수업 모드(운영 콘솔 › 3D 실습): 3D 화면 위쪽 막대로 단계 진행, 마지막 [🎓 수업 마치기]가 요약과 xAPI '마침'을 남긴다.
 - 관리자 3D 실습 통계: 퀴즈 칸별 정답률·헷갈리는 연결, 훈련에서 오래 걸린 단계, 사례에서 많이 틀린 문항, 수업 진행, 거꾸로 추론 헷갈리는 원인, 퍼즐별 시도·풀이·부작용 없는 풀이. 시연 계정 빼기(`include_demo=false`) 지원.
 

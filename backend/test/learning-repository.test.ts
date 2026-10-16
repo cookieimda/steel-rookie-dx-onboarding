@@ -3,6 +3,8 @@ import test from "node:test";
 import { openDatabase } from "../src/db/database.js";
 import { countUserData, deleteUserData } from "../src/db/user-data.js";
 import { latestPerConcept, LearningRepository, MAX_OPEN_MISCONCEPTIONS, type NewTurn } from "../src/learning/repository.js";
+import { CheckpointRepository } from "../src/checkpoint/repository.js";
+import { MeRepository } from "../src/me/repository.js";
 
 const turn = (over: Partial<NewTurn> = {}): NewTurn => ({
   user_id: "minsu",
@@ -93,6 +95,49 @@ test("recordMisconception: 같은 사용자·섹션·개념의 미해결 learnin
   db.prepare("UPDATE misconceptions SET resolved = 1 WHERE id = ?").run(first);
   assert.notEqual(repo.recordMisconception({ ...base, answer_text: "b", summary: "다시 헷갈림" }, "2026-10-02T04:00:00Z"), first);
   assert.equal(Number(db.prepare("SELECT COUNT(*) AS n FROM misconceptions").get()?.n), 4);
+});
+
+test("해결 후 재발: 체크포인트에서 해결된 오개념이 다시 나오면 새 미해결 행이 생기고, 해결된 옛 기록은 그대로 남는다", () => {
+  const { db, repo } = setup();
+  const checkpoints = new CheckpointRepository(db);
+  const me = new MeRepository(db);
+  const base = { user_id: "minsu", section: "ironmaking" as const, concept_id: "coke_reduction" };
+  const fromCheckpoint = (id: string, summary: string, at: string) =>
+    checkpoints.insertMisconception({ id, ...base, source: "checkpoint", phase: "initial", attempt_id: null, answer_text: "불순물 없애요", summary }, at);
+
+  // 1) 학습 모드·체크포인트에서 같은 개념의 오개념이 기록된다.
+  const firstLearning = repo.recordMisconception({ ...base, answer_text: "코크스는 불순물 없애죠?", summary: "불순물 제거로 앎" }, "2026-10-02T01:00:00Z");
+  fromCheckpoint("cp-1", "불순물 제거로 설명", "2026-10-02T02:00:00Z");
+  assert.equal(repo.openMisconceptions("minsu", "ironmaking").length, 2);
+
+  // 2) 체크포인트에서 그 개념을 1점으로 확정하면 출처와 상관없이 모두 해결된다(CheckpointRepository.resolveMisconceptions).
+  checkpoints.resolveMisconceptions("minsu", "coke_reduction", "2026-10-02T03:00:00Z");
+  assert.deepEqual(repo.openMisconceptions("minsu", "ironmaking"), []);
+
+  // 3) 다시 틀리면(재발) 학습 모드는 해결된 행을 고치지 않고 새로 넣고, 체크포인트도 새 행을 넣는다.
+  const again = repo.recordMisconception({ ...base, answer_text: "코크스가 불순물 잡죠?", summary: "다시 불순물 제거로 앎" }, "2026-10-03T01:00:00Z");
+  assert.notEqual(again, firstLearning);
+  fromCheckpoint("cp-2", "다시 불순물 제거로 설명", "2026-10-03T02:00:00Z");
+
+  // 학습자 메모·학습 모드 프롬프트에는 재발한 미해결 기록만, 개념당 최근 1개가 들어간다.
+  const open = repo.openMisconceptions("minsu", "ironmaking");
+  assert.deepEqual(open.map((m) => m.summary), ["다시 불순물 제거로 앎", "다시 불순물 제거로 설명"]);
+  assert.deepEqual(latestPerConcept(open).map((m) => m.summary), ["다시 불순물 제거로 설명"]);
+
+  // 개인 페이지에는 해결된 옛 기록과 재발 기록이 모두 최근 것부터 보인다.
+  assert.deepEqual(me.listMisconceptions("minsu").map((m) => [m.summary, m.resolved]), [
+    ["다시 불순물 제거로 설명", false],
+    ["다시 불순물 제거로 앎", false],
+    ["불순물 제거로 설명", true],
+    ["불순물 제거로 앎", true],
+  ]);
+  // 해결된 옛 행의 해결 시각은 재발로 바뀌지 않는다.
+  assert.equal(db.prepare("SELECT resolved_at FROM misconceptions WHERE id = ?").get(firstLearning)?.resolved_at, "2026-10-02T03:00:00Z");
+
+  // 4) 다시 맞히면 재발 기록도 해결되고, 행은 지우지 않는다(4행 모두 남음).
+  checkpoints.resolveMisconceptions("minsu", "coke_reduction", "2026-10-04T01:00:00Z");
+  assert.deepEqual(repo.openMisconceptions("minsu", "ironmaking"), []);
+  assert.equal(Number(db.prepare("SELECT COUNT(*) AS n FROM misconceptions WHERE user_id = 'minsu'").get()?.n), 4);
 });
 
 test("latestPerConcept: 개념당 최근 1개만 남겨 최근 것부터 최대 5개", () => {

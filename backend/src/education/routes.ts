@@ -7,7 +7,7 @@ import { requireAdmin, requireUser, type AuthDeps } from "../auth/routes.js";
 import type { User } from "../auth/users.js";
 import type { CheckpointEngine } from "../checkpoint/engine.js";
 import { CheckpointError, SECTION_ORDER, SECTION_NAMES, type CheckpointView, type Section } from "../checkpoint/types.js";
-import { DEFAULT_GEMINI_MODEL } from "../../../llm/src/gemini.js";
+import { profileFor, providerInfo } from "../../../llm/src/provider.js";
 import type { EducationJobs, EducationJob } from "./jobs.js";
 import { EducationRepository, hashOf, koreanDay } from "./repository.js";
 import { MaterialWorkflow } from "./workflow.js";
@@ -35,15 +35,22 @@ export interface EducationDeps {
   auth: AuthDeps; engine: CheckpointEngine; jobs: EducationJobs; repo: EducationRepository;
   onMaterialsChanged?: (section: Section) => void; metadata?: () => Record<string, unknown>;
 }
-/** 채점 이력에 남기는 모델 정보. provider 선택 모듈(#126)이 들어오면 그쪽 providerInfo()로 바꾼다. */
-const providerInfo = () => ({ provider: "gemini", model: process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL, baseUrl: null as string | null });
+/**
+ * 채점 이력에 남기는 모델 정보: 지금 provider·모델(llm/src/provider.ts)과 채점 보강을 켰는지, 프롬프트 해시.
+ * Ollama로 채점한 기록이 Gemini로 남지 않게 한다. 채점 보강이 켜져 있으면 보강 프롬프트도 해시에 넣는다.
+ */
+function examMetadata(): Record<string, unknown> {
+  const info = providerInfo();
+  const guards = profileFor(info.provider).evaluatorGuards;
+  const prompts = ["evaluator", "tutor-system", "tutor-polish", "tutor-explanation", "tutor-recheck", "tutor-correction", ...(guards ? ["evaluator-keypoints"] : [])];
+  return { provider: info.provider, model: info.model, evaluator_guards: guards, prompt_hash: hashOf(prompts.map((name) => readFileSync(join(process.cwd(), "llm", "prompts", `${name}.md`), "utf8"))) };
+}
 
 export function createEducationRouter({ auth, engine, jobs, repo, onMaterialsChanged, metadata }: EducationDeps) {
   const router = Router(), login = requireUser(auth), db = repo.db;
   // 자료 검수 단계 기록(012). 등록·승인·반려도 같은 기록을 남긴다(workflow-routes.ts가 검수 요청·수정 요청·수정본을 더한다).
   const workflow = new MaterialWorkflow(db);
-  const currentMetadata = metadata ?? (() => ({ ...providerInfo(), prompt_hash: hashOf(
-    ["evaluator", "tutor-system", "tutor-polish", "tutor-explanation", "tutor-recheck", "tutor-correction"].map((name) => readFileSync(join(process.cwd(), "llm", "prompts", `${name}.md`), "utf8"))) }));
+  const currentMetadata = metadata ?? examMetadata;
   const submit = (req: Request, res: Response, kind: string, section: Section, payload: unknown, run: () => Promise<CheckpointView>) => {
     const userId = owner(res), info = { ...currentMetadata(), rubric_version: repo.rubricVersions.get(section) ?? null, section };
     let job: EducationJob;

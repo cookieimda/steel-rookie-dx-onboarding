@@ -175,6 +175,63 @@ export function applyKeyPointCheck(e: Evaluation, stated: number[], count: numbe
   return { evaluation: e, note: null };
 }
 
+/**
+ * 핵심 요소를 빠뜨렸다는 말("~과정을 빠뜨렸습니다", "~설명이 부족", "~설명하지 않았다")은 틀린 지식(오개념)이 아니라 누락이다.
+ * 작은 로컬 모델은 이런 말을 misconception에 적어, 맞는 답이 partial로 내려가고 오개념 기록이 오염된다.
+ * 2026-10-15 저장된 채점 기록 81건(qwen2.5 3b·7b)에서 이 패턴에 걸린 19건은 모두 학습자 답에 실제 오류가 없었다(docs/llm-providers.md).
+ */
+export const OMISSION_MISCONCEPTION = /빠뜨|빠져\s?있|빠졌|빠짐|누락|부족|언급하지 않|언급이 없|설명하지 (않|못)|설명이 없|포함되지 않|설명되지 않|놓쳤/;
+
+/** 응답 원문의 misconception이 누락을 말하는 문장이면 null로 바꾼 원문(바꿨는지와 함께). JSON이 아니면 그대로 둔다. */
+export function stripOmissionMisconception(raw: string): { raw: string; dropped: string | null } {
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    return { raw, dropped: null };
+  }
+  const m = (json as { misconception?: unknown })?.misconception;
+  if (typeof m !== "string" || !OMISSION_MISCONCEPTION.test(m)) return { raw, dropped: null };
+  return { raw: JSON.stringify({ ...(json as object), misconception: null }), dropped: m };
+}
+
+/**
+ * 지어낸 오개념을 지운다. 핵심 요소를 모두 맞게 말했으면(checked) correct, 아니면 partial을 유지하고 explain_from을 처음 놓친 요소로 둔다
+ * (오개념 없는 partial은 explain_from이 있어야 한다). 핵심 요소 확인이 형식 오류(null)면 모두 말했다고 보지 않는다.
+ */
+export function dropInventedMisconception(e: Evaluation, checked: number[] | null, count: number): { evaluation: Evaluation; note: string } {
+  const missing = [...Array(count).keys()].find((i) => !(checked ?? []).includes(i));
+  if (checked && missing === undefined) {
+    return { evaluation: { ...e, verdict: "correct", misconception: null, explain_from: null }, note: "partial→correct(핵심 요소 모두 맞고 루브릭 오개념과 다름: 지어낸 오개념을 버림)" };
+  }
+  return { evaluation: { ...e, misconception: null, explain_from: e.explain_from ?? missing ?? 0 }, note: "지어낸 오개념을 버림(partial 유지)" };
+}
+
+/** 오개념 재확인 응답 스키마: 루브릭 오개념과 같은 뜻인지, 같으면 답에서 옮긴 부분. */
+export function misconceptionCheckSchema(): object {
+  return {
+    type: "OBJECT",
+    properties: { matches: { type: "BOOLEAN" }, quote: { type: "STRING" } },
+    required: ["matches", "quote"],
+    propertyOrdering: ["matches", "quote"],
+  };
+}
+
+/** 오개념 재확인 응답 → 같음(true)·다름(false)·형식 오류(null). matches=true여도 인용이 실제 답에 없으면 형식 오류로 본다(판정을 바꾸지 않음). */
+export function knownMisconception(raw: string, answer: string): boolean | null {
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  const parsed = z.object({ matches: z.boolean(), quote: z.string() }).safeParse(json);
+  if (!parsed.success) return null;
+  if (!parsed.data.matches) return false;
+  const q = compact(parsed.data.quote);
+  return q.length >= 2 && compact(answer).includes(q) ? true : null;
+}
+
 /** 평가 한 번의 상세 결과. formatProblems는 형식 검증에 실패한 시도의 이유(재시도 횟수 = 길이). */
 export interface DetailedEvaluation {
   evaluation: Evaluation | null;
@@ -189,6 +246,18 @@ export interface EvaluatorOptions {
   repairFormat?: boolean;
   /** 경계 재확인(wrong·partial이면 핵심 요소별로 한 번 더 묻기). 작은 로컬 모델의 경계 오판을 줄이려고 둔다. 기본 끔(호출이 늘어서). */
   verifyBoundary?: boolean;
+  /** 누락을 말하는 misconception은 오개념이 아니라 지운다(OMISSION_MISCONCEPTION). 모델을 더 부르지 않는다. 기본 끔(Gemini는 지금처럼). */
+  ignoreOmission?: boolean;
+  /**
+   * 오개념 재확인(verifyBoundary와 함께): partial에 오개념이 붙어 있으면 루브릭의 흔한 오개념과 같은지 예/아니오로 묻고, 다르면 지어낸 오개념으로 보고 지운다
+   * (핵심 요소를 모두 말했으면 correct, 아니면 partial 유지, dropInventedMisconception). 루브릭에 없는 새로운 사실 오류는 놓칠 수 있다. 기본 끔.
+   */
+  verifyMisconception?: boolean;
+}
+
+/** 로컬 모델 채점 보강을 한꺼번에 켠다(provider.ts profileFor의 evaluatorGuards). 오개념 재확인(verifyMisconception)은 측정용이라 넣지 않는다. */
+export function evaluatorGuardOptions(on: boolean): EvaluatorOptions {
+  return { repairFormat: on, verifyBoundary: on, ignoreOmission: on };
 }
 
 export class GeminiEvaluator implements Evaluator {
@@ -217,7 +286,13 @@ export class GeminiEvaluator implements Evaluator {
     for (let attempt = 1; attempt <= MAX_ATTEMPTS && !evaluation; attempt++) {
       attempts = attempt;
       // LLM 연결 오류(LlmUnavailableError)는 재시도하지 않고 그대로 올린다.
-      const raw = await this.gemini.generate(request);
+      let raw = await this.gemini.generate(request);
+      // 누락을 말하는 misconception은 지운 뒤 검사한다(맞는 답이 "correct인데 misconception이 있음" 형식 오류·partial로 내려가지 않게).
+      if (this.options.ignoreOmission) {
+        const stripped = stripOmissionMisconception(raw);
+        if (stripped.dropped) adjustments.push(`누락을 적은 오개념을 버림("${stripped.dropped.slice(0, 40)}")`);
+        raw = stripped.raw;
+      }
       const result = parseEvaluation(raw, concept, phase);
       if (typeof result !== "string") {
         evaluation = result;
@@ -240,8 +315,34 @@ export class GeminiEvaluator implements Evaluator {
         evaluation = next;
         if (note) adjustments.push(note);
       }
+      // partial에 오개념이 붙어 있으면 그 오개념이 학습자 답에 실제로 있는지 루브릭의 흔한 오개념으로 닫힌 질문을 한다.
+      // 작은 모델은 루브릭의 오답 기준 문장을 그대로 옮기거나 뒤집어("~라고 설명하지 않음") 오개념 칸에 적는다. 가짜 오개념은 점수를 깎고 오개념 기록도 오염시킨다.
+      if (this.options.verifyMisconception && evaluation.verdict === "partial" && evaluation.misconception?.trim()) {
+        const known = await this.checkKnownMisconception(input);
+        if (known === false) {
+          const { evaluation: next, note } = dropInventedMisconception(evaluation, checked, concept.key_points.length);
+          evaluation = next;
+          adjustments.push(note);
+        }
+      }
     }
     return { evaluation, attempts, formatProblems, adjustments };
+  }
+
+  /**
+   * 학습자 답이 루브릭의 흔한 오개념(concept.wrong)과 같은 뜻인지 예/아니오로 묻는다. 같으면 답에서 그 부분을 글자 그대로 옮겨야 한다.
+   * true: 같음(인용이 실제 답에 있음), false: 다름, null: 형식 오류(판정을 바꾸지 않는다).
+   */
+  private async checkKnownMisconception({ rubric, concept, question, answer }: EvaluateInput): Promise<boolean | null> {
+    const glossary = rubric.glossary?.length ? rubric.glossary.map((g) => `${g.term} = ${g.aliases.join(", ")}`).join("; ") : "(없음)";
+    const raw = await this.gemini.generate({
+      system: renderPrompt("evaluator-misconception", { name: concept.name, wrong: concept.wrong, glossary }),
+      prompt: evaluatorUserPrompt(question, answer),
+      temperature: 0,
+      maxOutputTokens: 200,
+      responseSchema: misconceptionCheckSchema(),
+    });
+    return knownMisconception(raw, answer);
   }
 
   /** 핵심 요소별 재확인. 형식이 틀리면 null(판정을 바꾸지 않는다). */

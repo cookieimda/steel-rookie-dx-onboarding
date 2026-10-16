@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
-import { applyKeyPointCheck, GeminiEvaluator, repairEvaluation, statedKeyPoints } from "../../llm/src/evaluator.js";
+import { applyKeyPointCheck, dropInventedMisconception, evaluatorGuardOptions, GeminiEvaluator, knownMisconception, repairEvaluation, statedKeyPoints, stripOmissionMisconception } from "../../llm/src/evaluator.js";
 import type { GenerateRequest, LlmClient } from "../../llm/src/llm-client.js";
 import type { Rubric } from "../src/rubrics.js";
 
@@ -44,6 +44,28 @@ test("applyKeyPointCheck: 한 단계만 올린다. wrong→partial, partial→co
   assert.equal(applyKeyPointCheck(e("assisted"), [0, 1], 2).evaluation.verdict, "assisted");
 });
 
+test("knownMisconception: 다르면 false, 같으면 인용이 실제 답에 있어야 true, 형식이 틀리거나 인용을 지어내면 null", () => {
+  const answer = "코크스는 불순물을 없애려고 넣어요.";
+  assert.equal(knownMisconception(JSON.stringify({ matches: false, quote: "" }), answer), false);
+  assert.equal(knownMisconception(JSON.stringify({ matches: true, quote: "불순물을 없애려고" }), answer), true);
+  assert.equal(knownMisconception(JSON.stringify({ matches: true, quote: "탄소를 줄여요" }), answer), null);
+  assert.equal(knownMisconception("{", answer), null);
+});
+
+test("stripOmissionMisconception: 누락을 말하는 오개념만 지우고, 틀린 지식·'빠져나가' 같은 말은 그대로 둔다", () => {
+  const raw = (misconception: string | null) => JSON.stringify({ verdict: "correct", misconception, explain_from: null, evidence: "e" });
+  for (const m of ["환원 과정만 설명했고 용융 과정이 빠짐.", "용융 과정과 환원 과정을 빠뜨렸습니다.", "고로에서 바로 용강이 나온다고 설명하지 않았다.", "일산화탄소가 어떻게 만들어지는지에 대한 설명이 부족합니다."]) {
+    const s = stripOmissionMisconception(raw(m));
+    assert.equal(s.dropped, m);
+    assert.equal(JSON.parse(s.raw).misconception, null);
+  }
+  for (const m of ["코크스가 용선의 불순물을 제거한다고 설명함", "슬래브는 연주 공정에서 만들어지지 않고 제강 공정에서 만들어집니다", "광석에서 산소가 빠져나가는 과정이 틀렸다고 함"]) {
+    assert.equal(stripOmissionMisconception(raw(m)).dropped, null, m);
+  }
+  assert.deepEqual(stripOmissionMisconception("{x"), { raw: "{x", dropped: null });
+  assert.equal(stripOmissionMisconception(raw(null)).dropped, null);
+});
+
 /** 차례로 정해 둔 응답을 돌려주는 가짜 모델. */
 function fake(replies: string[]): LlmClient & { sent: GenerateRequest[] } {
   const sent: GenerateRequest[] = [];
@@ -67,4 +89,36 @@ test("GeminiEvaluator: 재시도까지 어긋나면 보정해 살리고, verifyB
   assert.equal(off.evaluation?.verdict, "wrong", "기본은 재확인하지 않음(호출 1번)");
   const strict = await new GeminiEvaluator(fake([out({ verdict: "assisted" }), out({ verdict: "assisted" })])).evaluateDetailed(input);
   assert.equal(strict.evaluation, null, "기본은 보정하지 않음(Gemini는 지금처럼 형식 오류)");
+});
+
+test("GeminiEvaluator verifyMisconception: 핵심 요소를 다 말했는데 모델이 오개념을 적어 partial이면, 루브릭 오개념과 다를 때만 correct로 올린다", async () => {
+  const answer = "코크스가 열풍과 반응해 일산화탄소를 만들고, 그 일산화탄소가 철광석의 산소를 떼어내요.";
+  const input = { rubric, concept: coke, question: "q", answer, phase: "initial" as const };
+  const allStated = JSON.stringify({ points: [{ index: 0, stated: true, quote: "열풍과 반응해 일산화탄소를 만들고" }, { index: 1, stated: true, quote: "철광석의 산소를 떼어내요" }] });
+  const invented = out({ verdict: "partial", misconception: "CO가 산소를 떼어낸다는 표현이 잘못됨", explain_from: null });
+
+  const client = fake([invented, allStated, JSON.stringify({ matches: false, quote: "" })]);
+  const up = await new GeminiEvaluator(client, { verifyBoundary: true, verifyMisconception: true }).evaluateDetailed(input);
+  assert.deepEqual([up.evaluation?.verdict, up.evaluation?.misconception, up.evaluation?.explain_from], ["correct", null, null]);
+  assert.match(up.adjustments.at(-1)!, /partial→correct/);
+  assert.match(client.sent[2]!.system, /흔한 오개념/);
+
+  const real = await new GeminiEvaluator(fake([invented, allStated, JSON.stringify({ matches: true, quote: "일산화탄소를 만들고" })]), { verifyBoundary: true, verifyMisconception: true }).evaluateDetailed(input);
+  assert.equal(real.evaluation?.verdict, "partial", "루브릭 오개념과 같으면 그대로");
+  // 핵심 요소를 다 확인하지 못해도 지어낸 오개념은 지우고 partial을 유지하며, 처음 놓친 요소부터 설명하게 한다.
+  const oneStated = JSON.stringify({ points: [{ index: 0, stated: true, quote: "열풍과 반응해 일산화탄소를 만들고" }, { index: 1, stated: false, quote: "" }] });
+  const kept = await new GeminiEvaluator(fake([invented, oneStated, JSON.stringify({ matches: false, quote: "" })]), { verifyBoundary: true, verifyMisconception: true }).evaluateDetailed(input);
+  assert.deepEqual([kept.evaluation?.verdict, kept.evaluation?.misconception, kept.evaluation?.explain_from], ["partial", null, 1]);
+  assert.deepEqual(dropInventedMisconception({ verdict: "partial", misconception: "x", explain_from: null, evidence: "e" }, null, 2).evaluation.explain_from, 0, "핵심 요소 확인이 형식 오류면 0부터");
+
+  // ignoreOmission: "correct인데 misconception(누락 설명)"은 형식 오류로 다시 부르지 않고 correct로 둔다.
+  const omitted = fake([out({ verdict: "correct", misconception: "용융 과정이 빠져 있습니다.", explain_from: null })]);
+  const kept2 = await new GeminiEvaluator(omitted, evaluatorGuardOptions(true)).evaluateDetailed(input);
+  assert.deepEqual([kept2.evaluation?.verdict, kept2.evaluation?.misconception, kept2.attempts], ["correct", null, 1]);
+  assert.match(kept2.adjustments[0]!, /누락을 적은 오개념을 버림/);
+  assert.equal(omitted.sent.length, 1, "correct면 경계 재확인도 하지 않는다");
+
+  const off = fake([invented, allStated]);
+  assert.equal((await new GeminiEvaluator(off, { verifyBoundary: true }).evaluateDetailed(input)).evaluation?.verdict, "partial", "끄면 묻지 않는다");
+  assert.equal(off.sent.length, 2);
 });

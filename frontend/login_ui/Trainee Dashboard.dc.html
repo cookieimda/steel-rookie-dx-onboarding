@@ -129,7 +129,9 @@
     .ec-badgebox summary i { font-style: normal; font-size: 20px; font-weight: 700; color: var(--muted); transition: transform .2s; }
     .ec-badgebox[open] summary i { transform: rotate(45deg); }
     .ec-badgebox summary:focus-visible { outline: 2px solid var(--text); outline-offset: 4px; }
+    /* 닫으면 배지 칸을 display:none으로 뺀다. 브라우저 기본 접기(content-visibility)만 쓰면 판의 blur 배경 위에 닫기 전 그림이 흔적으로 남는다 */
     .ec-badgebox:not([open]) { gap: 0; }
+    .ec-badgebox:not([open]) .ec-badges { display: none; }
     .ec-badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 10px; }
     .ec-badge { display: flex; flex-direction: column; align-items: center; gap: 5px; text-align: center; padding: 10px 6px; border-radius: var(--cut-s); background: var(--panel2); }
     .ec-badge b { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; font-size: 24px; border: 2px dashed var(--line); filter: grayscale(1); opacity: .5; }

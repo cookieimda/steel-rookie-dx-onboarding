@@ -8,9 +8,9 @@ import express from "express";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { getPublicSources } from "../../../llm/src/ironmaking-sources.js";
-import { groundingSupport } from "../../../llm/src/grounding.js";
-import { LearningFormatError, type LearningAgent, type ModelProposal, type SceneCatalog } from "../../../llm/src/learning-agent.js";
-import { retrieveWithHistory, withScreenEquipment, type Retriever } from "../../../llm/src/retrieval.js";
+import { groundingSupport, lowSupport } from "../../../llm/src/grounding.js";
+import { LearningFormatError, type LearningAgent, type LearningReply, type ModelProposal, type SceneCatalog } from "../../../llm/src/learning-agent.js";
+import { retrieveWithHistory, withScreenEquipment, type Chunk, type Retriever } from "../../../llm/src/retrieval.js";
 import { runWithTrace, Trace, type TraceSink } from "../../../llm/src/trace.js";
 import { LlmUnavailableError, SECTION_ORDER, type Section } from "../checkpoint/types.js";
 import { currentUserId } from "../request-user.js";
@@ -39,12 +39,14 @@ function toSources(sourceIds: string[]) {
  * - no_chunks: 검색된 근거가 없음(검색 부족)
  * - model_unverified: 근거는 있었지만 모델이 근거로 답할 수 없다고 함(근거 밖 질문이거나 근거가 맞지 않음)
  * - invalid_sources: 모델은 grounded라고 했지만 이번 검색 결과에 없는 조각만 인용해 서버가 unverified로 바꿈(출처 검증 실패)
+ * - low_support: 모델은 근거로 답했다고 했지만 답 문장이 근거와 하나도 겹치지 않아 서버가 unverified로 낮춤(groundingCheck, 로컬 모델만)
  * - cached: 저장한 답을 씀(원인은 처음 받은 trace에 있음)
  */
-export type UnverifiedReason = "no_chunks" | "model_unverified" | "invalid_sources" | "cached";
-export function unverifiedReason(status: string, chunkCount: number, proposal: ModelProposal | null | "cached"): UnverifiedReason | null {
+export type UnverifiedReason = "no_chunks" | "model_unverified" | "invalid_sources" | "low_support" | "cached";
+export function unverifiedReason(status: string, chunkCount: number, proposal: ModelProposal | null | "cached", lowSupported = false): UnverifiedReason | null {
   if (status !== "unverified") return null;
   if (proposal === "cached") return "cached";
+  if (lowSupported) return "low_support";
   if (chunkCount === 0) return "no_chunks";
   return proposal?.status === "grounded" ? "invalid_sources" : "model_unverified";
 }
@@ -121,8 +123,16 @@ export interface LearningDeps {
   suggestedQuestions?: (processId: string | null, equipmentId: string | null) => string[];
   /** 요청마다 완성된 trace를 받는다(llm/src/trace.ts). 서버는 data/traces/*.jsonl에 쓰고, 없으면 남기지 않는다. */
   traceSink?: TraceSink;
+  /**
+   * 근거와 겹치는 문장이 하나도 없는 답(grounding.ts lowSupport)을 unverified로 낮추고 안내(grounding_note)를 붙인다.
+   * provider.ts profileFor().groundingCheck(로컬 모델만 켬).
+   */
+  groundingCheck?: boolean;
   now?: () => string;
 }
+
+/** 근거 겹침이 없는 답에 붙이는 안내. 답은 지우지 않는다(맞는 내용일 수도 있어서 학습자가 출처를 보고 판단하게 한다). */
+export const LOW_SUPPORT_NOTE = "자료에서 확인하지 못한 내용이 섞여 있을 수 있어요. 아래 출처와 함께 확인해 주세요.";
 
 /** 미리 받아 둘 질문 하나(서버가 켜질 때 warmAnswers로 받는다). */
 export interface WarmItem {
@@ -136,8 +146,20 @@ export interface LearningRouter extends express.Router {
   warmAnswers(items: WarmItem[], options?: { onEach?: (item: WarmItem, result: "cached" | "saved" | "skipped" | "failed", ms: number) => void }): Promise<{ saved: number; cached: number; failed: number }>;
 }
 
-export function createLearningRouter({ repo, retriever, agent, rubrics, scene, screenSteps = [], checkpointProgress, cache, suggestedQuestions, traceSink, now = () => new Date().toISOString() }: LearningDeps): LearningRouter {
+export function createLearningRouter({ repo, retriever, agent, rubrics, scene, screenSteps = [], checkpointProgress, cache, suggestedQuestions, traceSink, groundingCheck = false, now = () => new Date().toISOString() }: LearningDeps): LearningRouter {
   const router = express.Router() as LearningRouter;
+  /**
+   * grounded 답의 근거 겹침(trace용, 인용한 조각 기준)과, groundingCheck면 이번에 검색한 근거 전체와도 겹치지 않는 답을 unverified로 낮춘 답.
+   * 낮출지는 인용한 조각이 아니라 검색한 근거 전체로 본다: 로컬 3B는 맞는 답에도 엉뚱한 조각을 인용해서(2026-10-16 측정 세션 12문항에서
+   * 인용 기준이면 5개, 검색 기준이면 3개를 낮췄고 빠진 2개 "출선구는 뭐야?"·"코크스는 왜 넣어?"는 맞는 답) 인용 기준은 오탐이 많다.
+   * 저장(cache)하기 전에 부른다.
+   */
+  const checkSupport = (reply: LearningReply, chunks: Chunk[]) => {
+    if (reply.status !== "grounded") return { reply, support: null, low: false };
+    const support = groundingSupport(reply.answer, chunks.filter((c) => reply.source_ids.includes(c.id)).map((c) => c.text));
+    const low = groundingCheck && lowSupport(groundingSupport(reply.answer, chunks.map((c) => c.text)));
+    return { reply: low ? { ...reply, status: "unverified" as const, keyword_card: null } : reply, support, low };
+  };
 
   /** 튜터 입력(근거 검색 포함). 실제 질문과 미리 받기(warm)가 같은 경로를 쓴다. */
   const prepare = (args: {
@@ -186,7 +208,7 @@ export function createLearningRouter({ repo, retriever, agent, rubrics, scene, s
         continue;
       }
       try {
-        const reply = await agent.reply(input);
+        const { reply } = checkSupport(await agent.reply(input), input.chunks);
         cache.set(cacheKey, reply);
         const saved = reply.status === "grounded";
         if (saved) counts.saved++; else counts.failed++;
@@ -313,7 +335,8 @@ export function createLearningRouter({ repo, retriever, agent, rubrics, scene, s
       const hit = cache && (generic || suggested) ? cache.get(cacheKey) : null;
       trace.set("cache", !cache ? "off" : hit ? "hit" : generic || suggested ? "miss" : "personal");
       // 추천 질문은 오개념을 단정하는 질문이 아니므로 저장한 답의 오개념 감지는 쓰지 않는다.
-      const reply = hit ? { ...hit, detected_misconception: generic ? hit.detected_misconception : null } : await trace.timeAsync("llm", () => agent.reply(input, { onAnswer }));
+      const fresh = hit ? null : checkSupport(await trace.timeAsync("llm", () => agent.reply(input, { onAnswer })), chunks);
+      const reply = hit ? { ...hit, detected_misconception: generic ? hit.detected_misconception : null } : fresh!.reply;
       if (!hit && generic) cache?.set(cacheKey, reply);
 
       trace.time("save", () => {
@@ -333,7 +356,7 @@ export function createLearningRouter({ repo, retriever, agent, rubrics, scene, s
       trace.set("outcome", reply.status);
       trace.set("result", {
         status: reply.status,
-        unverified_reason: unverifiedReason(reply.status, chunks.length, hit ? "cached" : proposal),
+        unverified_reason: unverifiedReason(reply.status, chunks.length, hit ? "cached" : proposal, !!fresh?.low),
         source_ids: reply.source_ids,
         scene_actions: reply.scene_actions,
         misconception: reply.detected_misconception?.concept_id ?? null,
@@ -341,8 +364,11 @@ export function createLearningRouter({ repo, retriever, agent, rubrics, scene, s
         answer_chars: reply.answer.length,
         follow_up: reply.follow_up !== null,
       });
-      if (reply.status === "grounded") trace.set("grounding", groundingSupport(reply.answer, citedChunks.map((c) => c.text)));
-      send(200, { answer: reply.answer, status: reply.status, sources, follow_up: reply.follow_up, scene_actions: reply.scene_actions, keyword_card, session_id: sessionId });
+      const support = fresh?.support ?? (reply.status === "grounded" ? groundingSupport(reply.answer, citedChunks.map((c) => c.text)) : null);
+      if (support) trace.set("grounding", support);
+      // 근거 겹침이 없어 낮춘 답(저장한 답 포함)은 출처가 남아 있어서 안내를 붙인다. 모델이 unverified로 답한 고정 문장에는 붙이지 않는다.
+      const grounding_note = reply.status === "unverified" && reply.source_ids.length > 0 ? LOW_SUPPORT_NOTE : null;
+      send(200, { answer: reply.answer, status: reply.status, sources, follow_up: reply.follow_up, scene_actions: reply.scene_actions, keyword_card, grounding_note, session_id: sessionId });
     } catch (error) {
       trace.set("error", { kind: errorKind(error), message: (error as Error)?.message ?? String(error) });
       trace.set("outcome", "error");

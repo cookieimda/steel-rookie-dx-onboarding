@@ -169,7 +169,8 @@ const sessionStore = {
 /** 서버 응답 → 템플릿 메시지. 출처는 자료 제목과 id로 보여 준다. */
 function toMessage(res) {
   return {
-    role: 'assistant', text: res.answer,
+    // 근거와 겹치지 않는 답(로컬 모델)은 서버가 안내(grounding_note)를 붙여 보낸다. 화면마다 템플릿을 바꾸지 않게 답 끝에 붙인다.
+    role: 'assistant', text: res.grounding_note ? `${res.answer}\n\n※ ${res.grounding_note}` : res.answer,
     mode: res.status === 'safety_redirect' ? 'safety_redirect' : 'free_question',
     evidence: res.status,
     citations: (res.sources || []).map(s => ({ title: s.title, document_id: s.id, url: s.url })),

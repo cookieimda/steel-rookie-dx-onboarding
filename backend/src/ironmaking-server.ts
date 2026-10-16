@@ -128,6 +128,8 @@ const learning = createLearningRouter({
   suggestedQuestions,
   // 질문마다 단계별 기록을 data/traces/learning-날짜.jsonl에 남긴다.
   traceSink,
+  // 로컬 모델은 근거와 겹치는 문장이 없는 답을 unverified로 낮추고 안내를 붙인다(grounding.ts lowSupport).
+  groundingCheck: profile.groundingCheck,
 });
 
 const app = createApp({ engine, usage, learning, traceSink });
@@ -179,7 +181,7 @@ const port = Number(process.env.PORT ?? 3000);
 app.listen(port, "127.0.0.1", () => {
   console.log(`제선 공정 알아보기: http://localhost:${port}`);
   console.log(`접속 비밀번호: ${passcodeRequired() ? "사용(TEST_PASSCODE)" : "사용 안 함"} · 사용자별 하루 LLM 호출 한도: ${usage.dailyLimit > 0 ? `${usage.dailyLimit}회` : "제한 없음"}`);
-  console.log(`LLM: ${llmInfo.label} · 학습 프롬프트 ${profile.learning} · 채점 보강 ${profile.evaluatorGuards ? "켬" : "끔"}`);
+  console.log(`LLM: ${llmInfo.label} · 학습 프롬프트 ${profile.learning} · 채점 보강 ${profile.evaluatorGuards ? "켬" : "끔"} · 근거 겹침 검사 ${profile.groundingCheck ? "켬" : "끔"}`);
   // 추천 질문 답을 뒤에서 미리 받아 둔다(저장한 답이 있으면 건너뜀). 끄려면 WARM_ANSWERS=off.
   // 로컬 모델은 CPU에서 질문 하나에 수십 초라 미리 받기가 학습자 질문과 CPU를 다툰다. 그래서 기본으로 끄고 WARM_ANSWERS=on일 때만 받는다.
   const warm = process.env.WARM_ANSWERS?.trim().toLowerCase();

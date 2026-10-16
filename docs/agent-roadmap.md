@@ -2,14 +2,15 @@
 
 FloodOps 저장소에 임시로 올렸던 계획(`docs/HARVARD_AGENT_ROADMAP_ST-Rookie_TEMP.md`)을 이 저장소로 옮겼다. 진행 상황은 바로 아래 '현재 진행'에 적고, 본문 체크박스도 함께 고친다.
 
-## 현재 진행 (2026-10-15)
+## 현재 진행 (2026-10-16)
 
 | 로드맵 항목 | 상태 | 위치 |
 |---|---|---|
 | Stage 1 요청별 trace | 학습 모드(`/api/chat`) 완료: 서버 단계·LLM 호출·화면 표시(`learning-ui`)·대화 복원(`learning-restore`) | [agent-observability.md](agent-observability.md), `npm run trace:report` |
 | 답변 사실 평가 | `facts`(필수 사실)·`must_not`(하면 안 되는 주장), 제선 11문항 | [learning-mode.md](learning-mode.md) '품질 평가' |
 | 작동 보기(`show_operation`) | 튜터가 설비 작동 단계를 3D로 보여 줌. 작동 질문은 서버 규칙으로도 붙임 | [learning-mode.md](learning-mode.md) '화면 조작' |
-| 근거 겹침(답변 근거성) 지표 | 관찰용 지표 완료, status에는 반영 안 함 | `llm/src/grounding.ts`, trace·`eval:learning` 보고서 |
+| 근거 겹침(답변 근거성) 지표 | Gemini는 관찰용. 로컬 모델은 검색한 근거와 겹치는 문장이 없는 답을 `unverified`(`low_support`)로 낮추고 안내를 붙임(10/16) | `llm/src/grounding.ts`, [agent-observability.md](agent-observability.md) '근거 겹침' |
+| 지시어 질문 화면 조작 | "이 설비는?"이면 다른 설비로 옮기지 않음(10/16, 서버 규칙) | `llm/src/learning-agent.ts` `deicticEquipment` |
 | 교육용 평가 세트 | 학습 답변 86개 + 추천 질문 칩, 검색 41개(제선 27 + 후속 질문 14) | `llm/eval/learning/`, `llm/eval/retrieval/` |
 | Recall@5·MRR | 있음 | `npm run eval:retrieval` |
 | 잘못된 source/concept/scene action 차단 테스트 | 있음 | `backend/test/learning-agent.test.ts`, `learning-route.test.ts` |
@@ -105,7 +106,9 @@ ST-Rookie는 FloodOps와 다르다. 현재 구조는 일반적인 다중 도구 
 
 ## Stage 3 — Mads-Opt: 품질을 유지하며 비용·지연 개선
 - [~] Gemini 호출 수, 재시도, 토큰, 검색 시간, p50/p95 응답 시간을 기준선으로 측정한다. (trace로 수집 시작, `trace:report`)
-- [ ] 현재 코드의 대화·오개념 컨텍스트 상한이 실제로 어떻게 적용되는지 확인한다. (trace `context`·`agent.prompt_chars`로 볼 수 있음)
+- [x] 현재 코드의 대화·오개념 컨텍스트 상한이 실제로 어떻게 적용되는지 확인한다.
+  - 2026-10-16 로컬 측정 세션(qwen2.5:3b, 한 세션 12문항, `data/traces` trace): 서버가 넘긴 대화는 0→6턴까지 늘고 7번째 질문부터 6턴에서 멈췄다(`HISTORY_TURNS`). 로컬 프롬프트는 2턴·근거 3개·2,200자로 다시 줄여(`LOCAL_CONTEXT_LIMITS`) 프롬프트 글자 수가 1번째 2,276자에서 3번째부터 2,490~2,690자 사이로 더 늘지 않았다(p50 2,522).
+  - 오개념 메모 상한(서버 개념당 1개·최대 5개, 로컬 3개)은 실제로 확인하지 못했다. 오개념을 단정한 질문 3개("코크스는 불순물을…", "소결은 쇳물을…", "열풍로는 식히는…")를 3B가 하나도 감지하지 못해 메모가 0개였다(알려진 3B 약점). 상한 자체는 단위 테스트로 본다.
 - [ ] 중복 프롬프트와 반복 컨텍스트를 줄이되 근거·단위·자료 한계는 유지한다.
 - [~] 검색 결과 5개가 항상 필요한지 실험한다. 줄일 때는 Recall@k와 답변 근거성을 함께 평가한다.
   - 2026-10-15 `eval:retrieval --max-results k`(모델 호출 없음): 단독 질문 Recall@1 77.8%, @2 92.6%, @3 96.3%, @5 100%(27개), 이어지는 질문은 @2부터 100%(14개). MRR @3 0.790, @5 0.798.
@@ -113,7 +116,9 @@ ST-Rookie는 FloodOps와 다르다. 현재 구조는 일반적인 다중 도구 
   - 결론: Gemini는 5개 유지(토큰 여유가 있고 1개를 더 잡는다). 로컬은 3개로 근거 손실 4%를 감수하고 지연을 줄인다. 답변 근거성까지 비교하는 것은 다음 단계.
 - [x] 근거 검색 0건일 때 다시 찾기가 필요한지 측정: 학습 평가 84문항 중 0건은 안전 질문 1개뿐(검색 전에 차단됨)이라 만들지 않는다. 실제 사용의 `no_chunks`는 trace로 본다.
 - [ ] 캐시를 도입한다면 화면 컨텍스트, 대화, 오개념, 자료·루브릭 버전을 고려해 오래된 결과가 재사용되지 않게 한다. (답 저장은 이미 있음: `answer-cache.ts`, 모델·프롬프트·자료 버전 키)
-- [ ] 재시도가 비용과 호출 한도에 미치는 영향을 측정한다.
+- [~] 재시도가 비용과 호출 한도에 미치는 영향을 측정한다.
+  - 재시도도 한 번의 호출로 사용자 하루 한도(`LLM_DAILY_LIMIT`, 기본 150)에서 빠진다(`beforeCall`로 셈). 같은 측정 세션은 요청 12개에 호출 12회, 재시도 0회, 형식 오류 0회라 추가 소모가 없었다. Gemini 503 재시도는 유료 호출이라 다시 재지 않았고 실제 사용 trace(`retries`)로 본다.
+  - 같은 세션의 지연: 답 p50 64초·p95 85초(노트북 CPU, 같은 시간에 테스트가 돌아 평소 29초보다 느림), 검색 p50 8ms, grounded 답 하나당 토큰 1,645.
 - [ ] 최적화는 같은 평가 세트에서 품질을 확인한 뒤 적용한다.
 
 기준선(실제 사용 trace가 쌓이면 채운다):

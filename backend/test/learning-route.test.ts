@@ -8,7 +8,7 @@ import { Retriever, type Chunk } from "../../llm/src/retrieval.js";
 import { LlmUnavailableError } from "../src/checkpoint/types.js";
 import { openDatabase } from "../src/db/database.js";
 import { LearningRepository } from "../src/learning/repository.js";
-import { createLearningRouter, type LearningDeps } from "../src/learning/routes.js";
+import { createLearningRouter, LOW_SUPPORT_NOTE, type LearningDeps } from "../src/learning/routes.js";
 import { SAFETY_ANSWER } from "../src/learning/safety.js";
 import { withRequestUser } from "../src/request-user.js";
 import { loadFinalRubrics } from "../src/rubrics.js";
@@ -44,7 +44,7 @@ class FakeAgent implements LearningAgent {
   }
 }
 
-async function setup(scene?: SceneCatalog, checkpointProgress?: LearningDeps["checkpointProgress"], screenSteps?: LearningDeps["screenSteps"]) {
+async function setup(scene?: SceneCatalog, checkpointProgress?: LearningDeps["checkpointProgress"], screenSteps?: LearningDeps["screenSteps"], extra: Partial<LearningDeps> = {}) {
   const db = openDatabase(":memory:");
   const repo = new LearningRepository(db);
   const agent = new FakeAgent();
@@ -61,6 +61,7 @@ async function setup(scene?: SceneCatalog, checkpointProgress?: LearningDeps["ch
     screenSteps,
     checkpointProgress,
     now: () => new Date(Date.UTC(2026, 9, 2, 0, 0, clock++)).toISOString(),
+    ...extra,
   }));
   const server = app.listen(0);
   await new Promise((r) => server.once("listening", r));
@@ -98,6 +99,36 @@ test("새 질문: 근거 조각·루브릭 개념을 튜터에 넘기고, 출처
     assert.deepEqual(saved.map((x) => [x.status, x.equipment_id, x.source_ids]), [["grounded", "blast_furnace", ["posco-brochure-2015#3"]]]);
   } finally {
     t.close();
+  }
+});
+
+test("근거 겹침 검사(로컬 모델): 근거와 겹치는 문장이 없는 답은 unverified로 낮추고 안내를 붙이며, 꺼져 있으면 그대로 둔다", async () => {
+  const made = okReply({ answer: "고로 하나를 짓는 데는 10억에서 100억 원이 들어요. 내화물 벽돌 값이 가장 비싸요.", keyword_card: { concept_id: "coke_reduction" } });
+  const body = { question: "고로에 코크스를 왜 넣나요?", screen: { process_id: "ironmaking", equipment_id: "blast_furnace" } };
+  const on = await setup(undefined, undefined, undefined, { groundingCheck: true });
+  try {
+    on.agent.next = async () => made;
+    const low = await on.ask(body);
+    assert.equal(low.json.status, "unverified");
+    assert.equal(low.json.answer, made.answer, "답은 지우지 않는다");
+    assert.equal(low.json.grounding_note, LOW_SUPPORT_NOTE);
+    assert.equal(low.json.keyword_card, null);
+    assert.deepEqual(on.repo.recentTurns(low.json.session_id, 6).map((x) => x.status), ["unverified"]);
+    on.agent.next = async () => okReply({ answer: "고로에서는 코크스가 산화하며 철광석의 산소를 떼어내요. 그래서 코크스를 환원제라고 해요." });
+    const ok = await on.ask(body);
+    assert.equal(ok.json.status, "grounded");
+    assert.equal(ok.json.grounding_note, null);
+  } finally {
+    on.close();
+  }
+  const off = await setup();
+  try {
+    off.agent.next = async () => made;
+    const kept = await off.ask(body);
+    assert.equal(kept.json.status, "grounded");
+    assert.equal(kept.json.grounding_note, null);
+  } finally {
+    off.close();
   }
 });
 

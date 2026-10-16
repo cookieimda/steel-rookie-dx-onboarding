@@ -293,20 +293,30 @@ export function namedEquipment(question: string, scene: SceneCatalog | undefined
   return hits.length === 1 ? hits[0].id : null;
 }
 
+/** 지금 보는 설비를 가리키는 말("이 설비는?", "여기 담긴 쇳물", "이건 왜 돌아?"). '이'는 띄어 쓴 지시어일 때만 본다(이해·이유는 아니다). */
+const DEICTIC = /(^|\s)(이|그|요)\s?(설비|장치|기계|곳)|여기|거기|이거|이건|이걸|이것|요거/;
+
+/** 질문이 이름 없이 지금 화면의 설비를 가리키면 그 설비 id. 이름으로 다른 설비를 말했거나 화면에 고른 설비가 없으면 null. */
+export function deicticEquipment(question: string, scene: SceneCatalog | undefined, screenEquipment: string | null): string | null {
+  if (!screenEquipment || !DEICTIC.test(question)) return null;
+  const named = namedEquipment(question, scene);
+  return named && named !== screenEquipment ? null : screenEquipment;
+}
+
 /** 설비 하나의 작동 과정을 묻는 말("어떻게 작동해?", "데우는 과정을 보여 줘", "작동 원리"). 역할·정의 질문("무슨 일을 해?")은 아니다. */
 const OPERATION_INTENT = /어떻게\s?(작동|동작|돌아가|움직|운전|만들|데우|굽)|작동\s?(원리|과정|순서|단계|방식)|(과정|단계|원리)[을를]?\s?(보여|알려)|작동하는\s?(모습|거)/;
 /** 공정 전체를 묻는 말("제선 공정 순서를 보여 줘")은 설비 작동 보기가 아니라 공정 흐름(play_animation)이다. */
 const PROCESS_LEVEL = /공정/;
 
 /**
- * 작동 과정을 묻는 질문이면 작동 보기를 할 설비 id(작동 단계가 있는 설비만). 대상은 질문이 이름으로 가리킨 설비 → 모델이 보여 준 설비 → 지금 화면의 설비 순서.
+ * 작동 과정을 묻는 질문이면 작동 보기를 할 설비 id(작동 단계가 있는 설비만). 대상은 질문이 이름으로 가리킨 설비 → '이 설비'로 가리킨 화면 설비 → 모델이 보여 준 설비 → 지금 화면의 설비 순서.
  * 공정 전체 순서("제선 공정 순서를 보여 줘")는 설비가 정해지지 않아 null이다(play_animation 몫).
  */
 export function operationTarget(question: string, scene: SceneCatalog | undefined, screenEquipment: string | null, actions: SceneAction[]): string | null {
   if (!scene || !OPERATION_INTENT.test(question) || PROCESS_LEVEL.test(question)) return null;
   const operable = new Set(scene.processes.flatMap((p) => p.equipment.filter((e) => e.operation).map((e) => e.id)));
   const shown = actions.find((a) => a.type === "focus" || a.type === "highlight")?.target_id ?? null;
-  const target = namedEquipment(question, scene) ?? shown ?? screenEquipment;
+  const target = namedEquipment(question, scene) ?? deicticEquipment(question, scene, screenEquipment) ?? shown ?? screenEquipment;
   return target && operable.has(target) ? target : null;
 }
 
@@ -338,6 +348,13 @@ export function parseLearningReply(
     return { answer: UNVERIFIED_ANSWER, status: "unverified", source_ids: [], follow_up, detected_misconception, scene_actions: [], keyword_card: null };
   }
   let scene_actions = normalizeSceneActions(r.scene_actions, input.scene, input.screen.process_id ?? null);
+  // '이 설비는?'처럼 지금 보는 설비를 가리키면 화면을 다른 설비로 옮기지 않는다(작은 로컬 모델이 근거에 나온 다른 설비를 고르곤 한다).
+  // 그 설비의 작동 보기만 남기고, 작동 질문이면 아래 operationTarget이 화면 설비로 붙인다.
+  const here = input.question ? deicticEquipment(input.question, input.scene, input.screen.equipment_id ?? null) : null;
+  if (here) {
+    const operatingHere = scene_actions.some((a) => a.type === "show_operation" && a.target_id === here);
+    scene_actions = operatingHere ? normalizeSceneActions([{ type: "show_operation", target_id: here }], input.scene, input.screen.process_id ?? null) : [];
+  }
   // 질문이 설비 하나를 이름으로 물었는데 화면 조작을 내지 않았으면 그 설비를 보여 준다(모델이 자주 빠뜨린다). 이미 보고 있으면 그대로 둔다.
   const named = scene_actions.length === 0 && input.question ? namedEquipment(input.question, input.scene) : null;
   if (named && named !== input.screen.equipment_id) {

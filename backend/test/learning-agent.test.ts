@@ -9,6 +9,7 @@ import {
   learningSystemPrompt,
   learningUserPrompt,
   MAX_SCENE_ACTIONS,
+  deicticEquipment,
   namedEquipment,
   normalizeSceneActions,
   operationTarget,
@@ -206,6 +207,34 @@ test("operationTarget: 작동 과정을 묻는 질문만, 작동 단계가 있�
   assert.equal(operationTarget("제선 공정 순서를 보여 줘", scene, null, [{ type: "highlight", target_id: "blast_furnace" }]), null);
   assert.equal(operationTarget("제선 공정 과정을 알려 줘", scene, "blast_furnace", []), null);
   assert.equal(operationTarget("작동 원리를 알려 줘", scene, null, [{ type: "focus", target_id: "bof_converter" }]), "bof_converter");
+});
+
+test("deicticEquipment: '이 설비'·'여기'처럼 지금 화면의 설비를 가리킬 때만, 이름으로 다른 설비를 말하면 아니다", () => {
+  assert.equal(deicticEquipment("이 설비는 뭐 하는 거야?", SCENE, "blast_furnace"), "blast_furnace");
+  assert.equal(deicticEquipment("여기 담긴 쇳물은 몇 도야?", SCENE, "blast_furnace"), "blast_furnace");
+  assert.equal(deicticEquipment("이건 왜 돌아가?", SCENE, "coke_oven"), "coke_oven");
+  assert.equal(deicticEquipment("이 설비는 뭐 하는 거야?", SCENE, null), null, "화면에 고른 설비가 없으면 null");
+  assert.equal(deicticEquipment("이 설비랑 전로는 뭐가 달라?", SCENE, "blast_furnace"), null, "이름으로 다른 설비를 말하면 null");
+  assert.equal(deicticEquipment("여기 고로는 몇 도야?", SCENE, "blast_furnace"), "blast_furnace", "가리킨 이름이 화면 설비와 같으면 그대로");
+  assert.equal(deicticEquipment("고로에 코크스를 왜 넣어?", SCENE, "blast_furnace"), null);
+  assert.equal(deicticEquipment("이해가 안 돼요, 이유가 뭐예요?", SCENE, "blast_furnace"), null, "'이해'·'이유'의 '이'는 지시어가 아니다");
+});
+
+test("parseLearningReply: 지금 보는 설비를 가리키면 다른 설비로 화면을 옮기지 않고, 작동 질문이면 그 설비 작동 보기만 한다", () => {
+  const scene: SceneCatalog = { processes: SCENE.processes.map((p) => ({ ...p, equipment: p.equipment.map((e) => ({ ...e, operation: true })) })) };
+  const base = { ...input({ scene }), screen: { process_id: "ironmaking", equipment_id: "blast_furnace", equipment_name: "고로" } };
+  // 2026-10-15 로컬 평가: "이 설비는 뭐 하는 거야?"(고로 화면)에 근거에 나온 코크스 오븐을 보여 줬다.
+  const wrong = reply({ detected_misconception: null, scene_actions: [{ type: "focus", target_id: "coke_oven" }] });
+  const here = parseLearningReply(wrong, { ...base, question: "이 설비는 뭐 하는 거야?" });
+  assert.ok(typeof here !== "string");
+  assert.deepEqual(here.scene_actions, []);
+  const operate = parseLearningReply(wrong, { ...base, question: "이 설비가 바람을 데우는 과정을 보여 줘" });
+  assert.ok(typeof operate !== "string");
+  assert.deepEqual(operate.scene_actions, [{ type: "highlight", target_id: "blast_furnace" }, { type: "show_operation", target_id: "blast_furnace" }]);
+  // 이름으로 다른 설비를 물으면 지시어 규칙을 쓰지 않는다.
+  const named = parseLearningReply(reply({ detected_misconception: null, scene_actions: [] }), { ...base, question: "코크스 오븐은 왜 필요해?" });
+  assert.ok(typeof named !== "string");
+  assert.deepEqual(named.scene_actions, [{ type: "focus", target_id: "coke_oven" }, { type: "highlight", target_id: "coke_oven" }]);
 });
 
 test("parseLearningReply: 작동 질문인데 모델이 focus만 내면 서버가 작동 보기로 바꾼다", () => {

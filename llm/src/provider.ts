@@ -50,7 +50,11 @@ export function createLlmClient(options: LlmFactoryOptions = {}, env: NodeJS.Pro
  * provider별 에이전트 설정.
  * - learning: 학습 튜터 프롬프트. 로컬 3B 모델은 긴 프롬프트에서 형식이 자주 깨지고 느려서 짧은 프롬프트·줄인 맥락(compact)을 쓴다.
  * - evaluatorGuards: 채점 보강(evaluator.ts의 repairFormat·verifyBoundary). 로컬 모델의 형식 오류·부분 정답→오답을 줄인다. Gemini는 끈다.
+ * - groundingCheck: 근거와 겹치는 문장이 하나도 없는 학습 답을 unverified로 낮춘다(grounding.ts lowSupport). 로컬 3B가 근거 밖 수치를 지어내서 켠다.
+ *   Gemini는 같은 기준에서 맞는 답을 1개 낮춰서(10/06 제선 28개 중 overview-bf) 끈다.
  */
-export function profileFor(provider: LlmProvider): { learning: "full" | "compact"; evaluatorGuards: boolean } {
-  return provider === "ollama" ? { learning: "compact", evaluatorGuards: true } : { learning: "full", evaluatorGuards: false };
+export function profileFor(provider: LlmProvider): { learning: "full" | "compact"; evaluatorGuards: boolean; groundingCheck: boolean } {
+  return provider === "ollama"
+    ? { learning: "compact", evaluatorGuards: true, groundingCheck: true }
+    : { learning: "full", evaluatorGuards: false, groundingCheck: false };
 }

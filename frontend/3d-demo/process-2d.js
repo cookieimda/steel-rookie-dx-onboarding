@@ -56,63 +56,68 @@ const SCENE_CSS = `
 
 // 바깥 틀: 학습 기록 화면(세련안)과 같은 무채색 토큰
 const CSS = `
-:host{display:block;font-family:"Pretendard",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;font-size:14px;line-height:1.5;letter-spacing:-.01em;
+:host{display:block;font-family:"Montserrat","Pretendard",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;font-size:14px;line-height:1.5;letter-spacing:-.01em;
   --bg:#222225;--panel:#18181a;--chip:rgba(255,255,255,.1);--chip-on:rgba(255,255,255,.18);--line:rgba(255,255,255,.13);--text:#f5f5f5;--muted:#c4c4c9;--dim:#9a9aa0;--accent:#f2f2f2;--accent-ink:#111;--lit:#ffb020;--lit-ink:#1a1200;--lit-bg:rgba(255,176,32,.12)}
 :host([theme=light]){--bg:#ffffff;--panel:#f4f4f5;--chip:rgba(0,0,0,.05);--chip-on:rgba(0,0,0,.1);--line:rgba(0,0,0,.1);--text:#161617;--muted:#55555c;--dim:#6b6b71;--accent:#161617;--accent-ink:#fff;--lit:#9a6200;--lit-ink:#ffffff;--lit-bg:rgba(212,136,6,.1)}
 *{box-sizing:border-box}button{font:inherit;letter-spacing:inherit;cursor:pointer}
-/* 바깥 틀: 오른쪽 위·왼쪽 아래를 비스듬히 자른 판(학습 페이지 diagonal UI, 2026-10-15). 틀은 뒤쪽 층(::before 선, ::after 바탕)에만 그려
-   .root 자체는 자르지 않는다 — 설비 미리보기 창(.peek)이 틀 밖(오른쪽)으로 나가도 잘리지 않게 */
-.root{--c:22px;position:relative;isolation:isolate;background:none;color:var(--text);padding:18px;display:flex;flex-direction:column;gap:14px;outline:none;container-type:inline-size}
+/* 바깥 틀: 탭이 붙는 왼쪽 위만 각지고 나머지 세 모서리는 둥근 판(학습 페이지, 2026-10-15). 틀은 뒤쪽 층(::before 선, ::after 바탕)에만 그려
+   .root 자체에는 둥근 모서리·overflow를 주지 않는다 — 설비 미리보기 창(.peek)이 틀 밖(오른쪽)으로 나가도 잘리지 않게 */
+.root{--c:18px;position:relative;isolation:isolate;background:none;color:var(--text);padding:18px;display:flex;flex-direction:column;gap:14px;outline:none;container-type:inline-size}
 .root::before,.root::after,.chapters::before,.chapters::after,.stepcard::before,.stepcard::after{content:"";position:absolute;pointer-events:none}
-.root::before{inset:0;z-index:-2;background:var(--line);clip-path:polygon(0 0,calc(100% - var(--c)) 0,100% var(--c),100% 100%,var(--c) 100%,0 calc(100% - var(--c)))}
-.root::after{inset:1px;z-index:-1;background:var(--bg);clip-path:polygon(0 0,calc(100% - var(--c) + .4px) 0,100% calc(var(--c) - .4px),100% 100%,calc(var(--c) - .4px) 100%,0 calc(100% - var(--c) + .4px))}
-.bar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
-.tabs{display:flex;gap:2px;padding:3px;background:var(--chip);clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,8px 100%,0 calc(100% - 8px))}
-.tabs button{height:34px;padding:0 16px;border:0;background:transparent;color:var(--muted);font-size:15px;font-weight:600}
+.root::before{inset:0;z-index:-2;background:var(--frame,var(--line));border-radius:0 var(--c) var(--c) var(--c)}
+.root::after{inset:1px;z-index:-1;background:var(--bg);backdrop-filter:var(--glass-blur,none);-webkit-backdrop-filter:var(--glass-blur,none);border-radius:0 calc(var(--c) - 1px) calc(var(--c) - 1px) calc(var(--c) - 1px)}
+/* 공정 토글: 오른쪽 설비 목록 위, 목록과 같은 폭으로 네 칸을 고르게 나눈다(제목 줄 높이 34px + 간격 6px = 그림 위쪽, 2026-10-15) */
+.tabs{display:flex;gap:2px;height:34px;padding:3px;border-radius:12px;background:var(--chip)}
+.tabs button{flex:1;min-width:0;padding:0 6px;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:15px;font-weight:600;white-space:nowrap}
 .tabs button[aria-pressed=true]{background:var(--chip-on);color:var(--text)}
 /* 그림 양옆 화살표(이전·다음 단계)와 단계 번호 줄 옆의 자동 재생 */
 .stage{position:relative}
-.arrow{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;border:1px solid var(--line);background:color-mix(in srgb,var(--bg) 82%,transparent);color:var(--text);font-size:20px;line-height:1;display:grid;place-items:center;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);transition:background .2s,border-color .2s}
+.arrow{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:color-mix(in srgb,var(--bg) 82%,transparent);color:var(--text);font-size:20px;line-height:1;display:grid;place-items:center;transition:background .2s,border-color .2s}
 .arrow:hover{background:var(--chip-on);border-color:var(--muted)}.arrow.prev{left:10px}.arrow.next{right:10px}
 .steprow{display:flex;align-items:center;gap:10px}.steprow .stepnav{flex:1;min-width:0}
-.play{flex:none;width:32px;height:32px;padding:0;display:grid;place-items:center;border:1px solid var(--line);background:transparent;color:var(--text);font-size:12px;white-space:nowrap}
+.play{flex:none;width:32px;height:32px;padding:0;display:grid;place-items:center;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--text);font-size:12px;white-space:nowrap}
 .play:hover{background:var(--chip)}.play.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
-/* 오른쪽 설비 목록(유튜브 '다음 동영상'처럼): 썸네일 + 번호·단계 수 + 이름. 올리면(hover·focus) 미리보기 창이 뜬다 */
-.layout{display:grid;grid-template-columns:minmax(0,1fr) 288px;gap:16px;align-items:start}
-/* 설비 목록 판: 위쪽을 왼쪽 그림(.stage) 위쪽 선에 맞춘다(제목 줄 28px + 간격 12px). 바깥 틀과 같은 방향으로 모서리를 자른다 */
-.chapters{--c:12px;position:relative;isolation:isolate;margin-top:40px;display:flex;flex-direction:column;gap:4px;padding:10px}
-.chapters::before{inset:0;z-index:-2;background:var(--line);clip-path:polygon(0 0,calc(100% - var(--c)) 0,100% var(--c),100% 100%,var(--c) 100%,0 calc(100% - var(--c)))}
-.chapters::after{inset:1px;z-index:-1;background:var(--panel);clip-path:polygon(0 0,calc(100% - var(--c) + .4px) 0,100% calc(var(--c) - .4px),100% 100%,calc(var(--c) - .4px) 100%,0 calc(100% - var(--c) + .4px))}
-.chapters .ch-h{display:flex;align-items:baseline;justify-content:space-between;padding:2px 6px 8px;font-size:15px;font-weight:700}.chapters .ch-h span{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:13px;font-weight:400;letter-spacing:.12em;color:var(--muted)}
-.ch{display:grid;grid-template-columns:104px minmax(0,1fr);gap:10px;align-items:center;width:100%;padding:6px;border:1px solid transparent;background:transparent;color:var(--text);text-align:left;transition:background .15s,border-color .15s}
-.ch:hover,.ch:focus-visible{background:var(--chip);outline:none}.ch[aria-current=true]{background:var(--chip-on);border-color:var(--lit)}
-.th{width:104px;height:56px;overflow:hidden;border:1px solid var(--line);background:var(--p-bg)}.th svg{width:100%;height:100%;display:block}
+/* 배치(2026-10-15): 제목 줄(이름 · 키 안내 · 공정 토글) → 그림(모듈 폭 전체) → 단계 번호 → 단계 설명 → 설비 목록(그림 아래 가로 한 줄).
+   설비 목록은 썸네일 + 번호·단계 수 + 이름. 올리면(hover·focus) 그 카드 위에 미리보기 창이 뜬다 */
+.layout{display:flex;flex-direction:column;gap:16px}
+/* 설비 목록 판: 위쪽은 공정 토글 아래(= 왼쪽 그림 위쪽 선). 모서리는 둥글게 */
+.chapters{--c:14px;position:relative;isolation:isolate;display:flex;flex-direction:column;gap:4px;padding:var(--chapters-pad,10px)}
+.ch-row{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(128px,1fr);gap:8px;overflow-x:auto;padding-bottom:2px;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+.chapters::before{inset:0;z-index:-2;background:var(--frame,var(--line));border-radius:var(--c)}
+.chapters::after{inset:1px;z-index:-1;background:var(--chapters-bg,var(--panel));border-radius:calc(var(--c) - 1px)}
+.chapters .ch-h{display:flex;align-items:center;justify-content:space-between;padding:2px 2px 8px 6px;font-size:15px;font-weight:700}
+/* 목록 머리 오른쪽: 다음 공정 →(마지막 공정에서는 ← 이전 공정) */
+.ch-go{height:28px;padding:0 10px;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:15px;font-weight:600;white-space:nowrap;transition:background .15s,color .15s}.ch-go:hover,.ch-go:focus-visible{background:var(--chip);color:var(--lit);outline:none}
+.ch{display:grid;grid-template-columns:1fr;gap:8px;align-items:start;width:100%;padding:6px;border-radius:10px;border:1px solid transparent;background:transparent;color:var(--text);text-align:left;transition:background .15s,border-color .15s}
+.ch:hover,.ch:focus-visible{background:var(--chip);outline:none}.ch[aria-current=true]{background:var(--chip-on)}
+.th{width:100%;aspect-ratio:600/320;height:auto;border-radius:8px;overflow:hidden;border:1px solid var(--line);background:var(--p-bg)}.th svg{width:100%;height:100%;display:block}
 .ch .meta{display:flex;flex-direction:column;gap:2px;min-width:0}
-.ch .k{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:13px;color:var(--muted)}.ch[aria-current=true] .k{color:var(--lit);font-weight:700}
+.ch .k{font-family:"Montserrat","Pretendard",sans-serif;font-size:15px;color:var(--muted)}.ch[aria-current=true] .k{color:var(--text);font-weight:700}
 .ch .nm{font-size:15px;font-weight:600;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.ch.next{grid-template-columns:1fr;margin-top:6px;border:1px dashed var(--line);padding:10px 12px;color:var(--muted);font-size:15px}.ch.next:hover{color:var(--text)}
 /* 썸네일은 멈춘 그림(글자·움직임 없이 전체가 보이게) */
 svg.thumb *{animation:none!important}svg.thumb .lbl{display:none}svg.thumb [data-s]{opacity:1!important;filter:none!important}
-.peek{position:absolute;z-index:6;width:340px;display:flex;flex-direction:column;gap:8px;padding:10px 10px 12px;background:var(--bg);border:1px solid var(--line);box-shadow:0 18px 44px rgba(0,0,0,.35);pointer-events:none;animation:stepIn .16s ease}
-.peek[hidden]{display:none}.peek .big{overflow:hidden;border:1px solid var(--line);background:var(--p-bg)}.peek .big svg{width:100%;height:auto;display:block}
+.peek{position:absolute;z-index:6;width:340px;display:flex;flex-direction:column;gap:8px;padding:10px 10px 12px;border-radius:14px;background:var(--peek-bg,var(--bg));border:1px solid var(--frame,var(--line));box-shadow:0 18px 44px rgba(0,0,0,.35);pointer-events:none;animation:stepIn .16s ease}
+.peek[hidden]{display:none}.peek .big{border-radius:10px;overflow:hidden;border:1px solid var(--line);background:var(--p-bg)}.peek .big svg{width:100%;height:auto;display:block}
 .peek .t{display:flex;align-items:baseline;gap:8px;padding:0 4px}.peek .t b{font-size:15px}.peek .t span{font-size:13px;color:var(--dim)}
 .peek p{margin:0;padding:0 4px;font-size:15px;line-height:1.55;color:var(--muted)}.peek .go{padding:0 4px;font-size:13px;color:var(--lit)}
-@container (max-width:900px){.layout{grid-template-columns:1fr}.chapters{margin-top:0;flex-direction:row;overflow-x:auto;padding-bottom:6px;scrollbar-width:thin;scrollbar-color:var(--line) transparent}.chapters .ch-h{display:none}.ch{grid-template-columns:1fr;width:150px;flex:none}.th{width:100%;height:76px}.peek{display:none}}
+/* 좁은 모듈: 공정 토글은 제목 아래 줄로, 키 안내는 감춘다(터치 화면에는 필요 없음), 미리보기 창은 띄우지 않는다 */
+@container (max-width:900px){.head.head{flex-wrap:wrap;height:auto;row-gap:8px}.head .hint{display:none}.head .tabs.tabs{margin-left:0;width:100%}.peek{display:none}}
 .body{display:flex;flex-direction:column;gap:12px;min-width:0}
-.head{display:flex;align-items:baseline;gap:10px;height:28px;white-space:nowrap;overflow:hidden}.head h3{margin:0;font-size:18px;font-weight:700}.head .en{font-size:15px;color:var(--dim)}.head .hint{margin-left:auto;font-size:15px;color:var(--dim)}
-.svg{width:100%;height:auto;display:block;border:1px solid var(--line)}
+.head{display:flex;align-items:center;gap:10px;min-height:34px;white-space:nowrap}.head .tabs{flex:none;width:320px;margin-left:16px}.head h3{margin:0;font-size:18px;font-weight:700}.head .en{font-size:15px;color:var(--dim)}.head .hint{margin-left:auto;font-size:15px;color:var(--dim)}
+.svg{width:100%;height:auto;display:block;border-radius:12px;border:1px solid var(--frame,var(--line))}
 .stepnav{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.stepnav button{width:32px;height:32px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:15px;font-weight:600;transition:background .2s,color .2s,border-color .2s}
+.stepnav button{width:32px;height:32px;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:15px;font-weight:600;transition:background .2s,color .2s,border-color .2s}
 .stepnav button:hover{color:var(--text);border-color:var(--muted)}
 .stepnav button.done{background:var(--chip);color:var(--text)}
 .stepnav button.on{background:var(--lit);border-color:var(--lit);color:var(--lit-ink)}
-.stepnav .bar{flex:1;min-width:40px;height:2px;background:var(--line);overflow:hidden}.stepnav .bar i{display:block;height:100%;background:var(--lit);transition:width .3s}
+.stepnav .bar{flex:1;min-width:40px;height:2px;border-radius:1px;background:var(--line);overflow:hidden}.stepnav .bar i{display:block;height:100%;background:var(--lit);transition:width .3s}
 .stepcard{--c:12px;position:relative;isolation:isolate;display:flex;flex-direction:column;gap:6px;padding:14px 16px;animation:stepIn .3s ease}
-.stepcard::before{inset:0;z-index:-2;background:var(--lit);clip-path:polygon(0 0,calc(100% - var(--c)) 0,100% var(--c),100% 100%,var(--c) 100%,0 calc(100% - var(--c)))}
-.stepcard::after{inset:1px;z-index:-1;background:color-mix(in srgb,var(--lit) 12%,var(--bg));clip-path:polygon(0 0,calc(100% - var(--c) + .4px) 0,100% calc(var(--c) - .4px),100% 100%,calc(var(--c) - .4px) 100%,0 calc(100% - var(--c) + .4px))}
+.stepcard::before{inset:0;z-index:-2;background:var(--frame,var(--lit));border-radius:var(--c)}
+.stepcard::after{inset:1px;z-index:-1;background:var(--stepcard-bg,color-mix(in srgb,var(--lit) 12%,var(--bg)));border-radius:calc(var(--c) - 1px)}
 .stepcard .k{font-size:15px;font-weight:700;color:var(--lit)}.stepcard .k span{margin-left:8px;font-weight:500;color:var(--dim)}
 .stepcard p{margin:0;font-size:15px;line-height:1.65}
 @keyframes stepIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.stepcard,.peek{animation:none}}
 ${SCENE_CSS}
 `;
 
@@ -126,9 +131,7 @@ class Process2D extends HTMLElement {
     super();
     this.attachShadow({ mode: 'open' });
     this.shadowRoot.innerHTML = `<style>${CSS}${KEYFRAMES}</style>${DEFS}<div class="root" tabindex="0">
-      <div class="bar"><div class="tabs" id="tabs" role="group" aria-label="공정"></div>
-</div>
-      <div class="layout"><div class="body"><div class="head"><h3 id="title"></h3><span class="en" id="en"></span><span class="hint">← → 단계 · ↑ ↓ 설비</span></div>
+      <div class="layout"><div class="body"><div class="head"><h3 id="title"></h3><span class="en" id="en"></span><span class="hint">← → 단계 · ↑ ↓ 설비</span><div class="tabs" id="tabs" role="group" aria-label="공정"></div></div>
         <div class="stage"><div id="svgwrap"></div><button class="arrow prev" aria-label="이전 단계">‹</button><button class="arrow next" aria-label="다음 단계">›</button></div>
         <div class="steprow"><div class="stepnav" id="stepnav" role="group" aria-label="단계"></div><button class="play" aria-label="자동 재생" title="자동 재생">▶</button></div>
         <div id="stepcard"></div></div>
@@ -193,19 +196,20 @@ class Process2D extends HTMLElement {
     this.$('stepnav').querySelectorAll('button').forEach(b => b.onclick = () => { this.sub = +b.dataset.i; this.highlight(); });
     this.highlight();
   }
-  // 오른쪽 설비 목록: 지금 공정의 설비 6개 + 다음 공정으로 가는 줄. 썸네일은 그 설비 장면을 멈춘 그림으로 줄여 보여 준다.
+  // 설비 목록(그림 아래 가로 한 줄): 지금 공정의 설비 6개. 머리 오른쪽에 다음 공정 →(마지막 공정이면 ← 이전 공정). 썸네일은 그 설비 장면을 멈춘 그림으로 줄여 보여 준다.
   renderChapters() {
-    const items = this.items(), next = PROCS[this.pi + 1];
+    const items = this.items(), go = PROCS[this.pi + 1] ? 1 : this.pi > 0 ? -1 : 0;
     const thumb = id => `<svg class="svg thumb" viewBox="0 0 600 320" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">${SCENES[id] || ''}</svg>`;
-    this.$('chapters').innerHTML = `<div class="ch-h">${esc(this.proc().name)} 설비<span>${items.length}</span></div>`
-      + items.map((d, i) => `<button class="ch" data-i="${i}" aria-current="${i === this.ei}"><span class="th">${thumb(d.id)}</span><span class="meta"><span class="k">${String(i + 1).padStart(2, '0')} · ${d.steps.length}단계</span><span class="nm">${esc(d.name)}</span></span></button>`).join('')
-      + (next ? `<button class="ch next" data-next="1">다음 공정 · ${esc(next.name)} →</button>` : '');
+    this.$('chapters').innerHTML = `<div class="ch-h">설비 ${items.length}${go ? `<button class="ch-go" data-go="${go}">${go > 0 ? '다음 공정 →' : '← 이전 공정'}</button>` : ''}</div>`
+      + `<div class="ch-row">${items.map((d, i) => `<button class="ch" data-i="${i}" aria-current="${i === this.ei}"><span class="th">${thumb(d.id)}</span><span class="meta"><span class="k">${String(i + 1).padStart(2, '0')} · ${d.steps.length}단계</span><span class="nm">${esc(d.name)}</span></span></button>`).join('')}</div>`;
+    const goBtn = this.$('chapters').querySelector('.ch-go');
+    if (goBtn) goBtn.onclick = () => { this.hidePeek(); this.pi += go; this.ei = 0; this.sub = 0; this.render(); this.emit(); };
     this.$('chapters').querySelectorAll('.ch').forEach(b => {
-      b.onclick = () => { this.hidePeek(); if (b.dataset.next) { this.pi++; this.ei = 0; } else this.ei = +b.dataset.i; this.sub = 0; this.render(); this.emit(); };
-      if (b.dataset.i !== undefined) { b.onmouseenter = b.onfocus = () => this.showPeek(b); b.onmouseleave = b.onblur = () => this.hidePeek(); }
+      b.onclick = () => { this.hidePeek(); this.ei = +b.dataset.i; this.sub = 0; this.render(); this.emit(); };
+      b.onmouseenter = b.onfocus = () => this.showPeek(b); b.onmouseleave = b.onblur = () => this.hidePeek();
     });
   }
-  // 미리보기 창: 목록 오른쪽(목록 밖, 학습 화면에서는 AI 튜터 열 위)에 큰 장면(움직임 포함)과 첫 단계 설명을 띄운다.
+  // 미리보기 창: 올린 설비 카드 바로 위에 큰 장면(움직임 포함)과 첫 단계 설명을 띄운다(모듈 안에서 좌우로 넘치지 않게).
   // 오른쪽에 창이 들어갈 자리가 없으면(좁은 창) 목록 왼쪽(그림 위)에 띄운다
   showPeek(btn) {
     const d = this.items()[+btn.dataset.i], peek = this.$('peek'), root = this.shadowRoot.querySelector('.root');
@@ -213,10 +217,10 @@ class Process2D extends HTMLElement {
       <div class="t"><b>${esc(d.name)}</b><span>${esc(d.en)}</span></div><p>1단계 · ${esc(d.steps[0][0])}</p><span class="go">${+btn.dataset.i === this.ei ? '지금 보고 있어요' : `클릭하면 ${d.steps.length}단계를 따라가요`}</span>`;
     this.liftLabels(peek.querySelector('svg'));
     peek.hidden = false;
-    const r = root.getBoundingClientRect(), b = btn.getBoundingClientRect(), list = this.$('chapters').getBoundingClientRect();
-    const top = Math.max(8, Math.min(b.top - r.top - 8, r.height - peek.offsetHeight - 8));
-    const fitsRight = list.right + 12 + peek.offsetWidth <= document.documentElement.clientWidth - 8;
-    peek.style.top = `${top}px`; peek.style.left = `${fitsRight ? list.right - r.left + 12 : list.left - r.left - peek.offsetWidth - 12}px`;
+    const r = root.getBoundingClientRect(), b = btn.getBoundingClientRect();
+    const top = Math.max(8, b.top - r.top - peek.offsetHeight - 10);
+    const left = Math.max(8, Math.min(b.left - r.left + b.width / 2 - peek.offsetWidth / 2, r.width - peek.offsetWidth - 8));
+    peek.style.top = `${top}px`; peek.style.left = `${left}px`;
   }
   hidePeek() { const p = this.$('peek'); if (p) p.hidden = true; }
   // 글자를 맨 위 층으로 옮긴다: 장면 SVG는 나중에 그린 그림이 앞 단계 글자를 덮는다(예: 윈드박스 상자가 '팔레트 대차' 글자를 가림).

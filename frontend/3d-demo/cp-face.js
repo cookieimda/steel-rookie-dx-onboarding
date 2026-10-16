@@ -41,9 +41,10 @@ const INK = '#2b2622';
  * 감정은 이 얼굴에서 조금씩만 바꾼다(웃으면 눈이 ^^·미소선이 벌어짐, 슬프면 작은 눈썹·눈물·뒤집힌 미소선). 볼의 분홍은 모델 텍스처 그대로다.
  * 좌표는 원래 얼굴과 다시 그린 얼굴을 같은 화면에서 찍어 겹쳐 보며 맞췄다(판 좌표: 눈 y198·좌우 ±96, 코 y194, 'ω' 갈림 y226, 미소선 y383).
  * @param {CanvasRenderingContext2D} ctx
- * @param {{ expression: string, blink?: boolean, skin?: string }} o
+ * gaze({x, y}, -1~1)를 주면 눈동자·빛 반사가 그 방향으로 옮겨 간다(학습 기록 튜터 머리에서 마우스를 따라 봄, 2026-10-15).
+ * @param {{ expression: string, blink?: boolean, skin?: string, gaze?: { x: number, y: number } }} o
  */
-export function drawFace(ctx, { expression = 'neutral', blink = false, skin = '#eeeeec' }) {
+export function drawFace(ctx, { expression = 'neutral', blink = false, skin = '#eeeeec', gaze = null }) {
   const S = 512, cx = 256;
   ctx.clearRect(0, 0, S, S);
   // 피부: 새겨진 눈·코·입을 덮는 부분(불투명) → 가장자리로 갈수록 투명.
@@ -66,6 +67,7 @@ export function drawFace(ctx, { expression = 'neutral', blink = false, skin = '#
 
   // 원래 눈: 진한 테두리 + 회색 눈동자 + 왼쪽 위 빛 반사. look은 눈동자·반사를 옮긴다(위를 봄 등).
   const eye = (x, y, { r = eyeR, lookX = 0, lookY = 0 } = {}) => {
+    if (gaze) { lookX += gaze.x * r * 0.32; lookY += gaze.y * r * 0.32; }
     ctx.fillStyle = INK;
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);

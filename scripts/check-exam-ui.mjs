@@ -17,7 +17,7 @@ try {
   await mkdir('docs/screenshots/exam', { recursive: true });
   await page.goto(`${base}/exam`);
   await page.locator('#sections .process-card').first().waitFor();
-  assert.match(await page.locator('h1').textContent(), /PROVE & PASS/); // 제목은 영어(학습 기록의 LEARN & ASK.와 같은 체계), '평가 시험'은 <title>·현재 위치 알약에 있다
+  assert.match(await page.locator('h1').textContent(), /TEST YOUR METAL/); assert.match(await page.locator('.role').textContent(), /PROVE & PASS/); // 제목은 영어(학습 기록의 LEARN & ASK.와 같은 체계), '평가 시험'은 <title>·현재 위치 알약에 있다
   assert.equal(await page.locator('#sections .process-card').count(), 4);
   await page.screenshot({ path: 'docs/screenshots/exam/desktop.png', fullPage: true });
   await page.locator('#sections .process-card').first().getByRole('button').click();

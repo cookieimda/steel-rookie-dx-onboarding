@@ -1,10 +1,10 @@
 import { GeminiAdminSummarizer } from "../../llm/src/admin-summary.js";
-import { GeminiEvaluator } from "../../llm/src/evaluator.js";
+import { evaluatorGuardOptions, GeminiEvaluator } from "../../llm/src/evaluator.js";
 import { GeminiLearningAgent } from "../../llm/src/learning-agent.js";
 import { useApprovedSources } from "../../llm/src/ironmaking-sources.js";
 import { createLlmClient, profileFor, providerInfo } from "../../llm/src/provider.js";
 import { loadSectionChunks, Retriever } from "../../llm/src/retrieval.js";
-import { traceSinkFromEnv } from "../../llm/src/trace.js";
+import { traceMiddleware, traceSinkFromEnv } from "../../llm/src/trace.js";
 import { GeminiTutor } from "../../llm/src/tutor.js";
 import { createAdminRouter } from "./admin/routes.js";
 import { createApp } from "./app.js";
@@ -41,8 +41,10 @@ const rubrics = loadFinalRubrics();
 
 const db = openDatabase();
 const usage = new LlmUsage(db);
+// 요청 trace(docs/agent-observability.md): 학습·체크포인트·보충학습·시험 작업을 data/traces/{종류}-날짜.jsonl에 남긴다. 끄려면 TRACE_LOG=off.
+const traceSink = traceSinkFromEnv();
 // 평가 시험(docs/exam-page.md): 시험 작업 대기열·취소, 루브릭 이력·복습 일정·교육 그룹·자료 검수.
-const jobs = new EducationJobs(db);
+const jobs = new EducationJobs(db, traceSink);
 const education = new EducationRepository(db, rubrics);
 useApprovedSources(() => education.approvedSources());
 // LLM provider(LLM_PROVIDER=gemini 기본|ollama, docs/llm-providers.md). 모든 에이전트가 같은 클라이언트를 쓰고, provider별 설정은 profileFor가 정한다.
@@ -52,8 +54,8 @@ const profile = profileFor(llmInfo.provider);
 // 작업을 취소하면 진행 중인 추론도 끊는다(jobAwareClient).
 const llm = jobAwareClient(createLlmClient({ beforeCall: () => usage.consume(jobUserId() ?? currentUserId()) }));
 // 평가자·튜터는 체크포인트·시험·보충학습이 함께 쓴다. 시험 작업에서는 단계(문제·채점·설명)를 작업 상태에 적는다(phase*).
-// 로컬 모델은 판정 필드 형식과 wrong·partial 경계를 자주 틀려서 보강을 켠다(llm/src/evaluator.ts repairFormat·verifyBoundary).
-const evaluator = new GeminiEvaluator(llm, { repairFormat: profile.evaluatorGuards, verifyBoundary: profile.evaluatorGuards });
+// 로컬 모델은 판정 필드 형식·wrong·partial 경계를 자주 틀리고 누락을 오개념으로 적어서 보강을 켠다(llm/src/evaluator.ts evaluatorGuardOptions).
+const evaluator = new GeminiEvaluator(llm, evaluatorGuardOptions(profile.evaluatorGuards));
 const tutor = new GeminiTutor(llm);
 const engine = new CheckpointEngine({
   repo: new CheckpointRepository(db),
@@ -110,11 +112,11 @@ const learning = createLearningRouter({
   checkpointProgress,
   cache: answerCache,
   suggestedQuestions,
-  // 질문마다 단계별 기록을 data/traces/learning-날짜.jsonl에 남긴다(docs/agent-observability.md). 끄려면 TRACE_LOG=off.
-  traceSink: traceSinkFromEnv(),
+  // 질문마다 단계별 기록을 data/traces/learning-날짜.jsonl에 남긴다.
+  traceSink,
 });
 
-const app = createApp({ engine, usage, learning });
+const app = createApp({ engine, usage, learning, traceSink });
 // 로그인·관리자 API(docs/auth-api.md). createApp의 /api 접속 비밀번호 검사가 먼저 적용된다.
 const auth = { users, secret: jwtSecret() };
 app.use(createAuthRouter(auth));
@@ -125,7 +127,8 @@ app.use(createMeRouter(db, auth));
 app.use(createEducationRouter({ auth, engine, jobs, repo: education,
   onMaterialsChanged: (section) => { retriever.invalidate(section); answerCache.clear(); },
 }));
-// 보충학습(docs/supplementary-learning.md): 오개념이 있는 개념을 설명 → 확인 문제 → 채점 → 해결/다시 설명.
+// 보충학습(docs/supplementary-learning.md): 오개념이 있는 개념을 설명 → 확인 문제 → 채점 → 해결/다시 설명. 요청마다 trace(kind supplement).
+app.use("/api/learning/supplements", traceMiddleware("supplement", traceSink));
 app.use(createSupplementRouter(new SupplementEngine({
   repo: new SupplementRepository(db), learningRepo, retriever, agent: learningAgent, tutor, evaluator, rubrics, scene: sceneCatalog, checkpointProgress,
 })));

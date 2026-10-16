@@ -149,6 +149,39 @@ export class TraceLog {
   };
 }
 
+/** 경로의 UUID·긴 id를 :id로 바꾼다(요약에서 같은 API끼리 묶으려고). */
+export function routePattern(path: string): string {
+  return path.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, ":id").replace(/\/[A-Za-z0-9_-]{20,}(?=\/|$)/g, "/:id");
+}
+
+/** traceMiddleware가 쓰는 요청·응답의 최소 모양(express에 묶이지 않게). */
+interface TraceReq { method: string; originalUrl: string; get(name: string): string | undefined }
+interface TraceRes { statusCode: number; setHeader(name: string, value: string): unknown; on(event: "finish" | "close", fn: () => void): unknown }
+
+/**
+ * 요청 하나를 trace로 감싸는 미들웨어(체크포인트·보충학습처럼 요청 안에서 모델을 부르는 API). 응답이 끝나면 sink로 보낸다.
+ * 기록: method·경로(:id로 묶음)·HTTP 상태·전체 시간·LLM 호출(클라이언트가 남김). sink가 없으면 아무것도 하지 않는다.
+ */
+export function traceMiddleware(kind: string, sink: TraceSink | undefined) {
+  return (req: TraceReq, res: TraceRes, next: () => void) => {
+    if (!sink) return next();
+    const trace = new Trace(kind, req.get("x-trace-id"));
+    res.setHeader("X-Trace-Id", trace.id);
+    trace.set("request", { method: req.method, route: routePattern(req.originalUrl.split("?")[0]!) });
+    let sent = false;
+    const done = () => {
+      if (sent) return;
+      sent = true;
+      trace.set("http_status", res.statusCode);
+      trace.set("outcome", res.statusCode < 400 ? "ok" : `http_${res.statusCode}`);
+      sink(trace.toRecord());
+    };
+    res.on("finish", done);
+    res.on("close", done);
+    runWithTrace(trace, next);
+  };
+}
+
 /** 서버 시간대의 YYYY-MM-DD. */
 export function localDate(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");

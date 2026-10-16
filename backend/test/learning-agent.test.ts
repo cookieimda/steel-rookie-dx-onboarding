@@ -202,6 +202,9 @@ test("operationTarget: 작동 과정을 묻는 질문만, 작동 단계가 있�
   assert.equal(operationTarget("고로는 무슨 일을 해?", scene, null, []), null, "역할 질문은 작동 보기가 아니다");
   assert.equal(operationTarget("코크스 오븐은 어떻게 작동해?", scene, null, []), null, "작동 단계가 없는 설비");
   assert.equal(operationTarget("제선 공정 순서를 보여 줘", scene, null, []), null, "설비가 정해지지 않으면 null");
+  // 모델이 설비를 보여 줬어도 공정 전체 질문이면 작동 보기를 붙이지 않는다(2026-10-15 평가에서 고로 작동 보기를 붙였던 경우).
+  assert.equal(operationTarget("제선 공정 순서를 보여 줘", scene, null, [{ type: "highlight", target_id: "blast_furnace" }]), null);
+  assert.equal(operationTarget("제선 공정 과정을 알려 줘", scene, "blast_furnace", []), null);
   assert.equal(operationTarget("작동 원리를 알려 줘", scene, null, [{ type: "focus", target_id: "bof_converter" }]), "bof_converter");
 });
 

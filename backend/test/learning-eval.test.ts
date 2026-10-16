@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { claimViolations, loadLearningSet, loadSuggestionCases, missingFacts, score, type LearningCase } from "../../llm/eval/run-learning.js";
+import { getPublicSources } from "../../llm/src/ironmaking-sources.js";
 import { loadSceneCatalog } from "../src/learning/scene-catalog.js";
 import { isSafetyQuestion } from "../src/learning/safety.js";
 import { loadFinalRubrics } from "../src/rubrics.js";
@@ -26,7 +27,17 @@ test("평가 세트: 화면 조작은 화면 목록의 id, 오개념은 그 공�
     if (c.expect.misconception) assert.ok(concepts.has(c.expect.misconception), `${c.id} 개념`);
     assert.equal(isSafetyQuestion(c.question), c.expect.status === "safety_redirect", `${c.id} 안전 규칙`);
     for (const p of c.expect.must_not ?? []) assert.doesNotThrow(() => new RegExp(p), `${c.id} must_not 정규식: ${p}`);
+    // 필수 출처는 실제 공개 자료 목록에 있는 id여야 한다.
+    for (const s of c.expect.sources_any ?? []) assert.equal(getPublicSources([s]).length, 1, `${c.id} 출처 ${s}`);
   }
+});
+
+test("필수 출처: 인용한 자료 중 하나라도 있으면 맞음, 인용 자료를 모르면 보지 않는다", () => {
+  const c: LearningCase = { id: "x", type: "t", question: "q", section: "ironmaking", screen: { process_id: "ironmaking", equipment_id: null }, expect: { status: "grounded", scene: "any", misconception: null, sources_any: ["posco-newsroom-tlc-2019"] } };
+  const r = { status: "grounded" as const, scene_actions: [], misconception: null, answer: "토페도카는 쇳물을 옮겨요." };
+  assert.equal(score(c, r, ["posco-newsroom-tlc-2019", "posco-newsroom-fe-2019"]).sources, true);
+  assert.equal(score(c, r, ["posco-brochure-2015"]).sources, false);
+  assert.equal(score(c, r).sources, null);
 });
 
 test("답변 사실: 빠진 사실은 첫 표현으로 알리고, 하면 안 되는 주장은 부정하며 바로잡는 문장이면 위반이 아니다", () => {
@@ -68,7 +79,7 @@ test("채점: 기대 조작이 모두 있으면 맞음(더 있어도 됨), []이
   const focus = { type: "focus" as const, target_id: "blast_furnace" };
   const highlight = { type: "highlight" as const, target_id: "blast_furnace" };
   const r = (scene_actions = [focus, highlight], status: "grounded" | "unverified" = "grounded", misconception: string | null = null, answer = "코크스는 환원제예요.") => ({ status, scene_actions, misconception, answer });
-  assert.deepEqual(score(c([focus]), r()), { status: true, scene: true, misconception: true, answer: null, content: null, missing_facts: [], violations: [] });
+  assert.deepEqual(score(c([focus]), r()), { status: true, scene: true, misconception: true, answer: null, content: null, missing_facts: [], violations: [], sources: null });
   assert.equal(score(c([focus]), r([highlight])).scene, false);
   assert.equal(score(c([]), r()).scene, false);
   assert.equal(score(c([]), r([])).scene, true);

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="./support.js"></script>
 </head>
-<body>
+<body data-theme="light">
 <x-dc>
 <helmet>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -15,7 +15,7 @@
   <script type="module" src="./sketch-pad.js"></script>
   <style>
     /* 색·글꼴·모서리 토큰과 dg- 클래스는 공용 diagonal.css(설계: docs/learning-diagonal-ui.md). 여기에는 이 페이지 배치만 둔다.
-       테마는 저장값(st-rookie-theme) → 시스템 설정 순서로 정한다 */
+       테마는 밝은 테마로 고정한다(다크 모드 뺌). 저장값 st-rookie-theme은 3D 화면이 쓰므로 여기서는 읽지도 쓰지도 않는다 */
     html, body { margin: 0; min-height: 100%; }
     * { box-sizing: border-box; }
     /* 스크롤바(가로·세로): 화면 전체를 AI 튜터 채팅창과 같은 얇은 테마색으로. 페이지 스크롤바는 html에 있어 body 변수 대신 같은 값을 직접 쓴다 */
@@ -347,7 +347,6 @@
       </span>
       <!-- 사원증 칩: 연속 학습일과 직급. 누르면 학습 모듈의 사원증 탭을 연다 -->
       <sc-if value="{{ hasCard }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ openCard }}" title="내 사원증 보기" class="dg-btn dg-btn-plain dg-cut dg-s ec-chip"><span aria-hidden="true">{{ chipFlame }}</span>{{ streakNow }}일 <em>· {{ rankTitle }}</em></button></sc-if>
-      <button type="button" onClick="{{ toggleTheme }}" aria-label="테마 전환" class="dg-btn dg-btn-plain dg-cut dg-s" style="width:40px;padding:0;">{{ themeIcon }}</button>
       <button type="button" onClick="{{ logout }}" class="dg-btn dg-btn-plain dg-cut dg-s">로그아웃</button>
       <a href="/3d-demo/steel-index.html" target="_top" class="dg-btn dg-btn-soft dg-cut dg-s">3D 공정 화면</a>
       <a href="/exam" target="_top" class="dg-btn dg-btn-primary dg-cut dg-s">평가 시험</a>
@@ -804,10 +803,6 @@ function dmMessages(list) {
 }
 const token = () => { try { return localStorage.getItem('st-rookie-token') || sessionStorage.getItem('st-rookie-token'); } catch (e) { return null; } };
 // 테마: 사용자가 고른 값(localStorage) → 시스템 설정. 시스템 설정이 바뀌면 고른 값이 없을 때만 따라간다.
-const THEME_KEY = 'st-rookie-theme';
-const savedTheme = () => { try { const t = localStorage.getItem(THEME_KEY); return t === 'light' || t === 'dark' ? t : null; } catch (e) { return null; } };
-const lightQuery = () => (typeof matchMedia === 'function' ? matchMedia('(prefers-color-scheme: light)') : null);
-const systemTheme = () => (lightQuery()?.matches ? 'light' : 'dark');
 // AI 튜터: 3D 화면(v4)과 같은 팀 학습 모드 채팅(frontend/3d-demo/learning-chat.js)을 그대로 붙인다.
 // learning-chat.js가 쓰는 것: state(processId·selectedId·messages·input·pending·lastResults·speed), data(data_v2.js), chatRef, scene(), goProcess(), scrollChat().
 // 여기서 scene()은 2D 모듈(<process-2d>)이고, 튜터의 focus·highlight는 그 설비 선택, play_animation은 자동 재생이 된다.
@@ -836,13 +831,12 @@ const withRo = word => { const c = (word || '').charCodeAt(word.length - 1) - 0x
 const initialsOf = name => { const s = (name || '').trim(); return /[가-힣]/.test(s) ? s.slice(-2) : s.split(/\s+/).map(w => w[0] || '').join('').slice(0, 2).toUpperCase() || '?'; };
 
 class Component extends DCLogic {
-  state = { data: null, processes: [], error: null, theme: savedTheme() || systemTheme(), loadedAt: null, ai: null, sideTab: 'ask',
+  state = { data: null, processes: [], error: null, theme: 'light', loadedAt: null, ai: null, sideTab: 'ask',
     processId: 'ironmaking', selectedId: 'sinter_plant', messages: [], input: '', pending: false, lastReq: null, lastRes: null, lastResults: [], speed: 1,
     moduleTab: 'steps', drawMode: 'plan' }; // 학습 모듈 탭(steps 작동 단계 | blueprint 설계도·필기 | review 복습 | mis 내 오개념)과 도면(top·plan·front)
   chatRef = React.createRef();
   componentDidMount() {
     document.body.dataset.theme = this.state.theme;
-    lightQuery()?.addEventListener('change', () => { if (!savedTheme()) this.applyTheme(systemTheme(), false); });
     import('../3d-demo/data_v2.js').then(async m => {
       this.data = m; this.setState({ processes: m.PROCESSES });
       const { createLearningChat } = await import('../3d-demo/learning-chat.js');
@@ -891,11 +885,6 @@ class Component extends DCLogic {
       const confetti = Array.from({ length: 60 }, (_, i) => ({ left: (i * 37) % 100, color: CONFETTI_COLORS[i % CONFETTI_COLORS.length], dur: (2.2 + (i % 7) * 0.35).toFixed(2), delay: ((i % 10) * 0.12).toFixed(2) }));
       this.setState({ promo: { level: card.rank.level, title: card.rank.title, material: card.rank.material }, confetti });
     }
-  }
-  applyTheme(theme, save) {
-    document.body.dataset.theme = theme;
-    if (save) { try { localStorage.setItem(THEME_KEY, theme); } catch (e) {} }
-    this.setState({ theme });
   }
   // 설계도 iframe은 처음 열 때 한 번만 주소를 정하고(다시 불러오면 도면을 처음부터 그린다), 공정·도면·테마는 postMessage로 바꾼다.
   openBlueprint() {
@@ -1002,8 +991,7 @@ class Component extends DCLogic {
     const chat = chat0;
     return {
       loadError: S.error,
-      theme: S.theme, themeIcon: S.theme === 'dark' ? '☀' : '☾',
-      toggleTheme: () => this.applyTheme(S.theme === 'dark' ? 'light' : 'dark', true),
+      theme: S.theme,
       logout: () => { try { localStorage.removeItem('st-rookie-token'); sessionStorage.removeItem('st-rookie-token'); } catch (e) {} window.top.location.href = '/login_ui/home-sleek.html'; },
       // AI 튜터
       aiDot: S.ai === 'ok' ? 'var(--ok)' : S.ai === 'off' ? 'var(--bad)' : 'var(--dim)',

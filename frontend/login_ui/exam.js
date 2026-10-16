@@ -489,17 +489,7 @@ async function leave(url) {
   }
   location.assign(url);
 }
-// 테마: 사용자가 고른 값(st-rookie-theme) → 시스템 설정. 학습 기록과 같은 규칙이다.
-const THEME_KEY = 'st-rookie-theme';
-const savedTheme = () => { try { const t = localStorage.getItem(THEME_KEY); return t === 'light' || t === 'dark' ? t : null; } catch { return null; } };
-const lightQuery = matchMedia('(prefers-color-scheme: light)');
-const systemTheme = () => (lightQuery.matches ? 'light' : 'dark');
-function theme(value, persist = false) {
-  document.body.dataset.theme = value; $('theme').textContent = value === 'dark' ? '☀' : '☾';
-  if (persist) { try { localStorage.setItem(THEME_KEY, value); } catch {} }
-}
-$('theme').addEventListener('click', () => theme(document.body.dataset.theme === 'dark' ? 'light' : 'dark', true));
-lightQuery.addEventListener('change', () => { if (!savedTheme()) theme(systemTheme()); });
+// 테마: 밝은 테마로 고정(다크 모드 뺌, exam.html의 body data-theme="light"). 학습 기록과 같다.
 stage.mobile.addEventListener('change', sizeCharacter);
 $('sfx').addEventListener('click', () => { setSfxOn(!sfxOn()); renderSfx(); });
 document.querySelectorAll('[data-leave]').forEach((node) => node.addEventListener('click', (event) => { event.preventDefault(); void leave(node.getAttribute('href')); }));
@@ -528,7 +518,7 @@ $('logout').addEventListener('click', async () => {
 });
 async function boot() {
   // 공정 선택 화면(포석호 idle · 안내 말풍선)은 HTML에 그대로 있어 처음에는 다시 그리지 않는다. 복원한 시도는 renderStage가 첫 발화로 보고 효과음을 내지 않는다.
-  theme(savedTheme() || systemTheme()); renderSfx();
+  renderSfx();
   if (!api.hasToken()) return location.replace('/login_ui/home-sleek.html?next=exam');
   void mountCharacter();
   try {

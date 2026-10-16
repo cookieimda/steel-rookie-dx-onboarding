@@ -15,7 +15,7 @@ import { createWorkflowRouter, materialCheckJob } from "../src/education/workflo
 import { buildDeck } from "../src/lab/deck.js";
 import { createLabExtrasRouter } from "../src/lab/extras-routes.js";
 import { gradeIncident, loadIncidents, scenarioView, shuffledKeys } from "../src/lab/incidents.js";
-import { BASELINE, normalizeInput, simulate, whatIf } from "../src/lab/whatif.js";
+import { ASSUMPTIONS, BASELINE, normalizeInput, simulate, whatIf } from "../src/lab/whatif.js";
 import { Notifier } from "../src/notify/service.js";
 import { createNotifyRouter } from "../src/notify/routes.js";
 import { clusterTexts } from "../src/ops/patterns.js";
@@ -33,10 +33,13 @@ test("검수 단계: 기록으로 정하고, 승인·반려는 자료 상태가 
   assert.deepEqual(lineDiff("a\nb\nc", "a\nB\nc\nd").map((d) => `${d.op}:${d.text}`), ["same:a", "del:b", "add:B", "same:c", "add:d"]);
 });
 
-test("What-if: 기준 조건은 슬래그 250~320kg·염기도 1.0~1.3·1,500℃, 펠릿이 늘면 슬래그가 줄고 연료가 늘면 온도가 오른다", () => {
+test("What-if: 기준 조건은 슬래그 175~350kg·염기도 1.0~1.2(BREF)·1,500℃, 펠릿이 늘면 슬래그가 줄고 연료가 늘면 온도가 오른다", () => {
   const base = simulate(BASELINE);
-  assert.ok(base.slag_kg > 250 && base.slag_kg < 320, String(base.slag_kg));
-  assert.ok(base.basicity >= 1.0 && base.basicity <= 1.3, String(base.basicity));
+  assert.ok(base.slag_kg >= 175 && base.slag_kg <= 350, String(base.slag_kg));
+  assert.ok(base.basicity >= 1.0 && base.basicity <= 1.2, String(base.basicity));
+  assert.equal(base.fuel_rate_kg, 480, "JFE 코크스 380 + 미분탄 100kg/t");
+  // 화면에 보이는 가정마다 출처(BREF·JFE)나 '가정'을 밝힌다(단순화 설명인 CO2 줄은 예외).
+  for (const line of ASSUMPTIONS.filter((l) => !l.startsWith("CO2"))) assert.match(line, /BREF|JFE|가정/, line);
   assert.equal(base.hot_metal_temp_c, 1500);
   assert.deepEqual(base.warnings, []);
   const pellet = whatIf({ sinter_pct: 30, pellet_pct: 60, lump_pct: 10 }).result;
@@ -272,7 +275,7 @@ test("HTTP 사고 사례·What-if: 문항 풀이 기록, 최고 점수, 숫자�
   assert.equal(view.json.scenario.questions.length, scenario.questions.length);
   assert.equal((await call("GET", "/api/lab/incidents", kim)).json.scenarios[0].best, 1);
   assert.equal((await call("POST", "/api/lab/whatif", kim, { coke_kg: "많이" })).status, 400);
-  assert.equal((await call("POST", "/api/lab/whatif", kim, { coke_kg: 380 })).json.result.fuel_rate_kg, 540);
+  assert.equal((await call("POST", "/api/lab/whatif", kim, { coke_kg: 400 })).json.result.fuel_rate_kg, 500);
 });
 
 test("HTTP 오답 패턴: 관리자는 이름표·개수만(설명 원문 없음), 학습자는 내 설명", async () => {

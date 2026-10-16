@@ -1,7 +1,7 @@
 // 학습 랩(학습 기록 화면 Trainee Dashboard.dc.html의 '학습 랩' 탭). 서버는 backend/src/lab/(API는 routes.ts 맨 위 주석).
 // - 간격 반복: 설비 카드(앞면 질문 → 답 보기 → 기억 정도 4단계). 다음 복습일은 서버가 SM-2로 정한다.
 // - 주간 리그: 이번 주 XP로 같은 리그끼리 순위. 다른 사람 이름은 서버가 가려서 준다.
-// - xAPI 기록: 내 학습 기록을 xAPI 문장으로 보고 동사로 거르고 JSON으로 내려받는다.
+// - 보고서: 공정 하나의 내 학습 기록을 A4 보고서로 미리 보고 PDF로 저장한다(learner-report.html을 iframe으로). xAPI 문장은 화면에 보이지 않아도 계속 남긴다.
 // - 세션 리플레이: 이 화면에서 한 조작(탭·공정·설비·질문)을 기록해 두었다가 다시 재생한다. 본인만 보고, [기록 끄기]로 멈출 수 있다.
 // 상태는 페이지 컴포넌트(c) state의 lab… 키에 둔다. vals()가 템플릿 값을 돌려준다.
 
@@ -21,13 +21,8 @@ async function api(method, path, body) {
   return data;
 }
 
-export const SUBTABS = [['review', '간격 반복'], ['league', '주간 리그'], ['xapi', 'xAPI 기록'], ['replay', '세션 리플레이'],
+export const SUBTABS = [['review', '간격 반복'], ['league', '주간 리그'], ['report', '보고서'], ['replay', '세션 리플레이'],
   ['incident', '사고 사례'], ['whatif', 'What-if'], ['notes', '설비 메모'], ['patterns', '내 오답 유형']];
-/** xAPI 활동 종류(활동 id의 /activities/<종류>/) → 이름·아이콘. 3D 실습 종류도 여기서 이름을 붙인다. */
-const KIND_LABEL = { section: ['📍', '공정'], concept: ['💡', '개념'], 'review-card': ['🗂', '복습 카드'], equipment: ['🏭', '설비'], blueprint: ['✏️', '설계도'],
-  'causal-link': ['🧩', '인과 퀴즈'], 'fault-drill': ['🚨', '이상 상황 훈련'], 'incident-branch': ['🔀', '갈림길'], 'causal-tour': ['🗺', '인과 따라가기'],
-  'causal-map-link': ['🔗', '조건 링크'], 'incident-3d': ['🔀', '갈림길 3D'], lesson: ['🎓', '수업'], rebalance: ['🧰', '되돌리기 퍼즐'] };
-const VERB_LABEL = { asked: '질문함', answered: '답함', completed: '끝냄', passed: '통과함', experienced: '살펴봄', resolved: '해결함', annotated: '필기함', reviewed: '복습함', mastered: '스스로 답함' };
 const GRADE_LABEL = { 0: '다시', 3: '어려움', 4: '보통', 5: '쉬움' };
 const GRADE_TONE = { 0: 'bad', 3: 'mid', 4: 'ok', 5: 'easy' };
 const TAB_LABEL = { steps: '작동 단계', blueprint: '설계도·필기', review: '복습', mis: '내 오개념', card: '사원증', lab: '학습 랩' };
@@ -114,7 +109,6 @@ export function createLearningLab(c) {
   const loaders = {
     review: () => api('GET', '/api/me/lab/review').then(r => set({ labReview: r, labRevealed: false })),
     league: () => api('GET', '/api/me/lab/league').then(r => set({ labLeague: r })),
-    xapi: () => api('GET', `/api/me/lab/xapi?limit=100${S().labXapiVerb ? `&verb=${S().labXapiVerb}` : ''}${S().labXapiKind ? `&kind=${S().labXapiKind}` : ''}`).then(r => set({ labXapi: r })),
     replay: () => api('GET', '/api/me/lab/replays').then(r => set({ labReplays: r.sessions })),
   };
   // 추가 기능(lab-extras.js): 사고 사례·What-if·설비 메모·내 오답 유형과 알림 벨
@@ -152,24 +146,12 @@ export function createLearningLab(c) {
   };
   const removeReplay = id => api('DELETE', `/api/me/lab/replays/${id}`).then(() => { stopPlay(); set({ labReplayId: null, labReplay: null }); load('replay'); }, fail);
 
-  // ── xAPI 내려받기(토큰이 필요해 링크 대신 fetch → 파일) ──
-  const download = async () => {
-    try {
-      const res = await fetch('/api/me/lab/xapi/export', { headers: { authorization: `Bearer ${token()}` } });
-      if (!res.ok) throw new Error('내려받지 못했어요.');
-      const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') || '')?.[1] || 'xapi.json';
-      const url = URL.createObjectURL(await res.blob());
-      const a = Object.assign(document.createElement('a'), { href: url, download: name });
-      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (e) { fail(e); }
-  };
-
   function vals() {
     const s = S(), sub = s.labTab || 'review';
     const v = {
       labSubtabs: SUBTABS.map(([k, label]) => ({ label, on: sub === k, onClick: () => open(k) })),
       labError: s.labError || '', hasLabError: !!s.labError,
-      labShowReview: sub === 'review' ? 'flex' : 'none', labShowLeague: sub === 'league' ? 'flex' : 'none', labShowXapi: sub === 'xapi' ? 'flex' : 'none',
+      labShowReview: sub === 'review' ? 'flex' : 'none', labShowLeague: sub === 'league' ? 'flex' : 'none', labShowReport: sub === 'report' ? 'flex' : 'none',
       labShowReplay: sub === 'replay' ? 'flex' : 'none',
       labShowIncident: sub === 'incident' ? 'flex' : 'none', labShowWhatif: sub === 'whatif' ? 'flex' : 'none',
       labShowNotes: sub === 'notes' ? 'flex' : 'none', labShowPatterns: sub === 'patterns' ? 'flex' : 'none',
@@ -225,19 +207,12 @@ export function createLearningLab(c) {
       lgNoHistory: !!L && !(L.history || []).length,
     });
 
-    // xAPI
-    const X = s.labXapi;
+    // 보고서: 고른 공정(처음에는 학습 화면에서 보고 있는 공정)의 learner-report.html. 탭이 닫혀 있으면 불러오지 않는다
+    const reSec = PROCESS_LABEL[s.labReportSection] ? s.labReportSection : PROCESS_LABEL[s.processId] ? s.processId : 'ironmaking';
+    const reHref = `/login_ui/learner-report.html?section=${reSec}`;
     Object.assign(v, {
-      xaLoaded: !!X, xaTotal: X ? `${X.total}개 문장` : '',
-      xaVerbs: X ? [{ label: `전체`, on: !s.labXapiVerb, onClick: () => { set({ labXapiVerb: '' }); setTimeout(() => load('xapi')); } },
-        ...Object.entries(X.counts).map(([k, n]) => ({ label: `${VERB_LABEL[k] || k} ${n}`, on: s.labXapiVerb === k, onClick: () => { set({ labXapiVerb: k }); setTimeout(() => load('xapi')); } }))] : [],
-      // 종류 칩: 동사로 거른 뒤의 종류별 개수. 같은 칩을 다시 누르면 풀린다
-      xaKinds: X?.kinds ? Object.entries(X.kinds).sort((a, b) => b[1] - a[1]).map(([k, n]) => ({ label: `${(KIND_LABEL[k] || ['•', k])[0]} ${(KIND_LABEL[k] || ['', k])[1]} ${n}`, on: s.labXapiKind === k,
-        onClick: () => { set({ labXapiKind: s.labXapiKind === k ? '' : k }); setTimeout(() => load('xapi')); } })) : [],
-      xaRows: (X?.statements || []).map(st => ({ when: clock(st.timestamp), verb: st.verb.display['ko-KR'], obj: `${(KIND_LABEL[st.kind] || ['•'])[0]} ${st.object.definition.name['ko-KR']}`,
-        res: st.result?.score ? `${Math.round(st.result.score.scaled * 100)}%` : st.result?.success === true ? '성공' : st.result?.success === false ? '아직' : '',
-        json: JSON.stringify({ id: st.id, actor: st.actor, verb: st.verb, object: st.object, ...(st.result ? { result: st.result } : {}), context: st.context, timestamp: st.timestamp, stored: st.stored, version: st.version }, null, 2) })),
-      xaEmpty: !!X && !X.statements.length, xaDownload: download,
+      reSections: Object.entries(PROCESS_LABEL).map(([k, label]) => ({ label, on: reSec === k, onClick: () => set({ labReportSection: k }) })),
+      reSrc: sub === 'report' ? reHref : 'about:blank', reOpenHref: reHref, rePrintHref: `${reHref}&print=1`,
     });
 
     // 리플레이

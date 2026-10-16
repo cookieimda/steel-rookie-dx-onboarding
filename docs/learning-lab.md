@@ -22,7 +22,8 @@
 | 관리자 통계 | `backend/src/lab/practice-stats.ts` | 퀴즈·훈련·사고 사례·수업·거꾸로 추론·퍼즐 집계(사람별 내용 없음) |
 | 수업 | `backend/src/lab/lessons.ts`, `content/lessons/lessons.json` | 수업 3개. 서버 시작 때 훈련·사례 참조를 검사하고 틀리면 시작하지 않는다 |
 | 사고 사례·훈련 | `backend/src/lab/incidents.ts`·`content/scenarios/incidents.json`, `backend/src/lab/faults.ts`·`content/faults/faults.json` | 갈림길(다른 선택), 훈련 원인의 인과 지도 조건(`causal`) |
-| 사원증·xAPI | `backend/src/me/employee-card.ts`, `backend/src/lab/xapi.ts` | 실습 XP·배지('인과 탐정'·'갈림길 탐험가'·'보상 판단'), xAPI 기록과 종류 거르기 |
+| 사원증·xAPI | `backend/src/me/employee-card.ts`, `backend/src/lab/xapi.ts` | 실습 XP·배지('인과 탐정'·'갈림길 탐험가'·'보상 판단'), xAPI 기록(서버에 남기고 API로 거름. 학습 랩의 xAPI 화면은 '보고서' 탭으로 바뀜) |
+| 학습 보고서 | `frontend/login_ui/learner-report.html`·`learner-report.js`·`learner-report-model.js`, `backend/test/learner-report-model.test.ts` | 공정 하나의 내 학습 기록을 A4 보고서로 그리고 브라우저 인쇄로 PDF 저장. 학습 랩 '보고서' 탭이 iframe으로 띄운다. API 6개를 따로 불러 하나가 실패해도 나온다 |
 | 3D 실습 화면 | `frontend/3d-demo/sim-lab.js` | 모든 실습 패널·3D 효과(링·흐름·빛·이름표)·카메라 따라가기. `attachSimLab(opts)`로 장면에 붙는다 |
 | 인과 실습 공간 | `frontend/3d-demo/causal-lab.html`·`causal-lab.js` | 첫 화면 공장 부지를 밝은 낮 장면으로 옮기고 실습 4가지만 붙인 독립 페이지 |
 | 학습 기록 | `frontend/login_ui/Trainee Dashboard.dc.html`, `learning-lab.js`, `lab-extras.js` | 오늘의 실습 경로·내 3D 실습 요약·오개념 → 인과 지도 링크·갈림길 |

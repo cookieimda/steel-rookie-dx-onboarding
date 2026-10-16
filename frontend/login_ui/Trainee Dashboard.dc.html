@@ -143,7 +143,7 @@
     .ec-chip em { font-style: normal; color: var(--muted); font-weight: 600; }
     @media (max-width: 900px) { .ec { grid-template-columns: 1fr; } }
     @media (prefers-reduced-motion: reduce) { .ec-card, .ec-card::after, .ec-flame.on, .ec-promo-box, .ec-confetti i { animation: none !important; transition: none !important; } }
-    /* ── 학습 랩 탭(2026-10-15): 간격 반복·주간 리그·xAPI 기록·세션 리플레이. 로직은 learning-lab.js, 서버는 backend/src/lab/ ── */
+    /* ── 학습 랩 탭(2026-10-15): 간격 반복·주간 리그·보고서·세션 리플레이. 로직은 learning-lab.js, 서버는 backend/src/lab/ ── */
     .lb { flex-direction: column; gap: 16px; padding: 20px 22px 22px; min-width: 0; }
     .lb-sub { display: flex; flex-wrap: wrap; gap: 6px; }
     .dg-mis-map { display: inline-block; margin-top: 6px; font-size: 15px; font-weight: 700; color: var(--orange); text-decoration: none; }
@@ -204,15 +204,13 @@
     .lb-hist { display: flex; flex-wrap: wrap; gap: 6px; }
     .lb-hist span { font-size: 15px; padding: 4px 10px; border-radius: var(--cut-s); background: var(--panel2); }
     .lb-hist .up { color: var(--ok); } .lb-hist .down { color: var(--bad); }
-    /* xAPI */
+    /* 칩(거르기·고르기) */
     .lb-chips { display: flex; flex-wrap: wrap; gap: 6px; }
     .lb-chips button { height: 32px; padding: 0 12px; border-radius: var(--cut-s); border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 15px; cursor: pointer; }
     .lb-chips button[aria-pressed="true"] { border-color: var(--orange); color: var(--orange-text); font-weight: 700; }
-    .lb-xa { display: flex; flex-direction: column; gap: 4px; max-height: 460px; overflow-y: auto; }
-    .lb-xa details { border-radius: var(--cut-s); background: var(--panel2); }
-    .lb-xa summary { display: grid; grid-template-columns: 96px 92px 1fr auto; gap: 10px; padding: 9px 12px; font-size: 15px; cursor: pointer; list-style: none; }
-    .lb-xa summary::-webkit-details-marker { display: none; }
-    .lb-xa pre { margin: 0; padding: 10px 12px; font-family: var(--mono); font-size: 15px; white-space: pre-wrap; word-break: break-all; color: var(--muted); border-top: 1px solid var(--line); }
+    /* 보고서: learner-report.html 미리보기(인쇄 미리보기처럼 A4 종이가 세로로 이어진다)와 새 창 링크 */
+    .lb-report { width: 100%; height: 760px; border: 0; border-radius: var(--cut); background: #5f6368; }
+    .lb-link { display: inline-flex; align-items: center; text-decoration: none; }
     /* 리플레이 */
     .lb-rp { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 14px; }
     .lb-list { display: flex; flex-direction: column; gap: 6px; max-height: 520px; overflow-y: auto; }
@@ -236,7 +234,7 @@
     .lb-select { height: 38px; padding: 0 10px; border-radius: var(--cut-s); border: 1px solid var(--line); background: var(--panel2); color: var(--text); font-size: 15px; width: 100%; }
     .lb-input { display: flex; gap: 8px; }
     .lb-input input { flex: 1; min-width: 0; height: 40px; padding: 0 12px; border-radius: var(--cut-s); border: 1px solid var(--line); background: var(--panel2); color: var(--text); font-size: 15px; }
-    @media (max-width: 900px) { .lb-rp, .lb-soc { grid-template-columns: 1fr; } .lb-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .lb-xa summary { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 900px) { .lb-rp, .lb-soc { grid-template-columns: 1fr; } .lb-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (prefers-reduced-motion: reduce) { .lb-flash, .lb-back { animation: none !important; } }
     /* ── 학습 랩 추가(2026-10-15): 사고 사례 · What-if · 설비 메모 · 내 오답 유형 · 알림 벨(lab-extras.js) ── */
     .lb-area { width: 100%; padding: 10px 12px; border-radius: var(--cut-s); border: 1px solid var(--line); background: var(--panel2); color: var(--text); font-size: 15px; font-family: inherit; resize: vertical; }
@@ -487,7 +485,7 @@
         </div>
         </sc-if>
       </section>
-      <!-- 학습 랩: 간격 반복·주간 리그·xAPI 기록·세션 리플레이(learning-lab.js, 서버 backend/src/lab/) -->
+      <!-- 학습 랩: 간격 반복·주간 리그·보고서·세션 리플레이(learning-lab.js, 서버 backend/src/lab/) -->
       <section class="dg-mframe dg-pane dg-pop lb" data-sec="lab" aria-label="학습 랩" style="display:{{ labDisplay }};">
         <div class="dg-section-head"><span class="dg-label">[ LEARNING LAB ]</span><h2 class="dg-h2">학습 랩</h2><span class="dg-sub">복습 일정·리그·학습 기록을 한곳에서</span></div>
         <!-- 오늘의 실습 경로: 내 3D 실습 기록으로 가장 약한 공정을 골라 3D 화면의 실습으로 바로 보낸다(GET /api/lab/practice-path) -->
@@ -550,16 +548,12 @@
           </div>
         </div>
 
-        <!-- ③ xAPI 기록: 내 학습 기록을 xAPI 1.0.3 문장으로. 사내 LMS·LRS로 옮길 수 있다 -->
-        <div class="lb-pane" style="display:{{ labShowXapi }};">
-          <div class="lb-row" style="justify-content:space-between;"><span class="lb-muted">xAPI 1.0.3 형식 · {{ xaTotal }} · 줄을 누르면 문장(JSON)이 보여요</span><button type="button" class="lb-btn ghost" onClick="{{ xaDownload }}">JSON 내려받기</button></div>
-          <div class="lb-chips" aria-label="동사로 거르기"><sc-for list="{{ xaVerbs }}" as="c" hint-placeholder-count="4"><button type="button" aria-pressed="{{ c.on }}" onClick="{{ c.onClick }}">{{ c.label }}</button></sc-for></div>
-          <!-- 종류(활동)로 거르기: 설비·인과 퀴즈·이상 상황 훈련·갈림길·3D 살펴봄 등. 같은 칩을 다시 누르면 풀린다 -->
-          <div class="lb-chips" aria-label="종류로 거르기"><sc-for list="{{ xaKinds }}" as="c" hint-placeholder-count="4"><button type="button" aria-pressed="{{ c.on }}" onClick="{{ c.onClick }}">{{ c.label }}</button></sc-for></div>
-          <sc-if value="{{ xaEmpty }}" hint-placeholder-val="{{ false }}"><span class="lb-muted">아직 기록이 없어요. 튜터에게 질문하거나 복습하면 문장이 생겨요.</span></sc-if>
-          <div class="lb-xa"><sc-for list="{{ xaRows }}" as="x" hint-placeholder-count="5">
-            <details><summary><span class="lb-muted">{{ x.when }}</span><strong>{{ x.verb }}</strong><span>{{ x.obj }}</span><span class="lb-muted">{{ x.res }}</span></summary><pre>{{ x.json }}</pre></details>
-          </sc-for></div>
+        <!-- ③ 보고서: 공정 하나의 내 학습 기록을 A4 보고서로 미리 보고 PDF로 저장한다(learner-report.html, 데이터 규칙은 learner-report-model.js) -->
+        <div class="lb-pane" style="display:{{ labShowReport }};">
+          <div class="lb-row" style="justify-content:space-between;"><span class="lb-muted">공정을 고르면 내 이해도 확인·오개념·복습 기록을 A4 보고서로 보여 줘요.</span>
+            <span class="lb-row" style="gap:8px;"><a class="lb-btn ghost lb-link" href="{{ reOpenHref }}" target="_blank" rel="noopener">새 창에서 열기</a><a class="lb-btn lb-link" href="{{ rePrintHref }}" target="_blank" rel="noopener">PDF로 저장</a></span></div>
+          <div class="lb-chips" aria-label="공정 고르기"><sc-for list="{{ reSections }}" as="c" hint-placeholder-count="4"><button type="button" aria-pressed="{{ c.on }}" onClick="{{ c.onClick }}">{{ c.label }}</button></sc-for></div>
+          <iframe class="lb-report" title="학습 보고서 미리보기" src="{{ reSrc }}"></iframe>
         </div>
 
         <!-- ④ 세션 리플레이: 이 화면에서 한 조작을 다시 재생(본인만). 기록은 끌 수 있다 -->

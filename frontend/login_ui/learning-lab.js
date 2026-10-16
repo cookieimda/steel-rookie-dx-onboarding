@@ -3,7 +3,6 @@
 // - 주간 리그: 이번 주 XP로 같은 리그끼리 순위. 다른 사람 이름은 서버가 가려서 준다.
 // - xAPI 기록: 내 학습 기록을 xAPI 문장으로 보고 동사로 거르고 JSON으로 내려받는다.
 // - 세션 리플레이: 이 화면에서 한 조작(탭·공정·설비·질문)을 기록해 두었다가 다시 재생한다. 본인만 보고, [기록 끄기]로 멈출 수 있다.
-// - 소크라테스 모드: 답 대신 질문으로 이끄는 대화. LLM이 없으면 서버의 오프라인 튜터가 이어 간다.
 // 상태는 페이지 컴포넌트(c) state의 lab… 키에 둔다. vals()가 템플릿 값을 돌려준다.
 
 import { createLabExtras } from './lab-extras.js';
@@ -22,7 +21,7 @@ async function api(method, path, body) {
   return data;
 }
 
-export const SUBTABS = [['review', '간격 반복'], ['league', '주간 리그'], ['xapi', 'xAPI 기록'], ['replay', '세션 리플레이'], ['socratic', '소크라테스'],
+export const SUBTABS = [['review', '간격 반복'], ['league', '주간 리그'], ['xapi', 'xAPI 기록'], ['replay', '세션 리플레이'],
   ['incident', '사고 사례'], ['whatif', 'What-if'], ['notes', '설비 메모'], ['patterns', '내 오답 유형']];
 /** xAPI 활동 종류(활동 id의 /activities/<종류>/) → 이름·아이콘. 3D 실습 종류도 여기서 이름을 붙인다. */
 const KIND_LABEL = { section: ['📍', '공정'], concept: ['💡', '개념'], 'review-card': ['🗂', '복습 카드'], equipment: ['🏭', '설비'], blueprint: ['✏️', '설계도'],
@@ -117,7 +116,6 @@ export function createLearningLab(c) {
     league: () => api('GET', '/api/me/lab/league').then(r => set({ labLeague: r })),
     xapi: () => api('GET', `/api/me/lab/xapi?limit=100${S().labXapiVerb ? `&verb=${S().labXapiVerb}` : ''}${S().labXapiKind ? `&kind=${S().labXapiKind}` : ''}`).then(r => set({ labXapi: r })),
     replay: () => api('GET', '/api/me/lab/replays').then(r => set({ labReplays: r.sessions })),
-    socratic: () => api('GET', '/api/me/lab/socratic').then(r => set({ labSocList: r, labSocEq: S().labSocEq || r.equipment[0]?.id || '' })),
   };
   // 추가 기능(lab-extras.js): 사고 사례·What-if·설비 메모·내 오답 유형과 알림 벨
   const extras = createLabExtras(c, { api, set, S, fail });
@@ -154,29 +152,6 @@ export function createLearningLab(c) {
   };
   const removeReplay = id => api('DELETE', `/api/me/lab/replays/${id}`).then(() => { stopPlay(); set({ labReplayId: null, labReplay: null }); load('replay'); }, fail);
 
-  // ── 소크라테스 ──
-  const socStart = () => {
-    const eq = S().labSocEq;
-    if (!eq || S().labBusy) return;
-    set({ labBusy: true, labSocBanner: null });
-    api('POST', '/api/me/lab/socratic', { equipment_id: eq }).then(r => { set({ labBusy: false, labSoc: r, labSocInput: '' }); loaders.socratic(); }, fail);
-  };
-  const socOpen = id => api('GET', `/api/me/lab/socratic/${id}`).then(r => set({ labSoc: r, labSocBanner: null }), fail);
-  const socSend = e => {
-    e?.preventDefault?.();
-    const text = (S().labSocInput || '').trim(), soc = S().labSoc;
-    if (!text || !soc || S().labBusy) return;
-    set({ labBusy: true, labSoc: { ...soc, turns: [...soc.turns, { role: 'user', text }] }, labSocInput: '' });
-    api('POST', `/api/me/lab/socratic/${soc.session.id}/turns`, { text })
-      .then(r => { set({ labBusy: false, labSoc: r, labSocBanner: r.just_reached ? '스스로 답에 닿았어요! +25 XP' : null }); loaders.socratic(); }, fail);
-  };
-  const socReveal = () => {
-    const soc = S().labSoc;
-    if (!soc || S().labBusy) return;
-    set({ labBusy: true });
-    api('POST', `/api/me/lab/socratic/${soc.session.id}/reveal`).then(r => { set({ labBusy: false, labSoc: r }); loaders.socratic(); }, fail);
-  };
-
   // ── xAPI 내려받기(토큰이 필요해 링크 대신 fetch → 파일) ──
   const download = async () => {
     try {
@@ -195,7 +170,7 @@ export function createLearningLab(c) {
       labSubtabs: SUBTABS.map(([k, label]) => ({ label, on: sub === k, onClick: () => open(k) })),
       labError: s.labError || '', hasLabError: !!s.labError,
       labShowReview: sub === 'review' ? 'flex' : 'none', labShowLeague: sub === 'league' ? 'flex' : 'none', labShowXapi: sub === 'xapi' ? 'flex' : 'none',
-      labShowReplay: sub === 'replay' ? 'flex' : 'none', labShowSocratic: sub === 'socratic' ? 'flex' : 'none',
+      labShowReplay: sub === 'replay' ? 'flex' : 'none',
       labShowIncident: sub === 'incident' ? 'flex' : 'none', labShowWhatif: sub === 'whatif' ? 'flex' : 'none',
       labShowNotes: sub === 'notes' ? 'flex' : 'none', labShowPatterns: sub === 'patterns' ? 'flex' : 'none',
       ...extras.vals(sub),
@@ -282,23 +257,6 @@ export function createLearningLab(c) {
       rpEquipment: st.equipment || '설비를 고르지 않았어요', rpAsk: st.ask || '', rpHasAsk: !!st.ask, rpAnswer: st.answer || '', rpHasAnswer: !!st.answer,
       rpEvents: ev.map((e, i) => ({ t: mmss(e.t_ms), text: describeEvent(e), cls: i === st.current ? 'now' : e.t_ms <= pos ? 'past' : '', onClick: () => { stopPlay(); set({ labPos: e.t_ms }); } })),
       rpDelete: () => RP && removeReplay(RP.session.id),
-    });
-
-    // 소크라테스
-    const SL = s.labSocList, SC = s.labSoc;
-    const stateLabel = st2 => (st2 === 'reached' ? '스스로 답함' : st2 === 'revealed' ? '정답 봄' : '진행 중');
-    Object.assign(v, {
-      soLoaded: !!SL, soOfflineText: (SL && !SL.llm) || SC?.mode === 'offline' ? '지금은 AI 연결이 없어 정해 둔 질문으로 진행해요.' : '', soEquipment: (SL?.equipment || []).map(e => ({ value: e.id, label: `${e.section_name} · ${e.name}` })),
-      soEq: s.labSocEq || '', soPick: e => set({ labSocEq: e.target.value }), soStart: socStart,
-      soSessions: (SL?.sessions || []).slice(0, 8).map(x => ({ label: x.equipment_name, sub: `${stateLabel(x.state)} · 답 ${x.turns}번`, cls: x.state, on: SC?.session.id === x.id, onClick: () => socOpen(x.id) })),
-      soHas: !!SC, soNone: !SC,
-      soTitle: SC ? `${SC.session.section_name} · ${SC.session.equipment_name}` : '', soState: SC ? stateLabel(SC.session.state) : '', soStateCls: SC?.session.state || '',
-      soHints: [1, 2, 3].map(i => ({ cls: (SC?.session.hint_level || 0) >= i ? 'on' : '' })),
-      soTurns: (SC?.turns || []).map(t => ({ text: t.text, cls: t.role })),
-      soInput: s.labSocInput || '', soOnInput: e => set({ labSocInput: e.target.value }), soSend: socSend,
-      soCantSend: !!s.labBusy || !(s.labSocInput || '').trim() || SC?.session.state === 'revealed',
-      soClosed: SC?.session.state === 'revealed', soReveal: socReveal, soSuggestReveal: !!SC?.suggest_reveal,
-      soBanner: s.labSocBanner || '', soHasBanner: !!s.labSocBanner, soBusy: !!s.labBusy,
     });
     return v;
   }

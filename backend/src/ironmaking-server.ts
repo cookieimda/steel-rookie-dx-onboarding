@@ -135,9 +135,9 @@ app.use(createAuthRouter(auth));
 // 관리자 AI 요약도 같은 LLM 클라이언트로 관리자 계정의 하루 호출 수를 센다.
 app.use(createAdminRouter(db, auth, { summarizer: new GeminiAdminSummarizer(llm) }));
 app.use(createMeRouter(db, auth));
-// 학습 랩(학습 기록 화면의 '학습 랩' 탭): 간격 반복·주간 리그·xAPI 기록·세션 리플레이·소크라테스 모드. 소크라테스 모드는 같은 LLM 클라이언트로 호출 수를 센다.
+// 학습 랩(학습 기록 화면의 '학습 랩' 탭): 간격 반복·주간 리그·xAPI 기록·세션 리플레이.
 const deck = await loadDeck();
-app.use(createLabRouter({ db, auth, deck, llm }));
+app.use(createLabRouter({ db, auth, deck }));
 // 운영 기능(012): 알림 · 자료 검수 워크플로 · 작업 대기열 일반화 · 오답 패턴 · 채점 근거 하이라이트 · 사고 사례 · What-if · 설비 주석 공유
 const meRepo = new MeRepository(db);
 const notifier = new Notifier({ db, cardEvents: (id) => meRepo.cardEvents(id),

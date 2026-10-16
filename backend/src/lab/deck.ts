@@ -1,4 +1,4 @@
-// 학습 랩 카드 묶음: 설비 24개를 카드 한 장씩으로. 간격 반복(앞면 질문 → 뒷면 확인)과 소크라테스 모드의 목표가 같은 내용을 쓴다.
+// 학습 랩 카드 묶음: 설비 24개를 카드 한 장씩으로. 간격 반복(앞면 질문 → 뒷면 확인)이 쓴다.
 // 뒷면은 학습 화면의 설비 설명(data_v2.js의 role, 프론트 파일이라 읽기만 함)과 그 설비 공개 자료 메모(retrieval의 loadSectionChunks) 한 조각이다.
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";

@@ -3,11 +3,9 @@
 //   주간 리그  GET /api/me/lab/league
 //   xAPI 기록  GET /api/me/lab/xapi, POST /api/me/lab/xapi, GET /api/me/lab/xapi/export
 //   리플레이   POST /api/me/lab/replays, POST /api/me/lab/replays/:id/events, GET /api/me/lab/replays(/:id), DELETE /api/me/lab/replays/:id
-//   소크라테스 GET·POST /api/me/lab/socratic, GET /api/me/lab/socratic/:id, POST /api/me/lab/socratic/:id/turns·reveal
 import express from "express";
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
-import type { LlmClient } from "../../../llm/src/gemini.js";
 import { requireUser, type AuthDeps } from "../auth/routes.js";
 import type { User } from "../auth/users.js";
 import { defaultDemoSections, defaultRubrics } from "../admin/trainee-stats.js";
@@ -17,10 +15,9 @@ import { MeRepository } from "../me/repository.js";
 import type { DeckCard } from "./deck.js";
 import { computeLeague } from "./league.js";
 import { LabRepository } from "./repository.js";
-import { eunNeun, openingQuestion, revealText, socraticReply, SUGGEST_REVEAL_AFTER } from "./socratic.js";
 import { addDays, GRADES, MATURE_DAYS, NEW_PER_DAY, nextReview, type Grade, type SrState } from "./spaced.js";
 import { actorOf, PRACTICE_KINDS, statementFor, storedStatement, XAPI_VERSION, type PracticeKind, type Statement, type VerbKey } from "./xapi.js";
-import { NODES } from "./causal.js";
+import { josa, NODES } from "./causal.js";
 import { loadIncidents } from "./incidents.js";
 import { loadLessons, type LessonDef } from "./lessons.js";
 
@@ -48,8 +45,6 @@ export interface LabDeps {
   db: DatabaseSync;
   auth: AuthDeps;
   deck: DeckCard[];
-  /** 소크라테스 모드 LLM. 없으면 오프라인 튜터만 쓴다. */
-  llm?: LlmClient | null;
   now?: () => Date;
 }
 
@@ -63,10 +58,8 @@ const XapiBody = z.object({
   /** 3D 실습 살펴봄: 인과 따라가기·조건 링크(object_id = 인과 지도 변수), 사고 사례 갈림길 3D(object_id = 사례 id). 없으면 설비 살펴봄. */
   practice: z.enum(Object.keys(PRACTICE_KINDS) as [PracticeKind, ...PracticeKind[]]).optional(),
 });
-const SocraticStart = z.object({ equipment_id: z.string().regex(/^[a-z0-9_]{1,40}$/) });
-const SocraticTurn = z.object({ text: z.string().trim().min(1).max(500) });
 
-export function createLabRouter({ db, auth, deck, llm = null, now = () => new Date() }: LabDeps): express.Router {
+export function createLabRouter({ db, auth, deck, now = () => new Date() }: LabDeps): express.Router {
   const router = express.Router();
   const repo = new LabRepository(db);
   const me = new MeRepository(db);
@@ -90,7 +83,7 @@ export function createLabRouter({ db, auth, deck, llm = null, now = () => new Da
     const cardView = (c: DeckCard) => {
       const s = states.get(c.card_id) ?? null;
       return { card_id: c.card_id, section: c.section, section_name: c.section_name, equipment_id: c.equipment_id, equipment_name: c.equipment_name,
-        front: `${c.equipment_name}${eunNeun(c.equipment_name)} 어떤 일을 하나요?`, back: { role: c.role, memo: c.memo }, is_new: !s,
+        front: `${josa(c.equipment_name, "은", "는")} 어떤 일을 하나요?`, back: { role: c.role, memo: c.memo }, is_new: !s,
         state: s && { reps: s.reps, interval_days: s.interval_days, due_date: s.due_date, lapses: s.lapses, ease: s.ease },
         options: GRADES.map((g) => ({ grade: g, after: intervalLabel(nextReview(s, g, today).interval_days) })) };
     };
@@ -199,62 +192,6 @@ export function createLabRouter({ db, auth, deck, llm = null, now = () => new Da
   router.delete("/api/me/lab/replays/:id", login, (req, res) => {
     if (!repo.deleteReplay(userOf(res).id, String(req.params.id))) return bad(res, "없는 리플레이예요.", "UNKNOWN_REPLAY", 404);
     res.json({ ok: true });
-  });
-
-  // ── 소크라테스 모드 ──
-  const socraticView = (userId: string, id: string, extra: Record<string, unknown> = {}) => {
-    const s = repo.socratic(userId, id)!;
-    const card = byEquipment.get(s.equipment_id);
-    const turns = repo.turns(id);
-    const answered = turns.filter((t) => t.role === "user").length;
-    return { session: { ...s, equipment_name: card?.equipment_name ?? s.equipment_id, section_name: card?.section_name ?? s.section },
-      turns, answered, suggest_reveal: s.state === "active" && answered >= SUGGEST_REVEAL_AFTER, ...extra };
-  };
-  router.get("/api/me/lab/socratic", login, (_req, res) => {
-    const list = repo.socraticList(userOf(res).id).map((s) => ({ ...s, equipment_name: byEquipment.get(s.equipment_id)?.equipment_name ?? s.equipment_id, section_name: byEquipment.get(s.equipment_id)?.section_name ?? s.section }));
-    res.json({ sessions: list, equipment: deck.map((c) => ({ id: c.equipment_id, name: c.equipment_name, section: c.section, section_name: c.section_name })), llm: !!llm });
-  });
-  router.post("/api/me/lab/socratic", login, express.json(), (req, res) => {
-    const body = SocraticStart.safeParse(req.body);
-    if (!body.success) return bad(res, "설비를 골라 주세요.", "INVALID_EQUIPMENT");
-    const card = byEquipment.get(body.data.equipment_id);
-    if (!card) return bad(res, "없는 설비예요.", "UNKNOWN_EQUIPMENT", 404);
-    const user = userOf(res);
-    const id = repo.startSocratic(user.id, card.section, card.equipment_id, openingQuestion(card), now().toISOString());
-    res.status(201).json(socraticView(user.id, id));
-  });
-  router.get("/api/me/lab/socratic/:id", login, (req, res) => {
-    const user = userOf(res), id = String(req.params.id);
-    if (!repo.socratic(user.id, id)) return bad(res, "없는 대화예요.", "UNKNOWN_SOCRATIC", 404);
-    res.json(socraticView(user.id, id));
-  });
-  router.post("/api/me/lab/socratic/:id/turns", login, express.json(), async (req, res) => {
-    const user = userOf(res), id = String(req.params.id);
-    const s = repo.socratic(user.id, id);
-    if (!s) return bad(res, "없는 대화예요.", "UNKNOWN_SOCRATIC", 404);
-    if (s.state === "revealed") return bad(res, "정답을 본 대화는 끝났어요. 새 대화를 시작해 주세요.", "SOCRATIC_CLOSED", 409);
-    const body = SocraticTurn.safeParse(req.body);
-    if (!body.success) return bad(res, "답을 500자 안으로 적어 주세요.", "INVALID_TEXT");
-    const card = byEquipment.get(s.equipment_id);
-    if (!card) return bad(res, "없는 설비예요.", "UNKNOWN_EQUIPMENT", 404);
-    const history = repo.turns(id).map(({ role, text }) => ({ role, text }));
-    const reply = await socraticReply(llm, card, history, body.data.text, s.hint_level);
-    const stamp = now().toISOString();
-    repo.addTurn(id, "user", body.data.text, stamp);
-    repo.addTurn(id, "tutor", reply.reply, stamp);
-    const reached = s.state === "active" && reply.understood;
-    repo.updateSocratic(id, reached ? "reached" : s.state, reply.hint_level, stamp);
-    res.json(socraticView(user.id, id, { mode: reply.mode, understood: reply.understood, just_reached: reached }));
-  });
-  router.post("/api/me/lab/socratic/:id/reveal", login, (req, res) => {
-    const user = userOf(res), id = String(req.params.id);
-    const s = repo.socratic(user.id, id);
-    if (!s) return bad(res, "없는 대화예요.", "UNKNOWN_SOCRATIC", 404);
-    const card = byEquipment.get(s.equipment_id);
-    const stamp = now().toISOString();
-    if (card) repo.addTurn(id, "tutor", `정답을 정리해 드릴게요.\n${revealText(card)}`, stamp);
-    repo.updateSocratic(id, s.state === "reached" ? "reached" : "revealed", s.hint_level, stamp);
-    res.json(socraticView(user.id, id));
   });
 
   return router;

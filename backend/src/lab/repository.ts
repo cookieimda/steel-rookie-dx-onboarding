@@ -7,7 +7,6 @@ import type { StoredStatementRow } from "./xapi.js";
 export interface SrCardRow extends SrState { card_id: string; created_at: string; updated_at: string }
 export interface ReplaySession { id: string; started_at: string; ended_at: string; event_count: number }
 export interface ReplayEvent { seq: number; t_ms: number; type: string; data: unknown }
-export interface SocraticSession { id: string; section: string; equipment_id: string; state: "active" | "reached" | "revealed"; hint_level: number; created_at: string; updated_at: string }
 
 /** 리플레이 한 세션의 이벤트 상한(넘으면 더 받지 않는다). */
 export const MAX_REPLAY_EVENTS = 2000;
@@ -108,34 +107,5 @@ export class LabRepository {
     this.db.prepare("DELETE FROM replay_events WHERE session_id = ?").run(id);
     this.db.prepare("DELETE FROM replay_sessions WHERE id = ?").run(id);
     return true;
-  }
-
-  // ── 소크라테스 모드 ──
-  startSocratic(userId: string, section: string, equipmentId: string, opening: string, now: string): string {
-    const id = randomUUID();
-    this.db.prepare("INSERT INTO socratic_sessions (id, user_id, section, equipment_id, state, hint_level, created_at, updated_at) VALUES (?, ?, ?, ?, 'active', 0, ?, ?)")
-      .run(id, userId, section, equipmentId, now, now);
-    this.addTurn(id, "tutor", opening, now);
-    return id;
-  }
-  socratic(userId: string, id: string): SocraticSession | null {
-    const r = this.db.prepare("SELECT * FROM socratic_sessions WHERE id = ? AND user_id = ?").get(id, userId);
-    return r ? { id: String(r.id), section: String(r.section), equipment_id: String(r.equipment_id), state: r.state as SocraticSession["state"], hint_level: Number(r.hint_level), created_at: String(r.created_at), updated_at: String(r.updated_at) } : null;
-  }
-  socraticList(userId: string): (SocraticSession & { turns: number })[] {
-    return this.db.prepare(`SELECT s.*, (SELECT COUNT(*) FROM socratic_turns t WHERE t.session_id = s.id AND t.role = 'user') AS turns
-                              FROM socratic_sessions s WHERE s.user_id = ? ORDER BY s.updated_at DESC LIMIT 20`).all(userId)
-      .map((r) => ({ id: String(r.id), section: String(r.section), equipment_id: String(r.equipment_id), state: r.state as SocraticSession["state"], hint_level: Number(r.hint_level), created_at: String(r.created_at), updated_at: String(r.updated_at), turns: Number(r.turns) }));
-  }
-  turns(id: string): { role: "tutor" | "user"; text: string; created_at: string }[] {
-    return this.db.prepare("SELECT role, text, created_at FROM socratic_turns WHERE session_id = ? ORDER BY seq").all(id)
-      .map((r) => ({ role: r.role as "tutor" | "user", text: String(r.text), created_at: String(r.created_at) }));
-  }
-  addTurn(id: string, role: "tutor" | "user", text: string, now: string): void {
-    const seq = Number(this.db.prepare("SELECT COALESCE(MAX(seq), 0) AS n FROM socratic_turns WHERE session_id = ?").get(id)?.n ?? 0) + 1;
-    this.db.prepare("INSERT INTO socratic_turns (session_id, seq, role, text, created_at) VALUES (?, ?, ?, ?, ?)").run(id, seq, role, text, now);
-  }
-  updateSocratic(id: string, state: SocraticSession["state"], hintLevel: number, now: string): void {
-    this.db.prepare("UPDATE socratic_sessions SET state = ?, hint_level = ?, updated_at = ? WHERE id = ?").run(state, hintLevel, now, id);
   }
 }

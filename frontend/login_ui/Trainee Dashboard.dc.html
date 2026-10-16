@@ -143,7 +143,7 @@
     .ec-chip em { font-style: normal; color: var(--muted); font-weight: 600; }
     @media (max-width: 900px) { .ec { grid-template-columns: 1fr; } }
     @media (prefers-reduced-motion: reduce) { .ec-card, .ec-card::after, .ec-flame.on, .ec-promo-box, .ec-confetti i { animation: none !important; transition: none !important; } }
-    /* ── 학습 랩 탭(2026-10-15): 간격 반복·주간 리그·xAPI 기록·세션 리플레이·소크라테스. 로직은 learning-lab.js, 서버는 backend/src/lab/ ── */
+    /* ── 학습 랩 탭(2026-10-15): 간격 반복·주간 리그·xAPI 기록·세션 리플레이. 로직은 learning-lab.js, 서버는 backend/src/lab/ ── */
     .lb { flex-direction: column; gap: 16px; padding: 20px 22px 22px; min-width: 0; }
     .lb-sub { display: flex; flex-wrap: wrap; gap: 6px; }
     .dg-mis-map { display: inline-block; margin-top: 6px; font-size: 15px; font-weight: 700; color: var(--orange); text-decoration: none; }
@@ -231,18 +231,13 @@
     .lb-ev { display: flex; flex-direction: column; gap: 2px; max-height: 220px; overflow-y: auto; }
     .lb-ev button { display: grid; grid-template-columns: 52px 1fr; gap: 8px; padding: 5px 8px; border: 0; border-radius: var(--cut-s); background: transparent; color: var(--dim); font-size: 15px; text-align: left; cursor: pointer; }
     .lb-ev button.past { color: var(--muted); } .lb-ev button.now { color: var(--text); background: color-mix(in srgb, var(--orange) 16%, transparent); font-weight: 700; }
-    /* 소크라테스 */
+    /* 두 칸 배치(왼쪽 목록 + 오른쪽 본문)·고르기·입력: 사고 사례 등 추가 기능이 쓴다 */
     .lb-soc { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 14px; }
     .lb-select { height: 38px; padding: 0 10px; border-radius: var(--cut-s); border: 1px solid var(--line); background: var(--panel2); color: var(--text); font-size: 15px; width: 100%; }
-    .lb-chat { display: flex; flex-direction: column; gap: 8px; min-height: 240px; max-height: 420px; overflow-y: auto; padding: 4px; }
-    .lb-chat .lb-bubble { white-space: pre-wrap; font-size: 16px; }
-    .lb-hints { display: inline-flex; gap: 4px; align-items: center; }
-    .lb-hints i { width: 10px; height: 10px; border-radius: 50%; background: var(--line); } .lb-hints i.on { background: var(--mid); }
-    .lb-banner { padding: 10px 14px; border-radius: var(--cut-s); background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); font-weight: 700; font-size: 16px; animation: lb-in .4s ease; }
     .lb-input { display: flex; gap: 8px; }
     .lb-input input { flex: 1; min-width: 0; height: 40px; padding: 0 12px; border-radius: var(--cut-s); border: 1px solid var(--line); background: var(--panel2); color: var(--text); font-size: 15px; }
     @media (max-width: 900px) { .lb-rp, .lb-soc { grid-template-columns: 1fr; } .lb-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .lb-xa summary { grid-template-columns: 1fr 1fr; } }
-    @media (prefers-reduced-motion: reduce) { .lb-flash, .lb-back, .lb-banner { animation: none !important; } }
+    @media (prefers-reduced-motion: reduce) { .lb-flash, .lb-back { animation: none !important; } }
     /* ── 학습 랩 추가(2026-10-15): 사고 사례 · What-if · 설비 메모 · 내 오답 유형 · 알림 벨(lab-extras.js) ── */
     .lb-area { width: 100%; padding: 10px 12px; border-radius: var(--cut-s); border: 1px solid var(--line); background: var(--panel2); color: var(--text); font-size: 15px; font-family: inherit; resize: vertical; }
     .ic-time { list-style: none; margin: 0; padding: 0 0 0 14px; border-left: 3px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
@@ -492,7 +487,7 @@
         </div>
         </sc-if>
       </section>
-      <!-- 학습 랩: 간격 반복·주간 리그·xAPI 기록·세션 리플레이·소크라테스(learning-lab.js, 서버 backend/src/lab/) -->
+      <!-- 학습 랩: 간격 반복·주간 리그·xAPI 기록·세션 리플레이(learning-lab.js, 서버 backend/src/lab/) -->
       <section class="dg-mframe dg-pane dg-pop lb" data-sec="lab" aria-label="학습 랩" style="display:{{ labDisplay }};">
         <div class="dg-section-head"><span class="dg-label">[ LEARNING LAB ]</span><h2 class="dg-h2">학습 랩</h2><span class="dg-sub">복습 일정·리그·학습 기록을 한곳에서</span></div>
         <!-- 오늘의 실습 경로: 내 3D 실습 기록으로 가장 약한 공정을 골라 3D 화면의 실습으로 바로 보낸다(GET /api/lab/practice-path) -->
@@ -591,31 +586,6 @@
                 <input type="range" class="lb-seek" min="0" max="{{ rpTotal }}" step="100" value="{{ rpPos }}" onChange="{{ rpSeek }}" aria-label="재생 위치">
                 <div class="lb-ev"><sc-for list="{{ rpEvents }}" as="e" hint-placeholder-count="5"><button type="button" class="{{ e.cls }}" onClick="{{ e.onClick }}"><span style="font-family:var(--mono);">{{ e.t }}</span><span>{{ e.text }}</span></button></sc-for></div>
                 <button type="button" class="lb-btn ghost" onClick="{{ rpDelete }}" style="align-self:flex-start;">이 기록 지우기</button>
-              </sc-if>
-            </div>
-          </div>
-        </div>
-
-        <!-- ⑤ 소크라테스: 답 대신 질문으로 이끈다. LLM이 없으면 서버의 오프라인 튜터가 이어 간다 -->
-        <div class="lb-pane" style="display:{{ labShowSocratic }};">
-          <span class="lb-muted">포석호가 답을 바로 알려 주지 않고 질문으로 이끌어요. 설비가 하는 일을 내 말로 설명하면 성공(+25 XP)이에요. {{ soOfflineText }}</span>
-          <div class="lb-soc">
-            <div style="display:flex;flex-direction:column;gap:8px;">
-              <select class="lb-select" value="{{ soEq }}" onChange="{{ soPick }}" aria-label="설비"><sc-for list="{{ soEquipment }}" as="o" hint-placeholder-count="4"><option value="{{ o.value }}">{{ o.label }}</option></sc-for></select>
-              <button type="button" class="lb-btn" onClick="{{ soStart }}" disabled="{{ soBusy }}">새 대화 시작</button>
-              <div class="lb-list"><sc-for list="{{ soSessions }}" as="x" hint-placeholder-count="0"><button type="button" class="{{ x.cls }}" aria-pressed="{{ x.on }}" onClick="{{ x.onClick }}">{{ x.label }}<span>{{ x.sub }}</span></button></sc-for></div>
-            </div>
-            <div class="lb-box" style="min-width:0;">
-              <sc-if value="{{ soNone }}" hint-placeholder-val="{{ true }}"><span class="lb-muted">설비를 고르고 [새 대화 시작]을 눌러 보세요.</span></sc-if>
-              <sc-if value="{{ soHas }}" hint-placeholder-val="{{ false }}">
-                <div class="lb-row" style="justify-content:space-between;"><strong>{{ soTitle }}</strong><span class="lb-row" style="gap:8px;"><span class="lb-muted">힌트</span><span class="lb-hints"><sc-for list="{{ soHints }}" as="h" hint-placeholder-count="3"><i class="{{ h.cls }}"></i></sc-for></span><span class="lb-chip">{{ soState }}</span></span></div>
-                <sc-if value="{{ soHasBanner }}" hint-placeholder-val="{{ false }}"><div class="lb-banner">{{ soBanner }}</div></sc-if>
-                <div class="lb-chat" aria-live="polite"><sc-for list="{{ soTurns }}" as="t" hint-placeholder-count="2"><div class="lb-bubble {{ t.cls }}">{{ t.text }}</div></sc-for></div>
-                <form class="lb-input" onSubmit="{{ soSend }}">
-                  <input value="{{ soInput }}" onChange="{{ soOnInput }}" placeholder="내 생각을 적어 보세요" aria-label="답" disabled="{{ soClosed }}">
-                  <button type="submit" class="lb-btn" disabled="{{ soCantSend }}">보내기</button>
-                </form>
-                <div class="lb-row"><button type="button" class="lb-btn ghost" onClick="{{ soReveal }}" disabled="{{ soClosed }}">정답 보기</button><sc-if value="{{ soSuggestReveal }}" hint-placeholder-val="{{ false }}"><span class="lb-muted">많이 고민했어요. 정답을 보고 정리해도 괜찮아요.</span></sc-if></div>
               </sc-if>
             </div>
           </div>

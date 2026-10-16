@@ -46,6 +46,9 @@
 .lab-gauge strong small { font: 300 16px var(--f-num); color: var(--ink-lo); }
 .lab-temperature-result b { font: 300 24px var(--f-num); color: var(--ink-hi); }
 
+/* What-if 온도 계기는 위에 고정(sticky)하지 않는다. 판이 반투명이라 고정하면 아래로 내릴 때 슬라이더가 비쳐 겹친다 */
+.lab-gauge-slot { position: static; }
+
 /* 판 안의 칸: 테두리 대신 아주 옅은 면 */
 .lab-gauge, .lab-temperature-result > div, .lab-status {
   background: var(--glass-2); border: 1px solid rgba(255, 255, 255, .06); border-radius: 12px; box-shadow: none;

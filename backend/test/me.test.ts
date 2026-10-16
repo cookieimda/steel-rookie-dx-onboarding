@@ -77,6 +77,9 @@ test("학습 현황은 로그인한 신입사원의 DB 기록만 돌려준다", 
   assert.deepEqual(json.review_concepts, []);
   assert.deepEqual(json.misconceptions.map((m: { id: string }) => m.id), ["m3", "m2", "m1"]);
   assert.equal(json.misconceptions.find((m: any) => m.concept_id === "sinter_purpose").concept_name, "소결의 목적");
+  // 사원증: 본인의 해결된 오개념(m2) 1개만 기록으로 센다
+  assert.equal(json.employee_card.counts.misconceptions_resolved, 1);
+  assert.equal(json.employee_card.rank.title, "수습사원");
   assert.ok(!JSON.stringify(json).includes("다른 사람"));
 });
 

@@ -6,6 +6,7 @@
 import { createApiClient } from '../3d-demo/api-client.js';
 import { motionFor } from '../3d-demo/checkpoint-chat.js';
 import { playSfx, setSfxOn, sfxFor, sfxOn, sfxSupported } from '../3d-demo/tutor-sfx.js';
+import { CAL_KINDS, icon, kindOf, kstDay, PROCESS_ICONS, renderCalendar, renderRoadmap, renderSquares, renderSteps, renderThresholdChart, SHORT_NAMES } from './exam-visuals.js';
 
 const api = createApiClient();
 const $ = (id) => document.getElementById(id);
@@ -27,7 +28,9 @@ const IDLE_BUBBLE = '응시할 공정을 고르면 제가 질문할게요.';
 const pct = (value) => `${Math.round(value * 100)}%`;
 const scoreTone = (value) => (value >= 0.8 ? 'ok' : value >= 0.6 ? 'mid' : 'bad');
 /** trail: 지금 작업이 지나온 단계(망치 화면의 단계 칸). 작업이 바뀌면 비운다 */
-const state = { user: null, sections: [], view: null, activeJob: null, submission: null, draft: '', watching: false, pending: false, trail: { job: null, phases: [] } };
+const state = { user: null, sections: [], view: null, activeJob: null, submission: null, draft: '', watching: false, pending: false, trail: { job: null, phases: [] },
+  // slide: 시험지 묶음에서 보이는 공정, cal: 학습 캘린더(보는 달 · 고른 날 · 일정)
+  slide: null, cal: { month: null, selected: null, today: null, items: [] } };
 /** 포석호 무대: 엘리먼트 한 개, 지금 동작, 마지막으로 보여 준 발화 키, 반응 동작 타이머, 타자 효과(typer·typing) */
 const stage = { el: null, motion: 'idle', key: null, timer: 0, typer: 0, typing: null, mobile: matchMedia('(max-width: 740px)'), reduced: matchMedia('(prefers-reduced-motion: reduce)') };
 const key = (suffix) => `st-rookie:exam:${state.user?.id}:${suffix}`;
@@ -72,15 +75,27 @@ function renderSections() {
   const sections = state.sections;
   const passed = sections.filter((s) => s.progress?.unlocked).length;
   const open = sections.filter((s) => s.checkpoint && s.progress?.open && !s.progress?.unlocked).length;
-  $('kpi-passed').textContent = String(passed); $('kpi-passed-unit').textContent = `/ ${sections.length || 4}`;
+  $('kpi-passed').textContent = String(passed); $('kpi-passed-unit').textContent = ` / ${sections.length || 4}`;
   $('kpi-passed-card').dataset.tone = passed ? 'ok' : '';
   $('kpi-open').textContent = String(open);
+  // 요약 그림: 통과 기준 그래프 · 로드맵 · 응시 가능 네모 칸. 로드맵·네모 칸을 누르면 그 공정 시험지로 넘긴다.
+  renderThresholdChart($('kpi-chart'), sections, 0.8);
+  renderRoadmap($('roadmap'), sections, goSlide);
+  renderSquares($('open-squares'), sections, goSlide);
+  // 처음 보이는 시험지: 지금 응시 중인 공정 → 응시 가능한 공정 → 첫 공정
+  if (state.slide === null && sections.length) {
+    const at = sections.findIndex((s) => s.section === state.view?.section);
+    const ready = sections.findIndex((s) => ['progress', 'open'].includes(kindOf(s)));
+    state.slide = at >= 0 ? at : ready >= 0 ? ready : 0;
+  }
   $('sections').replaceChildren(...sections.map((s, i) => {
     const p = s.progress, active = state.view?.section === s.section;
-    const kind = !s.checkpoint ? 'prep' : p?.unlocked ? 'pass' : p?.in_progress_attempt_id ? 'progress' : p?.open ? 'open' : 'locked';
-    const card = el('article', `process-card${active ? ' active' : ''}${kind === 'prep' || kind === 'locked' ? ' unavailable' : ''}`);
+    const kind = kindOf(s);
+    const card = el('article', `process-card paper${active ? ' active' : ''}${kind === 'prep' || kind === 'locked' ? ' unavailable' : ''}`);
+    card.dataset.kind = kind;
+    card.setAttribute('aria-roledescription', 'slide'); card.setAttribute('aria-label', `${i + 1} / ${sections.length} · ${s.name}`);
     const top = el('div', 'process-top');
-    top.append(el('span', 'process-num', `0${i + 1}`), el('span', 'process-name', s.name), chip(...SECTION_CHIP[kind]));
+    top.append(icon(PROCESS_ICONS[s.section] || '', 'paper-ico'), el('span', 'process-num', `0${i + 1}`), el('span', 'process-name', `${s.name} 평가 시험지`), chip(...SECTION_CHIP[kind]));
     // 이해도: 마지막 결과가 있으면 점수 색으로, 없으면 —. 응시 중이면 확정한 개념 수를 막대로 보여 준다.
     const understanding = p?.understanding ?? null;
     const mid = el('div', 'process-mid'), score = el('span', 'process-score', understanding == null ? '—' : pct(understanding));
@@ -111,9 +126,39 @@ function renderSections() {
       } catch (error) { notice(copyError(error)); }
     }, kind === 'open' || kind === 'progress' ? 'btn' : 'btn secondary');
     action.disabled = !s.checkpoint || (!p?.open && !p?.unlocked) || state.pending;
-    card.append(top, mid, bar, el('p', 'micro', meta), action);
+    // 시험지 장식: 줄 쳐진 답안 칸과 통과 도장
+    const lines = el('div', 'paper-lines'); lines.setAttribute('aria-hidden', 'true');
+    card.append(top, mid, bar, lines, el('p', 'micro', meta), action);
+    if (kind === 'pass') card.append(el('span', 'paper-stamp', '통과'));
     return card;
   }));
+  $('deck-tabs').replaceChildren(...sections.map((s, i) => {
+    const tab = el('button', `deck-tab ${kindOf(s)}`); tab.type = 'button'; tab.setAttribute('role', 'tab');
+    tab.append(icon(PROCESS_ICONS[s.section] || '', 'tab-ico'), el('span', '', SHORT_NAMES[s.section] || s.name));
+    tab.addEventListener('click', () => goSlide(i));
+    return tab;
+  }));
+  placeSlides();
+}
+/** 시험지 위치: 지금 장(0)은 앞, 다음 장(1·2)은 오른쪽 뒤로 겹쳐 쌓고, 지난 장(-1)은 왼쪽으로 넘어간 모습. */
+function placeSlides(dir = 0) {
+  const cards = [...$('sections').querySelectorAll('.process-card')], n = cards.length, cur = state.slide ?? 0;
+  cards.forEach((card, i) => {
+    const offset = i - cur;
+    card.dataset.offset = String(Math.max(-2, Math.min(3, offset)));
+    card.inert = offset !== 0; card.setAttribute('aria-hidden', String(offset !== 0));
+  });
+  $('sections').dataset.dir = dir > 0 ? 'next' : dir < 0 ? 'prev' : '';
+  [...$('deck-tabs').children].forEach((tab, i) => { tab.setAttribute('aria-selected', String(i === cur)); });
+  $('deck-prev').disabled = cur <= 0; $('deck-next').disabled = cur >= n - 1;
+}
+function goSlide(i) {
+  const n = state.sections.length;
+  if (!n) return;
+  const next = Math.max(0, Math.min(n - 1, i));
+  if (next === state.slide) return;
+  const dir = next - (state.slide ?? 0);
+  state.slide = next; placeSlides(dir);
 }
 async function openAttempt(id) {
   state.view = await api.request('GET', `/api/exams/${id}`);
@@ -229,6 +274,9 @@ function renderExam() {
   if (phase) { stageChip.textContent = phase[0]; stageChip.dataset.tone = phase[1]; }
   renderStage(speechFor(view));
   const root = $('exam-body'); root.replaceChildren();
+  // 진행 순서(아이콘 4단계): 응시 전에는 크게, 응시 중에는 지금 단계를 표시한 얇은 띠로
+  const flow = el('div', view ? 'flow-wrap compact' : 'flow-wrap'); root.append(flow);
+  renderSteps(flow, !view ? 0 : view.state === 'completed' ? 3 : view.state === 'awaiting_recheck' ? 2 : 1);
   if (!view) return;
   if (view.state === 'completed') {
     renderResult(root, view.result);
@@ -286,7 +334,41 @@ function renderResult(root, result) {
   for (const [text, color] of [['맞음', 'ok'], ['부분', 'mid'], ['틀림', 'bad']]) { const item = el('span'), dot = el('i'); dot.style.background = `var(--${color})`; item.append(dot, text); legend.append(item); }
   const tools = el('div', 'exam-tools'); tools.append(button('학습 기록으로 돌아가기', () => leave('/login')));
   if (!result.unlocked) tools.append(button('부족한 개념 다시 응시', () => dispatch('/api/exams', { section: state.view.section }), 'btn secondary'));
-  wrap.append(top, gauge, title, list, legend, tools); root.append(wrap);
+  // 채점 근거 하이라이트: 내 답안의 어느 구절이 핵심 요소에 해당했는지(펼칠 때 불러온다, 참고용 자동 표시)
+  const proof = el('details', 'proof'); proof.append(el('summary', '', '내 답안에서 근거 찾아보기'));
+  proof.addEventListener('toggle', () => { if (proof.open && !proof.dataset.loaded) { proof.dataset.loaded = '1'; void renderProof(proof, state.view.attempt_id); } });
+  wrap.append(top, gauge, title, list, legend, proof, tools); root.append(wrap);
+}
+const KP_COLORS = ['#2f80ed', '#e2a400', '#9b51e0', '#eb5757', '#27ae60', '#f2994a'];
+async function renderProof(box, attemptId) {
+  const body = el('div', 'proof-body'); body.append(el('p', 'muted', '불러오는 중이에요…')); box.append(body);
+  try {
+    const data = await api.request('GET', `/api/exams/${attemptId}/highlights`);
+    body.replaceChildren(el('p', 'micro', '핵심 요소와 비슷한 구절을 자동으로 색칠했어요. 판정·점수와는 별개인 참고 표시예요. 밑줄은 평가자가 근거로 든 부분이에요.'));
+    for (const c of data.concepts) {
+      const card = el('div', 'proof-card'); card.append(el('strong', '', c.name));
+      const kps = el('ul', 'proof-kps');
+      const first = c.first, recheck = c.recheck, points = (first || recheck).key_points;
+      points.forEach((k, i) => {
+        const hit = (first?.key_points[i]?.matched) || (recheck?.key_points[i]?.matched);
+        const li = el('li', hit ? 'hit' : 'miss'); const dot = el('i'); dot.style.background = KP_COLORS[i % KP_COLORS.length];
+        li.append(dot, el('span', '', k.point), el('b', '', hit ? '✓ 말함' : '– 안 보임')); kps.append(li);
+      });
+      card.append(kps);
+      for (const [label, part] of [['첫 답', first], ['다시 확인 답', recheck]]) {
+        if (!part) continue;
+        const p = el('p', 'proof-answer'); p.append(el('span', 'proof-label', label));
+        for (const seg of part.segments) {
+          const span = el(seg.kp === null ? 'span' : 'mark', seg.evidence ? 'ev' : '', seg.text);
+          if (seg.kp !== null) span.style.setProperty('--kp', KP_COLORS[seg.kp % KP_COLORS.length]);
+          p.append(span);
+        }
+        card.append(p);
+      }
+      body.append(card);
+    }
+    if (!data.concepts.length) body.append(el('p', 'muted', '표시할 답안이 없어요.'));
+  } catch (error) { body.replaceChildren(el('p', 'muted', copyError(error))); }
 }
 async function dispatch(path, body, existing) {
   if (state.pending && !existing) return;
@@ -339,33 +421,66 @@ async function cancel() {
 async function refreshAside() {
   const results = await Promise.allSettled([api.request('GET', '/api/me/reviews'), api.request('GET', '/api/me/assignments'), api.request('GET', '/api/me/exam-history')]);
   const [reviews, assignments, history] = results.map((r) => r.status === 'fulfilled' ? r.value : null);
+  const today = reviews?.today || kstDay(new Date().toISOString());
+  const items = [];
   if (reviews) {
-    const tasks = reviews.tasks.filter((t) => !t.completed), count = $('review-count');
-    count.hidden = false; count.textContent = String(tasks.length); count.dataset.tone = tasks.length ? 'mid' : '';
-    $('reviews').replaceChildren(...(tasks.length ? tasks.slice(0, 5).map((task) => {
-      const item = el('div', 'item');
-      item.append(el('strong', '', task.concept_name), el('span', 'micro', `${task.due ? '오늘 복습' : task.due_date} · ${task.reason}`), button('복습 완료', async () => {
-        try { await api.request('POST', `/api/me/reviews/${task.id}/complete`, {}); await refreshAside(); } catch (error) { notice(copyError(error)); }
-      }, 'btn pill'));
-      return item;
-    }) : [el('p', 'muted', '평가를 마치면 1·3·7일 기준으로 복습 일정을 정해요.')]));
+    const open = reviews.tasks.filter((t) => !t.completed), count = $('review-count');
+    count.hidden = false; count.textContent = `복습 ${open.length}`; count.dataset.tone = open.length ? 'mid' : '';
+    for (const task of reviews.tasks) items.push({ kind: 'review', date: task.due_date, task });
   }
-  if (assignments) $('assignments').replaceChildren(...(assignments.assignments.length ? assignments.assignments.slice(0, 5).map((a) => {
-    const item = el('div', 'item'), row = el('div', 'item-row');
-    row.append(el('strong', '', a.title), a.status === 'completed' ? chip('완료', 'ok') : a.status === 'overdue' ? chip('마감 지남', 'bad') : chip('응시 대기', 'mid'));
-    item.append(row, el('span', 'micro', `${a.group_name} · ${a.due_date}까지`)); return item;
-  }) : [el('p', 'muted', '아직 배정된 시험이 없어요.')]));
+  if (assignments) for (const a of assignments.assignments) items.push({ kind: 'assignment', date: a.due_date, assignment: a });
   if (history) {
-    const seen = new Set(), completed = history.events.filter((e) => { if (e.view.state !== 'completed' || seen.has(e.attempt_id)) return false; seen.add(e.attempt_id); return true; });
-    $('history').replaceChildren(...(completed.length ? completed.slice(0, 4).map((event) => {
-      const item = el('div', 'item'), row = el('div', 'item-row'), name = state.sections.find((s) => s.section === event.view.section)?.name || event.view.section;
-      const understanding = event.view.result.understanding;
-      const score = el('span', '', pct(understanding)); score.style.cssText = `font-family:var(--font-en);font-weight:800;color:var(--${event.view.result.unlocked ? 'ok' : scoreTone(understanding)})`;
-      row.append(el('strong', '', name), score);
-      item.append(row, el('span', 'micro', `${new Date(event.created_at).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })} · ${event.view.result.unlocked ? '통과' : '다시 도전'}`), button('결과 보기', () => openAttempt(event.attempt_id), 'btn pill'));
-      return item;
-    }) : [el('p', 'muted', '완료한 시험의 기준과 결과를 함께 기록해요.')]));
+    const seen = new Set();
+    for (const e of history.events) {
+      if (e.view.state !== 'completed' || seen.has(e.attempt_id)) continue;
+      seen.add(e.attempt_id);
+      items.push({ kind: e.view.result.unlocked ? 'pass' : 'retry', date: kstDay(e.created_at), event: e });
+    }
   }
+  Object.assign(state.cal, { items, today, month: state.cal.month || today.slice(0, 7), selected: state.cal.selected || today });
+  renderCal();
+}
+/** 학습 캘린더: 달력 + 고른 날의 일정 + 다가오는 일정(오늘부터 남은 복습·배정 시험 3개). */
+function renderCal() {
+  const c = state.cal;
+  const count = (kinds) => c.items.filter((x) => kinds.includes(x.kind) && !(x.kind === 'review' && x.task.completed) && !(x.kind === 'assignment' && x.assignment.status === 'completed')).length;
+  $('cal-sum').replaceChildren(...[[['review'], '남은 복습'], [['assignment'], '배정 시험'], [['pass', 'retry'], '평가 기록']].map(([kinds, label]) => {
+    const item = el('span', 'cal-chip'); item.append(el('i', `dot ${CAL_KINDS[kinds[0]][1]}`), document.createTextNode(`${label} ${count(kinds)}`)); return item;
+  }));
+  renderCalendar($('calendar'), { month: c.month, selected: c.selected, today: c.today, items: c.items,
+    onMonth: (d) => { const [y, m] = c.month.split('-').map(Number), t = new Date(Date.UTC(y, m - 1 + d, 1)); c.month = t.toISOString().slice(0, 7); renderCal(); },
+    onPick: (date, jump) => { c.selected = date; if (jump) c.month = date.slice(0, 7); renderCal(); } });
+  const [, m, d] = c.selected.split('-').map(Number);
+  $('cal-pick-title').textContent = `${m}월 ${d}일${c.selected === c.today ? ' · 오늘' : ''}`;
+  const day = c.items.filter((x) => x.date === c.selected);
+  $('cal-list').replaceChildren(...(day.length ? day.map(calItem) : [el('p', 'muted', '이 날은 일정이 없어요.')]));
+  const upcoming = c.items.filter((x) => x.date >= c.today && (x.kind === 'assignment' ? x.assignment.status !== 'completed' : x.kind === 'review' && !x.task.completed))
+    .sort((a, b) => a.date.localeCompare(b.date)).slice(0, 3);
+  $('cal-upcoming').replaceChildren(...(upcoming.length ? upcoming.map(calItem) : [el('p', 'muted', '평가를 마치면 1·3·7일 기준으로 복습 일정을 정해요.')]));
+}
+/** 캘린더 일정 한 줄: 복습(복습 완료) · 배정 시험(상태 칩) · 평가 기록(결과 보기) */
+function calItem(x) {
+  const item = el('div', `item cal-item ${x.kind}`), row = el('div', 'item-row');
+  const when = (date) => (date === state.cal.today ? '오늘' : `${Number(date.slice(5, 7))}월 ${Number(date.slice(8))}일`);
+  row.append(el('i', `dot ${CAL_KINDS[x.kind][1]}`));
+  if (x.kind === 'review') {
+    const t = x.task;
+    row.append(el('strong', '', t.concept_name), t.completed ? chip('완료', 'ok') : chip(t.due ? '오늘 복습' : '복습', 'mid'));
+    item.append(row, el('span', 'micro', `${when(t.due_date)} · ${t.reason}`));
+    if (!t.completed) item.append(button('복습 완료', async () => {
+      try { await api.request('POST', `/api/me/reviews/${t.id}/complete`, {}); await refreshAside(); } catch (error) { notice(copyError(error)); }
+    }, 'btn pill'));
+  } else if (x.kind === 'assignment') {
+    const a = x.assignment;
+    row.append(el('strong', '', a.title), a.status === 'completed' ? chip('완료', 'ok') : a.status === 'overdue' ? chip('마감 지남', 'bad') : chip('응시 대기', 'mid'));
+    item.append(row, el('span', 'micro', `${a.group_name} · ${when(a.due_date)}까지`));
+  } else {
+    const e = x.event, name = state.sections.find((s) => s.section === e.view.section)?.name || e.view.section, u = e.view.result.understanding;
+    const score = el('span', 'cal-score', pct(u)); score.style.color = `var(--${e.view.result.unlocked ? 'ok' : scoreTone(u)})`;
+    row.append(el('strong', '', `${name} 평가`), score);
+    item.append(row, el('span', 'micro', `${when(x.date)} · ${e.view.result.unlocked ? '통과' : '다시 도전'}`), button('결과 보기', () => openAttempt(e.attempt_id), 'btn pill'));
+  }
+  return item;
 }
 async function leave(url) {
   if (state.pending) return notice('처리 중인 요청을 먼저 취소해 주세요.');
@@ -374,21 +489,20 @@ async function leave(url) {
   }
   location.assign(url);
 }
-// 테마: 사용자가 고른 값(st-rookie-theme) → 시스템 설정. 학습 기록과 같은 규칙이다.
-const THEME_KEY = 'st-rookie-theme';
-const savedTheme = () => { try { const t = localStorage.getItem(THEME_KEY); return t === 'light' || t === 'dark' ? t : null; } catch { return null; } };
-const lightQuery = matchMedia('(prefers-color-scheme: light)');
-const systemTheme = () => (lightQuery.matches ? 'light' : 'dark');
-function theme(value, persist = false) {
-  document.body.dataset.theme = value; $('theme').textContent = value === 'dark' ? '☀' : '☾';
-  if (persist) { try { localStorage.setItem(THEME_KEY, value); } catch {} }
-}
-$('theme').addEventListener('click', () => theme(document.body.dataset.theme === 'dark' ? 'light' : 'dark', true));
-lightQuery.addEventListener('change', () => { if (!savedTheme()) theme(systemTheme()); });
+// 테마: 밝은 테마로 고정(다크 모드 뺌, exam.html의 body data-theme="light"). 학습 기록과 같다.
 stage.mobile.addEventListener('change', sizeCharacter);
 $('sfx').addEventListener('click', () => { setSfxOn(!sfxOn()); renderSfx(); });
 document.querySelectorAll('[data-leave]').forEach((node) => node.addEventListener('click', (event) => { event.preventDefault(); void leave(node.getAttribute('href')); }));
 $('cancel-job').addEventListener('click', cancel);
+// 시험지 넘기기: 화살표 버튼 · 키보드 ←→ · 끌어서 넘기기(40px 이상)
+$('deck-prev').addEventListener('click', () => goSlide((state.slide ?? 0) - 1));
+$('deck-next').addEventListener('click', () => goSlide((state.slide ?? 0) + 1));
+$('sections').addEventListener('keydown', (event) => { if (event.key === 'ArrowLeft') goSlide((state.slide ?? 0) - 1); if (event.key === 'ArrowRight') goSlide((state.slide ?? 0) + 1); });
+{
+  let startX = null;
+  $('sections').addEventListener('pointerdown', (event) => { if (!event.target.closest('button')) startX = event.clientX; });
+  addEventListener('pointerup', (event) => { if (startX === null) return; const dx = event.clientX - startX; startX = null; if (Math.abs(dx) > 40) goSlide((state.slide ?? 0) + (dx < 0 ? 1 : -1)); });
+}
 $('forge').addEventListener('cancel', (event) => { event.preventDefault(); void cancel(); });
 $('reconnect').addEventListener('click', () => {
   $('reconnect').hidden = true;
@@ -404,12 +518,12 @@ $('logout').addEventListener('click', async () => {
 });
 async function boot() {
   // 공정 선택 화면(포석호 idle · 안내 말풍선)은 HTML에 그대로 있어 처음에는 다시 그리지 않는다. 복원한 시도는 renderStage가 첫 발화로 보고 효과음을 내지 않는다.
-  theme(savedTheme() || systemTheme()); renderSfx();
+  renderSfx();
   if (!api.hasToken()) return location.replace('/login_ui/home-sleek.html?next=exam');
   void mountCharacter();
   try {
     state.user = (await api.request('GET', '/api/auth/me')).user; $('profile').textContent = `${state.user.name} · ${state.user.employee_no}`;
-    await refreshSections(); $('where').dataset.tone = 'ok'; await refreshAside();
+    await refreshSections(); $('where').dataset.tone = 'ok'; renderExam(); await refreshAside();
     const jobId = read('job'), submission = read('submission'), attempt = read('attempt');
     if (attempt) { try { await openAttempt(attempt); } catch { save('attempt', null); } }
     if (jobId) await watch(jobId); else if (submission) await dispatch(submission.path, submission.body, submission);

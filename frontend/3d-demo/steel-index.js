@@ -185,7 +185,7 @@ function renderProg(p) { // 학습 현황을 벽 대시보드로 보낸다
 // ---- 상단 알약 바 --------------------------------------------------------------------------------------
 $('icHome').src = icon('home', '#111111', 1.8); $('btnHome').classList.add('on'); $('btnHome').onclick = () => { location.href = '/login_ui/home-sleek.html'; };
 $('icClose').src = icon('close', '#e6ebf1', 1.8); $('btnClose').onclick = () => leaveStep();
-$('icUser').src = icon('user', '#e6ebf1', 1.6); $('btnUser').onclick = () => { location.href = '/login_ui/home-sleek.html'; };
+$('icUser').src = icon('user', '#e6ebf1', 1.6); $('btnUser').onclick = () => { location.href = '/login'; }; // 마이페이지(학습 기록), steel-intro.html의 마이페이지 링크와 같은 곳
 // 로그아웃: 로그아웃 API는 없다(JWT, docs/auth-api.md). 토큰이 있을 때만 보이고, 누르면 이 브라우저의 토큰과 이어 보던 학습 대화 id를 지우고 홈으로 간다(steel-intro.html과 같음).
 $('icLogout').src = icon('logout', '#e6ebf1', 1.6);
 { let hasToken = false; try { hasToken = !!(localStorage.getItem('st-rookie-token') || sessionStorage.getItem('st-rookie-token')); } catch (e) {} $('btnLogout').hidden = !hasToken; }

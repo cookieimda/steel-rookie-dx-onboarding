@@ -10,6 +10,7 @@ import { CheckpointError, SECTION_ORDER, SECTION_NAMES, type CheckpointView, typ
 import { profileFor, providerInfo } from "../../../llm/src/provider.js";
 import type { EducationJobs, EducationJob } from "./jobs.js";
 import { EducationRepository, hashOf, koreanDay } from "./repository.js";
+import { MaterialWorkflow } from "./workflow.js";
 
 const Section = z.enum(SECTION_ORDER);
 const Day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((day) => {
@@ -47,6 +48,8 @@ function examMetadata(): Record<string, unknown> {
 
 export function createEducationRouter({ auth, engine, jobs, repo, onMaterialsChanged, metadata }: EducationDeps) {
   const router = Router(), login = requireUser(auth), db = repo.db;
+  // 자료 검수 단계 기록(012). 등록·승인·반려도 같은 기록을 남긴다(workflow-routes.ts가 검수 요청·수정 요청·수정본을 더한다).
+  const workflow = new MaterialWorkflow(db);
   const currentMetadata = metadata ?? examMetadata;
   const submit = (req: Request, res: Response, kind: string, section: Section, payload: unknown, run: () => Promise<CheckpointView>) => {
     const userId = owner(res), info = { ...currentMetadata(), rubric_version: repo.rubricVersions.get(section) ?? null, section };
@@ -142,14 +145,17 @@ export function createEducationRouter({ auth, engine, jobs, repo, onMaterialsCha
   router.post("/api/admin/education/materials", login, requireAdmin, handle((req, res) => {
     const input = parse(z.object({ section: Section, title: z.string().trim().min(1).max(100), body: z.string().trim().min(1).max(20000),
       source_url: z.string().url().refine((url) => url.startsWith("https://"), "출처는 HTTPS 주소를 사용해 주세요."), publisher: z.string().trim().min(1).max(80) }), req.body);
-    res.status(201).json(repo.createMaterial(owner(res), input));
+    const created = repo.createMaterial(owner(res), input);
+    workflow.log(String(created.id), owner(res), "created");
+    res.status(201).json(created);
   }));
   router.post("/api/admin/education/materials/:id/review", login, requireAdmin, handle((req, res) => {
-    const { decision } = parse(z.object({ decision: z.enum(["approved", "rejected"]) }), req.body), row = repo.materials().find((r) => r.id === idOf(req));
+    const { decision, comment } = parse(z.object({ decision: z.enum(["approved", "rejected"]), comment: z.string().trim().max(1000).optional() }), req.body), row = repo.materials().find((r) => r.id === idOf(req));
     if (!row) throw new CheckpointError(404, "자료를 찾지 못했어요.");
-    if (!repo.reviewMaterial(owner(res), idOf(req), decision)) throw new CheckpointError(409, "이미 검수된 자료예요. 수정본은 새 자료로 등록해 주세요.");
+    // 검수 중(또는 바로 검수하는 초안)만 승인·반려할 수 있다. 이미 검수된 자료는 409(수정본으로 다시 올린다).
+    const decided = workflow.decide(idOf(req), owner(res), decision, comment);
     onMaterialsChanged?.(row.section as Section);
-    res.json({ id: row.id, state: decision, version: row.version });
+    res.json({ id: row.id, state: decision, version: row.version, stage: decided.stage, self_review: decided.self_review });
   }));
   return router;
 }

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>학습 보고서 · ST-ROOKIE</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+  <!-- 학습자 보고서: 어느 화면에서든 /login_ui/learner-report.html?section=<공정>으로 연다(learner-report.js 머리말).
+       인쇄 미리보기처럼 A4 종이를 보여 주고, 브라우저 인쇄의 'PDF로 저장'으로 내보낸다. 인쇄용이라 라이트 색만 쓴다. -->
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: #5f6368; color: #1f2328; font-family: "Pretendard", -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; letter-spacing: -0.01em; -webkit-font-smoothing: antialiased; }
+    button, select { font: inherit; }
+    .bar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 16px; background: #323639; color: #fff; }
+    .bar .name { font-size: 15px; font-weight: 600; }
+    .bar .name small { display: block; font-weight: 400; color: #c8c8c8; font-size: 15px; }
+    .bar .grow { flex: 1; }
+    .bar select, .bar button { height: 40px; padding: 0 14px; border-radius: 8px; border: 0; font-size: 15px; font-weight: 600; background: #4a4e52; color: #fff; cursor: pointer; }
+    .bar button.primary { background: #8ab4f8; color: #1a1a1a; }
+    .bar button.on { outline: 2px solid #8ab4f8; }
+    .sources { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 16px; background: #3c4043; }
+    .src { font-size: 15px; padding: 2px 10px; border-radius: 999px; background: #4a4e52; color: #e8eaed; }
+    .src.missing { color: #f6aea9; }
+    .src.ex { background: #fdd663; color: #1a1a1a; }
+    .loading { color: #fff; text-align: center; padding: 40px; font-size: 15px; }
+    #pages { padding: 24px 12px 48px; }
+
+    .page { width: 210mm; min-height: 297mm; margin: 0 auto 20px; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.35); padding: 18mm 18mm 14mm; display: flex; flex-direction: column; font-size: 15px; line-height: 1.65; }
+    .page p { margin: 0 0 6px; }
+    .foot { margin-top: auto; padding-top: 10mm; text-align: center; color: #8a8f98; font-size: 13px; }
+    .title { margin: 0; font-size: 28px; font-weight: 800; color: #1f3a68; }
+    .meta { color: #5b6270; margin-top: 6px !important; }
+    .rule { border: 0; border-top: 2px solid #3d5a99; margin: 16px 0 18px; }
+    .howto { background: #f4f7fc; border: 1px solid #dbe4f3; border-radius: 8px; padding: 12px 16px; font-size: 14px; }
+    .howto b { color: #1f3a68; }
+    .howto ul { list-style: none; margin: 6px 0 0; padding: 0; }
+    .h { margin: 22px 0 10px; padding-left: 12px; border-left: 4px solid #3d5a99; font-size: 18px; color: #1f3a68; }
+    .h3 { margin: 12px 0 6px; font-size: 16px; color: #1f3a68; }
+    .em { color: #2b53a0; }
+    .bad, .howto b.bad { color: #b42318; }
+    .dim { color: #6b7280; }
+    .thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .thumb { border: 1px solid #dfe3ea; border-radius: 6px; overflow: hidden; }
+    .thumb.bad { border: 2px solid #b42318; }
+    .thumb.fog .pic { opacity: .4; }
+    .pic { aspect-ratio: 600 / 320; background: #fafafa; }
+    .pic svg { display: block; width: 100%; height: 100%; }
+    .thumb .c { font-size: 13px; padding: 4px 8px; display: flex; justify-content: space-between; gap: 6px; }
+    .figure { border: 1px solid #dfe3ea; border-radius: 8px; overflow: hidden; margin: 6px 0 4px; }
+    .cap { font-size: 13px; color: #5b6270; }
+    .quote { margin: 4px 0 8px; padding: 8px 14px; border-left: 3px solid #c9d3e6; background: #fafbfd; color: #3c4350; }
+    .box { background: #f3f4f6; border-radius: 8px; padding: 10px 14px; margin: 6px 0; }
+    .list { margin: 4px 0; padding-left: 20px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { padding: 6px 8px; border-bottom: 1px solid #e5e7eb; text-align: left; }
+    th { background: #f4f7fc; color: #1f3a68; }
+    .note { margin-top: 12px !important; color: #5b6270; font-size: 13px; }
+    /* 2D 장면(process-2d.js SCENES) 색: 종이용 밝은 값, 움직임 끔 */
+    .p2d { --p-bg:#fafafa;--p-lbl:#36363b;--p-halo:#fff;--p-st:#c9ccd2;--p-st-l:#8b8f97;--p-st2:#dfe1e5;--p-st2-l:#a2a6ad;--p-pipe:#9a9ea6;--p-flow:#6f737b;--p-gas:#8a8e96;--p-metal:#b8bcc3;--p-grid:#d2d5da;--p-dark1:#d3d6db;--p-dark2:#e9ebee;--p-dark3:#dadde1;--p-line1:#7c8089;--p-line2:#6f737b; }
+    .p2d * { animation: none !important; }
+    @media (max-width: 860px) { .page { zoom: .45; } }
+
+    @page { size: A4; margin: 0; }
+    @media print {
+      html, body { background: #fff; }
+      .bar, .sources { display: none; }
+      #pages { padding: 0; }
+      .page { margin: 0; box-shadow: none; height: 297mm; min-height: 0; zoom: 1; break-after: page; }
+      .page:last-child { break-after: auto; }
+      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bar">
+    <div class="name"><span id="fname">학습 보고서</span><small>A4 · 인쇄 미리보기</small></div>
+    <span class="grow"></span>
+    <select id="section" aria-label="공정"></select>
+    <button id="exampleBtn" type="button">예시 데이터</button>
+    <button class="primary" id="pdfBtn" type="button">PDF로 저장</button>
+    <button id="printBtn" type="button">인쇄</button>
+    <button id="closeBtn" type="button">닫기</button>
+  </div>
+  <div class="sources" id="sources" aria-label="불러온 데이터"></div>
+  <div id="pages"></div>
+  <div id="defs" aria-hidden="true"></div>
+  <script type="module" src="./learner-report.js"></script>
+</body>
+</html>

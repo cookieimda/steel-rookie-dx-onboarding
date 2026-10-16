@@ -1,16 +1,5 @@
-// 공정 인덱스 페이지(steel-index.html)의 3D와 UI. 설계 노트는 저장소 밖에 둔다, 설계 노트는 저장소 밖에 둔다
-// 3D: 슬레이트 테이블 위에 공정 하나만 올린다. 공정을 고르면 바닥판이 앞으로 뻗고 뒷벽이 위로 솟아 ㄴ자 무대가 되고(steel-index-stage.js),
-//     벽 왼쪽 위에 굵은 공정 이름, 오른쪽에 대시보드(온도 흐름·가장 뜨거운 구간·소재 흐름·학습 현황)가 켜진다. 설비(GLB의 EQ_<id> 노드)는 바닥판을 뚫고 차례로 올라온다
-//     (바닥판 아래는 전역 클리핑 평면으로 자른다). 공정을 바꾸면 역순으로 가라앉고 무대도 접힌다.
-// UI: v4 3D 화면(Steel Academy v4.dc.html)의 것을 옮겼다. 상단 알약 바(홈·공정 탭·외관/대시보드·닫기 | 테마·마이페이지. 재생 중에는 숨고 마우스를 위쪽에 가져가면 내려온다), 오른쪽 패널(설비 상세 → 단계 보기 / AI 튜터),
-//     하단 재생 바(설비 차례로 보기 + 단계 카드 자동 넘김, 1×·2×). 아이콘·온도 보조는 steel-index-ui.js(v4에서 옮김).
-// 학습 현황(벽 대시보드, 왼쪽 위 패널은 없앴다): 지금 보는 것 · 이 세션에서 본 설비 수 · 이해도 확인 상태(GET /api/sections/:section/progress, 로그인 때만) · 다시 볼 설비(GET /api/me/misconceptions의
-//     미해결 체크포인트 오개념 → learn-hud-state.js의 개념→설비 표). 실제 값만 보여 주고, 로그인 전에는 안내 문구를 둔다.
-// 설비 보기: 하단 점·3D 클릭(설비를 짚으면 그 설비, 그 밖은 다음 설비)·← →. 고른 설비 위에는 v4와 같은 작동 연출(work-fx.js: 불씨·불꽃·수증기·분사·쇳물 + 점광)이 돈다(단계 보기(단면) 중에는 숨김). 설비 번호 핀·핫스팟은 UI 주황(--hot, 2026-10-14 요청. 바닥 물결만 시안). 선택한 설비는 바닥의 시안 링으로 감싸고 나머지 설비는 색을 낮춘다. 전체 보기(공정만)에서는 설비 UI를 띄우지 않는다.
-// 대시보드 보기: 뒷벽(공정 이름 + 대시보드 4장)이 화면에 꼭 차게 정면에서 보고, 앞에 선 공정 모델은 옅게(18%) 둬 벽이 읽히게 한다. 드래그·설비 선택·공정 바꾸기로 외관으로 돌아온다(평면 보기를 대신한다, 2026-10-14 요청).
-// 튜터: 이 화면에는 없다(#140). 설비 패널의 [튜터에게 묻기]가 마이페이지(/login_ui/My Page.dc.html?p=공정&eq=설비&ask=1)로 보내고, 마이페이지가 그 공정·설비를 고른 채 ASK 탭을 연다.
-// 수치는 data_v2.js와 서버 응답에서만 가져온다. 꾸며 낸 실시간 값은 쓰지 않는다. prefers-reduced-motion이면 솟아오르기·글자 연출·자전 없이 바로 놓는다.
-
+// Learning-lab branch: original process visuals with thermal / What-if panels and a quotation board.
+// The process models and existing section views remain; no stage or wall is instantiated.
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/+esm';
 import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js/+esm';
 import { RoomEnvironment } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/environments/RoomEnvironment.js/+esm';
@@ -23,7 +12,7 @@ import { createApiClient } from './api-client.js';
 import { conceptStatuses, equipmentStatuses, groupBySection } from './learn-hud-state.js';
 import { icon, stepIcon, parseTemp, heatOf } from './steel-index-ui.js';
 import { createSection } from './steel-index-section.js';
-import { createStage, STAGE_H } from './steel-index-stage.js';
+import { attachLabConsole } from './lab-console.js';
 import { createWorkFx } from './work-fx.js';
 
 const { PROCESSES } = DATA;
@@ -41,7 +30,7 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'hi
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.clippingPlanes = [new THREE.Plane(new THREE.Vector3(0, 1, 0), STAGE_H + 0.001)]; // 바닥판 밑면(= 테이블 윗면, y=-STAGE_H) 아래는 그리지 않는다
+renderer.clippingPlanes = [new THREE.Plane(new THREE.Vector3(0, 1, 0), 0.001)]; // 바닥판 밑면(= 테이블 윗면, y=-STAGE_H) 아래는 그리지 않는다
 stage.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -62,23 +51,6 @@ const rim = new THREE.DirectionalLight(0xffffff, 0.6); rim.position.set(10, 30, 
 const warm = new THREE.PointLight(0xffb352, 0, 30, 1.6); scene.add(warm);
 
 // ---- 슬레이트 테이블 -----------------------------------------------------------------------------
-function slateTexture() {
-  const c = document.createElement('canvas'); c.width = c.height = 512; const x = c.getContext('2d');
-  x.fillStyle = '#7a7d83'; x.fillRect(0, 0, 512, 512);
-  const img = x.getImageData(0, 0, 512, 512), d = img.data;
-  for (let i = 0; i < d.length; i += 4) { const n = (Math.random() - 0.5) * 34; d[i] += n; d[i + 1] += n; d[i + 2] += n; }
-  x.putImageData(img, 0, 0);
-  x.globalAlpha = 0.18; for (let i = 0; i < 90; i++) { x.strokeStyle = Math.random() < 0.5 ? '#9a9da4' : '#5a5d63'; x.lineWidth = 0.6 + Math.random() * 1.6; x.beginPath(); const sx = Math.random() * 512, sy = Math.random() * 512; x.moveTo(sx, sy); x.lineTo(sx + (Math.random() - 0.5) * 220, sy + (Math.random() - 0.5) * 60); x.stroke(); }
-  // 피드백: 인더스트리얼 격자 바닥. 옅은 격자선(거칠기 맵에 들어가 빛에 따라 은은히 보인다)
-  x.globalAlpha = 0.22; x.strokeStyle = '#4a4e55'; x.lineWidth = 1.2; for (let i = 0; i <= 512; i += 64) { x.beginPath(); x.moveTo(i, 0); x.lineTo(i, 512); x.stroke(); x.beginPath(); x.moveTo(0, i); x.lineTo(512, i); x.stroke(); } x.globalAlpha = 1;
-  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(4, 2.4); t.colorSpace = THREE.NoColorSpace; return t;
-}
-const slateMap = slateTexture();
-const FLOOR_UNLIT = true; // [테스트] 테이블 바닥도 조명을 받지 않게. 되돌리려면 false
-const tableMat = FLOOR_UNLIT ? new THREE.MeshBasicMaterial({ color: 0x24272c }) : new THREE.MeshStandardMaterial({ color: 0x24272c, roughness: 0.78, metalness: 0.18, roughnessMap: slateMap, bumpMap: slateMap, bumpScale: 0.12 });
-const table = new THREE.Mesh(new THREE.BoxGeometry(150, 6, 90), tableMat); table.position.y = -3 - STAGE_H; table.receiveShadow = true; scene.add(table);
-const edge = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(150, 6, 90)), new THREE.LineBasicMaterial({ color: 0x3a3e45, transparent: true, opacity: 0.8 })); edge.position.y = -3 - STAGE_H; scene.add(edge);
-const stage3d = createStage({ scene, slateMap, reduced: REDUCED }); // ㄴ자 무대(바닥판 + 뒷벽 + 벽 대시보드)
 const work = createWorkFx({ scene, isDark: () => theme === 'dark' }); // 고른 설비의 작동 연출(v4와 같음)
 
 // ---- 테마(3D 영역만. 화면 틀은 v4처럼 항상 어둡다) ------------------------------------------------------------
@@ -87,11 +59,10 @@ try { theme = localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark'; } 
 function applyTheme() {
   const dark = theme === 'dark';
   scene.background = new THREE.Color(dark ? 0x0d1114 : 0xdfe3e8); scene.fog = new THREE.Fog(dark ? 0x0d1114 : 0xdfe3e8, 160, 320);
-  tableMat.color.setHex(dark ? 0x24272c : 0x8e949b); edge.material.color.setHex(dark ? 0x3a3e45 : 0xb9bec6);
   hemi.color.setHex(dark ? 0xbfd2e0 : 0xf0f5ff); hemi.groundColor.setHex(dark ? 0x1a1410 : 0x5c6470); hemi.intensity = dark ? 0.55 : 0.8;
   key.intensity = dark ? 1.4 : 1.7; renderer.toneMappingExposure = dark ? 1.0 : 1.05;
   $('icTheme').src = icon(dark ? 'sun' : 'moon', '#e6ebf1'); $('btnTheme').title = dark ? '라이트 모드로' : '다크 모드로';
-  stage3d.setTheme(dark);
+
 }
 $('btnTheme').onclick = () => { theme = theme === 'dark' ? 'light' : 'dark'; try { localStorage.setItem(THEME_KEY, theme); } catch (e) {} applyTheme(); };
 
@@ -104,7 +75,7 @@ function glowTexture() {
   return (glowTexture.t = new THREE.CanvasTexture(c));
 }
 const glow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: glowTexture(), color: 0xffc484, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
-glow.rotation.x = -Math.PI / 2; glow.position.y = 0.12; glow.renderOrder = 1; scene.add(glow);
+glow.rotation.x = -Math.PI / 2; glow.position.y = 0.12; glow.renderOrder = 1; scene.add(glow); glow.visible = false;
 // 선택한 설비를 감싸는 바닥 링(v4의 선택 링과 같은 시안). 참고 영상의 '선택 돔' 역할을 가볍게 한다
 // 선택한 설비: 바닥에 굵은 링을 두지 않고, 15% 불투명 물결 두 개가 바깥으로 퍼진다(2026-10-13 요청)
 const ripples = [0, 1].map(() => { const r = new THREE.Mesh(new THREE.RingGeometry(0.97, 1, 96), new THREE.MeshBasicMaterial({ color: RIPPLE, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })); r.rotation.x = -Math.PI / 2; r.position.y = 0.1; r.renderOrder = 2; r.raycast = () => {}; scene.add(r); return r; });
@@ -179,7 +150,7 @@ function renderProg(p) { // 학습 현황을 벽 대시보드로 보낸다
   else if (g.kind === 'none') cp = '이 공정은 학습만 해요';
   else if (g.kind === 'error') { cp = '상태를 읽지 못했어요'; cpTone = 'warn'; }
   else { const pr = g.pr, pct = pr?.understanding == null ? null : Math.round(pr.understanding * 100); if (pr?.unlocked) { cp = `통과${pct == null ? '' : ` · 이해도 ${pct}%`}`; cpTone = 'ok'; } else if (pr?.in_progress_attempt_id) cp = '진행 중'; else if (pct == null) cp = '아직 응시 전'; else { cp = `미통과 · 이해도 ${pct}%`; cpTone = 'warn'; } }
-  stage3d.setLearning({ now: curEq ? curEq.data.name : '공정 전체', seen: p.seen.size, total: p.eqs.length, cp, cpTone, review: [...p.review].filter((id) => p.eqs.some((e) => e.id === id)).length });
+  labConsole.setProgress(`${p.seen.size}/${p.eqs.length} equipment ? ${cp}`);
 }
 
 // ---- 상단 알약 바 --------------------------------------------------------------------------------------
@@ -211,6 +182,7 @@ $('top').addEventListener('focusin', () => document.body.classList.add('peek'));
 
 // ---- 오른쪽 패널 ------------------------------------------------------------------------------------------
 const right = $('right');
+const labConsole = attachLabConsole({ api, scene, camera, reduced: REDUCED, pickEquipment: id => { const eq = cur?.eqs.find(eq => eq.id === id); if (eq) enterStep(eq); } });
 function closePanel() { panel = null; right.classList.remove('on'); right.innerHTML = ''; document.body.classList.remove('panel'); section.hide(); clearInterval(typer); }
 function openPanel(kind) { panel = kind; right.classList.add('on'); document.body.classList.add('panel'); renderPanel(); work.setVisible(panel !== 'steps'); } // 단면 보기 중에는 작동 입자를 숨긴다(v4와 같음)
 function renderPanel() {
@@ -218,7 +190,7 @@ function renderPanel() {
   const e = curEq; if (!e) return closePanel();
   const d = e.data;
   if (panel === 'eq') {
-    section.hide(); stage3d.setQuiet(false); clearInterval(typer);
+    section.hide(); clearInterval(typer);
     const steps = (d.steps || []).map((s, i) => `<button data-i="${i}"><span class="tile"><img class="ic" width="30" height="30" alt="" src="${icon(stepIcon(s.zone), '#dfe5ec', 1.5)}"></span><span><span class="zone"><span>${esc(s.zone)}</span>${s.temp ? `<code>${esc(s.temp)}</code>` : ''}</span><span class="tx">${esc(s.text)}</span></span></button>`).join('');
     right.innerHTML = `<div class="scroll">
         <div class="phead"><span class="eyebrow">${cur.data.num} · ${esc(cur.data.name)}</span><h1>${esc(d.name)}</h1></div>
@@ -240,7 +212,7 @@ function renderPanel() {
     const lay = d.interior?.[stepIdx] || null; // 같은 번호의 단면 층(라벨·수식)
     const rng = parseTemp(st.temp || lay?.temp), hi = rng ? rng[1] : 0, [hA, hB, hC] = heatOf(hi), pct = (v) => `${Math.min(100, Math.max(0, v / 2000 * 100)).toFixed(1)}%`;
     // 단면 연출을 먼저 켜서 핫스팟 글(현장 포인트)을 패널에 함께 그린다
-    const ok = section.show(cur, e); stage3d.setQuiet(!!ok); const L = ok ? section.layer(stepIdx) : null, hots = L?.hotspots || [], kpi = d.facts?.[0] || null;
+    const ok = section.show(cur, e); const L = ok ? section.layer(stepIdx) : null, hots = L?.hotspots || [], kpi = d.facts?.[0] || null;
     right.innerHTML = `<div class="scroll stepcard">
         <!-- L1: 설비 · 단계 · 상태 -->
         <div class="lv l1"><div style="display:flex;align-items:center;gap:12px"><img class="ic" width="40" height="40" alt="" src="${icon(d.shape || 'box', '#e6ebf1', 1.4)}"><div style="flex:1;min-width:0"><div class="eyebrow">${cur.data.num} · ${esc(cur.data.name)} · ${esc(d.name)}</div><h1 style="margin-top:6px;font-size:22px">${String(stepIdx + 1).padStart(2, '0')} ${esc(st.zone)}</h1></div><button class="x" style="position:static" id="stBack" title="설비 설명으로" aria-label="설비 설명으로"><img class="ic" width="22" height="22" alt="" src="${icon('close', '#e6ebf1', 1.8)}"></button></div>
@@ -281,9 +253,14 @@ function tagFor(e) {
 
 // ---- 공정 보이기 / 가라앉히기 ------------------------------------------------------------------------
 function fitHome(p) {
-  const b = stage3d.bounds() || p.bounds, s = b.getSize(new THREE.Vector3()), c = b.getCenter(new THREE.Vector3());
-  const span = Math.max(s.x * 1.04, s.z * 1.3, s.y * 2.0, 16), dist = span / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)) / Math.max(0.7, Math.min(1.4, camera.aspect));
-  return { yaw: -0.3, pitch: 0.36, dist: Math.max(22, dist), target: new THREE.Vector3(c.x, s.y * 0.36, c.z + 2) }; // 벽 대시보드가 읽히게 거의 정면에서
+  const framing = p.bounds.clone(); const display = labConsole.bounds(); if (display) framing.union(display);
+  const size = framing.getSize(new THREE.Vector3()), c = framing.getCenter(new THREE.Vector3());
+  const w = stage.clientWidth, h = stage.clientHeight, small = w <= 1000;
+  const freeW = small ? w - 24 : w - (w <= 1250 ? 590 : 700), freeH = small ? h * .42 : h - 210;
+  const tan = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+  const widthDistance = (size.x + size.z * .25) / (2 * tan * camera.aspect * Math.max(.25, freeW / w));
+  const heightDistance = (size.y + size.z * .3) / (2 * tan * Math.max(.25, freeH / h));
+  return { yaw: -.2, pitch: .25, dist: Math.max(22, widthDistance, heightDistance) * 1.05, target: new THREE.Vector3(c.x, c.y, c.z) };
 }
 async function show(p, replay = false) {
   if (!p.loaded) { toast(`${p.data.name}: 3D 모델을 불러오지 못했어요`); return; }
@@ -295,7 +272,7 @@ async function show(p, replay = false) {
   renderTrack(p); closePanel(); clearDim(p); loadProgress(p);
   const { w, d, cx, cz } = p.foot;
   glow.position.set(cx, 0.12, cz); glow.scale.set(w + 9, d + 9, 1);
-  stage3d.build(p); stage3d.play(performance.now()); stage3d.setEquipment(null); renderProg(p);
+  labConsole.setProcess(p); renderProg(p);
   home = fitHome(p); orbit.dist = home.dist * 1.3; orbit.yaw = home.yaw - 0.1; animateTo(home, 2200);
   p.root.visible = true;
   p.eqs.forEach((e) => { tagFor(e); e.up = false; e.y = -RISE.depth; e.node.position.y = e.baseY + e.y; });
@@ -305,7 +282,7 @@ async function show(p, replay = false) {
 }
 function sink(p) {
   return new Promise((resolve) => {
-    seq = null; mode = 'overview'; stage3d.sink(performance.now()); curEq = null; syncUi(); clearDim(p);
+    seq = null; mode = 'overview'; labConsole.clear(); curEq = null; syncUi(); clearDim(p);
     const n = p.eqs.length, total = REDUCED ? 1 : RISE.sinkDur + n * RISE.sinkGap + 150;
     sinking = { p, t0: performance.now(), total, resolve: () => { p.root.visible = false; resolve(); } };
   });
@@ -325,7 +302,7 @@ function driveTick(now) { if (!drive) return; const T = 9000, u = Math.max(0, no
   warm.position.set(drive.warm0.x + ox, drive.warm0.y, drive.warm0.z + oz); ripples.forEach((r, i) => r.position.set(drive.rip0[i].x + ox, drive.rip0[i].y, drive.rip0[i].z + oz)); work.setOffset(ox, 0, oz);
   drive.e.box.setFromObject(n); }
 const _dv = new THREE.Vector3();
-function clearDim(p) { stopDrive(); section.hide(); stage3d.setQuiet(false); work.stop(); warm.intensity = 0; ripples.forEach((r) => { r.material.opacity = 0; }); p.eqs.forEach((q) => q.node.traverse((o) => { if (!o.isMesh || !o.material.userData.color) return; const m = o.material; m.color.copy(m.userData.color); if (m.userData.emissive) { m.emissive.copy(m.userData.emissive); m.emissiveIntensity = m.userData.emissiveI; } })); }
+function clearDim(p) { stopDrive(); section.hide(); work.stop(); warm.intensity = 0; ripples.forEach((r) => { r.material.opacity = 0; }); p.eqs.forEach((q) => q.node.traverse((o) => { if (!o.isMesh || !o.material.userData.color) return; const m = o.material; m.color.copy(m.userData.color); if (m.userData.emissive) { m.emissive.copy(m.userData.emissive); m.emissiveIntensity = m.userData.emissiveI; } })); }
 function enterStep(e, userAct = true) {
   if (!cur || !e || !e.up || sinking) return;
   if (userAct && tour) stopTour();
@@ -334,7 +311,7 @@ function enterStep(e, userAct = true) {
   mode = 'step'; curEq = e; stepIdx = 0; cur.seen.add(e.id);
   if (tour) tour.t0 = performance.now();
   openPanel(tour ? 'steps' : 'eq');
-  renderProg(cur); stage3d.setEquipment(e); syncUi(); if (!REDUCED) work.start(e);
+  renderProg(cur); syncUi(); if (!REDUCED) work.start(e);
   const c = e.box.getCenter(new THREE.Vector3()), s = e.box.getSize(new THREE.Vector3());
   warm.position.set(c.x, e.box.max.y + 2, c.z); warm.intensity = 14;
   ripples.forEach((r) => r.position.set(c.x, 0.1, c.z)); rippleR = Math.max(2.5, Math.max(s.x, s.z) * 0.62);
@@ -344,7 +321,7 @@ function enterStep(e, userAct = true) {
   animateTo(eqPose(e, orbit.yaw), 1200);
 }
 function step(dir, userAct = true) { if (!cur) return; const n = cur.eqs.length, i = curEq ? (curEq.i + dir + n) % n : (dir > 0 ? 0 : n - 1); enterStep(cur.eqs[i], userAct); }
-function leaveStep() { if (!cur) return; stopTour(); mode = 'overview'; curEq = null; clearDim(cur); closePanel(); renderProg(cur); stage3d.setEquipment(null); syncUi(); if (view === '3d') animateTo(home, 1100); }
+function leaveStep() { if (!cur) return; stopTour(); mode = 'overview'; curEq = null; clearDim(cur); closePanel(); renderProg(cur); syncUi(); if (view === '3d') animateTo(home, 1100); }
 function syncUi() {
   const stepping = mode === 'step' && !!curEq;
   cur?.eqs.forEach((e) => { e.dot?.classList.toggle('cur', e === curEq); e.dot?.classList.toggle('done', stepping && e.i < curEq.i); if (e.tag) { const showTag = view === '3d' && stepping && e === curEq; e.tag.style.opacity = showTag ? '1' : '0'; e.tag.querySelector('.nm').style.display = ''; e.tag.querySelector('.k').style.padding = view === 'plan' && e !== curEq ? '5px' : '7px 12px 7px 7px'; e.tag.querySelector('.ld').style.display = view === 'plan' ? 'none' : ''; } });
@@ -362,16 +339,12 @@ function ghost(p, on) { // 공정 모델을 옅게 하거나(on) 되돌린다. �
 // 오른쪽 패널이 열려 있으면 남은 폭에 맞게 그만큼 더 물러난다(최대 1.6배)
 const panelZoom = () => (document.body.classList.contains('panel') ? Math.min(1.6, stage.clientWidth / Math.max(300, stage.clientWidth - (right.offsetWidth || 440))) : 1);
 const eqPose = (e, yaw) => { const c = e.box.getCenter(new THREE.Vector3()), s = e.box.getSize(new THREE.Vector3()); return { yaw, pitch: 0.34, dist: Math.max(14, Math.max(s.x, s.z, s.y) * 2.4) * panelZoom(), target: new THREE.Vector3(c.x - s.x * 0.15, c.y, c.z) }; };
-function boardPose() { // 뒷벽 전체(폭 W, 높이 Hw)가 화면에 꼭 차게 정면에서 조금 위에서. 벽 폭은 화면 폭의 90%, 높이는 세로의 75%쯤
-  const b = stage3d.bounds(); if (!b) return home;
-  const W = b.max.x - b.min.x, Hw = b.max.y - b.min.y, half = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)), a = Math.max(0.7, Math.min(2.2, camera.aspect));
-  return { yaw: 0, pitch: 0.16, dist: Math.max(16, W * 1.1 / (2 * half * a), Hw * 1.35 / (2 * half)), target: new THREE.Vector3((b.min.x + b.max.x) / 2, Hw * 0.5 + 0.5, b.min.z) };
-}
+function boardPose() { return { ...home, yaw: 0, pitch: .1 }; }
 function setView(v, fly = true) {
   if (view === v) return; view = v;
   $('btnView3d').classList.toggle('on', v === '3d'); $('btnView3d').setAttribute('aria-pressed', String(v === '3d'));
   $('btnViewBoard').classList.toggle('on', v === 'board'); $('btnViewBoard').setAttribute('aria-pressed', String(v === 'board'));
-  ghost(cur, v === 'board');
+  ghost(cur, false);
   if (fly) animateTo(v === 'board' ? boardPose() : curEq ? eqPose(curEq, home.yaw) : home, 900);
   syncUi();
 }
@@ -409,12 +382,12 @@ renderer.domElement.addEventListener('wheel', (e) => { e.preventDefault(); orbit
 const composer = new EffectComposer(renderer);
 const renderPass = new RenderPass(scene, camera); composer.addPass(renderPass);
 const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.15, 0.3, 1.6); composer.addPass(bloom); composer.addPass(new OutputPass());
-function resize() { const w = stage.clientWidth || 1, h = stage.clientHeight || 1; renderer.setSize(w, h, false); composer.setSize(w, h); bloom.resolution.set(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); applyViewOffset(); }
+function resize() { const w = stage.clientWidth || 1, h = stage.clientHeight || 1; renderer.setSize(w, h, false); composer.setSize(w, h); bloom.resolution.set(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); applyViewOffset();  if (cur && !curEq) { home = fitHome(cur); animateTo(home, 450); } }
 // 오른쪽 패널이 열리면 패널 폭의 절반만큼 장면을 왼쪽으로 밀어, 고른 설비가 패널에 가리지 않고 남은 영역 가운데에 온다(2026-10-14 요청). 천천히 옮겨 간다
 let viewOff = 0;
-function applyViewOffset() { const w = stage.clientWidth || 1, h = stage.clientHeight || 1; if (viewOff < 0.5) camera.clearViewOffset(); else camera.setViewOffset(w, h, viewOff, 0, w, h); }
+function applyViewOffset() { const w = stage.clientWidth || 1, h = stage.clientHeight || 1; if (w <= 1000) camera.setViewOffset(w, h, 0, h * .19, w, h); else camera.clearViewOffset(); }
 function viewOffsetTick() {
-  const want = document.body.classList.contains('panel') ? Math.min(right.offsetWidth || 440, stage.clientWidth * 0.4) / 2 : 0;
+  const want = 0;
   if (Math.abs(want - viewOff) < 0.5) return; viewOff += (want - viewOff) * (REDUCED ? 1 : 0.12); if (Math.abs(want - viewOff) < 0.5) viewOff = want; applyViewOffset();
 }
 new ResizeObserver(resize).observe(stage); resize();
@@ -455,10 +428,10 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   riseTick(now); viewOffsetTick();
   if (anim) { const k = Math.min(1, (now - anim.t0) / anim.dur), s = easeOut(k); orbit.yaw = anim.from.yaw + (anim.to.yaw - anim.from.yaw) * s; orbit.pitch = anim.from.pitch + (anim.to.pitch - anim.from.pitch) * s; orbit.dist = anim.from.dist + (anim.to.dist - anim.from.dist) * s; orbit.target.lerpVectors(anim.from.target, anim.to.target, s); if (k >= 1) anim = null; }
-  else if (!drag && !REDUCED && mode === 'overview' && view === '3d') orbit.yaw += dt * 0.01;
+
   const o = orbit; camera.position.set(o.target.x + o.dist * Math.sin(o.yaw) * Math.cos(o.pitch), o.target.y + o.dist * Math.sin(o.pitch), o.target.z + o.dist * Math.cos(o.yaw) * Math.cos(o.pitch)); camera.lookAt(o.target);
   if (curEq && !REDUCED) { warm.intensity = 14 + 3 * Math.sin(now / 420); ripples.forEach((r, k) => { const ph = ((now / 2200) + k * 0.5) % 1; r.scale.setScalar(rippleR * (0.8 + 0.8 * ph)); r.material.opacity = 0.15 * (1 - ph); }); }
-  driveTick(now); section.tick(now); stage3d.tick(now, camera); work.tick(now);
+  driveTick(now); section.tick(now); labConsole.tick(now); work.tick(now);
   composer.render(); placeHud();
 }
 

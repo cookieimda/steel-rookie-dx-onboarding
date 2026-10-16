@@ -67,11 +67,16 @@ export function drawFace(ctx, { expression = 'neutral', blink = false, skin = '#
 
   // 원래 눈: 진한 테두리 + 회색 눈동자 + 왼쪽 위 빛 반사. look은 눈동자·반사를 옮긴다(위를 봄 등).
   const eye = (x, y, { r = eyeR, lookX = 0, lookY = 0 } = {}) => {
-    if (gaze) { lookX += gaze.x * r * 0.32; lookY += gaze.y * r * 0.32; }
+    // 따라 보기: 눈동자(반지름 0.68r)가 눈 밖으로 삐져나와 회색 덩어리처럼 보이던 것을 막는다(2026-10-16) — 옮기는 폭을 0.18r로 줄이고, 눈동자·반사는 눈 원 안에서만 그린다
+    if (gaze) { lookX += gaze.x * r * 0.18; lookY += gaze.y * r * 0.18; }
     ctx.fillStyle = INK;
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, r * 0.94, 0, Math.PI * 2);
+    ctx.clip();
     ctx.fillStyle = '#55504c';
     ctx.beginPath();
     ctx.arc(x + 2 + lookX, y + 3 + lookY, r * 0.68, 0, Math.PI * 2);
@@ -80,6 +85,7 @@ export function drawFace(ctx, { expression = 'neutral', blink = false, skin = '#
     ctx.beginPath();
     ctx.ellipse(x - r * 0.3 + lookX, y - r * 0.36 + lookY, r * 0.26, r * 0.18, -0.5, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
   };
   const closedEye = (x, y) => { line(9); ctx.beginPath(); ctx.moveTo(x - eyeR, y + 2); ctx.quadraticCurveTo(x, y + 12, x + eyeR, y + 2); ctx.stroke(); };
   const happyEye = (x, y) => { line(10); ctx.beginPath(); ctx.moveTo(x - eyeR, y + 8); ctx.quadraticCurveTo(x, y - 22, x + eyeR, y + 8); ctx.stroke(); };

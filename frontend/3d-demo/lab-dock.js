@@ -1,11 +1,12 @@
 // 3D 공정 화면 대시보드 배치(레퍼런스: 왼쪽 위 3D 뷰 · 그 아래 카드 · 오른쪽 What-if 열).
-// 아래 카드는 탭 3개: [조업 전광판] 표 + 오른쪽(온도 지표는 원호 다이얼, 나머지는 실험 변경 이력 차트. 3D 공중 전광판·What-if 위 다이얼을 대신한다) / [단계 설명] 설비 설명 패널(#right) / [온도 흐름] 왼쪽 패널.
+// 아래 카드는 탭 2개: [조업 전광판] 표 + 오른쪽(온도 지표는 원호 다이얼, 나머지는 실험 변경 이력 차트. 3D 공중 전광판·What-if 위 다이얼을 대신한다) / [온도 흐름] 왼쪽 패널.
+// 단계 설명 탭은 뺐다(2026-10-16 요청): 단계 설명은 제철 공정 지도(steel-intro)의 [▶ 재생]에서 공정을 확대해 본다(intro-tour.js). 대시보드 배치에서는 설비 설명 패널(#right)이 보이지 않는다(lab-console-glass.css).
 // 단계 설명과 온도 흐름은 기존 패널을 옮기지 않고, 이 카드 자리에 겹쳐 보이게 CSS(lab-console-glass.css, body.lab-dock)로 배치한다.
 // 폭 1001px 이상에서만 이 배치를 쓰고, 그보다 좁으면 원래 화면 그대로다.
 import { displayNumber, tempPosition } from './lab-display-data.js';
 import { arcGaugeHtml } from './lab-gauge-arc.js';
 
-const TABS = [['board', '조업 전광판'], ['steps', '단계 설명'], ['temp', '온도 흐름']];
+const TABS = [['board', '조업 전광판'], ['temp', '온도 흐름']];
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const tone = (d) => (d === 'up' ? 'up' : d === 'down' ? 'down' : 'flat');
 
@@ -45,10 +46,8 @@ export function createDock() {
       <span class="lab-dock-note" data-dock-note></span></div>
     <div class="lab-dock-body">
       <div class="lab-board" data-dock-pane="board"><div class="lab-board-table" data-board-table></div><div class="lab-board-chart" data-board-chart></div></div>
-      <p class="lab-dock-empty" data-dock-pane="steps">아래 재생 바나 3D에서 설비를 고르면 단계 설명이 이 자리에 머물러 천천히 읽을 수 있어요.</p>
     </div>`;
   document.body.appendChild(card);
-  const right = document.getElementById('right');
   let tab = 'board', rows = [], picked = null, name = '', pid = '';
   // 온도 지표(℃)는 이력 선 대신 원호 다이얼로 보인다. 범위는 lab-console.js의 What-if 계기와 같은 규칙(제선 1380~1560℃)
   const dial = (r) => {
@@ -78,12 +77,6 @@ export function createDock() {
   }
 
   card.querySelectorAll('[data-dock-tab]').forEach((b) => { b.onclick = () => setTab(b.dataset.dockTab); });
-  // 설비를 고르면(설명 패널이 열리면) 단계 설명 탭으로, 닫히면 고르기 전 탭으로 돌아간다
-  let before = 'board';
-  if (right) new MutationObserver(() => {
-    const open = right.classList.contains('on');
-    if (open && tab !== 'steps') { before = tab; setTab('steps'); } else if (!open && tab === 'steps') setTab(before);
-  }).observe(right, { attributes: true, attributeFilter: ['class'] });
 
   const sync = () => document.body.classList.toggle('lab-dock', wide.matches);
   wide.addEventListener('change', sync); sync(); setTab('board'); render();

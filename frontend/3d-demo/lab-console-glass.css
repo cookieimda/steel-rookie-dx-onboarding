@@ -115,7 +115,7 @@
 .lab-spectrum i { top: -6px; height: 18px; width: 2px; border-radius: 2px; }
 
 /* ---- 위 알약 바·아래 재생 바도 같은 유리 ---- */
-.top .tabs, .top .seg, .top .rb { background: rgba(26, 29, 38, .5); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); box-shadow: inset 0 0 0 1px var(--glass-line); }
+.top .tabs, .top .seg, .top .rb { background: rgba(26, 29, 38, .5); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); }
 .top .rb:hover, .top .tabs button:hover { background: rgba(255, 255, 255, .1); }
 .bar { background: rgba(26, 29, 38, .5); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); border: 1px solid var(--glass-line); box-shadow: inset 0 1px 0 var(--glass-hi), 0 18px 40px rgba(0, 0, 0, .35); }
 .bar .play { background: var(--glass-3); border-color: var(--glass-line); }
@@ -217,7 +217,7 @@ body.lab-dock .lab-dock-card {
 .lab-dock-tabs { flex: none; height: var(--dock-tabs); display: flex; align-items: center; gap: 4px; padding: 0 12px; border-bottom: 1px solid rgba(255, 255, 255, .06); }
 .lab-dock-tabs button { height: 32px; padding: 0 14px; border: 0; border-radius: 8px; background: transparent; color: var(--ink-lo); font: 500 14px var(--f-body); cursor: pointer; }
 .lab-dock-tabs button:hover { color: var(--ink); background: rgba(255, 255, 255, .05); }
-.lab-dock-tabs button[aria-selected="true"] { color: var(--ink-hi); background: rgba(255, 255, 255, .1); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08); }
+.lab-dock-tabs button[aria-selected="true"] { color: var(--ink-hi); background: rgba(255, 255, 255, .1); }
 .lab-dock-tabs button:focus-visible { outline: 2px solid rgba(255, 255, 255, .6); outline-offset: 2px; }
 .lab-dock-note { margin-left: auto; font: 400 11px var(--f-mono); letter-spacing: .08em; color: var(--ink-xlo); }
 .lab-dock-body { position: relative; flex: 1; min-height: 0; }
@@ -312,3 +312,14 @@ body.lab-dock .lab-dock-split:hover::before, body.lab-dock .lab-dock-split:focus
 body.lab-dock .lab-dock-split:hover::after, body.lab-dock .lab-dock-split:focus-visible::after, body.lab-dock.lab-dock-resizing .lab-dock-split::after { width: 64px; background: #8dffbf; }
 body.lab-dock-resizing, body.lab-dock-resizing * { cursor: row-resize !important; user-select: none; }
 @media (prefers-reduced-motion: reduce) { .lab-dock-split::before, .lab-dock-split::after { transition: none; } }
+
+/* ---- 2026-10-16 정리: 설비 재생·단계 설명은 제철 공정 지도(steel-intro의 [▶ 재생])로 옮겼다 ----
+   아래 설비 재생 바(#bar)와 외관/대시보드 전환은 이 화면에서 감춘다(steel-index.js가 요소를 참조하므로 지우지 않고 숨김).
+   고른 공정 탭의 밑줄(steel-index.html의 inset 그림자)도 없앤다: UI에 외곽선·밑줄을 쓰지 않는다 */
+#bar { display: none !important; }
+.top .seg[aria-label="보기"] { display: none !important; }
+.top .tabs button.on, .top .seg button.on { box-shadow: none !important; }
+/* What-if 패널 화면 위 알약 바: 바·공정 탭 묶음·아이콘 버튼의 테두리와 구분선을 없앤다(steel-index.html의 border·:hover border-color를 덮어씀). 면은 바탕 톤으로만 나눈다 */
+.top { border-color: transparent !important; }
+.top .tabs, .top .seg, .top .rb, .top .rb:hover { border-color: transparent !important; box-shadow: none !important; }
+.top .sep { display: none; }

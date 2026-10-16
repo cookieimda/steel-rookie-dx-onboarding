@@ -102,6 +102,10 @@ npm run trace:report -- [--dir data/traces] [--since 2026-10-15] [--until 2026-1
 
 `trace:report`는 이 셋을 "[종류] 요청 수 · 결과 · 전체 p50/p95 · 경로별 수 · 모델별 호출 수·호출당 p50·토큰"으로 요약한다. 시험 채점 이력(`exam_events`의 metadata)에는 이제 실제 provider·모델과 채점 보강 여부가 남는다(전에는 Ollama로 채점해도 gemini로 남았다).
 
+## 통합 확인 (2026-10-16)
+
+실제 서버(`npm run start:ollama`, qwen2.5:3b, 빈 DB)에 학습 질문 → 화면 표시 보고 → 대화 복원 → 이해도 확인(준비 → 답 채점 → 재확인 단계) → 보충학습 목록 → 로그인 → 시험 시작 작업을 차례로 보내 6가지 기록(`learning`·`learning-ui`·`learning-restore`·`checkpoint`·`supplement`·`exam`)이 모두 남고 `trace:report`가 요약하는 것을 확인했다. 이해도 확인 답 채점 한 번은 3b 호출 5회(호출당 p50 약 10초, 채점 보강의 핵심 요소 재확인 포함)였다.
+
 ## 다음
 
 - 실제 사용 기록이 쌓이면 trace:report로 기준선(지연 p50/p95, 토큰, unverified 원인 비율)을 [agent-roadmap.md](agent-roadmap.md) Stage 3 표에 적는다.

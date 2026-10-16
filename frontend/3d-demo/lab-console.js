@@ -3,6 +3,7 @@ import { parseTemp } from './steel-index-ui.js';
 import { displayRows, displayNumber, tempPosition } from './lab-display-data.js';
 import { createLabWorld } from './lab-world-display.js';
 import { arcGaugeHtml } from './lab-gauge-arc.js';
+import { createDock } from './lab-dock.js';
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 export function attachLabConsole({ api, scene, camera, reduced, pickEquipment }) {
@@ -11,7 +12,7 @@ export function attachLabConsole({ api, scene, camera, reduced, pickEquipment })
   left.className = 'lab-pane lab-temperature'; left.setAttribute('aria-label', '공정 온도 흐름');
   right.className = 'lab-pane lab-inputs'; right.setAttribute('aria-label', 'What-if 조건 조절');
   document.body.append(left, right);
-  const world = createLabWorld(scene, reduced);
+  const world = createLabWorld(scene, reduced), dock = createDock(); // 전광판은 3D 공중 대신 아래 카드(lab-dock.js)에
   let process, epoch = 0, timer, inputs = {}, reply, points = [], selected = 0;
   const status = text => { const el = right.querySelector('[data-lab-status]'); if (el) el.textContent = text; };
   function profile() {
@@ -90,13 +91,13 @@ export function attachLabConsole({ api, scene, camera, reduced, pickEquipment })
       const rows = displayRows(value, section); reply = value;
       if (section === 'ironmaking') inputs = { ...value.input };
       if (rebuild) renderFields();
-      results(rows); world.update(rows, reply, section);
+      results(rows); world.update(rows, reply, section); dock.update(rows);
     } catch (error) { if (ticket === epoch) status(error.message || '계산하지 못했습니다. 초기화 후 다시 시도해 주세요.'); }
   }
   function setProcess(p) {
     epoch++; clearTimeout(timer); process = p.data; inputs = {}; reply = null; selected = 0; world.speed(1);
     points = process.equipment.flatMap(eq => (eq.steps || []).flatMap(step => { const range = parseTemp(step.temp); return range ? [{ id: eq.id, eq: eq.name, zone: step.zone, temp: step.temp, high: range[1] }] : []; }));
-    world.setProcess(p); temperaturePanel(); inputPanel();
+    world.setProcess(p); dock.setProcess(process); temperaturePanel(); inputPanel();
     if (api.hasToken()) calculate(true);
   }
   const setProgress = text => { const el = left.querySelector('[data-lab-progress]'); if (el) el.textContent = text; };

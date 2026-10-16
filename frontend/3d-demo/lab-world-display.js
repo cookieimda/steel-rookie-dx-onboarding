@@ -75,16 +75,21 @@ export function createLabWorld(scene, reduced) {
     }
     document.body.dataset.labEffects = String(lines.length);
   }
-  return { setProcess, update, focus, bounds: () => bounds, speed: value => { playback = value; }, clear: () => { clearReactions(); screen.visible = false; }, tick(now, camera) {
+  // 대시보드 배치(body.lab-dock, lab-dock.js)에서는 전광판을 3D 공중 대신 아래 카드에 표로 보이므로 3D에는 그리지 않고 카메라 맞춤에서도 뺀다
+  const docked = () => document.body.classList.contains('lab-dock');
+  return { setProcess, update, focus, bounds: () => (docked() ? null : bounds), speed: value => { playback = value; }, clear: () => { clearReactions(); screen.visible = false; }, tick(now, camera) {
     if (!screen.visible) return;
-    screen.quaternion.copy(camera.quaternion);
-    // 확대해서 전광판이 화면 폭의 55%를 넘으면 흐려지고 85%면 감춘다(공정 모델을 가리지 않게). 화면 비율로 재서 공정·줌 크기와 관계없다
-    const viewW = 2 * camera.position.distanceTo(screen.position) * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * camera.aspect;
-    const fade = Math.min(1, Math.max(0, (.85 - screen.scale.x / viewW) / .3)), m = screen.material;
-    if (m.transparent !== fade < 1) { m.transparent = fade < 1; m.depthWrite = fade === 1; m.needsUpdate = true; }
-    m.opacity = fade; m.visible = fade > .02;
-    const phase =reduced ? 0 : Math.round(Math.max(0, 1 - (now - flashed) / 800) * 10) / 10;
-    if (phase !== lastFlash) { draw(phase); lastFlash = phase; }
+    if (docked()) screen.material.visible = false;
+    else {
+      screen.quaternion.copy(camera.quaternion);
+      // 확대해서 전광판이 화면 폭의 55%를 넘으면 흐려지고 85%면 감춘다(공정 모델을 가리지 않게). 화면 비율로 재서 공정·줌 크기와 관계없다
+      const viewW = 2 * camera.position.distanceTo(screen.position) * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * camera.aspect;
+      const fade = Math.min(1, Math.max(0, (.85 - screen.scale.x / viewW) / .3)), m = screen.material;
+      if (m.transparent !== fade < 1) { m.transparent = fade < 1; m.depthWrite = fade === 1; m.needsUpdate = true; }
+      m.opacity = fade; m.visible = fade > .02;
+      const phase = reduced ? 0 : Math.round(Math.max(0, 1 - (now - flashed) / 800) * 10) / 10;
+      if (phase !== lastFlash) { draw(phase); lastFlash = phase; }
+    }
     if (pulse) pulse.scale.setScalar(reduced ? 1 : 1 + .12 * Math.sin(now / 350));
     for (const { curve, dots } of lines) { const positions = dots.geometry.attributes.position; for (let j = 0; j < 10; j++) { const p = curve.getPoint((j / 10 + (reduced ? 0 : now / 2600 * playback)) % 1); positions.setXYZ(j, p.x, p.y, p.z); } positions.needsUpdate = true; }
   } };

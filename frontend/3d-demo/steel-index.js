@@ -260,8 +260,9 @@ function tagFor(e) {
 function fitHome(p) {
   const framing = p.bounds.clone(); const display = labConsole.bounds(); if (display) framing.union(display);
   const size = framing.getSize(new THREE.Vector3()), c = framing.getCenter(new THREE.Vector3());
-  const w = stage.clientWidth, h = stage.clientHeight, small = w <= 1000;
-  const freeW = small ? w - 24 : w - (w <= 1250 ? 590 : 700), freeH = small ? h * .42 : h - 210;
+  // 대시보드 배치(body.lab-dock)에서는 3D 뷰가 패널과 겹치지 않으므로 뷰 전체(재생 바만 빼고)에 맞춘다. 작은 화면 판단은 창 폭으로 한다
+  const w = stage.clientWidth, h = stage.clientHeight, small = innerWidth <= 1000, docked = document.body.classList.contains('lab-dock');
+  const freeW = small ? w - 24 : docked ? w - 40 : w - (w <= 1250 ? 590 : 700), freeH = small ? h * .42 : docked ? h - 200 : h - 210;
   const tan = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
   const widthDistance = (size.x + size.z * .25) / (2 * tan * camera.aspect * Math.max(.25, freeW / w));
   const heightDistance = (size.y + size.z * .3) / (2 * tan * Math.max(.25, freeH / h));
@@ -342,7 +343,7 @@ function ghost(p, on) { // 공정 모델을 옅게 하거나(on) 되돌린다. �
 }
 // 고른 설비 시점(외관). 설비 상자의 긴 변 × 2.4 거리, 살짝 왼쪽
 // 오른쪽 패널이 열려 있으면 남은 폭에 맞게 그만큼 더 물러난다(최대 1.6배)
-const panelZoom = () => (document.body.classList.contains('panel') ? Math.min(1.6, stage.clientWidth / Math.max(300, stage.clientWidth - (right.offsetWidth || 440))) : 1);
+const panelZoom = () => (document.body.classList.contains('panel') && !document.body.classList.contains('lab-dock') ?Math.min(1.6, stage.clientWidth / Math.max(300, stage.clientWidth - (right.offsetWidth || 440))) : 1);
 const eqPose = (e, yaw) => { const c = e.box.getCenter(new THREE.Vector3()), s = e.box.getSize(new THREE.Vector3()); return { yaw, pitch: 0.34, dist: Math.max(14, Math.max(s.x, s.z, s.y) * 2.4) * panelZoom(), target: new THREE.Vector3(c.x - s.x * 0.15, c.y, c.z) }; };
 function boardPose() { return { ...home, yaw: 0, pitch: .1 }; }
 function setView(v, fly = true) {
@@ -390,7 +391,7 @@ const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.15, 0.3, 1.6); comp
 function resize() { const w = stage.clientWidth || 1, h = stage.clientHeight || 1; renderer.setSize(w, h, false); composer.setSize(w, h); bloom.resolution.set(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); applyViewOffset();  if (cur && !curEq) { home = fitHome(cur); animateTo(home, 450); } }
 // 오른쪽 패널이 열리면 패널 폭의 절반만큼 장면을 왼쪽으로 밀어, 고른 설비가 패널에 가리지 않고 남은 영역 가운데에 온다(2026-10-14 요청). 천천히 옮겨 간다
 let viewOff = 0;
-function applyViewOffset() { const w = stage.clientWidth || 1, h = stage.clientHeight || 1; if (w <= 1000) camera.setViewOffset(w, h, 0, h * .19, w, h); else camera.clearViewOffset(); }
+function applyViewOffset() { const w = stage.clientWidth || 1, h = stage.clientHeight || 1; if (innerWidth <= 1000) camera.setViewOffset(w, h, 0, h * .19, w, h); else camera.clearViewOffset(); }
 function viewOffsetTick() {
   const want = 0;
   if (Math.abs(want - viewOff) < 0.5) return; viewOff += (want - viewOff) * (REDUCED ? 1 : 0.12); if (Math.abs(want - viewOff) < 0.5) viewOff = want; applyViewOffset();

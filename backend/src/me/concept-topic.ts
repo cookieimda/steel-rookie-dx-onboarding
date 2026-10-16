@@ -56,7 +56,10 @@ export function createTopicResolver({ rubrics, demo, scene }: TopicSources) {
       return build(eq ? shortEquipmentName(eq.name) : null, rubricConcept.name, missed ? compactPoint(missed) : null);
     }
     const demoConcept = demo?.[section as Section]?.find((c) => c.id === conceptId);
-    if (demoConcept) return build(null, demoConcept.name, null);
+    if (demoConcept) {
+      const eq = (demoConcept.equipment_ids ?? []).map((id) => equipmentOf(section, id)).find(Boolean);
+      return build(eq ? shortEquipmentName(eq.name) : null, demoConcept.name, null);
+    }
     const eq = equipmentOf(section, conceptId);
     if (eq) {
       const short = shortEquipmentName(eq.name);

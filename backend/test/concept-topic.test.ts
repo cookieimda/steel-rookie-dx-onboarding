@@ -11,7 +11,7 @@ const SCENE: SceneCatalog = {
     { id: "steelmaking", name: "제강", equipment: [{ id: "ladle_transfer", name: "래들 이송" }, { id: "bof_converter", name: "전로 (BOF·LD)" }] },
   ],
 };
-const topic = createTopicResolver({ rubrics: loadFinalRubrics(), demo: { steelmaking: [{ id: "demo_bof_decarburization", name: "전로 취련과 탈탄" }] }, scene: SCENE });
+const topic = createTopicResolver({ rubrics: loadFinalRubrics(), demo: { steelmaking: [{ id: "demo_bof_decarburization", name: "전로 취련과 탈탄" }, { id: "demo_ladle", name: "래들로 옮기기", equipment_ids: ["ladle_transfer"] }] }, scene: SCENE });
 
 test("shortEquipmentName: 괄호를 빼고 '·' 앞부분만", () => {
   assert.equal(shortEquipmentName("고로·장입 장치"), "고로");
@@ -31,6 +31,7 @@ test("루브릭 개념: 소단원은 개념의 첫 설비, 다시 볼 핵심은 
 
 test("시연 개념 목록은 이름만, 설비 id로 남은 기록은 '설비의 역할', 모르는 id는 공정만", () => {
   assert.deepEqual(topic("steelmaking", "demo_bof_decarburization"), { unit: "제강", subunit: null, concept: "전로 취련과 탈탄", label: "제강 › 전로 취련과 탈탄", point: null });
+  assert.equal(topic("steelmaking", "demo_ladle").label, "제강 › 래들 이송 › 래들로 옮기기", "시연 개념의 equipment_ids가 소단원");
   assert.deepEqual(topic("steelmaking", "ladle_transfer"), { unit: "제강", subunit: "래들 이송", concept: "래들 이송의 역할", label: "제강 › 래들 이송의 역할", point: null });
   assert.deepEqual(topic("steelmaking", "bof"), { unit: "제강", subunit: null, concept: null, label: "제강 › 개념", point: null });
 });

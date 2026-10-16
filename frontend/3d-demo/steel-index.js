@@ -320,7 +320,7 @@ function enterStep(e, userAct = true) {
   const c = e.box.getCenter(new THREE.Vector3()), s = e.box.getSize(new THREE.Vector3());
   warm.position.set(c.x, e.box.max.y + 2, c.z); warm.intensity = 14;
   ripples.forEach((r) => r.position.set(c.x, 0.1, c.z)); rippleR = Math.max(2.5, Math.max(s.x, s.z) * 0.62);
-  startDrive(e); outline.select(e.node);
+  startDrive(e); outline.select(e.node, cur.eqs.map((q) => q.node));
   cur.eqs.forEach((q) => q.node.traverse((o) => { if (!o.isMesh || !o.material.userData.color) return; const m = o.material; if (q === e) { m.color.copy(m.userData.color); if (m.userData.emissive) { m.emissive.copy(m.userData.emissive); m.emissiveIntensity = m.userData.emissiveI; } } else { m.color.copy(m.userData.color).multiplyScalar(0.6); if (m.userData.emissive) m.emissiveIntensity = m.userData.emissiveI * 0.5; } }));
   if (view === 'board') setView('3d', false); // 설비를 고르면 대시보드 보기에서 나온다
   animateTo(eqPose(e, orbit.yaw), 1200);

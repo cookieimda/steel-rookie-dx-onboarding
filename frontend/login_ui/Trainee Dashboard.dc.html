@@ -123,6 +123,13 @@
     .ec-missions li.done .ec-m { color: var(--muted); text-decoration: line-through; }
     .ec-missions small { margin-left: auto; color: var(--orange-text); font-weight: 700; white-space: nowrap; }
     /* 배지(도장) */
+    .ec-badgebox { grid-column: 1 / -1; }
+    .ec-badgebox summary { display: flex; align-items: center; justify-content: space-between; cursor: pointer; list-style: none; }
+    .ec-badgebox summary::-webkit-details-marker { display: none; }
+    .ec-badgebox summary i { font-style: normal; font-size: 20px; font-weight: 700; color: var(--muted); transition: transform .2s; }
+    .ec-badgebox[open] summary i { transform: rotate(45deg); }
+    .ec-badgebox summary:focus-visible { outline: 2px solid var(--text); outline-offset: 4px; }
+    .ec-badgebox:not([open]) { gap: 0; }
     .ec-badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 10px; }
     .ec-badge { display: flex; flex-direction: column; align-items: center; gap: 5px; text-align: center; padding: 10px 6px; border-radius: var(--cut-s); background: var(--panel2); }
     .ec-badge b { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; font-size: 24px; border: 2px dashed var(--line); filter: grayscale(1); opacity: .5; }
@@ -437,13 +444,14 @@
               </div>
               <div class="ec-howto"><sc-for list="{{ howto }}" as="h" hint-placeholder-count="5"><span class="ec-how">{{ h.label }} <b>+{{ h.xp }}</b></span></sc-for></div>
             </div>
-            <div class="ec-box">
-              <h3>배지 <small>{{ badgeCount }}</small></h3>
-              <div class="ec-badges">
-                <sc-for list="{{ badges }}" as="b" hint-placeholder-count="10"><div class="ec-badge {{ b.cls }}" title="{{ b.description }}"><b aria-hidden="true">{{ b.icon }}</b><strong>{{ b.name }}</strong><small>{{ b.sub }}</small></div></sc-for>
-              </div>
-            </div>
           </div>
+          <!-- 배지: 카드 아래 왼쪽 칸까지 가로로 넓히고, 접어 두었다가 머리 줄을 눌러 펼친다 -->
+          <details class="ec-box ec-badgebox">
+            <summary><h3>배지 <small>{{ badgeCount }}</small></h3><i aria-hidden="true">+</i></summary>
+            <div class="ec-badges">
+              <sc-for list="{{ badges }}" as="b" hint-placeholder-count="10"><div class="ec-badge {{ b.cls }}" title="{{ b.description }}"><b aria-hidden="true">{{ b.icon }}</b><strong>{{ b.name }}</strong><small>{{ b.sub }}</small></div></sc-for>
+            </div>
+          </details>
         </div>
         </sc-if>
         <!-- 복습: 사원증 탭 아래에 둔다(2026-10-16). 다시 볼 개념(이해도 확인 최근 결과 기준) -->

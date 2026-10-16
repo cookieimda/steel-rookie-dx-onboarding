@@ -18,11 +18,11 @@
   --blur: blur(18px) saturate(1.15);
 }
 
-/* ---- 3D 바탕: 거의 검정(#0d1114)을 레퍼런스처럼 짙은 남회색으로 올린다 ----
-   screen 합성이라 검은 곳만 밝아지고 밝은 설비 모델은 거의 그대로다. 장면 색(steel-index.js)은 건드리지 않는다. */
+/* ---- 3D 바탕: 아래는 검정보다 밝은 짙은 회색, 위로 갈수록 검정(레퍼런스의 잔잔한 세로 그라데이션) ----
+   screen 합성이라 어두운 곳만 밝아지고 밝은 설비 모델은 거의 그대로다. 장면 색(steel-index.js)은 건드리지 않는다. */
 #stage::after {
   content: ""; position: absolute; inset: 0; pointer-events: none; mix-blend-mode: screen;
-  background: radial-gradient(ellipse 70% 60% at 50% 46%, rgba(52, 60, 82, .55), rgba(30, 35, 50, .42) 60%, rgba(14, 16, 24, .25) 100%);
+  background: linear-gradient(to top, rgba(74, 77, 86, .62) 0%, rgba(52, 55, 64, .44) 28%, rgba(26, 28, 34, .2) 58%, rgba(0, 0, 0, 0) 85%);
 }
 
 /* ---- 양옆 패널 ---- */
@@ -54,6 +54,35 @@
 .lab-gauge > span, .lab-temperature-result span, .lab-scale, .lab-gauge p, .lab-muted, .lab-pane summary { color: var(--ink-lo); }
 .lab-status { color: var(--ink); }
 .lab-temperature-result small { color: var(--ink-lo); }
+
+/* 왜곡 유리 카드(레퍼런스의 OEE·Pump Trips 칸): 판 뒤에 흐릿하게 번진 빛 얼룩이 천천히 일렁여 굴절된 듯 보이게 한다.
+   일부 카드에만 쓴다(What-if 온도 계기·실험 온도 칸). 글자는 얼룩 위에 둔다 */
+.lab-gauge, .lab-temperature-result > div { position: relative; overflow: hidden; isolation: isolate; }
+.lab-gauge > *, .lab-temperature-result > div > * { position: relative; z-index: 1; }
+.lab-gauge::before, .lab-temperature-result > div::before {
+  content: ""; position: absolute; inset: -35%; z-index: 0; pointer-events: none; mix-blend-mode: screen; opacity: 1;
+  background:
+    radial-gradient(16% 30% at 62% 36%, rgba(255, 255, 255, .5), transparent 70%),
+    radial-gradient(10% 22% at 70% 50%, rgba(230, 236, 255, .34), transparent 72%),
+    radial-gradient(24% 30% at 38% 64%, rgba(122, 150, 255, .34), transparent 70%),
+    radial-gradient(14% 22% at 78% 68%, rgba(255, 112, 96, .3), transparent 72%),
+    conic-gradient(from 210deg at 58% 48%, transparent 0 14%, rgba(255, 255, 255, .22) 22%, transparent 32% 60%, rgba(170, 190, 255, .18) 70%, transparent 82%);
+  filter: blur(11px) contrast(1.25);
+  transform: rotate(-10deg) scale(1.05);
+  animation: lab-warp 22s ease-in-out infinite alternate;
+}
+/* 굴절된 가장자리: 왼쪽은 따뜻하게, 오른쪽은 차갑게 아주 얇게 번진다 */
+.lab-gauge::after, .lab-temperature-result > div::after {
+  content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none; border-radius: inherit;
+  box-shadow: inset 1px 0 0 rgba(255, 140, 120, .16), inset -1px 0 0 rgba(130, 165, 255, .18), inset 0 1px 0 rgba(255, 255, 255, .1);
+}
+.lab-temperature-result > div:nth-child(2n)::before { animation-delay: -9s; transform: rotate(14deg) scale(1.1); }
+@keyframes lab-warp {
+  0% { transform: rotate(-10deg) scale(1.05) translate(0, 0); }
+  50% { transform: rotate(4deg) scale(1.16) translate(-4%, 3%); }
+  100% { transform: rotate(12deg) scale(1.08) translate(3%, -2%); }
+}
+@media (prefers-reduced-motion: reduce) { .lab-gauge::before, .lab-temperature-result > div::before { animation: none; } }
 
 /* 온도 그래프: 흐린 격자 + 밝은 가는 선, 고른 단계만 따뜻한 점 */
 .lab-chart { background: linear-gradient(rgba(255, 255, 255, .045) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, .045) 1px, transparent 1px); background-size: 22px 22px; }

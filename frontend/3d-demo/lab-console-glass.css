@@ -119,9 +119,15 @@
 .top .rb:hover, .top .tabs button:hover { background: rgba(255, 255, 255, .1); }
 .bar { background: rgba(26, 29, 38, .5); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); border: 1px solid var(--glass-line); box-shadow: inset 0 1px 0 var(--glass-hi), 0 18px 40px rgba(0, 0, 0, .35); }
 .bar .play { background: var(--glass-3); border-color: var(--glass-line); }
-/* 아래 재생 바의 설비 이름은 '…'로 자르지 않고 다 보인다. 넘치면 바 안에서 옆으로 넘겨 본다(.track overflow-x) */
-.bar .stop, .process-lab .bar .stop { max-width: none; flex-shrink: 0; }
-.bar .stop span { overflow: visible; text-overflow: clip; white-space: nowrap; }
+/* 아래 재생 바: 스크롤바 없이 바를 위아래로 키우고, 긴 설비 이름은 '…'로 자르지 않고 두 줄로 다 보인다 */
+.bar { height: auto; min-height: 88px; padding-block: 12px; }
+/* 양옆 패널은 바 위에서 끝나므로, 바는 패널 사이로 좁히지 않고 화면 폭까지 쓸 수 있다.
+   바가 두 줄 이름만큼 높아져도 겹치지 않게 패널 아래 끝을 조금 올린다(lab-console.css의 106px → 128px) */
+.process-lab .bar, .process-lab.panel .bar { max-width: calc(100vw - 32px); }
+@media (min-width: 1001px) { .lab-pane, .process-lab .right { bottom: 128px; } }
+.bar .track, .process-lab .bar .track { overflow: visible; }
+.bar .stop, .process-lab .bar .stop { min-width: 64px; max-width: 108px; flex-shrink: 1; white-space: normal; }
+.bar .stop span { overflow: visible; text-overflow: clip; white-space: normal; word-break: keep-all; text-align: center; line-height: 1.3; }
 
 /* 흐림을 못 쓰는 브라우저는 판을 조금 더 진하게 */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {

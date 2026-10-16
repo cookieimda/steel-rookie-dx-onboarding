@@ -1046,7 +1046,7 @@ class Component extends DCLogic {
       // 인과 지도 연결(/api/lab/causal/concepts): 그 개념의 첫 변수 설명 카드로 3D 인과 지도를 연다
       misconceptions: misconceptions.slice(0, 8).map(m => { const cv = S.causalConcepts?.[m.concept_id]; return { name: conceptName(m.section, m.concept_id, m.concept_name), summary: m.summary,
         status: m.resolved ? '해결됨' : m.label, color: m.resolved ? 'var(--ok)' : 'var(--bad)',
-        hasMap: !!cv, mapHref: cv ? `/3d-demo/Steel%20Academy%20v4.dc.html?p=${cv.section}&lab=map&var=${cv.vars[0]}` : '', mapVars: cv ? `${cv.vars.length}개 값` : '' }; }),
+        hasMap: !!cv, mapHref: cv ? `/3d-demo/causal-lab.html?p=${cv.section}&lab=map&var=${cv.vars[0]}` : '', mapVars: cv ? `${cv.vars.length}개 값` : '' }; }),
       misEmpty: !!D && misconceptions.length === 0,
     };
   }

@@ -106,8 +106,10 @@ function injectStyle() {
 }
 
 /** 3D 효과 층: 링·흐름 입자·빛·이름표. 모두 월드 좌표(설비 focus)에 둔다. */
-function createFx(scene) {
+function createFx(scene, light = false) {
   const fx = { rings: [], flows: [], glows: [], tags: [] };
+  // 밝은 장면(인과 실습 공간)에서는 가산 합성이 바탕에 묻혀 하얗게 날아가므로 보통 합성으로 그린다
+  const BLEND = light ? THREE.NormalBlending : THREE.AdditiveBlending;
   const allEqs = () => Object.values(scene.zones || {}).flatMap((z) => z.eqs || []);
   const eq = (id) => allEqs().find((e) => e.id === id);
   const posOf = (id, lift = 0) => { const e = eq(id); return e ? e.focus.clone().add(new THREE.Vector3(0, lift, 0)) : null; };
@@ -120,7 +122,7 @@ function createFx(scene) {
 
   fx.ring = (id, color, pulse = true) => {
     const e = eq(id); if (!e) return;
-    const m = own(new THREE.Mesh(new THREE.RingGeometry(0.84, 1, 64), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.6, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false })));
+    const m = own(new THREE.Mesh(new THREE.RingGeometry(0.84, 1, 64), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.6, depthWrite: false, blending: BLEND, side: THREE.DoubleSide, fog: false })));
     m.rotation.x = -Math.PI / 2; m.position.set(e.focus.x, 0.12, e.focus.z);
     fx.rings.push({ m, r: Math.max(3, (e.dist || 20) * 0.22), pulse, id });
   };
@@ -132,7 +134,7 @@ function createFx(scene) {
     const curve = new THREE.QuadraticBezierCurve3(a, mid, b);
     const line = own(new THREE.Line(new THREE.BufferGeometry().setFromPoints(curve.getPoints(48)), new THREE.LineBasicMaterial({ color, transparent: true, opacity: opt.opacity ?? 0.6, depthWrite: false, fog: false })));
     const n = opt.dots ?? 8, geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
-    const points = own(new THREE.Points(geo, new THREE.PointsMaterial({ color, size: 11, sizeAttenuation: false, map: dotTex, transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, fog: false })));
+    const points = own(new THREE.Points(geo, new THREE.PointsMaterial({ color, size: 11, sizeAttenuation: false, map: dotTex, transparent: true, depthWrite: false, depthTest: false, blending: BLEND, fog: false })));
     fx.flows.push({ curve, line, points, n, t0: performance.now() });
   };
   /** 출선구 쇳물 빛: 온도 색과 크기. */
@@ -201,15 +203,21 @@ function createFx(scene) {
   return fx;
 }
 
-export async function attachSimLab() {
+/**
+ * opts.host: <steel-scene> 대신 붙을 장면 요소(인과 실습 공간 causal-lab.js가 같은 속성 scene·zones·camera·_frame·process·focus·reset·_overviewPose·_animateTo를 단다).
+ * opts.light: 밝은 장면(효과를 보통 합성으로). opts.tutor: false면 튜터 질문 버튼을 숨긴다(튜터 패널이 없는 화면).
+ * opts.faultLabel: 이상 상황 실습의 이름(기본 '이상 상황 훈련', 인과 실습 공간은 '이상 상황 알아보기').
+ */
+export async function attachSimLab(opts = {}) {
   if (!token()) return;
-  let scene = null;
-  while (!(scene = document.querySelector('steel-scene'))) await sleep(150);
+  let scene = opts.host || null;
+  while (!scene && !(scene = document.querySelector('steel-scene'))) await sleep(150);
   while (!scene.scene || !scene.zones || !scene.camera || typeof scene._frame !== 'function') await sleep(150);
   if (scene.__simLab) return;
   scene.__simLab = true;
   injectStyle();
-  const fx = createFx(scene);
+  const FAULT = opts.faultLabel || '이상 상황 훈련';
+  const fx = createFx(scene, !!opts.light);
   const frame = scene._frame.bind(scene);
   scene._frame = function (now) { const r = frame(now); try { fx.tick(now); } catch (e) { console.warn('시뮬레이션 효과 실패', e); } return r; };
 
@@ -234,7 +242,7 @@ export async function attachSimLab() {
   panel.addEventListener('keydown', (e) => { if (e.key === 'Escape' && mode) { e.stopPropagation(); open(null); } });
   // 튜터에게 묻느라 잠시 숨긴 패널이면, 그 실습 버튼은 진행 중인 패널을 그대로 다시 보인다
   const toggle = (m, b) => { if (panel.hidden && mode && launcherOf[mode] === b) { panel.hidden = false; b.setAttribute('aria-expanded', 'true'); panel.querySelector('h3')?.focus({ preventScroll: true }); return; } open(mode === m ? null : m); };
-  const bWhatif = btn('🧪 조업 실험', () => toggle('whatif', bWhatif), ''), bFault = btn('🚨 이상 상황 훈련', () => toggle('fault', bFault), '');
+  const bWhatif = btn('🧪 조업 실험', () => toggle('whatif', bWhatif), ''), bFault = btn(`🚨 ${FAULT}`, () => toggle('fault', bFault), '');
   const bMap = btn('🗺 공정 인과 지도', () => toggle('map', bMap), ''), bPlant = btn('🏭 공장 전체 보기', () => plantFlow(), '');
   launch.append(bMap, bWhatif, bFault, bPlant);
   launch.setAttribute('role', 'toolbar'); launch.setAttribute('aria-label', '3D 실습 도구');
@@ -247,7 +255,7 @@ export async function attachSimLab() {
   if (typeof ResizeObserver === 'function') new ResizeObserver(fitPanel).observe(launch);
   addEventListener('resize', fitPanel); fitPanel();
   let mode = null;
-  const TITLES = { map: '공정 인과 지도', whatif: '조업 실험', fault: '이상 상황 훈련', quiz: '인과 퀴즈', incident: '사고 사례 갈림길', diagnose: '거꾸로 추론', rebalance: '되돌리기 퍼즐' };
+  const TITLES = { map: '공정 인과 지도', whatif: '조업 실험', fault: FAULT, quiz: '인과 퀴즈', incident: '사고 사례 갈림길', diagnose: '거꾸로 추론', rebalance: '되돌리기 퍼즐' };
   const launcherOf = { map: bMap, whatif: bWhatif, fault: bFault, quiz: bMap, incident: bFault, diagnose: bMap, rebalance: bMap };
   function open(next, preset, opt = {}) {
     const prev = mode;
@@ -296,7 +304,7 @@ export async function attachSimLab() {
     panel.hidden = true; launcherOf[mode]?.setAttribute('aria-expanded', 'false');
     say(`튜터 입력창에 질문을 채웠어요. 고쳐서 보내도 돼요. 실습은 ${launcherOf[mode]?.textContent.replace(/^\S+\s/, '') || '실습'} 버튼을 누르면 그대로 돌아와요.`);
   }
-  const tutorBtn = (text) => btn('🎓 튜터에게 이 연결 묻기', () => askTutor(text), 'sl-btn ghost');
+  const tutorBtn = (text) => { const b = btn('🎓 튜터에게 이 연결 묻기', () => askTutor(text), 'sl-btn ghost'); if (opts.tutor === false) b.hidden = true; return b; };
 
   // ── 공장 전체 물류 흐름: 실습 패널이 닫혀 있을 때 공장 전체 보기를 누르면 물질이 공정 사이를 어떻게 넘어가는지 흐름으로 보인다 ──
   // 설비 사이 구간마다 그 구간을 지나는 물질 색(용선 주황·용강 노랑·슬래브 붉은 주황·코일 청회색), 물질이 바뀌는 설비에 이름표. 다시 누르면 지운다.
@@ -949,7 +957,7 @@ export async function attachSimLab() {
 
   // ── ② 이상 상황 훈련 ──
   async function faultList() {
-    panel.append(head('🚨 이상 상황 훈련'));
+    panel.append(head(`🚨 ${FAULT}`));
     try {
       const data = await api('GET', '/api/lab/faults');
       panel.append(el('p', 'sl-muted', data.disclaimer));
@@ -961,7 +969,7 @@ export async function attachSimLab() {
     } catch (e) { panel.append(el('p', 'sl-bad', e.message)); }
   }
   async function faultDrill(id) {
-    fx.clear(); panel.replaceChildren(head('🚨 이상 상황 훈련'));
+    fx.clear(); panel.replaceChildren(head(`🚨 ${FAULT}`));
     let f;
     try { f = (await api('GET', `/api/lab/faults/${id}`)).fault; } catch (e) { panel.append(el('p', 'sl-bad', e.message)); return; }
     const tries = { signal: 0, cause: 0, action: 0 };

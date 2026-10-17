@@ -7,46 +7,28 @@
 | 명령 | provider | 비고 |
 |---|---|---|
 | `npm start` | `.env`의 `LLM_PROVIDER`(없으면 gemini) | |
-| `npm run start:gemini` | gemini 고정 | 시연용. 추천 질문 미리 받기(유료)·시험 질문 다듬기 기본 끔, 보충학습 확인 문제는 로컬 모델에 먼저(아래 '섞어 쓰기') |
+| `npm run start:gemini` | gemini 고정 | 시연용. 추천 질문 미리 받기(유료)·시험 질문 말투 다듬기 기본 끔 |
 | `npm run start:ollama` | ollama 고정, `PRIVATE_LLM_ONLY=1` | Ollama 연결·모델을 확인하고 모델을 메모리에 올린 뒤 서버를 켠다 |
 
 Ollama 준비: [Ollama](https://ollama.com) 설치 → `ollama pull qwen2.5:3b` → `npm run start:ollama`. 설정은 `.env.example`의 `OLLAMA_*`.
 
 - `PRIVATE_LLM_ONLY=1`이면 Gemini를 쓰지 않는다. `LLM_PROVIDER=gemini`와 함께 쓰면 서버가 시작하지 않는다(학습자 답이 밖으로 나가지 않게).
 - `/api/status`는 지금 provider와 모델, Ollama면 연결 상태(`ready`·`model_missing`·`unreachable`)를 돌려준다.
-- 사용자별 하루 호출 한도(`LLM_DAILY_LIMIT`)는 provider와 상관없이 센다. 단, 섞어 쓰기에서 로컬 모델에 먼저 맡긴 호출은 세지 않는다(Gemini로 넘어간 호출만 센다).
-
-## 섞어 쓰기 (Gemini 서버에서 일부만 로컬 모델)
-
-Gemini 호출을 줄이려고 Gemini 서버에서 틀려도 안전한 일만 로컬 모델(Ollama)에 먼저 맡긴다(2026-10-17).
-
-| 설정 | 값 | 하는 일 |
-|---|---|---|
-| `LLM_LOCAL_TASKS` | `practice`, `summary`(쉼표로 여러 개, `off`면 끔) | `practice`: 보충학습 확인 문제 만들기. `summary`: 관리자 AI 요약 |
-| `LLM_LOCAL_TIMEOUT_MS` | 기본 60000 | 로컬 호출 시간 제한. 넘으면 Gemini로 다시 묻는다 |
-| `QUESTION_POLISH` | 기본 `on`, `off` | 시험 질문 말투 다듬기. `off`면 검수한 은행 원문을 그대로 묻고 모델을 부르지 않는다 |
-
-- `npm run start:gemini`는 설정하지 않으면 `LLM_LOCAL_TASKS=practice`, `QUESTION_POLISH=off`다. `npm start`는 둘 다 섞기 전 그대로(다듬기 켬, 로컬 없음).
-- 로컬 모델이 연결 실패·시간 초과·HTTP 오류면 같은 요청을 Gemini로 다시 묻고, 5분 동안은 Gemini로 바로 보낸다(`localFirstClient`). 시연 컴에 Ollama가 없어도 섞기 전처럼 돈다.
-- 서버를 켤 때 Ollama 상태(준비됨·모델 없음·연결 안 됨)를 알리고, 준비돼 있으면 모델을 메모리에 올린다.
-- trace에는 호출마다 `ollama:모델`·`gemini:모델`이 남아 `trace:report`가 모델별로 나눠 보여 준다.
-- 채점·학습 답·부가 설명·시험 질문은 로컬에 맡기지 않는다(아래 측정 기록: 채점 smoke 72.4%, 학습 답 근거 겹침 37.5%).
-
-시험 질문 다듬기를 로컬에 맡기지 않고 끈 이유(2026-10-17, `eval:questions --polish-count 3`, qwen2.5:3b, 제선 은행 질문 12개 × 3회): 유출 검사는 36개 모두 통과했지만 문장이 나빠졌다. 끝에 "설명해 주세요? 나요?" 같은 군말이 붙거나(약 3분의 1), "공정의 작업자여"·"~물어보세요"처럼 말투가 어긋나고, 재확인 질문 하나는 질문 대신 틀린 설명("코크스가 원료를 분해하거나 변환시켜…")을 했다. 유출 검사로는 잡히지 않는다. 은행 질문은 팀이 검수한 문장이라 그대로 묻는 쪽이 낫고 호출도 없다.
-
-보충학습 확인 문제(같은 날, 개념 3개 × 3회, 첫 문제·다시 묻기): 문장이 짧고 덜 구체적이며("소결의 목적은 뭔가요?") 어색한 끝맺음("설명해요?")이 있다. 코크스 개념은 3회 모두 유출 검사에 걸려 고정 문장을 썼다. 점수에 들어가지 않고 채점은 Gemini가 해서 로컬에 맡긴다. 문장 품질이 더 중요하면 `LLM_LOCAL_TASKS=off`.
+- 사용자별 하루 호출 한도(`LLM_DAILY_LIMIT`)는 provider와 상관없이 센다.
+- 시험 질문 말투 다듬기(`QUESTION_POLISH`, 기본 `on`): `off`면 팀이 검수한 질문 은행 원문을 그대로 묻고 다듬기 호출을 하지 않는다. `start:gemini`는 Gemini 호출을 줄이려고 기본 `off`다(2026-10-17).
+  - 다듬기를 로컬 모델에 맡기는 것도 쟀지만(`eval:questions --polish-count 3`, qwen2.5:3b, 제선 은행 질문 12개 × 3회) 쓰지 않는다. 유출은 36개 모두 0이었지만 끝에 "설명해 주세요? 나요?" 같은 군말이 붙거나(약 3분의 1) 말투·뜻이 바뀌었고, 재확인 질문 하나는 질문 대신 틀린 설명을 했다. 유출 검사로는 잡히지 않는다.
 
 ## 코드
 
 | 파일 | 역할 |
 |---|---|
-| `llm/src/provider.ts` | `configuredProvider`, `providerInfo`(label `provider:모델`), `createLlmClient`, `profileFor`, 섞어 쓰기 `localTasks`·`localFirstClient` |
+| `llm/src/provider.ts` | `configuredProvider`, `providerInfo`(label `provider:모델`), `createLlmClient`, `profileFor` |
 | `llm/src/ollama.ts` | Ollama `/api/chat` 클라이언트. `responseSchema`를 JSON Schema(`json-schema.ts`)로 바꿔 `format`에 넣고, 스트리밍(NDJSON), 연결 확인, 미리 올리기 |
 | `llm/src/gemini.ts` | Gemini 클라이언트 |
 | `llm/src/learning-context.ts`, `llm/prompts/learning-compact.md` | 로컬 모델용 학습 튜터 입력 줄이기·짧은 프롬프트 |
 | `llm/src/evaluator.ts` | 채점 보강 `repairFormat`·`verifyBoundary`(`llm/prompts/evaluator-keypoints.md`) |
 
-- 오류는 provider와 상관없이 `GeminiCallError`(reason: `timeout`·`network`·`http`·`rate_limit`)로 올라와 재시도·오류 응답을 같이 탄다. `LLM_PROVIDER=ollama`에서는 Ollama 오류에서 Gemini로 넘어가지 않는다(섞어 쓰기에서 로컬에 먼저 맡긴 일만 넘어간다).
+- 오류는 provider와 상관없이 `GeminiCallError`(reason: `timeout`·`network`·`http`·`rate_limit`)로 올라와 재시도·오류 응답을 같이 탄다. Ollama 오류에서 Gemini로 넘어가지 않는다.
 - 응답 형식 검증(source id·개념 id·화면 조작·키워드 카드)은 provider와 상관없이 서버가 한다.
 - 요청 trace(`docs/agent-observability.md`)는 호출마다 `gemini:모델`·`ollama:모델`을 남겨 `npm run trace:report`가 모델별로 나눠 보여 준다.
 - 학습 답 저장(`answer-cache.ts`)은 버전에 provider·모델·프롬프트가 들어가 Gemini 답과 로컬 모델 답이 섞이지 않는다.
@@ -126,4 +108,4 @@ LLM_PROVIDER=ollama npm run eval:supplement
 ## 하지 않은 것
 
 - vLLM(OpenAI 호환 서버): 이전 브랜치(#126)에 있었지만 GPU가 없어 이번에는 넣지 않았다.
-- 학습 답·채점을 로컬 모델에 나눠 맡기는 것: 품질 차이가 커서 섞어 쓰기에서도 Gemini에 둔다(위 '섞어 쓰기').
+- 요청마다 provider를 바꾸는 것(예: 채점은 Gemini, 학습은 Ollama): 지금은 서버 전체가 한 provider다.

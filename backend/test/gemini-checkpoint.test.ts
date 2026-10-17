@@ -186,16 +186,10 @@ test("보충학습 확인 문제(practiceQuestion): 은행이 있어도 은행�
   assert.notEqual(practiceFallback(concept, genericQuestion(concept)), genericQuestion(concept), "직전 문제와 같은 고정 문장은 쓰지 않음");
 });
 
-test("튜터(섞어 쓰기): 확인 문제만 practiceClient로 보내고, 다듬기를 끄면 은행 원문을 호출 없이 묻는다", async () => {
-  const main = fakeGemini(["다듬은 질문이에요?", "설명입니다."]);
-  const asked: string[] = [];
-  const practiceClient = { generate: async (r: { prompt: string }) => (asked.push(r.prompt), "새 확인 문제?") };
-  const tutor = new GeminiTutor(main.client, { practiceClient, random: () => 0 });
-  assert.equal((await tutor.question({ rubric, concept })).text, "다듬은 질문이에요?", "시험 질문 다듬기는 기본 클라이언트");
-  assert.equal((await tutor.practiceQuestion({ rubric, concept })).text, "새 확인 문제?");
-  await tutor.explanation({ rubric, concept, explainFrom: 0, misconception: null, answer: "A" });
-  assert.equal(asked.length, 1);
-  assert.equal(main.sent.length, 2);
+test("튜터: 다듬기를 끄면(polish: false) 첫 질문·재확인 모두 은행 원문을 호출 없이 묻는다", async () => {
+  const on = fakeGemini(["다듬은 질문이에요?"]);
+  assert.equal((await new GeminiTutor(on.client, { random: () => 0 }).question({ rubric, concept })).text, "다듬은 질문이에요?", "기본은 다듬는다");
+  assert.equal(on.sent.length, 1);
 
   const off = fakeGemini([]);
   const plain = new GeminiTutor(off.client, { polish: false, random: () => 0 });

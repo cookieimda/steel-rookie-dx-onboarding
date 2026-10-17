@@ -216,8 +216,7 @@ content/
 - 채점 로직은 Node(TypeScript)로 옮겼다. Python 버전은 없다.
 - 로그인: 아이디 + 비밀번호(bcrypt 해시) + JWT.
 - 관리자 통계 화면을 만든다(처음 설계의 "관리자 화면 없음"을 바꿈). 오개념은 개수만 보여 준다.
-- LLM: Gemini를 유지한다. 평가자는 Gemini `responseSchema`로 판정 JSON 형식을 강제한다. 로컬 모델(Ollama)은 `LLM_PROVIDER=ollama`(`npm run start:ollama`)로 같은 에이전트를 돌리고, 짧은 학습 프롬프트와 채점 보강을 켠다([docs/llm-providers.md](docs/llm-providers.md)). 시연 기본은 Gemini(`npm run start:gemini`).
-  - 섞어 쓰기(2026-10-17): `start:gemini`는 보충학습 확인 문제를 로컬 모델에 먼저 맡기고(`LLM_LOCAL_TASKS=practice`, Ollama가 없으면 Gemini로 대체), 시험 질문 말투 다듬기는 끄고 은행 원문을 쓴다(`QUESTION_POLISH=off`, 로컬 3B가 뜻을 바꿔서). 채점·학습 답·부가 설명은 Gemini. 상세는 docs/llm-providers.md '섞어 쓰기'.
+- LLM: Gemini를 유지한다. 평가자는 Gemini `responseSchema`로 판정 JSON 형식을 강제한다. 로컬 모델(Ollama)은 `LLM_PROVIDER=ollama`(`npm run start:ollama`)로 같은 에이전트를 돌리고, 짧은 학습 프롬프트와 채점 보강을 켠다([docs/llm-providers.md](docs/llm-providers.md)). 시연 기본은 Gemini(`npm run start:gemini`). 시연은 Gemini만 쓰고 Ollama와 섞지 않는다(2026-10-17). `start:gemini`는 Gemini 호출을 줄이려고 시험 질문 말투 다듬기를 끄고 질문 은행 원문을 그대로 묻는다(`QUESTION_POLISH=off`).
 - 체크포인트 결과 차트: 개념별 가로 막대(맞음/부분/틀림) + 전체 이해도 게이지(80% 기준선 표시).
 - 재확인 단계에서 되묻기·힌트 요청은 `wrong`이다(재확인 평가자 스키마에 `assisted` 없음).
 - 재확인에도 맞히지 못하면 핵심 요소 요약(템플릿)을 보여 주고 다음 개념으로 넘어간다.

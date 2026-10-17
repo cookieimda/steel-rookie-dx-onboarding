@@ -214,7 +214,7 @@ async function main(): Promise<void> {
     chunks: retriever.retrieve(section, question, { process_id: section, equipment_id: screen.equipment_id }),
     history: [],
     openMisconceptions: [],
-    concepts: rubricOf(section)?.concepts.map((k) => ({ concept_id: k.concept_id, name: k.name })) ?? [],
+    concepts: rubricOf(section)?.concepts.map((k) => ({ concept_id: k.concept_id, name: k.name, wrong: k.wrong })) ?? [],
     glossary: rubricOf(section)?.glossary ?? [],
     scene,
   });

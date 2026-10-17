@@ -27,8 +27,8 @@ export interface PolishResult {
   /** 다듬은 문장의 유출 검사 결과. 호출이 실패하면 null. */
   polishedLeaks: LeakResult | null;
   used: "polished" | "original";
-  /** 원문을 쓴 이유: 다듬은 문장이 유출 검사에 걸림, 또는 다듬기 호출 실패. */
-  reason?: "leak" | "error";
+  /** 원문을 쓴 이유: 다듬은 문장이 유출 검사에 걸림, 다듬기 호출 실패, 또는 다듬기를 끔(TutorOptions.polish). */
+  reason?: "leak" | "error" | "off";
   error?: { message: string; infra: boolean };
 }
 
@@ -65,13 +65,19 @@ export function practiceFallback(concept: RubricConcept, previousQuestion: strin
 export interface TutorOptions {
   /** 은행에서 질문을 고를 때 쓰는 난수(0 이상 1 미만). 테스트에서 고정한다. */
   random?: () => number;
+  /**
+   * 은행 질문 말투 다듬기(기본 켬). 끄면 팀이 검수한 은행 원문을 그대로 묻고 모델을 부르지 않는다(QUESTION_POLISH=off, Gemini 호출 줄이기).
+   */
+  polish?: boolean;
 }
 
 export class GeminiTutor implements Tutor {
   private readonly random: () => number;
+  private readonly polishOn: boolean;
 
   constructor(private readonly gemini: LlmClient, options: TutorOptions = {}) {
     this.random = options.random ?? Math.random;
+    this.polishOn = options.polish ?? true;
   }
 
   private async say(prompt: string, temperature: number, maxOutputTokens: number): Promise<string> {
@@ -106,7 +112,10 @@ export class GeminiTutor implements Tutor {
   }
 
   private async fromBank(rubric: Rubric, concept: RubricConcept, candidates: string[]): Promise<DetailedQuestion> {
-    const bank = await this.polish(rubric, concept, this.pick(candidates));
+    const original = this.pick(candidates);
+    const bank: PolishResult = this.polishOn
+      ? await this.polish(rubric, concept, original)
+      : { original, polished: null, originalLeaks: findLeaks(original, rubric, concept), polishedLeaks: null, used: "original", reason: "off" };
     return {
       text: bank.used === "polished" ? bank.polished! : bank.original, source: "bank", bankQuestion: bank.original, bank, attempts: [], usedFallback: false,
     };

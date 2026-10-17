@@ -186,6 +186,20 @@ test("보충학습 확인 문제(practiceQuestion): 은행이 있어도 은행�
   assert.notEqual(practiceFallback(concept, genericQuestion(concept)), genericQuestion(concept), "직전 문제와 같은 고정 문장은 쓰지 않음");
 });
 
+test("튜터: 다듬기를 끄면(polish: false) 첫 질문·재확인 모두 은행 원문을 호출 없이 묻는다", async () => {
+  const on = fakeGemini(["다듬은 질문이에요?"]);
+  assert.equal((await new GeminiTutor(on.client, { random: () => 0 }).question({ rubric, concept })).text, "다듬은 질문이에요?", "기본은 다듬는다");
+  assert.equal(on.sent.length, 1);
+
+  const off = fakeGemini([]);
+  const plain = new GeminiTutor(off.client, { polish: false, random: () => 0 });
+  const q = await plain.questionDetailed({ rubric, concept });
+  assert.equal(q.text, concept.questions![0]);
+  assert.deepEqual([q.bank?.used, q.bank?.reason], ["original", "off"]);
+  assert.equal((await plain.recheckQuestion({ rubric, concept, previousQuestion: q.text })).text, concept.recheck_questions![0]);
+  assert.equal(off.sent.length, 0, "다듬기를 끄면 모델을 부르지 않는다");
+});
+
 test("geminiTimeoutMs: GEMINI_TIMEOUT_MS가 양의 정수면 그 값, 없거나 잘못됐으면 60초", () => {
   const saved = process.env.GEMINI_TIMEOUT_MS;
   try {

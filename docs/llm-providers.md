@@ -7,7 +7,7 @@
 | 명령 | provider | 비고 |
 |---|---|---|
 | `npm start` | `.env`의 `LLM_PROVIDER`(없으면 gemini) | |
-| `npm run start:gemini` | gemini 고정 | 시연용. 추천 질문 미리 받기(유료) 기본 끔 |
+| `npm run start:gemini` | gemini 고정 | 시연용. 추천 질문 미리 받기(유료)·시험 질문 말투 다듬기 기본 끔 |
 | `npm run start:ollama` | ollama 고정, `PRIVATE_LLM_ONLY=1` | Ollama 연결·모델을 확인하고 모델을 메모리에 올린 뒤 서버를 켠다 |
 
 Ollama 준비: [Ollama](https://ollama.com) 설치 → `ollama pull qwen2.5:3b` → `npm run start:ollama`. 설정은 `.env.example`의 `OLLAMA_*`.
@@ -15,6 +15,8 @@ Ollama 준비: [Ollama](https://ollama.com) 설치 → `ollama pull qwen2.5:3b` 
 - `PRIVATE_LLM_ONLY=1`이면 Gemini를 쓰지 않는다. `LLM_PROVIDER=gemini`와 함께 쓰면 서버가 시작하지 않는다(학습자 답이 밖으로 나가지 않게).
 - `/api/status`는 지금 provider와 모델, Ollama면 연결 상태(`ready`·`model_missing`·`unreachable`)를 돌려준다.
 - 사용자별 하루 호출 한도(`LLM_DAILY_LIMIT`)는 provider와 상관없이 센다.
+- 시험 질문 말투 다듬기(`QUESTION_POLISH`, 기본 `on`): `off`면 팀이 검수한 질문 은행 원문을 그대로 묻고 다듬기 호출을 하지 않는다. `start:gemini`는 Gemini 호출을 줄이려고 기본 `off`다(2026-10-17).
+  - 다듬기를 로컬 모델에 맡기는 것도 쟀지만(`eval:questions --polish-count 3`, qwen2.5:3b, 제선 은행 질문 12개 × 3회) 쓰지 않는다. 유출은 36개 모두 0이었지만 끝에 "설명해 주세요? 나요?" 같은 군말이 붙거나(약 3분의 1) 말투·뜻이 바뀌었고, 재확인 질문 하나는 질문 대신 틀린 설명을 했다. 유출 검사로는 잡히지 않는다.
 
 ## 코드
 

@@ -72,7 +72,9 @@ const llm = jobAwareClient(createLlmClient({ beforeCall: () => usage.consume(job
 // 평가자·튜터는 체크포인트·시험·보충학습이 함께 쓴다. 시험 작업에서는 단계(문제·채점·설명)를 작업 상태에 적는다(phase*).
 // 로컬 모델은 판정 필드 형식·wrong·partial 경계를 자주 틀리고 누락을 오개념으로 적어서 보강을 켠다(llm/src/evaluator.ts evaluatorGuardOptions).
 const evaluator = new GeminiEvaluator(llm, evaluatorGuardOptions(profile.evaluatorGuards));
-const tutor = new GeminiTutor(llm);
+// 시험 질문 말투 다듬기(QUESTION_POLISH, 기본 on). off면 검수한 은행 원문을 그대로 묻고 다듬기 호출을 하지 않는다(start:gemini 기본 off).
+const polish = (process.env.QUESTION_POLISH ?? "on").trim().toLowerCase() !== "off";
+const tutor = new GeminiTutor(llm, { polish });
 const engine = new CheckpointEngine({
   repo: new CheckpointRepository(db),
   evaluator: phaseEvaluator(evaluator),
@@ -187,6 +189,7 @@ app.listen(port, "127.0.0.1", () => {
   console.log(`제선 공정 알아보기: http://localhost:${port}`);
   console.log(`접속 비밀번호: ${passcodeRequired() ? "사용(TEST_PASSCODE)" : "사용 안 함"} · 사용자별 하루 LLM 호출 한도: ${usage.dailyLimit > 0 ? `${usage.dailyLimit}회` : "제한 없음"}`);
   console.log(`LLM: ${llmInfo.label} · 학습 프롬프트 ${profile.learning} · 채점 보강 ${profile.evaluatorGuards ? "켬" : "끔"} · 근거 겹침 검사 ${profile.groundingCheck ? "켬" : "끔"}`);
+  console.log(`시험 질문 말투 다듬기: ${polish ? "켬" : "끔(은행 원문)"}`);
   // 추천 질문 답을 뒤에서 미리 받아 둔다(저장한 답이 있으면 건너뜀). 끄려면 WARM_ANSWERS=off.
   // 로컬 모델은 CPU에서 질문 하나에 수십 초라 미리 받기가 학습자 질문과 CPU를 다툰다. 그래서 기본으로 끄고 WARM_ANSWERS=on일 때만 받는다.
   const warm = process.env.WARM_ANSWERS?.trim().toLowerCase();

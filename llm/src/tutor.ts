@@ -27,8 +27,8 @@ export interface PolishResult {
   /** 다듬은 문장의 유출 검사 결과. 호출이 실패하면 null. */
   polishedLeaks: LeakResult | null;
   used: "polished" | "original";
-  /** 원문을 쓴 이유: 다듬은 문장이 유출 검사에 걸림, 또는 다듬기 호출 실패. */
-  reason?: "leak" | "error";
+  /** 원문을 쓴 이유: 다듬은 문장이 유출 검사에 걸림, 다듬기 호출 실패, 또는 다듬기를 끔(TutorOptions.polish). */
+  reason?: "leak" | "error" | "off";
   error?: { message: string; infra: boolean };
 }
 
@@ -65,17 +65,31 @@ export function practiceFallback(concept: RubricConcept, previousQuestion: strin
 export interface TutorOptions {
   /** 은행에서 질문을 고를 때 쓰는 난수(0 이상 1 미만). 테스트에서 고정한다. */
   random?: () => number;
+  /**
+   * 은행 질문 말투 다듬기(기본 켬). 끄면 팀이 검수한 은행 원문을 그대로 묻고 모델을 부르지 않는다(QUESTION_POLISH=off).
+   * 로컬 3B 모델은 다듬으며 뜻을 바꾸거나 군말을 붙여서(docs/llm-providers.md '섞어 쓰기') 다듬기를 로컬에 맡기지 않고 끈다.
+   */
+  polish?: boolean;
+  /**
+   * 보충학습 확인 문제(practiceQuestion)를 만드는 클라이언트. 없으면 기본 클라이언트를 쓴다.
+   * Gemini 서버에서 로컬 모델에 먼저 맡길 때 넣는다(provider.ts localTasks 'practice'). 시험 질문·부가 설명은 늘 기본 클라이언트다.
+   */
+  practiceClient?: LlmClient;
 }
 
 export class GeminiTutor implements Tutor {
   private readonly random: () => number;
+  private readonly polishOn: boolean;
+  private readonly practiceClient: LlmClient;
 
   constructor(private readonly gemini: LlmClient, options: TutorOptions = {}) {
     this.random = options.random ?? Math.random;
+    this.polishOn = options.polish ?? true;
+    this.practiceClient = options.practiceClient ?? gemini;
   }
 
-  private async say(prompt: string, temperature: number, maxOutputTokens: number): Promise<string> {
-    const text = (await this.gemini.generate({ system: renderPrompt("tutor-system", {}), prompt, temperature, maxOutputTokens }))
+  private async say(prompt: string, temperature: number, maxOutputTokens: number, client: LlmClient = this.gemini): Promise<string> {
+    const text = (await client.generate({ system: renderPrompt("tutor-system", {}), prompt, temperature, maxOutputTokens }))
       .trim()
       .replace(/^["“](.*)["”]$/s, "$1");
     if (!text) throw new LlmUnavailableError("튜터 응답이 비어 있어요.");
@@ -106,7 +120,10 @@ export class GeminiTutor implements Tutor {
   }
 
   private async fromBank(rubric: Rubric, concept: RubricConcept, candidates: string[]): Promise<DetailedQuestion> {
-    const bank = await this.polish(rubric, concept, this.pick(candidates));
+    const original = this.pick(candidates);
+    const bank: PolishResult = this.polishOn
+      ? await this.polish(rubric, concept, original)
+      : { original, polished: null, originalLeaks: findLeaks(original, rubric, concept), polishedLeaks: null, used: "original", reason: "off" };
     return {
       text: bank.used === "polished" ? bank.polished! : bank.original, source: "bank", bankQuestion: bank.original, bank, attempts: [], usedFallback: false,
     };
@@ -125,6 +142,7 @@ export class GeminiTutor implements Tutor {
     prompt: string,
     temperature: number,
     fallback: string,
+    client: LlmClient = this.gemini,
   ): Promise<DetailedQuestion> {
     const attempts: DetailedQuestion["attempts"] = [];
     for (let i = 0; i < MAX_QUESTION_ATTEMPTS; i++) {
@@ -132,7 +150,7 @@ export class GeminiTutor implements Tutor {
       const retryNote = last
         ? `\n\n직전 질문에 정답 표현이 들어 있었습니다: ${[...last.leaks.terms, ...last.leaks.phrases].join(", ")}. 이 표현과 그 일부를 쓰지 말고 다시 만드세요.`
         : "";
-      const text = await this.say(prompt + retryNote, temperature, 200);
+      const text = await this.say(prompt + retryNote, temperature, 200, client);
       const leaks = findLeaks(text, rubric, concept);
       attempts.push({ text, leaks });
       if (!hasLeak(leaks)) return { text, source: "generated", bankQuestion: null, attempts, usedFallback: false };
@@ -184,7 +202,7 @@ export class GeminiTutor implements Tutor {
       ? renderPrompt("tutor-recheck", { ...values, previous_question: previousQuestion })
       : renderPrompt("tutor-question", values);
     const fallback = practiceFallback(concept, previousQuestion);
-    const q = await this.generated(rubric, concept, prompt, previousQuestion ? 0.7 : 0.4, fallback);
+    const q = await this.generated(rubric, concept, prompt, previousQuestion ? 0.7 : 0.4, fallback, this.practiceClient);
     // 만든 문장이 우연히 은행 문장과 같으면 고정 문장으로 바꾼다.
     const bank = [...(concept.questions ?? []), ...(concept.recheck_questions ?? []), ...(concept.fallback_question ? [concept.fallback_question] : [])];
     const sameAsBank = bank.includes(q.text);

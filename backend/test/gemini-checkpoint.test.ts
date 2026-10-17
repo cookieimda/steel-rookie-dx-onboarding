@@ -186,6 +186,26 @@ test("보충학습 확인 문제(practiceQuestion): 은행이 있어도 은행�
   assert.notEqual(practiceFallback(concept, genericQuestion(concept)), genericQuestion(concept), "직전 문제와 같은 고정 문장은 쓰지 않음");
 });
 
+test("튜터(섞어 쓰기): 확인 문제만 practiceClient로 보내고, 다듬기를 끄면 은행 원문을 호출 없이 묻는다", async () => {
+  const main = fakeGemini(["다듬은 질문이에요?", "설명입니다."]);
+  const asked: string[] = [];
+  const practiceClient = { generate: async (r: { prompt: string }) => (asked.push(r.prompt), "새 확인 문제?") };
+  const tutor = new GeminiTutor(main.client, { practiceClient, random: () => 0 });
+  assert.equal((await tutor.question({ rubric, concept })).text, "다듬은 질문이에요?", "시험 질문 다듬기는 기본 클라이언트");
+  assert.equal((await tutor.practiceQuestion({ rubric, concept })).text, "새 확인 문제?");
+  await tutor.explanation({ rubric, concept, explainFrom: 0, misconception: null, answer: "A" });
+  assert.equal(asked.length, 1);
+  assert.equal(main.sent.length, 2);
+
+  const off = fakeGemini([]);
+  const plain = new GeminiTutor(off.client, { polish: false, random: () => 0 });
+  const q = await plain.questionDetailed({ rubric, concept });
+  assert.equal(q.text, concept.questions![0]);
+  assert.deepEqual([q.bank?.used, q.bank?.reason], ["original", "off"]);
+  assert.equal((await plain.recheckQuestion({ rubric, concept, previousQuestion: q.text })).text, concept.recheck_questions![0]);
+  assert.equal(off.sent.length, 0, "다듬기를 끄면 모델을 부르지 않는다");
+});
+
 test("geminiTimeoutMs: GEMINI_TIMEOUT_MS가 양의 정수면 그 값, 없거나 잘못됐으면 60초", () => {
   const saved = process.env.GEMINI_TIMEOUT_MS;
   try {

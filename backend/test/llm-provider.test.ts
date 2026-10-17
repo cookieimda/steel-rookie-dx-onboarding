@@ -9,7 +9,7 @@ import { COMPACT_OUTPUT_TOKENS, GeminiLearningAgent, type LearningInput } from "
 import { compactLearningInput, LOCAL_CONTEXT_LIMITS } from "../../llm/src/learning-context.js";
 import type { GenerateRequest } from "../../llm/src/llm-client.js";
 import { OllamaClient } from "../../llm/src/ollama.js";
-import { configuredProvider, createLlmClient, profileFor, providerInfo } from "../../llm/src/provider.js";
+import { configuredProvider, createLlmClient, localFirstClient, localTasks, profileFor, providerInfo } from "../../llm/src/provider.js";
 import { runWithTrace, Trace } from "../../llm/src/trace.js";
 
 const req: GenerateRequest = { system: "s", prompt: "p", temperature: 0.3, maxOutputTokens: 100 };
@@ -58,6 +58,41 @@ test("createLlmClient: beforeCall(호출 수 제한)을 어느 provider에도 �
   const client = createLlmClient({ beforeCall: () => { charged++; }, ollama: { fetch } }, { LLM_PROVIDER: "ollama" });
   assert.equal(await client.generate(req), "답");
   assert.equal(charged, 1);
+});
+
+test("localTasks: Gemini 서버에서만 고르고, 모르는 이름은 막는다", () => {
+  assert.deepEqual([...localTasks({})], []);
+  assert.deepEqual([...localTasks({ LLM_LOCAL_TASKS: " Practice , summary " })], ["practice", "summary"]);
+  assert.deepEqual([...localTasks({ LLM_LOCAL_TASKS: "off" })], []);
+  assert.deepEqual([...localTasks({ LLM_PROVIDER: "ollama", LLM_LOCAL_TASKS: "practice" })], [], "서버 전체가 로컬이면 섞지 않는다");
+  assert.throws(() => localTasks({ LLM_LOCAL_TASKS: "practice,grading" }), /grading/);
+});
+
+test("localFirstClient: 로컬에 먼저 묻고, 실패하면 Gemini로 다시 묻고 잠시 로컬을 건너뛴다", async () => {
+  let clock = 0;
+  let localCalls = 0, geminiCalls = 0, localDown = false;
+  const local = { generate: async () => { localCalls++; if (localDown) throw new GeminiCallError("Ollama 연결 실패", "network"); return "로컬"; } };
+  const gemini = { generate: async () => { geminiCalls++; return "제미나이"; } };
+  const fallbacks: string[] = [];
+  const client = localFirstClient(local, gemini, { cooldownMs: 1000, now: () => clock, onFallback: (e) => fallbacks.push(e.message) });
+  assert.equal(await client.generate(req), "로컬");
+  localDown = true;
+  assert.equal(await client.generate(req), "제미나이");
+  assert.equal(await client.generate(req), "제미나이");
+  assert.deepEqual([localCalls, geminiCalls], [2, 2], "실패 뒤에는 로컬을 다시 부르지 않는다");
+  assert.equal(fallbacks.length, 1);
+  clock = 1001;
+  localDown = false;
+  assert.equal(await client.generate(req), "로컬", "쉬는 시간이 지나면 다시 로컬");
+
+  // 시험 작업 취소로 끊긴 호출·LLM 오류가 아닌 예외는 Gemini로 넘기지 않는다.
+  const abort = new AbortController();
+  abort.abort();
+  const failing = localFirstClient({ generate: async () => { throw new GeminiCallError("aborted", "network"); } }, gemini);
+  await assert.rejects(failing.generate({ ...req, signal: abort.signal }), /aborted/);
+  const bug = localFirstClient({ generate: async () => { throw new TypeError("bug"); } }, gemini);
+  await assert.rejects(bug.generate(req), /bug/);
+  assert.equal(geminiCalls, 2);
 });
 
 test("toJsonSchema: 대문자 type·nullable·propertyOrdering을 표준 JSON Schema로 바꾸고 입력은 바꾸지 않는다", () => {

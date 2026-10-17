@@ -2,7 +2,8 @@ import { GeminiAdminSummarizer } from "../../llm/src/admin-summary.js";
 import { evaluatorGuardOptions, GeminiEvaluator } from "../../llm/src/evaluator.js";
 import { GeminiLearningAgent } from "../../llm/src/learning-agent.js";
 import { useApprovedSources } from "../../llm/src/ironmaking-sources.js";
-import { createLlmClient, profileFor, providerInfo } from "../../llm/src/provider.js";
+import { OllamaClient, ollamaSettings } from "../../llm/src/ollama.js";
+import { createLlmClient, localFirstClient, localTasks, profileFor, providerInfo, type LocalTask } from "../../llm/src/provider.js";
 import { loadSectionChunks, Retriever } from "../../llm/src/retrieval.js";
 import { traceMiddleware, traceSinkFromEnv } from "../../llm/src/trace.js";
 import { GeminiTutor } from "../../llm/src/tutor.js";
@@ -69,10 +70,20 @@ const profile = profileFor(llmInfo.provider);
 // 체크포인트·학습·관리자 호출마다 사용자의 하루 호출 수를 센다. 시험 작업 안에서는 요청을 보낸 사람이 아니라 작업 주인(jobUserId)으로 세고,
 // 작업을 취소하면 진행 중인 추론도 끊는다(jobAwareClient).
 const llm = jobAwareClient(createLlmClient({ beforeCall: () => usage.consume(jobUserId() ?? currentUserId()) }));
+// 섞어 쓰기(LLM_LOCAL_TASKS, docs/llm-providers.md): Gemini 서버에서 보충학습 확인 문제·관리자 요약을 로컬 모델(Ollama)에 먼저 맡겨 Gemini 호출을 줄인다.
+// 로컬 호출은 하루 한도에 세지 않고, Ollama가 없거나 실패하면 같은 요청을 Gemini(llm)로 보낸다. 채점·학습 답·부가 설명·시험 질문은 늘 llm이다.
+const local = localTasks();
+const ollama = local.size ? new OllamaClient({ timeoutMs: Number(process.env.LLM_LOCAL_TIMEOUT_MS ?? 60_000) }) : null;
+const localFirst = ollama
+  ? jobAwareClient(localFirstClient(ollama, llm, { onFallback: (e) => console.warn(`로컬 모델 호출 실패, 5분 동안 Gemini로 보냅니다: ${e.message}`) }))
+  : llm;
+const clientFor = (task: LocalTask) => (local.has(task) ? localFirst : llm);
 // 평가자·튜터는 체크포인트·시험·보충학습이 함께 쓴다. 시험 작업에서는 단계(문제·채점·설명)를 작업 상태에 적는다(phase*).
 // 로컬 모델은 판정 필드 형식·wrong·partial 경계를 자주 틀리고 누락을 오개념으로 적어서 보강을 켠다(llm/src/evaluator.ts evaluatorGuardOptions).
 const evaluator = new GeminiEvaluator(llm, evaluatorGuardOptions(profile.evaluatorGuards));
-const tutor = new GeminiTutor(llm);
+// 시험 질문 말투 다듬기(QUESTION_POLISH, 기본 on). off면 검수한 은행 원문을 그대로 묻고 다듬기 호출을 하지 않는다(start:gemini 기본 off).
+const polish = (process.env.QUESTION_POLISH ?? "on").trim().toLowerCase() !== "off";
+const tutor = new GeminiTutor(llm, { polish, practiceClient: clientFor("practice") });
 const engine = new CheckpointEngine({
   repo: new CheckpointRepository(db),
   evaluator: phaseEvaluator(evaluator),
@@ -138,8 +149,8 @@ const app = createApp({ engine, usage, learning, traceSink });
 // 로그인·관리자 API(docs/auth-api.md). createApp의 /api 접속 비밀번호 검사가 먼저 적용된다.
 const auth = { users, secret: jwtSecret() };
 app.use(createAuthRouter(auth));
-// 관리자 AI 요약도 같은 LLM 클라이언트로 관리자 계정의 하루 호출 수를 센다.
-app.use(createAdminRouter(db, auth, { summarizer: new GeminiAdminSummarizer(llm) }));
+// 관리자 AI 요약도 같은 LLM 클라이언트로 관리자 계정의 하루 호출 수를 센다(LLM_LOCAL_TASKS에 summary가 있으면 로컬 모델에 먼저).
+app.use(createAdminRouter(db, auth, { summarizer: new GeminiAdminSummarizer(clientFor("summary")) }));
 // 오개념·복습 표시 경로(공정 › 소단원 › 개념)에 설비 이름을 쓴다(me/concept-topic.ts).
 app.use(createMeRouter(db, auth, { scene: sceneCatalog }));
 // 학습 랩(학습 기록 화면의 '학습 랩' 탭): 간격 반복·주간 리그·xAPI 기록·세션 리플레이.
@@ -187,6 +198,13 @@ app.listen(port, "127.0.0.1", () => {
   console.log(`제선 공정 알아보기: http://localhost:${port}`);
   console.log(`접속 비밀번호: ${passcodeRequired() ? "사용(TEST_PASSCODE)" : "사용 안 함"} · 사용자별 하루 LLM 호출 한도: ${usage.dailyLimit > 0 ? `${usage.dailyLimit}회` : "제한 없음"}`);
   console.log(`LLM: ${llmInfo.label} · 학습 프롬프트 ${profile.learning} · 채점 보강 ${profile.evaluatorGuards ? "켬" : "끔"} · 근거 겹침 검사 ${profile.groundingCheck ? "켬" : "끔"}`);
+  console.log(`시험 질문 말투 다듬기: ${polish ? "켬" : "끔(은행 원문)"}`);
+  // 섞어 쓰기: Ollama 상태를 알리고, 준비돼 있으면 모델을 메모리에 올려 첫 질문이 모델 로딩을 기다리지 않게 한다.
+  if (ollama) void ollama.checkConnection().then(async ({ reason }) => {
+    const state = reason === "ready" ? "준비됨" : reason === "model_missing" ? "모델 없음 → Gemini로 대체" : "Ollama 연결 안 됨 → Gemini로 대체";
+    console.log(`로컬 모델에 먼저 맡김(${[...local].join(", ")}): ollama:${ollamaSettings().model} · ${state}`);
+    if (reason === "ready") await ollama.warmUp().catch((e: Error) => console.warn(`로컬 모델 미리 올리기 실패: ${e.message}`));
+  });
   // 추천 질문 답을 뒤에서 미리 받아 둔다(저장한 답이 있으면 건너뜀). 끄려면 WARM_ANSWERS=off.
   // 로컬 모델은 CPU에서 질문 하나에 수십 초라 미리 받기가 학습자 질문과 CPU를 다툰다. 그래서 기본으로 끄고 WARM_ANSWERS=on일 때만 받는다.
   const warm = process.env.WARM_ANSWERS?.trim().toLowerCase();

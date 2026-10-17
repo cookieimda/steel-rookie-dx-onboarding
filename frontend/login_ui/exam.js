@@ -475,8 +475,11 @@ function calItem(x) {
   row.append(el('i', `dot ${CAL_KINDS[x.kind][1]}`));
   if (x.kind === 'review') {
     const t = x.task;
-    row.append(el('strong', '', t.concept_name), t.completed ? chip('완료', 'ok') : chip(t.due ? '오늘 복습' : '복습', 'mid'));
-    item.append(row, el('span', 'micro', `${when(t.due_date)} · ${t.reason}`));
+    // topic: 공정 › 소단원(설비) › 개념과 다시 볼 핵심 한 줄(서버 me/concept-topic.ts). 없으면 개념 이름만.
+    const path = t.topic ? [t.topic.unit, t.topic.subunit].filter(Boolean).join(' › ') : '';
+    row.append(el('strong', '', t.topic?.concept || t.concept_name), t.completed ? chip('완료', 'ok') : chip(t.due ? '오늘 복습' : '복습', 'mid'));
+    item.append(row, el('span', 'micro', `${path ? `${path} · ` : ''}${when(t.due_date)} · ${t.reason}`));
+    if (t.topic?.point) item.append(el('span', 'micro', `다시 볼 핵심 · ${t.topic.point}`));
     if (!t.completed) item.append(button('복습 완료', async () => {
       try { await api.request('POST', `/api/me/reviews/${t.id}/complete`, {}); await refreshAside(); } catch (error) { notice(copyError(error)); }
     }, 'btn pill'));

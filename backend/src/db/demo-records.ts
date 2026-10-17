@@ -72,8 +72,28 @@ const PROFILES: Record<string, Profile> = {
     },
   },
   // 수료(4개 공정 통과) 8명: 실력을 조금씩 달리해 재도전·오개념 해결 기록이 섞이게 한다.
-  trainee03: DONE([0.95, 0.9, 0.92, 0.9]),
-  trainee04: DONE([0.85, 0.88, 0.9, 0.86]),
+  // trainee03·04: 수료하되 네 공정마다 헷갈린 개념이 하나씩 남게 판정을 정해 둔다(오개념·복습 화면에 제선·제강·연주·열간압연이 고르게 보이게, 2026-10-16).
+  trainee03: {
+    skill: 0.9, reach: 4, stopMidway: false, retries: 2,
+    script: {
+      ironmaking: [[["correct", null], ["partial", "partial"], ["correct", null]]], // 83%
+      steelmaking: [[["partial", "partial"], ["correct", null], ["correct", null]]], // 83%
+      continuous_casting: [[["correct", null], ["correct", null], ["partial", "partial"]]], // 83%
+      rolling: [[["correct", null], ["wrong", "partial"], ["correct", null]]], // 83%
+    },
+  },
+  trainee04: {
+    skill: 0.85, reach: 4, stopMidway: false, retries: 2,
+    script: {
+      ironmaking: [[["wrong", "correct"], ["correct", null], ["assisted", "partial"]]], // 83%, 첫 개념 오개념은 재확인에서 해결
+      steelmaking: [
+        [["wrong", "wrong"], ["correct", null], ["partial", "partial"]], // 50% 미달
+        [["partial", "correct"], ["partial", "partial"]], // 재도전에서 통과(83%), 마지막 개념은 다시 볼 개념으로 남김
+      ],
+      continuous_casting: [[["correct", null], ["partial", "partial"], ["correct", null]]], // 83%
+      rolling: [[["assisted", "partial"], ["correct", null], ["correct", null]]], // 83%
+    },
+  },
   trainee05: DONE([0.92, 0.95, 0.88, 0.94]),
   trainee06: DONE([0.8, 0.85, 0.82, 0.88]),
   trainee07: DONE([0.97, 0.93, 0.95, 0.96]),
@@ -115,6 +135,16 @@ export const SEED_MISCONCEPTIONS: Record<string, { answer: string; summary: stri
   sinter_purpose: { answer: "소결 공정에서 쇳물을 바로 만드는 거죠?", summary: "소결을 쇳물(용선)을 만드는 단계로 이해함" },
   coke_reduction: { answer: "코크스는 쇳물의 불순물을 없애려고 넣는 거죠?", summary: "코크스를 용선의 불순물을 없애는 재료로 이해함" },
   blast_furnace_hot_metal: { answer: "고로에서 바로 강판이 나오는 거죠?", summary: "고로에서 바로 용강이나 제품이 나온다고 이해함" },
+  // 시연 목록(content/demo/sections.json) 개념. 요약은 '헷갈린 점(실제로는 …)' 한 줄로 쓴다. 시연 기록에만 쓰고 채점에는 쓰지 않는다.
+  demo_hot_metal_pretreatment: { answer: "용선 예비처리에서 탄소를 다 빼서 강을 만드는 거죠?", summary: "예비처리를 탈탄으로 이해함(실제로는 전로 전에 황·인 등을 미리 줄임)" },
+  demo_bof_decarburization: { answer: "전로에서는 산소로 철을 태워서 녹이는 거예요.", summary: "취련을 철을 태우는 일로 이해함(실제로는 산소로 탄소를 빼는 탈탄)" },
+  demo_secondary_refining: { answer: "2차 정련은 굳은 슬래브를 다시 녹이는 과정이죠?", summary: "2차 정련을 슬래브를 다시 녹이는 일로 이해함(실제로는 전로 뒤 용강 성분을 맞춤)" },
+  demo_tundish_role: { answer: "턴디시에서 쇳물이 굳어서 슬래브가 되는 거죠?", summary: "턴디시를 쇳물이 굳는 곳으로 이해함(실제로는 주형에 고르게 나눠 붓는 그릇)" },
+  demo_mold_solidification: { answer: "주형에서 슬래브 속까지 다 굳어서 나와요.", summary: "주형에서 다 굳는다고 이해함(실제로는 겉만 굳고 2차 냉각에서 속까지 굳음)" },
+  demo_slab_cutting: { answer: "슬래브는 주형 안에서 바로 잘라요.", summary: "주형 안에서 자른다고 이해함(실제로는 다 굳은 뒤 절단기에서 자름)" },
+  demo_reheating_furnace: { answer: "재가열로에서 슬래브를 녹여서 다시 부어요.", summary: "재가열로가 슬래브를 녹인다고 이해함(실제로는 압연할 온도까지 데움)" },
+  demo_roughing_finishing: { answer: "사상압연을 먼저 하고 조압연으로 마무리해요.", summary: "조압연·사상압연 순서를 거꾸로 이해함(조압연으로 두께를 크게 줄인 뒤 사상압연)" },
+  demo_cooling_coiling: { answer: "코일로 먼저 감고 나서 물로 식혀요.", summary: "냉각·권취 순서를 거꾸로 이해함(런아웃 테이블에서 식힌 뒤 감음)" },
 };
 
 /** 시연 오개념 한 개(학습자 말·요약). */

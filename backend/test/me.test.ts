@@ -52,6 +52,8 @@ test("본인 오개념만 최근 것부터, 출처 라벨과 해결 여부를 �
   assert.equal(json.misconceptions[2].answer_text, "코크스가 불순물 없애는 거죠?");
   assert.equal(json.misconceptions[1].concept_name, "소결의 목적");
   assert.equal(json.misconceptions[0].concept_name, "제강 관련 개념");
+  // 표시 경로와 다시 볼 핵심(me/concept-topic.ts). 이 테스트 서버는 설비 목록(scene)을 넘기지 않아 소단원이 없다.
+  assert.deepEqual(json.misconceptions[1].topic, { unit: "제선", subunit: null, concept: "소결의 목적", label: "제선 › 소결의 목적", point: "소결은 철광석을 고로에 넣기 좋은 소결광으로 만드는 전처리 공정" });
   assert.ok(!JSON.stringify(json).includes("다른 사람"));
 });
 

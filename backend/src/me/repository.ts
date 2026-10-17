@@ -24,6 +24,8 @@ export interface MyConceptResult {
   concept_id: string;
   verdict: string;
   recheck_verdict: string | null;
+  /** 처음 놓친 핵심 요소 번호(0부터). 복습의 '다시 볼 핵심'에 쓴다. */
+  explain_from: number | null;
   updated_at: string;
 }
 
@@ -34,7 +36,7 @@ export class MeRepository {
   conceptResults(userId: string): MyConceptResult[] {
     return this.db
       .prepare(
-        `SELECT a.section, c.concept_id, c.verdict, c.recheck_verdict, c.updated_at
+        `SELECT a.section, c.concept_id, c.verdict, c.recheck_verdict, c.explain_from, c.updated_at
            FROM concept_results c JOIN attempts a ON a.id = c.attempt_id
           WHERE a.user_id = ? AND a.state = 'completed'
           ORDER BY c.updated_at DESC`,
@@ -45,6 +47,7 @@ export class MeRepository {
         concept_id: String(row.concept_id),
         verdict: String(row.verdict),
         recheck_verdict: row.recheck_verdict == null ? null : String(row.recheck_verdict),
+        explain_from: row.explain_from == null ? null : Number(row.explain_from),
         updated_at: String(row.updated_at),
       }));
   }
@@ -84,7 +87,7 @@ export class MeRepository {
     for (const r of rows("SELECT section, equipment_id, created_at FROM learning_turns WHERE user_id = ? AND status <> 'safety_redirect'")) {
       events.push({ kind: "question", at: String(r.created_at), section: r.section == null ? null : String(r.section), object_id: r.equipment_id == null ? null : String(r.equipment_id) });
     }
-    for (const r of rows(`SELECT a.section, c.concept_id, c.verdict, c.recheck_verdict, c.updated_at
+    for (const r of rows(`SELECT a.section, c.concept_id, c.verdict, c.recheck_verdict, c.explain_from, c.updated_at
                             FROM concept_results c JOIN attempts a ON a.id = c.attempt_id
                            WHERE a.user_id = ? AND a.state = 'completed'`)) {
       const final = r.verdict === "correct" ? "correct" : r.recheck_verdict;

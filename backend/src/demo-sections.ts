@@ -9,6 +9,8 @@ import type { Rubric } from "./rubrics.js";
 export interface DemoConcept {
   id: string;
   name: string;
+  /** 이 개념을 다루는 설비 id(data_v2.js). 화면의 소단원 표시에만 쓴다. */
+  equipment_ids?: string[];
 }
 export type DemoSections = Partial<Record<Section, DemoConcept[]>>;
 
@@ -44,7 +46,11 @@ export function loadDemoSections(path = DEMO_SECTIONS_PATH): DemoSections {
       if (typeof c.name !== "string" || !c.name.trim()) throw new Error(`시연 개념 이름이 비어 있습니다: ${c.id}`);
       if (seen.has(c.id)) throw new Error(`시연 개념 id가 겹칩니다: ${c.id}`);
       seen.add(c.id);
-      return { id: c.id, name: c.name.trim() };
+      // equipment_ids(선택): 오개념·복습 화면의 소단원(설비) 표시에만 쓴다(me/concept-topic.ts). 통계·채점과는 상관없다.
+      if (c.equipment_ids !== undefined && (!Array.isArray(c.equipment_ids) || !c.equipment_ids.every((id) => typeof id === "string" && /^[a-z0-9_]{1,60}$/.test(id)))) {
+        throw new Error(`시연 개념 equipment_ids는 설비 id 배열이어야 합니다: ${c.id}`);
+      }
+      return { id: c.id, name: c.name.trim(), ...(c.equipment_ids?.length ? { equipment_ids: c.equipment_ids } : {}) };
     });
   }
   return result;

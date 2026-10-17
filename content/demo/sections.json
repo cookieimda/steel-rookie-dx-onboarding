@@ -1,20 +1,20 @@
 {
-  "_note": "관리자 대시보드 시연용 개념 목록(id·이름만). 시연 기록(npm run db:seed-demo)과 관리자 통계만 읽는다. 평가자·체크포인트 엔진·loadFinalRubrics()는 읽지 않으므로 실제 채점에 쓰이지 않는다. final 루브릭이 있는 섹션은 이 목록을 무시한다. id는 demo_로 시작한다.",
+  "_note": "관리자 대시보드 시연용 개념 목록(id·이름, 선택으로 설비 id). 시연 기록(npm run db:seed-demo)과 관리자 통계, 오개념·복습 화면의 소단원 표시만 읽는다. 평가자·체크포인트 엔진·loadFinalRubrics()는 읽지 않으므로 실제 채점에 쓰이지 않는다. final 루브릭이 있는 섹션은 이 목록을 무시한다. id는 demo_로 시작하고, equipment_ids는 data_v2.js의 같은 공정 설비 id다.",
   "sections": {
     "steelmaking": [
-      { "id": "demo_hot_metal_pretreatment", "name": "용선 예비처리의 목적" },
-      { "id": "demo_bof_decarburization", "name": "전로 취련과 탈탄" },
-      { "id": "demo_secondary_refining", "name": "2차 정련의 역할" }
+      { "id": "demo_hot_metal_pretreatment", "name": "용선 예비처리의 목적", "equipment_ids": ["hot_metal_pretreatment"] },
+      { "id": "demo_bof_decarburization", "name": "전로 취련과 탈탄", "equipment_ids": ["bof_converter"] },
+      { "id": "demo_secondary_refining", "name": "2차 정련의 역할", "equipment_ids": ["secondary_refining"] }
     ],
     "continuous_casting": [
-      { "id": "demo_tundish_role", "name": "턴디시의 역할" },
-      { "id": "demo_mold_solidification", "name": "주형에서의 응고" },
-      { "id": "demo_slab_cutting", "name": "슬래브 절단과 이송" }
+      { "id": "demo_tundish_role", "name": "턴디시의 역할", "equipment_ids": ["tundish"] },
+      { "id": "demo_mold_solidification", "name": "주형에서의 응고", "equipment_ids": ["cc_mold"] },
+      { "id": "demo_slab_cutting", "name": "슬래브 절단과 이송", "equipment_ids": ["torch_cutter"] }
     ],
     "rolling": [
-      { "id": "demo_reheating_furnace", "name": "재가열로의 역할" },
-      { "id": "demo_roughing_finishing", "name": "조압연과 사상압연" },
-      { "id": "demo_cooling_coiling", "name": "냉각과 권취" }
+      { "id": "demo_reheating_furnace", "name": "재가열로의 역할", "equipment_ids": ["reheating_furnace"] },
+      { "id": "demo_roughing_finishing", "name": "조압연과 사상압연", "equipment_ids": ["roughing_mill", "finishing_mill"] },
+      { "id": "demo_cooling_coiling", "name": "냉각과 권취", "equipment_ids": ["runout_table", "coiler"] }
     ]
   }
 }

@@ -20,6 +20,7 @@ import { CheckpointError, SECTION_ORDER } from "../src/checkpoint/types.js";
 import { openDatabase } from "../src/db/database.js";
 import { seedDemoRecords, type SectionConcepts } from "../src/db/demo-records.js";
 import { loadDemoSections, statSections } from "../src/demo-sections.js";
+import { loadSceneCatalog } from "../src/learning/scene-catalog.js";
 import { loadFinalRubrics, type Rubric, type RubricConcept } from "../src/rubrics.js";
 import { FakeEvaluator, FakeTutor } from "./checkpoint-fakes.js";
 
@@ -68,6 +69,29 @@ test("loadFinalRubrics()는 시연 목록을 읽지 않고, 시연 목록은 형
   assert.throws(() => loadDemoSections(write({ mining: [{ id: "demo_x", name: "x" }] })), /섹션/);
   assert.throws(() => loadDemoSections(write({ steelmaking: [{ id: "demo_x", name: "a" }], rolling: [{ id: "demo_x", name: "b" }] })), /겹칩니다/);
   assert.deepEqual(loadDemoSections(join(dir, "none.json")), {}, "파일이 없으면 빈 목록");
+  assert.throws(() => loadDemoSections(write({ steelmaking: [{ id: "demo_x", name: "a", equipment_ids: "bof_converter" }] })), /equipment_ids/);
+});
+
+test("시연 목록의 equipment_ids는 화면 설비 목록(data_v2.js)의 같은 공정 설비다", async () => {
+  const scene = await loadSceneCatalog();
+  for (const [section, list] of Object.entries(demo)) {
+    const ids = new Set(scene.processes.find((p) => p.id === section)?.equipment.map((e) => e.id) ?? []);
+    for (const c of list ?? []) for (const id of c.equipment_ids ?? []) assert.ok(ids.has(id), `${section} ${c.id}: ${id}`);
+  }
+});
+
+test("trainee03·04는 네 공정 모두 통과하고, 공정마다 다시 볼 개념(최종 만점이 아닌 개념)이 하나 이상 있다", async () => {
+  const { db, idOf } = await seededDb();
+  for (const username of ["trainee03", "trainee04"]) {
+    for (const section of SECTION_ORDER) {
+      const rows = db.prepare(`SELECT c.verdict, c.recheck_verdict FROM concept_results c JOIN attempts a ON a.id = c.attempt_id
+        WHERE a.user_id = ? AND a.section = ? AND a.state = 'completed'`).all(idOf(username), section);
+      assert.ok(rows.length > 0, `${username} ${section} 기록 없음`);
+      assert.ok(rows.some((r) => r.verdict !== "correct" && r.recheck_verdict !== "correct"), `${username} ${section} 다시 볼 개념 없음`);
+    }
+    const passed = traineeStats(db).trainees.find((t) => t.username === username)!;
+    assert.ok(SECTION_ORDER.every((s) => passed.sections[s]?.passed), `${username} 수료`);
+  }
 });
 
 test("시연 기록은 trainee02~20에만 생기고, 시연 목록 섹션(제강 등)까지 채워진다", async () => {

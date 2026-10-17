@@ -470,7 +470,7 @@
           <div class="dg-list">
             <sc-for list="{{ reviews }}" as="r" hint-placeholder-count="3">
               <div class="dg-row">
-                <span class="dg-row-main"><strong>{{ r.name }}</strong><span class="dg-sub">{{ r.section }} · {{ r.date }}</span></span>
+                <span class="dg-row-main"><strong>{{ r.name }}</strong><span class="dg-sub">{{ r.section }} · {{ r.date }}</span><span class="dg-sub" style="display:{{ r.pointDisplay }};">다시 볼 핵심 · {{ r.point }}</span></span>
                 <span class="dg-tag" style="color:{{ r.color }};background:color-mix(in srgb, {{ r.color }} 14%, transparent);">{{ r.verdict }}</span>
               </div>
             </sc-for>
@@ -935,8 +935,11 @@ class Component extends DCLogic {
     const S = this.state, D = S.data;
     const process = section => S.processes.find(p => p.id === section) || { num: '', name: section, equipment: [] };
     const conceptName = (section, id, name) => name || process(section).equipment.find(e => e.id === id)?.name || `${process(section).name} 관련 개념`;
+    // topic(서버 me/concept-topic.ts): 공정 › 소단원(설비) › 개념과 처음 놓친 핵심 요소 한 줄. 없으면 예전처럼 공정 이름만.
     const reviews = (D?.review_concepts || []).map(r => ({
-      name: conceptName(r.section, r.concept_id, r.concept_name), section: process(r.section).name,
+      name: r.topic?.concept || conceptName(r.section, r.concept_id, r.concept_name),
+      section: r.topic ? [r.topic.unit, r.topic.subunit].filter(Boolean).join(' › ') : process(r.section).name,
+      point: r.topic?.point || '', pointDisplay: r.topic?.point ? 'block' : 'none',
       date: r.updated_at.slice(0, 10), verdict: r.recheck_verdict === 'partial' || r.verdict === 'partial' ? '부분 이해' : r.verdict === 'assisted' ? '도움 받음' : '재확인 필요',
       color: r.verdict === 'wrong' || r.recheck_verdict === 'wrong' ? 'var(--bad)' : 'var(--mid)',
     }));

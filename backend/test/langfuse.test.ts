@@ -1,7 +1,10 @@
 // Langfuse 내보내기(llm/src/langfuse.ts): trace 기록 → OTLP span·점수 변환, 설정, 보내기. 실제 Langfuse는 부르지 않는다(가짜 fetch).
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
-import { langfuseConfigFromEnv, LangfuseExporter, otelTraceId, toOtlpSpans, toScores } from "../../llm/src/langfuse.js";
+import { langfuseConfigFromEnv, LangfuseExporter, otelTraceId, readSentIds, toOtlpSpans, toScores } from "../../llm/src/langfuse.js";
 import { Trace, traceSinkFromEnv, type TraceRecord } from "../../llm/src/trace.js";
 
 /** 서버가 남기는 학습 trace 한 줄(2026-10-18 기록 모양). */
@@ -52,7 +55,7 @@ test("toOtlpSpans: 요청 하나를 루트 span·단계 span·generation으로 �
   assert.equal(attrOf(gen, "langfuse.observation.model.name"), "gemini-3.5-flash-lite");
   assert.deepEqual(JSON.parse(String(attrOf(gen, "langfuse.observation.usage_details"))), { input: 3262, output: 205, total: 3467 });
   assert.equal(BigInt(gen.startTimeUnixNano), start + 120n * 1_000_000n);
-  assert.deepEqual(toOtlpSpans(learning()).map((s) => s.spanId), spans.map((s) => s.spanId), "다시 보내도 같은 id");
+  assert.deepEqual(toOtlpSpans(learning()).map((s) => s.spanId), spans.map((s) => s.spanId), "같은 기록은 늘 같은 id");
 });
 
 test("toOtlpSpans: 시작 시각이 없는 예전 기록은 단계를 차례로 놓고, 실패 호출·오류는 ERROR, 시험 작업은 이름에 작업 종류", () => {
@@ -100,6 +103,19 @@ test("LangfuseExporter: OTLP JSON과 점수를 Basic 인증·v4 헤더로 보내
   assert.equal(sent[0]!.body.resourceSpans[0].scopeSpans[0].spans.length, 6);
   assert.deepEqual(sent.slice(1).map((s) => [s.url.endsWith("/api/public/scores"), s.body.name]), [[true, "outcome"], [true, "grounding_rate"]]);
   assert.deepEqual(exporter.sent, { traces: 1, spans: 6, scores: 2, failed: 0 });
+
+  // 보낸 기록 파일: 보내기에 성공한 trace id만 적는다(지난 기록 내보내기가 건너뛴다).
+  const dir = mkdtempSync(join(tmpdir(), "langfuse-"));
+  try {
+    const sentLog = join(dir, "langfuse-sent.txt");
+    const logged = new LangfuseExporter({ host: "http://localhost:3100", publicKey: "pk", secretKey: "sk" }, { fetch: ok, flushMs: 0, sentLog });
+    logged.push(learning());
+    await logged.flush();
+    assert.deepEqual([...readSentIds(sentLog)], ["3c1bc23c-5c22-46a3-b4f5-e8f5dd24757a"]);
+    assert.equal(readSentIds(join(dir, "없음.txt")).size, 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 
   const warnings: string[] = [];
   const down = new LangfuseExporter({ host: "http://localhost:3100", publicKey: "pk", secretKey: "sk" }, {

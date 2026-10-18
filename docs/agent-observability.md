@@ -122,7 +122,7 @@ npm run trace:report -- [--dir data/traces] [--since 2026-10-15] [--until 2026-1
 | `outcome`이 `error`·`failed`·`http_5xx` / `unverified`·`http_4xx` | 레벨 ERROR / WARNING |
 
 - 보내는 방법: Langfuse v4가 받는 OpenTelemetry(`/api/public/otel/v1/traces`, OTLP/HTTP JSON, Basic 인증 + `x-langfuse-ingestion-version: 4`)와 점수 API(`/api/public/scores`). SDK 없이 `fetch`로 보낸다(`llm/src/langfuse.ts`).
-- span id는 trace id에서 정해서 같은 기록을 다시 보내도 겹치지 않는다.
+- span id는 trace id에서 정한다. 하지만 Langfuse v4는 같은 span을 다시 받으면 덮어쓰지 않고 행을 하나 더 만든다(2026-10-18, 21개 기록을 두 번 보내 observation 110행/55 id). 그래서 보낸 trace id를 `data/traces/langfuse-sent.txt`에 적고(서버·`trace:langfuse` 모두), `trace:langfuse`는 적힌 기록을 건너뛴다(`--force`면 다시 보냄).
 - 2초마다 모아 보낸다. 보내기에 실패하면 경고를 한 번 남기고 버린다(요청은 막지 않는다, 파일 기록은 남는다).
 - 학습자 질문 문장이 들어가므로 `LANGFUSE_HOST`가 이 컴퓨터(`localhost`·`127.0.0.1`)가 아니면 `LANGFUSE_ALLOW_REMOTE=1`이 있어야 보낸다(없으면 서버가 시작하지 않는다). Langfuse Cloud는 이 값을 켜야 쓸 수 있다.
 
@@ -132,8 +132,10 @@ Langfuse는 Postgres·ClickHouse·Redis·MinIO와 함께 돌아 메모리를 4GB
 
 1. Docker Desktop을 켠다.
 2. Langfuse를 저장소 밖에 받는다: `git clone --depth 1 https://github.com/langfuse/langfuse.git ../langfuse`
-3. 우리 설정을 겹쳐 켠다(화면 3100, 이 컴퓨터에서만, 처음 켤 때 프로젝트·키·계정 생성):
-   `docker compose -f ../langfuse/docker-compose.yml -f tools/langfuse/docker-compose.override.yml up -d`
+3. 우리 설정을 겹쳐 켠다(화면 3100, 이 컴퓨터에서만, 처음 켤 때 프로젝트·키·계정 생성). 이미지 받기에 몇 분, 첫 시작에 2~3분 걸린다(`/api/public/health`가 `OK`면 준비됨):
+   `docker compose -p langfuse -f ../langfuse/docker-compose.yml -f tools/langfuse/docker-compose.override.yml up -d`
+   - Windows에서 `git clone`이 일부 파일 이름 때문에 checkout 오류를 내도 `docker-compose.yml`만 있으면 된다.
+   - 이 컴퓨터에는 화면 포트 3100 하나만 연다. 내부 저장소(Postgres·ClickHouse·Redis·MinIO)는 컨테이너끼리만 통신한다. 이 PC에서 6379·9090 바인딩이 Windows 소켓 오류(`invalid pointer address`)로 번갈아 실패해서 줄였다. 그래도 3100에서 같은 오류가 나면 `up -d`를 다시 실행한다.
 4. `.env`에 넣는다(키는 `tools/langfuse/docker-compose.override.yml`의 로컬 전용 값):
    ```
    LANGFUSE_HOST=http://localhost:3100
@@ -143,7 +145,9 @@ Langfuse는 Postgres·ClickHouse·Redis·MinIO와 함께 돌아 메모리를 4GB
 5. 서버를 다시 켜면 시작 로그에 `trace를 Langfuse로도 보냅니다`가 나온다. 쌓여 있던 기록은 `npm run trace:langfuse`(`--since`·`--until`, 보내지 않고 확인만 하려면 `--dry-run`)로 보낸다.
 6. http://localhost:3100 에 `admin@st-rookie.local` / `st-rookie-langfuse`로 들어가 Tracing 화면을 본다.
 
-끌 때: `.env`의 `LANGFUSE_*`를 지우고 `docker compose -f ../langfuse/docker-compose.yml -f tools/langfuse/docker-compose.override.yml down`.
+끌 때: `.env`의 `LANGFUSE_*`를 지우고 `docker compose -p langfuse -f ../langfuse/docker-compose.yml -f tools/langfuse/docker-compose.override.yml down`. 데이터까지 지우려면 `down -v`(그때는 `langfuse-sent.txt`도 지운다).
+
+확인(2026-10-18, Langfuse 4.63.0): 리허설 기록 21개(학습 7·보충학습 7·시험 7)를 보내 trace 21개, observation 55개(span 38·generation 11·retriever 6)가 들어갔다. generation에는 모델 `gemini-3.5-flash-lite`와 토큰이 붙고, Langfuse가 모델 가격표로 호출당 비용(예: 입력 972·출력 48토큰 → $0.00041)을 계산했다. v4는 예전 조회 API(`/api/public/traces`·`/api/public/scores` GET)를 막아서 확인은 `/api/public/v2/observations`로 했다.
 
 ## 통합 확인 (2026-10-16)
 

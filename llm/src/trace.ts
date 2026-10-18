@@ -8,7 +8,7 @@ import { appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { performance } from "node:perf_hooks";
-import { langfuseConfigFromEnv, LangfuseExporter } from "./langfuse.js";
+import { LANGFUSE_SENT_LOG, langfuseConfigFromEnv, LangfuseExporter } from "./langfuse.js";
 
 /** LLM 호출 하나. 다시 부르면(과부하·형식 오류) 호출마다 하나씩 쌓인다. */
 export interface LlmCallRecord {
@@ -204,10 +204,12 @@ export function localDate(d: Date): string {
  */
 export function traceSinkFromEnv(env: NodeJS.ProcessEnv = process.env): TraceSink | undefined {
   if (env.TRACE_LOG?.trim().toLowerCase() === "off") return undefined;
-  const file = new TraceLog(env.TRACE_DIR || join(process.cwd(), "data", "traces")).write;
+  const dir = env.TRACE_DIR || join(process.cwd(), "data", "traces");
+  const file = new TraceLog(dir).write;
   const config = langfuseConfigFromEnv(env);
   if (!config) return file;
-  const langfuse = new LangfuseExporter(config);
+  // 보낸 trace id를 적어 두어 지난 기록 내보내기(npm run trace:langfuse)가 같은 기록을 다시 보내지 않게 한다.
+  const langfuse = new LangfuseExporter(config, { sentLog: join(dir, LANGFUSE_SENT_LOG) });
   console.log(`trace를 Langfuse로도 보냅니다: ${config.host}`);
   return (record) => { file(record); langfuse.push(record); };
 }

@@ -4,6 +4,8 @@
 // - 파일 기록(TraceLog)과 같은 내용만 보낸다(근거 조각 원문·답 원문은 원래 없다). 학습자 질문 문장은 들어가므로 기본은 이 컴퓨터(localhost)의 Langfuse에만 보낸다.
 // 설정: LANGFUSE_HOST(예: http://localhost:3100), LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY. 다른 컴퓨터로 보내려면 LANGFUSE_ALLOW_REMOTE=1.
 import { createHash } from "node:crypto";
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { dirname } from "node:path";
 import type { TraceRecord, TraceSink } from "./trace.js";
 
 export interface LangfuseConfig {
@@ -48,7 +50,7 @@ export interface LangfuseScore {
 }
 
 const hex = (s: string, n: number) => createHash("sha256").update(s).digest("hex").slice(0, n);
-/** OTel trace id(32자리 16진수). UUID면 그대로, 아니면(X-Trace-Id) 해시. 같은 기록을 다시 보내도 같은 id라 Langfuse에서 겹치지 않는다. */
+/** OTel trace id(32자리 16진수). UUID면 그대로, 아니면(X-Trace-Id) 해시. 같은 기록은 늘 같은 id라 Langfuse에서 한 trace로 묶인다(다시 보내면 행은 겹친다, sentLog). */
 export function otelTraceId(traceId: string): string {
   const plain = traceId.replace(/-/g, "").toLowerCase();
   return /^[0-9a-f]{32}$/.test(plain) ? plain : hex(traceId, 32);
@@ -168,7 +170,7 @@ export function toOtlpSpans(r: TraceRecord): OtlpSpan[] {
   return spans;
 }
 
-/** 점수: 결과(categorical)와 근거 겹침 비율(numeric, 학습 답에만). id가 정해져 있어 다시 보내면 덮어쓴다. */
+/** 점수: 결과(categorical)와 근거 겹침 비율(numeric, 학습 답에만). id는 trace id에서 정한다. */
 export function toScores(r: TraceRecord): LangfuseScore[] {
   const traceId = otelTraceId(r.trace_id);
   const scores: LangfuseScore[] = [];
@@ -188,6 +190,19 @@ export interface LangfuseExporterOptions {
   /** 한 번에 보내는 기록 수(기본 50). */
   batchSize?: number;
   warn?: (message: string) => void;
+  /**
+   * 보낸 trace id를 한 줄씩 적는 파일(기본 없음). Langfuse v4는 같은 span id를 다시 받으면 덮어쓰지 않고 행을 하나 더 만들어서(2026-10-18 확인: 두 번 보내 110행/55 id),
+   * 지난 기록 내보내기(trace-langfuse.ts)가 이 파일을 보고 이미 보낸 기록을 건너뛴다. 서버는 data/traces/langfuse-sent.txt에 적는다.
+   */
+  sentLog?: string;
+}
+
+/** trace 폴더 안의 보낸 기록 파일 이름(서버와 trace-langfuse.ts가 같이 쓴다). .jsonl이 아니라 trace:report가 읽지 않는다. */
+export const LANGFUSE_SENT_LOG = "langfuse-sent.txt";
+
+/** sentLog 파일의 trace id들. 파일이 없으면 빈 집합. */
+export function readSentIds(path: string): Set<string> {
+  return existsSync(path) ? new Set(readFileSync(path, "utf8").split(/\r?\n/).filter(Boolean)) : new Set();
 }
 
 /**
@@ -242,6 +257,10 @@ export class LangfuseExporter {
       if (!res.ok) throw new Error(`HTTP ${res.status} ${(await res.text().catch(() => "")).slice(0, 200)}`);
       this.sent.traces += records.length;
       this.sent.spans += spans.length;
+      if (this.options.sentLog) {
+        mkdirSync(dirname(this.options.sentLog), { recursive: true });
+        appendFileSync(this.options.sentLog, records.map((r) => `${r.trace_id}\n`).join(""), "utf8");
+      }
       for (const score of records.flatMap(toScores)) {
         const s = await this.doFetch(`${this.config.host}/api/public/scores`, { method: "POST", headers: this.headers(), body: json(score), signal: AbortSignal.timeout(10_000) });
         if (!s.ok) throw new Error(`점수 HTTP ${s.status}`);

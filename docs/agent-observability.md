@@ -28,6 +28,7 @@ POST /api/chat
 |---|---|
 | `trace_id`, `kind`, `at`, `total_ms` | 기본 정보. `kind`는 `learning` |
 | `stages` | 단계별 ms: `context`, `retrieve`, `llm`, `save` |
+| `stage_offsets` | 단계별 시작 시각(요청 시작부터 ms). 2026-10-18부터. LLM 호출에는 `start_ms`가 붙는다(아래 'Langfuse' 타임라인용) |
 | `first_text_ms` | 스트리밍에서 첫 답 글자를 보낸 시각(체감 대기) |
 | `request` | `session_id`, `new_session`, `section`, `process_id`, `equipment_id`, `question`, `stream` |
 | `context` | 넘긴 대화 수, 미해결 오개념 수, 재도전 개념 수, 체크포인트 진행 중 여부 |
@@ -106,6 +107,43 @@ npm run trace:report -- [--dir data/traces] [--since 2026-10-15] [--until 2026-1
 | `exam` | 시험 작업 하나(`EducationJobs.run`, 요청은 작업 id만 바로 돌려주고 채점은 대기열에서 돌아서 작업을 감싼다) | `job.id`·`job.kind`·`job.queue_ms`(대기 시간), `outcome`(`succeeded`·`failed`·`cancelled`), `error` |
 
 `trace:report`는 이 셋을 "[종류] 요청 수 · 결과 · 전체 p50/p95 · 경로별 수 · 모델별 호출 수·호출당 p50·토큰"으로 요약한다. 시험 채점 이력(`exam_events`의 metadata)에는 이제 실제 provider·모델과 채점 보강 여부가 남는다(전에는 Ollama로 채점해도 gemini로 남았다).
+
+## Langfuse (선택, 로컬 대시보드)
+
+같은 trace를 [Langfuse](https://langfuse.com)(오픈소스 LLM 관측 도구)로 보내 웹 화면에서 질문 하나씩 타임라인으로 본다. 기본은 꺼져 있고, 켜도 파일 기록(`data/traces`)과 `trace:report`는 그대로다. 개발자가 튜터 품질을 보는 도구라 관리자 화면에는 붙이지 않는다.
+
+| 우리 기록 | Langfuse |
+|---|---|
+| 요청 하나(`trace_id`) | trace 하나. 이름 `learning`·`checkpoint POST /api/checkpoints/:id/answer`·`exam:exam-start` 등, 세션은 `request.session_id` |
+| 루트 입력·출력 | 학습: 질문·공정·설비 → 결과(`status`·`source_ids`·`scene_actions`). 그 밖: 요청 경로·작업 → `outcome` |
+| `stages` | 하위 span(`context`·`retrieve`(retriever, 조각 id·점수)·`llm`·`save`). `stage_offsets` 자리에 놓는다(예전 기록은 차례로) |
+| `llm_calls` | generation(모델·토큰·실패면 ERROR). 학습은 `llm` 단계 아래, 체크포인트·시험은 루트 아래 |
+| `outcome`, `grounding.rate` | 점수 `outcome`(범주), `grounding_rate`(숫자) |
+| `outcome`이 `error`·`failed`·`http_5xx` / `unverified`·`http_4xx` | 레벨 ERROR / WARNING |
+
+- 보내는 방법: Langfuse v4가 받는 OpenTelemetry(`/api/public/otel/v1/traces`, OTLP/HTTP JSON, Basic 인증 + `x-langfuse-ingestion-version: 4`)와 점수 API(`/api/public/scores`). SDK 없이 `fetch`로 보낸다(`llm/src/langfuse.ts`).
+- span id는 trace id에서 정해서 같은 기록을 다시 보내도 겹치지 않는다.
+- 2초마다 모아 보낸다. 보내기에 실패하면 경고를 한 번 남기고 버린다(요청은 막지 않는다, 파일 기록은 남는다).
+- 학습자 질문 문장이 들어가므로 `LANGFUSE_HOST`가 이 컴퓨터(`localhost`·`127.0.0.1`)가 아니면 `LANGFUSE_ALLOW_REMOTE=1`이 있어야 보낸다(없으면 서버가 시작하지 않는다). Langfuse Cloud는 이 값을 켜야 쓸 수 있다.
+
+### 켜는 순서 (로컬, Docker)
+
+Langfuse는 Postgres·ClickHouse·Redis·MinIO와 함께 돌아 메모리를 4GB 안팎 쓴다. 시연 PC에서는 끈다.
+
+1. Docker Desktop을 켠다.
+2. Langfuse를 저장소 밖에 받는다: `git clone --depth 1 https://github.com/langfuse/langfuse.git ../langfuse`
+3. 우리 설정을 겹쳐 켠다(화면 3100, 이 컴퓨터에서만, 처음 켤 때 프로젝트·키·계정 생성):
+   `docker compose -f ../langfuse/docker-compose.yml -f tools/langfuse/docker-compose.override.yml up -d`
+4. `.env`에 넣는다(키는 `tools/langfuse/docker-compose.override.yml`의 로컬 전용 값):
+   ```
+   LANGFUSE_HOST=http://localhost:3100
+   LANGFUSE_PUBLIC_KEY=pk-lf-st-rookie-local
+   LANGFUSE_SECRET_KEY=sk-lf-st-rookie-local
+   ```
+5. 서버를 다시 켜면 시작 로그에 `trace를 Langfuse로도 보냅니다`가 나온다. 쌓여 있던 기록은 `npm run trace:langfuse`(`--since`·`--until`, 보내지 않고 확인만 하려면 `--dry-run`)로 보낸다.
+6. http://localhost:3100 에 `admin@st-rookie.local` / `st-rookie-langfuse`로 들어가 Tracing 화면을 본다.
+
+끌 때: `.env`의 `LANGFUSE_*`를 지우고 `docker compose -f ../langfuse/docker-compose.yml -f tools/langfuse/docker-compose.override.yml down`.
 
 ## 통합 확인 (2026-10-16)
 

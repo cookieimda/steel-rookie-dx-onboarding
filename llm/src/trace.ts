@@ -8,6 +8,7 @@ import { appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { performance } from "node:perf_hooks";
+import { langfuseConfigFromEnv, LangfuseExporter } from "./langfuse.js";
 
 /** LLM 호출 하나. 다시 부르면(과부하·형식 오류) 호출마다 하나씩 쌓인다. */
 export interface LlmCallRecord {
@@ -20,6 +21,8 @@ export interface LlmCallRecord {
   streamed: boolean;
   /** 받은 응답의 토큰 수(Gemini usageMetadata). 응답에 없으면 비운다. */
   tokens?: { prompt?: number; output?: number; thoughts?: number; total?: number };
+  /** 요청 시작부터 이 호출이 시작될 때까지(ms). Trace.llm()이 붙인다(타임라인 내보내기용, langfuse.ts). */
+  start_ms?: number;
 }
 
 /** 요청을 클라이언트가 붙여 보낸 trace id(X-Trace-Id)로 이을 때 허용하는 형식. */
@@ -32,6 +35,8 @@ export class Trace {
   private readonly started = performance.now();
   /** 단계 이름 → 걸린 시간(ms). 같은 단계를 두 번 재면 더한다. */
   readonly stages: Record<string, number> = {};
+  /** 단계 이름 → 처음 시작한 시각(요청 시작부터 ms). 타임라인으로 내보낼 때 쓴다(langfuse.ts). */
+  readonly stage_offsets: Record<string, number> = {};
   readonly llm_calls: LlmCallRecord[] = [];
   readonly fields: Record<string, unknown> = {};
 
@@ -51,7 +56,7 @@ export class Trace {
     try {
       return fn();
     } finally {
-      this.addStage(name, performance.now() - t0);
+      this.addStage(name, t0, performance.now() - t0);
     }
   }
 
@@ -60,12 +65,13 @@ export class Trace {
     try {
       return await fn();
     } finally {
-      this.addStage(name, performance.now() - t0);
+      this.addStage(name, t0, performance.now() - t0);
     }
   }
 
-  private addStage(name: string, ms: number): void {
+  private addStage(name: string, t0: number, ms: number): void {
     this.stages[name] = Math.round((this.stages[name] ?? 0) + ms);
+    this.stage_offsets[name] ??= Math.max(0, Math.round(t0 - this.started));
   }
 
   /** 기록 필드를 정한다(같은 키면 덮어쓴다). */
@@ -78,8 +84,9 @@ export class Trace {
     if (!(key in this.fields)) this.fields[key] = value;
   }
 
+  /** 끝난 호출을 더한다. 시작 시각은 지금 - 걸린 시간으로 붙인다(클라이언트가 따로 넘기지 않게). */
   llm(call: LlmCallRecord): void {
-    this.llm_calls.push(call);
+    this.llm_calls.push({ ...call, start_ms: call.start_ms ?? Math.max(0, this.elapsed() - call.ms) });
   }
 
   /** 파일에 남길 한 줄. total_ms는 이 함수를 부른 시각 기준이다. */
@@ -91,6 +98,7 @@ export class Trace {
       at: this.at,
       total_ms: this.elapsed(),
       stages: { ...this.stages },
+      stage_offsets: { ...this.stage_offsets },
       llm_calls: this.llm_calls,
       llm_tokens: this.llm_calls.some((c) => c.tokens?.total !== undefined) ? tokens : null,
       ...this.fields,
@@ -104,6 +112,8 @@ export interface TraceRecord {
   at: string;
   total_ms: number;
   stages: Record<string, number>;
+  /** 단계별 시작 시각(ms). 2026-10-18 전 기록에는 없다(내보낼 때 단계를 차례로 놓는다). */
+  stage_offsets?: Record<string, number>;
   llm_calls: LlmCallRecord[];
   /** 모든 호출의 total 토큰 합. 토큰 정보가 하나도 없으면 null. */
   llm_tokens: number | null;
@@ -188,8 +198,16 @@ export function localDate(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-/** 서버용: TRACE_LOG=off면 undefined, 아니면 TRACE_DIR(기본 data/traces)에 쓰는 sink. */
+/**
+ * 서버용: TRACE_LOG=off면 undefined, 아니면 TRACE_DIR(기본 data/traces)에 쓰는 sink.
+ * LANGFUSE_HOST·LANGFUSE_PUBLIC_KEY·LANGFUSE_SECRET_KEY가 있으면 같은 기록을 Langfuse로도 보낸다(langfuse.ts, 기본 꺼짐).
+ */
 export function traceSinkFromEnv(env: NodeJS.ProcessEnv = process.env): TraceSink | undefined {
   if (env.TRACE_LOG?.trim().toLowerCase() === "off") return undefined;
-  return new TraceLog(env.TRACE_DIR || join(process.cwd(), "data", "traces")).write;
+  const file = new TraceLog(env.TRACE_DIR || join(process.cwd(), "data", "traces")).write;
+  const config = langfuseConfigFromEnv(env);
+  if (!config) return file;
+  const langfuse = new LangfuseExporter(config);
+  console.log(`trace를 Langfuse로도 보냅니다: ${config.host}`);
+  return (record) => { file(record); langfuse.push(record); };
 }

@@ -19,6 +19,7 @@
     "eval:retrieval": "npm run build && node .build/llm/eval/run-retrieval.js",
     "eval:supplement": "npm run build && node --env-file-if-exists=.env .build/llm/eval/run-supplement.js",
     "trace:report": "npm run build && node --env-file-if-exists=.env .build/llm/eval/trace-report.js",
+    "trace:langfuse": "npm run build && node --env-file-if-exists=.env .build/llm/eval/trace-langfuse.js",
     "tunnel": "node --env-file-if-exists=.env scripts/tunnel.mjs",
     "db:reset-user": "npm run build && node --env-file-if-exists=.env .build/backend/src/db/reset-user.js",
     "db:seed-demo": "npm run build && node --env-file-if-exists=.env .build/backend/src/db/seed-demo-records.js"

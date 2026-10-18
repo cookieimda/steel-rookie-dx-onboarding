@@ -94,7 +94,8 @@ test("GeminiClient: trace 안에서 부르면 호출마다 모델·성공 여부
     await assert.rejects(client.generate({ system: "", prompt: "", temperature: 0, maxOutputTokens: 10 }));
   });
   assert.equal(t.llm_calls.length, 2);
-  assert.deepEqual({ ...t.llm_calls[0], ms: 0 }, { model: "gemini:test-model", ms: 0, ok: true, streamed: false, tokens: { prompt: 110, output: 10, thoughts: undefined, total: 120 } });
+  assert.deepEqual({ ...t.llm_calls[0], ms: 0, start_ms: 0 }, { model: "gemini:test-model", ms: 0, ok: true, streamed: false, tokens: { prompt: 110, output: 10, thoughts: undefined, total: 120 }, start_ms: 0 });
+  assert.ok(typeof t.llm_calls[0]!.start_ms === "number", "호출 시작 시각(타임라인용)을 붙인다");
   assert.equal(t.llm_calls[1]!.ok, false);
   assert.equal(t.llm_calls[1]!.failure, "rate_limit");
   assert.equal(t.llm_calls[1]!.http_status, 429);

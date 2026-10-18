@@ -1,0 +1,25 @@
+# ST-Rookie용 Langfuse 로컬 설정(docs/agent-observability.md 'Langfuse').
+# Langfuse 공식 docker-compose.yml(https://github.com/langfuse/langfuse) 위에 겹쳐 쓴다:
+#   docker compose -f <langfuse 폴더>/docker-compose.yml -f tools/langfuse/docker-compose.override.yml up -d
+# - 우리 시연 서버가 3000을 쓰므로 Langfuse 화면은 3100으로 옮기고, 이 컴퓨터(127.0.0.1)에서만 열리게 한다.
+# - 처음 켤 때 조직·프로젝트·키·로그인 계정을 만든다. 아래 키를 .env의 LANGFUSE_PUBLIC_KEY·LANGFUSE_SECRET_KEY에 넣는다.
+#   로컬 전용 값이다. 다른 컴퓨터에서 쓰려면 바꾼다.
+services:
+  langfuse-web:
+    ports: !override
+      - 127.0.0.1:3100:3000
+    environment:
+      NEXTAUTH_URL: http://localhost:3100
+      LANGFUSE_INIT_ORG_ID: st-rookie
+      LANGFUSE_INIT_ORG_NAME: ST-Rookie
+      LANGFUSE_INIT_PROJECT_ID: st-rookie-tutor
+      LANGFUSE_INIT_PROJECT_NAME: AI 튜터
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: pk-lf-st-rookie-local
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: sk-lf-st-rookie-local
+      LANGFUSE_INIT_USER_EMAIL: admin@st-rookie.local
+      LANGFUSE_INIT_USER_NAME: ST-Rookie
+      LANGFUSE_INIT_USER_PASSWORD: st-rookie-langfuse
+  minio:
+    ports: !override
+      - 127.0.0.1:9090:9000
+      - 127.0.0.1:9091:9001

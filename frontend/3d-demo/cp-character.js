@@ -249,8 +249,9 @@ class GltfRenderer {
     const pop = !this.reducedMotion && POP_MOTIONS.has(this.requested) ? popAt(t) : 1;
     this.body.position.y = pose.y;
     // 따라 보기: 고개(몸 전체)를 마우스 쪽으로 살짝 돌린다
+    // 얼굴 가까이(framing="face")에서는 0.16·0.06도 커서 왼쪽 아래를 보면 얼굴이 한쪽으로 쏠려 찌그러져 보였다(2026-10-19) — 0.06·0.02로 줄이고 시선은 눈동자가 맡는다
     const g = this.gaze && !this.reducedMotion ? this.gaze : { x: 0, y: 0 };
-    this.body.rotation.set(pose.rx + g.y * 0.06, pose.ry + g.x * 0.16, pose.rz);
+    this.body.rotation.set(pose.rx + g.y * 0.02, pose.ry + g.x * 0.06, pose.rz);
     this.body.scale.set(pop, pose.sy * pop, pop);
     this.updateFace(now);
     this.renderer.render(this.scene, this.camera);

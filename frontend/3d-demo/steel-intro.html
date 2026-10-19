@@ -49,9 +49,6 @@
     .pc .stem { width: 1px; height: 30px; background: rgba(255,255,255,.55); }
     .pc .dot { width: 7px; height: 7px; border-radius: 50%; background: #fff; box-shadow: 0 0 8px rgba(255,170,90,.9); }
 
-    .fl { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); padding: 6px 11px; border-radius: 999px; background: var(--surf); border: 1px solid var(--line); color: var(--text); font: 600 15px/1 var(--f-body); white-space: nowrap; opacity: 0; transition: opacity .3s var(--ease); pointer-events: none; }
-    .fl.on { opacity: 1; }
-    .fl i { font-style: normal; color: var(--molten); }
 
     /* 아래 공정 바: 설비 재생 바(intro-tour.css .tbar)와 같은 모양. 유리판·테두리 없음, 지금 공정은 주황 마름모 + 주황 글자 */
     .flow { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); width: min(880px, calc(100vw - 44px)); z-index: 5; display: flex; align-items: center; gap: 14px; min-height: 80px; padding: 0 14px; border-radius: 28px; background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0) 45%), rgba(20,22,28,.55); box-shadow: 0 24px 60px -18px rgba(0,0,0,.6); -webkit-backdrop-filter: blur(18px) saturate(1.2); backdrop-filter: blur(18px) saturate(1.2); pointer-events: auto; box-sizing: border-box; }
@@ -91,7 +88,7 @@
     #load .bar { width: 180px; height: 1px; background: rgba(255,255,255,.14); overflow: hidden; margin-top: 14px; }
     #load .bar i { display: block; height: 100%; width: 0; background: #f2f2f2; transition: width .3s var(--ease); }
     @media (max-width: 900px) { .ttl p { display: none; } .ttl h1 { font-size: 20px; } .flow .tl button span { font-size: 12px; } .flow .tl { margin: 0 36px 0 28px; } }
-    @media (prefers-reduced-motion: reduce) { .pc, .fl, .flow .tl .fill, #load { transition: none; } }
+    @media (prefers-reduced-motion: reduce) { .pc, .flow .tl .fill, #load { transition: none; } }
   </style>
 </head>
 <body>

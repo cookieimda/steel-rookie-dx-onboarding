@@ -1,12 +1,12 @@
-// 선택 설비 강조(레퍼런스: 주변 건물은 흑백, 고른 건물만 채도·명도가 낮은 청록 + 얇은 밝은 외곽선).
-// - 고른 설비: 재질 색을 낮은 채도·명도의 초록으로, 자체 발광(emissive)은 끈다.
+// 선택 설비 강조(레퍼런스: 주변 건물은 흑백, 고른 건물만 채도·명도가 낮은 구리빛 + 얇은 밝은 외곽선).
+// - 고른 설비: 재질 색을 낮은 채도·명도의 구리빛 주황으로(화면 강조색 #ff9e64 계열, 2026-10-19 청록에서 바꿈), 자체 발광(emissive)은 끈다.
 // - 같은 공정의 다른 설비: 흑백(밝기만 남김), 자체 발광은 끈다.
 // - 외곽선: three.js OutlinePass로 카메라 기준 실루엣을 얇은 밝은 선으로(번짐 없음).
 // 색은 steel-index.js가 고를 때·해제할 때 재질의 원래 색(userData.color·emissive)으로 되돌리므로, 같은 재질만 만지고 그 뒤에 덧칠한다.
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/+esm';
 import { OutlinePass } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/OutlinePass.js/+esm';
 
-const PICKED = new THREE.Color(0x4e8273); // 채도·명도를 낮춘 초록(청록 쪽)
+const PICKED = new THREE.Color(0x9a6a48); // 채도·명도를 낮춘 구리빛 주황
 
 const managed = (o) => o.isMesh && o.material?.userData?.color; // steel-index.js가 색을 되돌리는 재질만
 const lum = (c) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
@@ -27,8 +27,8 @@ export function createOutline(scene, camera) {
   pass.edgeThickness = 1;    // 얇게
   pass.edgeGlow = 0;         // 번짐 없음
   pass.pulsePeriod = 0;
-  pass.visibleEdgeColor.set('#e6efec'); // 보이는 외곽: 옅은 흰빛
-  pass.hiddenEdgeColor.set('#3c4a46');  // 가린 외곽: 흐린 회청록
+  pass.visibleEdgeColor.set('#f3e9e1'); // 보이는 외곽: 옅은 따뜻한 흰빛
+  pass.hiddenEdgeColor.set('#4a3f38');  // 가린 외곽: 흐린 갈회색
   return {
     pass,
     /** @param obj 고른 설비 노드 @param all 같은 공정의 설비 노드들(고른 것 포함) */

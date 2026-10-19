@@ -31,6 +31,5 @@ export function arcGaugeHtml(g) {
       </svg>
       <div class="lab-arc-val"><strong>${esc(g.value)}<small>℃</small></strong><em class="${tone}">${status}</em></div>
     </div>
-    <div class="lab-scale"><span>${g.low}℃</span><span>${g.high}℃</span></div>
-    <p>온도의 위치이며 안전 판정은 아닙니다.</p></div>`;
+    <div class="lab-scale"><span>${g.low}℃</span><span>${g.high}℃</span></div></div>`;
 }

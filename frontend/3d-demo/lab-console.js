@@ -26,12 +26,15 @@ export function attachLabConsole({ api, scene, camera, reduced, pickEquipment })
   }
   function temperaturePanel() {
     left.innerHTML = `<header class="lab-pane-head"><span>THERMAL PROFILE</span><h2>온도 흐름</h2><b>${escape(process.name)}</b></header><div class="lab-pane-body">
-      <div class="lab-step-value"><span data-lab-eq></span><strong data-lab-temp></strong><span data-lab-zone></span></div>
-      ${profile()}<label class="lab-slider"><span>단계 탐색</span><output data-lab-count></output><input aria-label="온도 단계 탐색" data-lab-position type="range" min="0" max="${Math.max(0, points.length - 1)}" value="0" step="1" ${points.length ? '' : 'disabled'}></label>
+      <div class="lab-temp-col lab-temp-a"><div class="lab-step-value"><span data-lab-eq></span><strong data-lab-temp></strong><span data-lab-zone></span></div>
       <button type="button" class="lab-button" data-lab-equipment ${points.length ? '' : 'disabled'}>선택 설비 자세히 보기 ↗</button>
-      <section class="lab-temperature-result" data-lab-temperature-result></section>
       <label class="lab-slider"><span>애니메이션 속도</span><output data-lab-speed-text>1.0×</output><input aria-label="애니메이션 속도" data-lab-speed type="range" min="0.5" max="2" value="1" step="0.1"></label>
-      <p class="lab-muted">그래프는 학습 자료의 단계별 예시 온도입니다. 실험 결과는 별도 계기와 공정 뒤 전광판에 표시됩니다.</p><p class="lab-muted" data-lab-progress></p></div>`;
+      <p class="lab-muted" data-lab-progress></p></div>
+      ${profile()}
+      <div class="lab-temp-col lab-temp-c"><label class="lab-slider"><span>단계 탐색</span><output data-lab-count></output><input aria-label="온도 단계 탐색" data-lab-position type="range" min="0" max="${Math.max(0, points.length - 1)}" value="0" step="1" ${points.length ? '' : 'disabled'}></label>
+      <section class="lab-temperature-result" data-lab-temperature-result></section>
+      <p class="lab-muted">그래프는 학습 자료의 단계별 예시 온도입니다. 실험 결과는 별도 계기와 공정 뒤 전광판에 표시됩니다.</p></div></div>`;
+      // 묶음(.lab-temp-col): 대시보드 카드에서는 왼쪽·오른쪽 칸으로 따로 쌓이고, 옆 패널에서는 풀려(display: contents) 원래 순서(order)로 보인다
     left.querySelector('[data-lab-position]').oninput = e => { selected = Number(e.target.value); describeStep(); world.focus(points[selected].id); };
     left.querySelector('[data-lab-equipment]').onclick = () => points[selected] && pickEquipment(points[selected].id);
     left.querySelector('[data-lab-speed]').oninput = e => { world.speed(Number(e.target.value)); left.querySelector('[data-lab-speed-text]').textContent = `${Number(e.target.value).toFixed(1)}×`; };

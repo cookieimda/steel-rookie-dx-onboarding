@@ -48,19 +48,24 @@ export function attachLabConsole({ api, scene, camera, reduced, pickEquipment })
   function inputPanel() {
     // 머리(What-if 제목)는 두지 않는다: 패널 이름은 aria-label이 맡고, 초기화를 맨 위에 둬 조건 슬라이더가 스크롤 없이 보이게 한다
     right.innerHTML = `<div class="lab-pane-body">
-      ${api.hasToken() ? '<button type="button" class="lab-button" data-lab-reset>↺ 기준 조건으로 초기화</button>' : '<a class="lab-button" href="/login">로그인하기 →</a>'}
+      ${api.hasToken() ? '<button type="button" class="lab-button" data-lab-reset>↺ 기준 조건으로 초기화</button><p class="lab-base-note">흰 눈금이 기준 조건 자리입니다</p>' : '<a class="lab-button" href="/login">로그인하기 →</a>'}
       <div class="lab-gauge-slot" data-lab-gauge></div><div class="lab-fields" data-lab-fields></div>
       <p class="lab-status" data-lab-status role="status" aria-live="polite">${api.hasToken() ? '계산 모델을 불러오는 중…' : '로그인하면 조건을 바꾸고 전광판 결과를 확인할 수 있습니다.'}</p>
       <details><summary>계산 가정</summary><p class="lab-muted" data-lab-assumptions>교육용 간이 모델 · 실제 운전 지침이 아닙니다.</p></details>
       <div class="lab-sr" data-lab-quotes aria-label="공정 뒤 전광판의 계산 결과"></div></div>`;
     right.querySelector('[data-lab-reset]')?.addEventListener('click', () => { inputs = {}; clearTimeout(timer); calculate(true); });
   }
+  // 슬라이더 채움 비율(--p): 크롬은 range 진행 부분 색을 CSS만으로 못 칠해 트랙 그라데이션에 쓴다(lab-console-glass.css)
+  const fill = el => el.style.setProperty('--p', `${((el.value - el.min) / (el.max - el.min || 1)) * 100}%`);
+  // 슬라이더는 기준 조건(처음 열 때·초기화 때, inputs가 빈 상태)으로만 다시 그리므로 그때 값이 기준값이다. 트랙 위 눈금(.lab-base)으로 남긴다
   function renderFields() {
     const fields = process.id === 'ironmaking'
       ? WI_SLIDERS.map(([key, label, unit, min, max, step]) => ({ key, label, unit, min, max, step, value: reply.input[key] }))
       : reply.nodes.filter(n => n.process === process.id && n.control).map(n => ({ key: n.id, label: n.label, unit: n.unit, ...n.control, value: n.value }));
-    right.querySelector('[data-lab-fields]').innerHTML = fields.map(f => `<label class="lab-slider"><span>${escape(f.label)}</span><output data-lab-output="${f.key}">${displayNumber(f.value, f.step < 1 ? 1 : 0)} ${escape(f.unit)}</output><input data-lab-input="${f.key}" aria-label="${escape(f.label)} (${escape(f.unit)})" type="range" min="${f.min}" max="${f.max}" step="${f.step}" value="${f.value}"></label>`).join('');
+    right.querySelector('[data-lab-fields]').innerHTML = fields.map(f => `<label class="lab-slider"><span>${escape(f.label)}</span><output data-lab-output="${f.key}">${displayNumber(f.value, f.step < 1 ? 1 : 0)} ${escape(f.unit)}</output><i class="lab-base" style="--bf:${(f.value - f.min) / (f.max - f.min || 1)}" title="기준 ${displayNumber(f.value, f.step < 1 ? 1 : 0)} ${escape(f.unit)}" aria-hidden="true"></i><input data-lab-input="${f.key}" aria-label="${escape(f.label)} (${escape(f.unit)})" type="range" min="${f.min}" max="${f.max}" step="${f.step}" value="${f.value}"></label>`).join('');
+    right.querySelectorAll('[data-lab-input]').forEach(fill);
     right.querySelectorAll('[data-lab-input]').forEach(el => el.oninput = () => {
+      fill(el);
       const f = fields.find(f => f.key === el.dataset.labInput);
       inputs[f.key] = Number(el.value); right.querySelector(`[data-lab-output="${f.key}"]`).textContent = `${displayNumber(Number(el.value), f.step < 1 ? 1 : 0)} ${f.unit}`;
       epoch++; clearTimeout(timer); status('조건 변경을 계산하는 중…'); timer = setTimeout(() => calculate(false), 180);
@@ -79,7 +84,7 @@ export function attachLabConsole({ api, scene, camera, reduced, pickEquipment })
     if (process.id === 'ironmaking') {
       status(reply.result.warnings.join(' · ') || `원료 비율을 100%로 환산했습니다: 소결광 ${reply.input.sinter_pct.toFixed(1)}% · 펠릿 ${reply.input.pellet_pct.toFixed(1)}% · 괴광 ${reply.input.lump_pct.toFixed(1)}%.`);
       for (const [key, , unit, , , step] of WI_SLIDERS) {
-        const el = right.querySelector(`[data-lab-input="${key}"]`); if (el) { el.value = reply.input[key]; right.querySelector(`[data-lab-output="${key}"]`).textContent = `${displayNumber(reply.input[key], step < 1 ? 1 : 0)} ${unit}`; }
+        const el = right.querySelector(`[data-lab-input="${key}"]`); if (el) { el.value = reply.input[key]; fill(el); right.querySelector(`[data-lab-output="${key}"]`).textContent = `${displayNumber(reply.input[key], step < 1 ? 1 : 0)} ${unit}`; }
       }
     } else status('오른쪽의 조건 변경이 공정 뒤 전광판과 가운데 공정에 반영됩니다.');
     document.body.dataset.labValues = JSON.stringify(Object.fromEntries(rows.map(r => [r.id, r.value])));

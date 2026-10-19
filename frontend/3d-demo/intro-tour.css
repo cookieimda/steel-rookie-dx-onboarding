@@ -3,7 +3,7 @@
    발표 모드에서는 흐림이 꺼진다(perf-mode.js). 색·글자는 steel-intro.html의 밤 UI 변수(--text·--molten·--f-body·--f-mono)를 따른다 */
 .pc .box button.play { background: transparent; color: var(--text); } /* 칩의 강조는 [들어가기 →] 하나만: 재생은 배경 없이 글자만 */
 .pc .box button.play:hover { background: rgba(255,255,255,.12); }
-body.touring .ttl, body.touring .pc, body.touring .fl { opacity: 0 !important; pointer-events: none !important; }
+body.touring .ttl, body.touring .pc { opacity: 0 !important; pointer-events: none !important; }
 body.tour-on .flow { display: none; }
 .tpanel, .tbar { background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0) 45%), rgba(20,22,28,.55); box-shadow: 0 24px 60px -18px rgba(0,0,0,.6); -webkit-backdrop-filter: blur(18px) saturate(1.2); backdrop-filter: blur(18px) saturate(1.2); }
 

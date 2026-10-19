@@ -328,3 +328,108 @@ body.lab-dock-resizing, body.lab-dock-resizing * { cursor: row-resize !important
 .top { border-color: transparent !important; }
 .top .tabs, .top .seg, .top .rb, .top .rb:hover { border-color: transparent !important; box-shadow: none !important; }
 .top .sep { display: none; }
+
+/* ---- 2026-10-19 가독성: 유리판 분위기는 그대로 두고, 얇은 숫자·회색뿐인 화면을 또렷하게 ----
+   숫자는 굵기 200~300 → 400~500, 라벨은 한 단계 밝게. 강조색은 홈 공정 바·재생 바와 같은 주황(#ff9e64 · 글자 #ffb37a)을
+   '고른 것'(탭·표의 고른 줄·슬라이더 값과 채움)에만 쓴다. 오름 빨강·내림 파랑은 그대로 */
+:root { --accent: #ff9e64; --accent-ink: #ffb37a; --accent-soft: rgba(255, 158, 100, .14); }
+.lab-pane, .process-lab .right, body.lab-dock .lab-dock-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .055), rgba(255, 255, 255, 0) 42%), var(--glass);
+}
+
+/* What-if 슬라이더: 라벨 밝게, 값은 주황, 트랙은 4px에 채운 만큼 주황(--p는 lab-console.js) */
+.lab-slider > span { font-weight: 500; color: rgba(255, 255, 255, .9); }
+.lab-slider output { font: 600 15px var(--f-num); color: var(--accent-ink); }
+.lab-slider input::-webkit-slider-runnable-track { height: 4px; border-radius: 4px; background: linear-gradient(90deg, var(--accent) var(--p, 0%), rgba(255, 255, 255, .14) var(--p, 0%)); }
+.lab-slider input::-moz-range-track { height: 4px; border-radius: 4px; background: rgba(255, 255, 255, .14); }
+.lab-slider input::-moz-range-progress { height: 4px; border-radius: 4px; background: var(--accent); }
+.lab-slider input::-webkit-slider-thumb { width: 16px; height: 16px; margin-top: -6px; box-shadow: 0 0 0 4px rgba(255, 158, 100, .25), 0 2px 6px rgba(0, 0, 0, .5); }
+.lab-slider input::-moz-range-thumb { width: 16px; height: 16px; box-shadow: 0 0 0 4px rgba(255, 158, 100, .25), 0 2px 6px rgba(0, 0, 0, .5); }
+.lab-slider:hover > span { color: #fff; }
+.lab-inputs .lab-button { font-weight: 600; color: var(--ink-hi); }
+.lab-status { border-left: 2px solid var(--accent); }
+
+/* 아래 카드 탭: 고른 탭은 주황 */
+.lab-dock-tabs button { font-weight: 600; color: rgba(255, 255, 255, .62); }
+.lab-dock-tabs button[aria-selected="true"] { color: var(--accent-ink); background: var(--accent-soft); }
+.lab-dock-note { color: var(--ink-lo); }
+
+/* 조업 전광판 표: 줄 높이·글자를 키우고, 고른 줄은 왼쪽 주황 막대 + 옅은 주황 바탕 */
+.lab-board th { font: 500 12px var(--f-body); color: var(--ink-lo); }
+.lab-board td { padding: 8px 10px; font-size: 15px; color: rgba(255, 255, 255, .88); }
+.lab-board td.v { font: 600 17px var(--f-num); }
+.lab-board td.b { font-family: var(--f-num); color: rgba(255, 255, 255, .6); }
+.lab-board td.d { color: var(--ink-lo); }
+.lab-board tbody tr.on td { background: var(--accent-soft); }
+.lab-board tbody tr.on td:first-child { box-shadow: inset 3px 0 0 var(--accent); color: #fff; font-weight: 600; }
+.lab-board tbody tr td:first-child { border-radius: 0; }
+.lab-spark polyline, .lab-spark line { stroke: rgba(255, 255, 255, .3); }
+.lab-board-legend { color: var(--ink-lo); }
+
+/* 온도 다이얼·차트 제목: 숫자 굵게, 제목 밝게 */
+.lab-arc-val strong { font-weight: 400; }
+.lab-arc-val em { color: rgba(255, 255, 255, .7); }
+.lab-board-chart .lab-arc-gauge > span, .lab-dock-chart-head b { font-weight: 600; color: rgba(255, 255, 255, .9); }
+.lab-gauge > span, .lab-scale, .lab-gauge p { color: rgba(255, 255, 255, .62); }
+.lab-gauge strong, .lab-step-value > strong { font-weight: 300; }
+
+/* 온도 흐름 탭: 카드 높이 안에 다 보이게(스크롤 없음). 그래프는 칸 높이에 맞춰 줄고(viewBox 비율 유지), 양옆 칸은 자리를 정해 둔다.
+   본문 순서(lab-console.js): 1 지금 단계 값 · 2 그래프 · 3 단계 탐색 · 4 설비 자세히 · 5 실험 온도 · 6 애니메이션 속도 · 7 안내 · 8 진행 */
+body.lab-dock .lab-temperature .lab-pane-body {
+  height: 100%; overflow: hidden; box-sizing: border-box; padding: 12px 22px;
+  grid-template-rows: auto auto auto minmax(0, 1fr); grid-auto-flow: row; align-content: stretch; gap: 8px 28px;
+}
+body.lab-dock .lab-temperature .lab-pane-body > * { min-width: 0; margin: 0; }
+body.lab-dock .lab-temperature .lab-pane-body > :nth-child(1) { grid-column: 1; grid-row: 1; gap: 2px; }
+body.lab-dock .lab-temperature .lab-pane-body > :nth-child(2) { grid-column: 2; grid-row: 1 / -1; width: 100%; height: 100%; min-height: 0; padding: 0; align-self: stretch; }
+body.lab-dock .lab-temperature .lab-pane-body > :nth-child(3) { grid-column: 3; grid-row: 1; }
+body.lab-dock .lab-temperature .lab-pane-body > :nth-child(4) { grid-column: 1; grid-row: 2; min-height: 38px; }
+body.lab-dock .lab-temperature .lab-pane-body > :nth-child(5) { grid-column: 3; grid-row: 2 / 4; align-self: start; }
+body.lab-dock .lab-temperature .lab-pane-body > :nth-child(6) { grid-column: 1; grid-row: 3; }
+body.lab-dock .lab-temperature .lab-pane-body > :nth-child(7) { grid-column: 3; grid-row: 4; align-self: end; font-size: 12px; line-height: 1.5; }
+body.lab-dock .lab-temperature .lab-pane-body > :nth-child(8) { grid-column: 1; grid-row: 4; align-self: end; font-size: 12px; }
+body.lab-dock .lab-temperature .lab-step-value > strong { font-size: 28px; line-height: 1.2; }
+body.lab-dock .lab-temperature .lab-step-value > span { font-size: 13px; }
+body.lab-dock .lab-temperature .lab-slider { padding: 4px 0; gap: 0 8px; }
+body.lab-dock .lab-temperature .lab-slider input { min-height: 22px; }
+body.lab-dock .lab-temperature .lab-temperature-result > div { padding: 10px 12px; gap: 4px; }
+
+/* What-if 기준값 눈금(lab-console.js .lab-base, --bf = 0~1): 슬라이더와 같은 칸에 겹쳐 그 자리에 세로 눈금.
+   손잡이(16px) 가운데가 닿는 범위(8px ~ 100%-8px)에 맞춘다. 손잡이가 기준 자리에 있으면 손잡이에 가려진다. 뜻은 초기화 버튼 아래 한 줄(.lab-base-note)로 알린다 */
+.lab-slider { position: relative; }
+.lab-slider .lab-base { grid-column: 1 / -1; grid-row: 2; align-self: center; position: relative; height: 14px; pointer-events: none; }
+.lab-slider .lab-base::before { content: ""; position: absolute; top: 0; bottom: 0; left: calc(8px + (100% - 16px) * var(--bf, 0)); width: 2px; margin-left: -1px; border-radius: 1px; background: rgba(255, 255, 255, .75); box-shadow: 0 0 0 1px rgba(0, 0, 0, .35); }
+.lab-slider input { position: relative; z-index: 1; grid-row: 2; }
+@media (max-width: 1000px) { .lab-slider .lab-base, .lab-slider input { grid-row: 3; } }
+.lab-base-note { margin: -4px 0 0; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-lo); }
+.lab-base-note::before { content: ""; width: 2px; height: 12px; border-radius: 1px; background: rgba(255, 255, 255, .75); }
+
+/* 조업 전광판 표: 스크롤 없이 카드 높이에 맞춘다. 줄은 어느 공정이든 6개 이하(lab-display-data.js slice(0, 6))라
+   표를 남는 높이 전부로 늘려 줄 높이가 카드 크기(위아래 손잡이로 바뀜)를 따라가고, 글자는 화면 높이에 따라 조금 줄어든다 */
+.lab-board-table { display: flex; flex-direction: column; overflow: hidden; }
+.lab-board-table table { flex: 1 1 0; min-height: 0; height: 100%; }
+.lab-board-table .lab-board-legend { flex: none; margin-top: 6px; }
+.lab-board th { padding: 2px 10px 4px; }
+.lab-board td { padding: 0 10px; font-size: clamp(13px, 1.7vh, 15px); }
+.lab-board td.v { font-size: clamp(14px, 2vh, 17px); }
+.lab-spark { height: clamp(16px, 2.4vh, 24px); }
+
+/* What-if 열: 화면이 높으면 아래가 비지 않게 슬라이더 묶음이 남는 높이를 나눠 쓰고(줄 사이 최대 한 줄 높이 정도), [계산 가정]은 패널 맨 아래에 붙인다.
+   화면이 낮으면 지금처럼 촘촘하게 붙는다 */
+.lab-inputs .lab-pane-body { flex: 1 1 auto; }
+.lab-inputs .lab-fields { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: space-evenly; max-height: 760px; }
+.lab-inputs .lab-pane-body > details { margin-top: auto; }
+
+/* ---- 3D 위 설비 이름표(steel-index.js pinFor): 번호 + 이름, 누르지 않아도 늘 보인다. 고른 설비는 큰 칩(.tag)이 대신하고,
+   설비를 고른 동안 나머지 이름표는 옅어진다(.dim). 번호 색은 홈 공정 바·재생 바와 같은 주황 */
+.eq-pin {
+  position: absolute; left: 0; top: 0; display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; margin-top: -6px;
+  border: 0; border-radius: 999px; background: rgba(20, 22, 28, .62); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .35); color: rgba(255, 255, 255, .92); font: 600 13px/1 var(--f-body); white-space: nowrap;
+  pointer-events: auto; cursor: pointer; transition: opacity .2s, background .2s;
+}
+.eq-pin i { padding-right: 7px; border-right: 1px solid rgba(255, 255, 255, .16); font: 600 13px/1 var(--f-body); font-style: normal; color: #ffb37a; } /* 번호는 원 없이 주황 글자, 이름과 같은 글꼴·크기(홈 공정 칩과 같은 방식) */
+.eq-pin:hover { background: rgba(20, 22, 28, .85); color: #fff; z-index: 2; }
+.eq-pin.dim { opacity: .45; }
+.eq-pin.dim:hover { opacity: 1; }
+.eq-pin:focus-visible { outline: 2px solid rgba(255, 255, 255, .7); outline-offset: 2px; }

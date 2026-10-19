@@ -54,7 +54,6 @@ const SITE = { ironmaking: PX(760, 235), steelmaking: PX(470, 440), continuous_c
 const LAND = [[590, 40], [1180, 215], [1232, 300], [1196, 388], [746, 350], [700, 440], [614, 580], [538, 700], [500, 745], [760, 745], [760, 660], [1010, 630], [1040, 680], [1050, 800], [900, 870], [600, 1244], [62, 800], [235, 300], [340, 230]].map((p) => PX(p[0], p[1]));
 const CITY = [[-320, -95], [-125, -95], [-86, -62], [-117, 36], [47, 47], [125, 92], [210, 160], [320, 230], [320, 320], [-320, 320]];
 const ROADS = [[[-30, -80], [0, -90], [40, -84], [88, -70]], [[-30, -80], [-30, -72]], [[50, -53], [102, -47]], [[-2, -89], [-2, -24], [-12, -6], [-20, 10], [-27, 24], [-40, 48], [-46, 62], [-38, 80], [-22, 96], [-14, 102]], [[-86, -19], [0, -21]], [[-84, 46], [44, 46]], [[-24, 26], [20, 26]], [[-125, 10], [-106, 34], [-9, 114], [14, 125], [70, 126], [130, 98], [200, 120]]];
-const MAT = ['용선', '용강', '슬래브'];
 const RISE_DEPTH = 26, HOLD_MS = 1200, SHOW_MS = 3000, HOVER_GRACE = 350, TITLE_MS = 6000; // TITLE_MS: 여는 장면 뒤 제목 카드를 보여 주는 시간
 
 // ---- 렌더러·장면(밤) ----------------------------------------------------------------------------------------------
@@ -260,8 +259,7 @@ function buildLinks() { // 구역 경계(GLB 바닥판 크기)가 정해진 뒤�
     const a = procs[i], b = procs[i + 1]; if (!a.foot || !b.foot) return null;
     const pathPts = linkPath(a.foot, b.foot), { geo, mid } = ribbon(pathPts, 4.0, 0.06, 3);
     const mesh = new THREE.Mesh(geo, flowMat()); mesh.material.side = THREE.DoubleSide; mesh.visible = false; mesh.renderOrder = 3; scene.add(mesh);
-    const label = document.createElement('div'); label.className = 'fl'; label.innerHTML = `${esc(a.data.name)} → ${esc(b.data.name)} · <i>${MAT[i]}</i>`; hud.appendChild(label);
-    return { a, b, mesh, mid, label, on: false, t0: 0, showUntil: 0, pathPts };
+    return { a, b, mesh, mid, on: false, t0: 0, showUntil: 0, pathPts }; // 연결 띠만 그린다. '제선 → 제강 · 용선' 글씨는 화면을 가려 뺐다(2026-10-19)
   }).filter(Boolean);
 }
 
@@ -627,7 +625,6 @@ function rise(p, now) {
 function placeHud(now) {
   const w = stage.clientWidth, h = stage.clientHeight;
   procs.forEach((p) => { if (!chipVisible(p, now)) { p.chip.classList.remove('on'); return; } V.set(p.foot.cx, p.modelTop + 3, p.foot.cz).project(camera); const vis = V.z < 1; p.chip.classList.toggle('on', vis); if (vis) p.chip.style.transform = `translate(${Math.min(w - 140, Math.max(140, (V.x + 1) / 2 * w)).toFixed(1)}px, ${Math.max(150, (1 - V.y) / 2 * h).toFixed(1)}px) translate(-50%, -100%)`; p.chip.style.zIndex = p.i === cur ? '3' : '1'; });
-  links.forEach((l) => { const vis = l.on && (now < l.showUntil || l.a.hoverZone || l.b.hoverZone); l.label.classList.toggle('on', vis); if (!vis) return; V.copy(l.mid).setY(2).project(camera); l.label.style.transform = `translate(${((V.x + 1) / 2 * w).toFixed(1)}px, ${((1 - V.y) / 2 * h).toFixed(1)}px) translate(-50%, -50%)`; });
 }
 function frame(now) {
   requestAnimationFrame(frame);

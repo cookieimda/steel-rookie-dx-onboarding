@@ -257,6 +257,13 @@ function tagFor(e) {
   t.innerHTML = `<span class="k" style="display:inline-flex;align-items:center;gap:8px;padding:7px 12px 7px 7px;background:rgba(13,17,20,.86);border:1px solid rgba(255,255,255,.2);color:#fff;font:600 15px/1 var(--f-body);border-radius:999px;backdrop-filter:blur(6px)"><i style="width:22px;height:22px;border-radius:50%;background:var(--hot);color:#1a1200;font:700 12px/1 var(--f-mono);font-style:normal;display:grid;place-items:center">${e.i + 1}</i><span class="nm">${esc(e.data.name)}</span><small class="tl">최고 온도</small><b class="tv">${peakTemp(e.data)}</b></span><span class="ld" style="width:1px;height:22px;background:linear-gradient(#c9d1d6,transparent)"></span>`;
   hud.appendChild(t); return (e.tag = t);
 }
+// 설비 이름표(번호 + 이름): 누르지 않아도 지금 공정의 설비가 어디인지 늘 보인다(외관 보기, 솟아오른 설비만). 고른 설비는 큰 칩(.tag)이 대신한다. 누르면 그 설비로 들어간다
+function pinFor(e) {
+  if (e.pin) return e.pin;
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'eq-pin'; b.style.display = 'none';
+  b.innerHTML = `<i>${e.i + 1}</i><span>${esc(e.data.name)}</span>`; b.setAttribute('aria-label', `${e.i + 1}번 ${e.data.name} 보기`);
+  b.onclick = () => enterStep(e); hud.appendChild(b); return (e.pin = b);
+}
 
 // ---- 공정 보이기 / 가라앉히기 ------------------------------------------------------------------------
 function fitHome(p) {
@@ -283,7 +290,7 @@ async function show(p, replay = false) {
   labConsole.setProcess(p); renderProg(p);
   home = fitHome(p); orbit.dist = home.dist * 1.3; orbit.yaw = home.yaw - 0.1; animateTo(home, 2200);
   p.root.visible = true;
-  p.eqs.forEach((e) => { tagFor(e); e.up = false; e.y = -RISE.depth; e.node.position.y = e.baseY + e.y; });
+  p.eqs.forEach((e) => { tagFor(e); pinFor(e); e.up = false; e.y = -RISE.depth; e.node.position.y = e.baseY + e.y; });
   syncUi();
   if (REDUCED) { p.eqs.forEach((e) => { e.up = true; e.y = 0; e.node.position.y = e.baseY; }); glow.material.opacity = 0.07; return; }
   seq = { t0: performance.now() + 650 }; // 바닥판이 다 뻗은 뒤 설비가 솟는다
@@ -425,8 +432,17 @@ function riseTick(now) {
   }
 }
 const v = new THREE.Vector3();
+let pinProc = null;
 function placeHud() {
   if (!cur) return; const w = stage.clientWidth, h = stage.clientHeight;
+  if (pinProc !== cur) { pinProc?.eqs.forEach((e) => { if (e.pin) e.pin.style.display = 'none'; }); pinProc = cur; } // 공정을 옮기면 앞 공정 이름표를 감춘다
+  for (const e of cur.eqs) {
+    if (!e.pin) continue; const big = e.tag && e.tag.style.opacity !== '0';
+    if (view !== '3d' || !e.up || big) { e.pin.style.display = 'none'; continue; }
+    const c = e.box.getCenter(new THREE.Vector3()); v.set(c.x, e.box.max.y + e.y + 0.6, c.z).project(camera);
+    const vis = v.z < 1 && Math.abs(v.x) < 1.05 && Math.abs(v.y) < 1.05; e.pin.style.display = vis ? '' : 'none';
+    if (vis) { e.pin.style.transform = `translate(${((v.x + 1) / 2 * w).toFixed(1)}px, ${((1 - v.y) / 2 * h).toFixed(1)}px) translate(-50%, -100%)`; e.pin.classList.toggle('dim', mode === 'step' && !!curEq); }
+  }
   for (const e of cur.eqs) {
     if (!e.tag || e.tag.style.opacity === '0') continue; const c = e.box.getCenter(new THREE.Vector3());
     v.set(c.x, e.box.max.y + e.y + 0.6, c.z).project(camera); const vis = v.z < 1;

@@ -428,7 +428,7 @@ body.lab-dock .lab-temperature .lab-temperature-result > div { padding: 10px 12p
   box-shadow: 0 4px 14px rgba(0, 0, 0, .35); color: rgba(255, 255, 255, .92); font: 600 13px/1 var(--f-body); white-space: nowrap;
   pointer-events: auto; cursor: pointer; transition: opacity .2s, background .2s;
 }
-.eq-pin i { padding-right: 7px; border-right: 1px solid rgba(255, 255, 255, .16); font: 600 12px/1 var(--f-mono); font-style: normal; letter-spacing: .04em; color: #ffb37a; } /* 번호는 원 없이 주황 글자(홈 공정 칩과 같은 방식) */
+.eq-pin i { padding-right: 7px; border-right: 1px solid rgba(255, 255, 255, .16); font: 600 13px/1 var(--f-body); font-style: normal; color: #ffb37a; } /* 번호는 원 없이 주황 글자, 이름과 같은 글꼴·크기(홈 공정 칩과 같은 방식) */
 .eq-pin:hover { background: rgba(20, 22, 28, .85); color: #fff; z-index: 2; }
 .eq-pin.dim { opacity: .45; }
 .eq-pin.dim:hover { opacity: 1; }

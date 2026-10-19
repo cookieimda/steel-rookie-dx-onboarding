@@ -41,7 +41,7 @@
     .pc { position: absolute; left: 0; top: 0; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; opacity: 0; transition: opacity .3s var(--ease); pointer-events: none; }
     .pc.on { opacity: 1; pointer-events: auto; }
     .pc .box { display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 14px; border-radius: 999px; background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0) 45%), rgba(20,22,28,.55); box-shadow: 0 24px 60px -18px rgba(0,0,0,.6); -webkit-backdrop-filter: blur(18px) saturate(1.2); backdrop-filter: blur(18px) saturate(1.2); white-space: nowrap; } /* 재생 바(intro-tour.css .tbar)와 같은 유리판. 강조는 [들어가기 →] 하나만 */
-    .pc .num { font: 700 16px/1 var(--f-mono); color: #ffb37a; flex: none; } /* 이름(16px)과 같은 크기 */
+    .pc .num { font: 700 16px/1 var(--f-body); color: #ffb37a; flex: none; } /* 이름과 같은 글꼴·크기(고정폭 글꼴은 한글 옆에서 작아 보인다) */
     .pc .nm { font: 700 16px/1 var(--f-body); margin-right: 6px; }
     .pc button { height: 32px; padding: 0 14px; border-radius: 999px; border: 0; background: #f2f2f2; color: #111; font: 700 15px/1 var(--f-body); cursor: pointer; transition: background .2s var(--ease), color .2s var(--ease); }
     .pc button:hover { background: #fff; }

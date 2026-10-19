@@ -423,12 +423,12 @@ body.lab-dock .lab-temperature .lab-temperature-result > div { padding: 10px 12p
 /* ---- 3D 위 설비 이름표(steel-index.js pinFor): 번호 + 이름, 누르지 않아도 늘 보인다. 고른 설비는 큰 칩(.tag)이 대신하고,
    설비를 고른 동안 나머지 이름표는 옅어진다(.dim). 번호 색은 홈 공정 바·재생 바와 같은 주황 */
 .eq-pin {
-  position: absolute; left: 0; top: 0; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 4px; margin-top: -6px;
+  position: absolute; left: 0; top: 0; display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; margin-top: -6px;
   border: 0; border-radius: 999px; background: rgba(20, 22, 28, .62); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
   box-shadow: 0 4px 14px rgba(0, 0, 0, .35); color: rgba(255, 255, 255, .92); font: 600 13px/1 var(--f-body); white-space: nowrap;
   pointer-events: auto; cursor: pointer; transition: opacity .2s, background .2s;
 }
-.eq-pin i { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: #ff9e64; color: #1a0e02; font: 700 11px/1 var(--f-mono); font-style: normal; }
+.eq-pin i { padding-right: 7px; border-right: 1px solid rgba(255, 255, 255, .16); font: 600 12px/1 var(--f-mono); font-style: normal; letter-spacing: .04em; color: #ffb37a; } /* 번호는 원 없이 주황 글자(홈 공정 칩과 같은 방식) */
 .eq-pin:hover { background: rgba(20, 22, 28, .85); color: #fff; z-index: 2; }
 .eq-pin.dim { opacity: .45; }
 .eq-pin.dim:hover { opacity: 1; }

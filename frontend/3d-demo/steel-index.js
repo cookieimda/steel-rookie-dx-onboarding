@@ -261,7 +261,7 @@ function tagFor(e) {
 function pinFor(e) {
   if (e.pin) return e.pin;
   const b = document.createElement('button'); b.type = 'button'; b.className = 'eq-pin'; b.style.display = 'none';
-  b.innerHTML = `<i>${e.i + 1}</i><span>${esc(e.data.name)}</span>`; b.setAttribute('aria-label', `${e.i + 1}번 ${e.data.name} 보기`);
+  b.innerHTML = `<i>${String(e.i + 1).padStart(2, '0')}</i><span>${esc(e.data.name)}</span>`; b.setAttribute('aria-label', `${e.i + 1}번 ${e.data.name} 보기`);
   b.onclick = () => enterStep(e); hud.appendChild(b); return (e.pin = b);
 }
 

@@ -324,6 +324,7 @@ function enterStep(e, userAct = true) {
   if (curEq !== e) section.hide();
   stopDrive(); // 움직이던 차를 먼저 제자리로(상자·불빛·입자가 원래 위치 기준으로 잡히게)
   mode = 'step'; curEq = e; stepIdx = 0; cur.seen.add(e.id);
+  labConsole.selectEquipment(e.id); // 온도 흐름의 단계 탐색도 이 설비로
   if (tour) tour.t0 = performance.now();
   openPanel(tour ? 'steps' : 'eq');
   renderProg(cur); syncUi(); if (!REDUCED) work.start(e);

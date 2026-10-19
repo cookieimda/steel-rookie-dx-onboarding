@@ -15,12 +15,12 @@
 //   선이 세 번 깜빡이고, 그 뒤 밝기를 42%로 낮춘다.
 // - 카메라: 네 구역 전체가 화면에 꼭 차는 거리(overviewPose)보다 멀리 빠지지 않는다. 지도 버튼은 그 시점으로 간다. 앞 구역 오른쪽 변에서 나와 돌아 내려가 다음 구역 왼쪽 변으로 들어간다(구역 경계로 경로를 만든다).
 // - 공정 구역: 제선 → 제강 → 연주 → 열연이 1·2·3·4 순서로 땅에서 솟는다(받침 없음, 지역 클리핑으로 땅 위만 그림). 구역 둘레 발광 테두리·연결선·투광등·물결은 노랑~주황 불빛(0xffa63d·0xffb352·0xffcc66, 2026-10-14 요청), 지금 구역은 15% 물결.
-// - 칩(번호·이름·[들어가기])과 흐름 라벨은 한꺼번에 띄우지 않는다: 구역이 솟을 때 3초만 보이고, 그 구역(또는 칩)에 마우스를 올리면 다시 보인다.
-// - 진행: ▶/⏸, [다음 공정], ← →, 숫자 키, Space. Enter = 지금 구역 들어가기(공정 화면). 수치는 data_v2.js에서만.
+// - 칩(번호·이름·[시연])과 흐름 라벨은 한꺼번에 띄우지 않는다: 구역이 솟을 때 3초만 보이고, 그 구역(또는 칩)에 마우스를 올리면 다시 보인다.
+// - 진행: ▶/⏸, 타임라인 점, ← →, 숫자 키, Space. Enter = 지금 구역 시연(공정 화면). 수치는 data_v2.js에서만.
 // - 칩 버튼 두 개, 역할을 나눈다(2026-10-16 요청).
 //   [▶ 재생]: 다른 공정·소품·연결선·트럭을 숨기고 이 공정만 남겨 그 자리에서 확대, v4 단면 보기처럼 설비·단계를 재생한다(intro-tour.js: 단면 층·불티·작동 연출·외곽선,
 //   오른쪽 단계 설명 패널, 아래 설비 재생 바). 단계 설명은 이제 여기서만 본다(공정 화면 아래 카드에서 뺐다). Space 멈춤, ← → 설비 옮기기.
-//   [들어가기](Enter): 공정 화면(steel-index: 3D · 조업 전광판 · What-if 대시보드)으로 간다.
+//   [시연](Enter): 공정 화면(steel-index: 3D · 조업 전광판 · What-if 대시보드)으로 간다.
 //   재생하는 동안 트럭·열차·불빛 깜빡임은 멈춘다.
 // - 렉 줄이기(2026-10-16): 공정 모델 재질 공유 + 재질별 정적 병합(batchStatic), 그림자 지도는 무언가 솟거나 자랄 때만 다시 그림(shadowDirty),
 //   트럭·열차는 그림자를 드리우지 않음. 네 공정 전체 보기 기준 그리기 776 → 139번, 삼각형 495k → 249k(겉모습은 같다).
@@ -54,6 +54,7 @@ const SITE = { ironmaking: PX(760, 235), steelmaking: PX(470, 440), continuous_c
 const LAND = [[590, 40], [1180, 215], [1232, 300], [1196, 388], [746, 350], [700, 440], [614, 580], [538, 700], [500, 745], [760, 745], [760, 660], [1010, 630], [1040, 680], [1050, 800], [900, 870], [600, 1244], [62, 800], [235, 300], [340, 230]].map((p) => PX(p[0], p[1]));
 const CITY = [[-320, -95], [-125, -95], [-86, -62], [-117, 36], [47, 47], [125, 92], [210, 160], [320, 230], [320, 320], [-320, 320]];
 const ROADS = [[[-30, -80], [0, -90], [40, -84], [88, -70]], [[-30, -80], [-30, -72]], [[50, -53], [102, -47]], [[-2, -89], [-2, -24], [-12, -6], [-20, 10], [-27, 24], [-40, 48], [-46, 62], [-38, 80], [-22, 96], [-14, 102]], [[-86, -19], [0, -21]], [[-84, 46], [44, 46]], [[-24, 26], [20, 26]], [[-125, 10], [-106, 34], [-9, 114], [14, 125], [70, 126], [130, 98], [200, 120]]];
+const MAT = ['용선', '용강', '슬래브'];
 const RISE_DEPTH = 26, HOLD_MS = 1200, SHOW_MS = 3000, HOVER_GRACE = 350, TITLE_MS = 6000; // TITLE_MS: 여는 장면 뒤 제목 카드를 보여 주는 시간
 
 // ---- 렌더러·장면(밤) ----------------------------------------------------------------------------------------------
@@ -259,7 +260,8 @@ function buildLinks() { // 구역 경계(GLB 바닥판 크기)가 정해진 뒤�
     const a = procs[i], b = procs[i + 1]; if (!a.foot || !b.foot) return null;
     const pathPts = linkPath(a.foot, b.foot), { geo, mid } = ribbon(pathPts, 4.0, 0.06, 3);
     const mesh = new THREE.Mesh(geo, flowMat()); mesh.material.side = THREE.DoubleSide; mesh.visible = false; mesh.renderOrder = 3; scene.add(mesh);
-    return { a, b, mesh, mid, on: false, t0: 0, showUntil: 0, pathPts }; // 연결 띠만 그린다. '제선 → 제강 · 용선' 글씨는 화면을 가려 뺐다(2026-10-19)
+    const label = document.createElement('div'); label.className = 'fl'; label.innerHTML = `${esc(a.data.name)} → ${esc(b.data.name)} · <i>${MAT[i]}</i>`; hud.appendChild(label);
+    return { a, b, mesh, mid, label, on: false, t0: 0, showUntil: 0, pathPts };
   }).filter(Boolean);
 }
 
@@ -346,15 +348,15 @@ function growSurroundings(p, now) { // 구역이 솟기 시작한 뒤 소품은 
 }
 
 
-// ---- 칩: 번호 · 이름 · [들어가기] -----------------------------------------------------------------------------------
+// ---- 칩: 번호 · 이름 · [시연] -----------------------------------------------------------------------------------
 procs.forEach((p) => {
   const el = document.createElement('div'); el.className = 'pc';
-  el.innerHTML = `<div class="box"><span class="num">${p.i + 1}</span><span class="nm">${esc(p.data.name)}</span><button type="button" class="play" data-play aria-label="${esc(p.data.name)} 공정 재생">▶ 재생</button><button type="button" data-enter aria-label="${esc(p.data.name)} 공정 화면으로 들어가기">들어가기 →</button></div><div class="stem"></div><div class="dot"></div>`;
-  el.querySelector('[data-play]').onclick = () => startTour(p); el.querySelector('[data-enter]').onclick = () => enter(p);
+  el.innerHTML = `<div class="box"><span class="num">${String(p.i + 1).padStart(2, '0')}</span><span class="nm">${esc(p.data.name)}</span><button type="button" data-enter aria-label="${esc(p.data.name)} 공정 시연 화면으로">시연 →</button></div><div class="stem"></div><div class="dot"></div>`;
+  el.querySelector('[data-enter]').onclick = () => enter(p); // [▶ 재생]은 칩이 아니라 아래 가운데(#btnTour)에 있다. 공정을 고르면 타임라인 대신 보인다(2026-10-19 요청)
   el.onmouseenter = () => { p.hoverChip = true; }; el.onmouseleave = () => { p.hoverChip = false; p.hoverOff = performance.now(); };
   hud.appendChild(el); p.chip = el;
 });
-// [들어가기](또는 Enter): 공정 화면(steel-index: 3D · 조업 전광판 · What-if)으로 간다
+// [시연](또는 Enter): 공정 화면(steel-index: 3D · 조업 전광판 · What-if)으로 간다
 function enter(p) { location.href = `/3d-demo/steel-index.html?p=${encodeURIComponent(p.id)}`; }
 // 재생 중에는 오른쪽 단계 카드만큼 장면을 왼쪽으로 민다(카메라 view offset)
 function shiftView() { const w = stage.clientWidth || 1, h = stage.clientHeight || 1, dx = tour && typeof tourMod !== 'undefined' ? tourMod.panelWidth() / 2 : 0; if (dx) camera.setViewOffset(w, h, dx, 0, w, h); else camera.clearViewOffset(); }
@@ -377,19 +379,19 @@ function stopTour() { if (tourMod.active) tourMod.stop(); }
 function tourEnded(p) { tour = false; isolate(null); shiftView(); animateTo(zonePose(p), 1300); }
 const chipVisible = (p, now) => p.up && (p.hinting || now < p.showUntil || p.hoverZone || p.hoverChip || now - p.hoverOff < HOVER_GRACE);
 
-// ---- 첫 클릭 안내: 구역을 처음 눌렀을 때 한 번만(이 브라우저에 기억) 칩의 두 버튼에 선을 긋고 무엇이 보이는지 알려 준다 ---------------------------
+// ---- 첫 클릭 안내: 구역을 처음 눌렀을 때 한 번만(이 브라우저에 기억) 칩의 [시연]에 선을 긋고 무엇이 보이는지 알려 준다 ---------------------------
 // 안내는 칩 안에 붙여 칩과 함께 움직인다. 선 좌표는 칩 버튼 위치를 재서 정한다. 아무 곳이나 누르거나 10초가 지나면 사라진다
+// [▶ 재생]은 아래 가운데 버튼이라 그 안내는 버튼 위의 말풍선 대신 버튼 이름표(title)로 둔다
 const HINT_KEY = 'st-rookie:chip-hint';
 let hintDone = (() => { try { return localStorage.getItem(HINT_KEY) === '1'; } catch { return false; } })();
 function showChipHint(p) {
   if (hintDone) return; hintDone = true; try { localStorage.setItem(HINT_KEY, '1'); } catch {}
   const pc = p.chip, at = (b) => { const r = b.getBoundingClientRect(), o = pc.getBoundingClientRect(); return { x: r.left - o.left + r.width / 2, top: r.top - o.top, bottom: r.bottom - o.top }; };
-  const pb = at(pc.querySelector('[data-play]')), eb = at(pc.querySelector('[data-enter]')), W = 300;
-  const ax = pb.x - W - 40, ay = pb.top - 64, bx = eb.x + 40, by = eb.bottom + 64; // 글 위치: 재생은 왼쪽 위, 들어가기는 오른쪽 아래
+  const eb = at(pc.querySelector('[data-enter]')), W = 300;
+  const bx = eb.x + 40, by = eb.bottom + 64; // 글 위치: 시연은 오른쪽 아래
   const el = document.createElement('div'); el.className = 'chip-hint'; el.setAttribute('role', 'note');
-  el.innerHTML = `<svg width="1" height="1" aria-hidden="true"><path d="M${ax} ${ay} H${ax + W} L${pb.x} ${pb.top - 6}"/><path d="M${eb.x} ${eb.bottom + 6} L${bx} ${by} H${bx + W}"/><circle cx="${pb.x}" cy="${pb.top - 6}" r="3"/><circle cx="${eb.x}" cy="${eb.bottom + 6}" r="3"/></svg>
-    <p style="left:${ax}px;top:${ay - 8}px;width:${W}px;transform:translateY(-100%)"><b>▶ 재생</b>을 누르면 공정을 설비 하나하나, 단계별 설명과 함께 보여 드려요.</p>
-    <p style="left:${bx}px;top:${by + 10}px;width:${W}px"><b>들어가기</b>에서 조건을 바꾸면 공정이 서로 어떻게 영향을 주는지 볼 수 있어요.</p>`;
+  el.innerHTML = `<svg width="1" height="1" aria-hidden="true"><path d="M${eb.x} ${eb.bottom + 6} L${bx} ${by} H${bx + W}"/><circle cx="${eb.x}" cy="${eb.bottom + 6}" r="3"/></svg>
+    <p style="left:${bx}px;top:${by + 10}px;width:${W}px"><b>시연</b>에서 조건을 바꾸면 공정이 서로 어떻게 영향을 주는지 볼 수 있어요.</p>`;
   pc.appendChild(el); p.hinting = true;
   const close = () => { if (!p.hinting) return; p.hinting = false; p.hoverOff = performance.now(); el.classList.add('out'); setTimeout(() => el.remove(), 400); removeEventListener('pointerdown', close, true); clearTimeout(timer); };
   const timer = setTimeout(close, 10000); setTimeout(() => addEventListener('pointerdown', close, true), 0);
@@ -419,15 +421,21 @@ function animateTo(to, dur = 1600) { anim = { t0: performance.now(), dur: REDUCE
 // 여는 장면 없이 바로 밤의 지도. 3D 대각선 전체 보기(pose3D)에 머문 채 제선 → 제강 → 연주 → 열연이 차례로 솟는다.
 // 구역마다 다가가며 보여 주던 연출은 뺐다(2026-10-15 요청). 구역에 다가가는 것은 사용자가 구역·숫자 키·타임라인으로 고를 때만.
 // 조작 안내 카드를 먼저 띄우고, [시작하기](또는 Enter·Space·Esc)를 누르면 시작한다(2026-10-15 요청)
+// 카드는 한 번만(이 브라우저에 기억). 한 번 닫았으면 다음부터는 카드 없이 바로 시작한다(2026-10-19 요청)
+const GUIDE_KEY = 'st-rookie:intro-guide';
 let started = false, guideOpen = false;
 function startMap() {
   if (ambientLights) ambientLights.material.uniforms.uOn.value = 1;
   const all = pose3D(); Object.assign(orbit, { yaw: all.yaw, pitch: all.pitch, dist: all.dist }); orbit.target.copy(all.target);
   wide = true; // 전체 보기에서 시작하므로 자동 재생은 카메라를 옮기지 않는다
-  guideOpen = true; $('guide').classList.remove('off'); $('guideGo').focus();
+  guideOpen = true;
+  let seen = false; try { seen = localStorage.getItem(GUIDE_KEY) === '1'; } catch {}
+  if (seen) { closeGuide(); return; }
+  $('guide').classList.remove('off'); $('guideGo').focus();
 }
 function closeGuide() {
   if (!guideOpen) return; guideOpen = false; $('guide').classList.add('off');
+  try { localStorage.setItem(GUIDE_KEY, '1'); } catch {}
   setTimeout(() => $('ttl').classList.add('out'), TITLE_MS); // 제목 카드는 잠깐만
   setTimeout(() => { if (!started) { started = true; goTo(0, true); } }, REDUCED ? 0 : 500);
 }
@@ -436,13 +444,10 @@ $('guideGo').onclick = closeGuide;
 // ---- 진행(타임라인) --------------------------------------------------------------------------------------------
 let cur = -1, playing = true, finished = false, hot = null;
 const tl = $('tl'); procs.forEach((p, i) => { const b = document.createElement('button'); b.style.left = `${(i / (procs.length - 1)) * 100}%`; b.innerHTML = `<span>${i + 1} ${esc(p.data.name)}</span>`; b.title = `${p.data.name} 구역`; b.onclick = () => { goTo(i); pause(); }; p.stop = b; tl.appendChild(b); });
-$('icPlay').src = icon('play', '#f2f2f2', 1.6);
-function pause() { playing = false; $('icPlay').src = icon('play', '#f2f2f2', 1.6); $('btnPlay').title = '재생'; $('btnPlay').setAttribute('aria-label', '재생'); }
-function play() { playing = true; $('icPlay').src = icon('stop', '#f2f2f2', 1.6); $('btnPlay').title = '멈춤'; $('btnPlay').setAttribute('aria-label', '멈춤'); if (finished || cur >= procs.length - 1) { finished = false; goTo(0, true); } }
+$('icPlay').src = icon('play', '#111111', 1.8);
+function pause() { playing = false; $('icPlay').src = icon('play', '#111111', 1.8); $('btnPlay').title = '재생'; $('btnPlay').setAttribute('aria-label', '재생'); }
+function play() { playing = true; $('icPlay').src = icon('stop', '#111111', 1.8); $('btnPlay').title = '멈춤'; $('btnPlay').setAttribute('aria-label', '멈춤'); if (finished || cur >= procs.length - 1) { finished = false; goTo(0, true); } }
 $('btnPlay').onclick = () => (playing ? pause() : play());
-// [다음 공정 ›] — 마지막 공정(열간압연)에서는 [‹ 이전 공정]으로 바뀌어 앞 공정(연주)으로 돌아간다
-const atLast = () => cur >= procs.length - 1;
-$('btnNext').onclick = () => { goTo(atLast() ? cur - 1 : Math.min(procs.length - 1, cur + 1)); pause(); };
 // auto: 자동 재생이 부른 것. 2D·3D 전체 보기를 고른 뒤(wide)에는 자동 재생이 카메라를 구역으로 끌고 가지 않는다(구역을 직접 고르면 다가간다)
 let wide = false;
 function goTo(i, auto = false) {
@@ -450,9 +455,12 @@ function goTo(i, auto = false) {
   procs.forEach((p, k) => { if (k <= i && p.t0 == null) p.t0 = now + (k === i ? (REDUCED ? 0 : 700) : 0); p.chip.classList.toggle('cur', k === i); p.stop.classList.toggle('cur', k === i); p.stop.classList.toggle('up', k < i); });
   if (procs[i].up) procs[i].showUntil = now + SHOW_MS; // 이미 솟은 구역을 고르면 칩을 다시 3초
   $('tlFill').style.width = `${(i / (procs.length - 1)) * 100}%`;
-  $('btnNext').textContent = atLast() ? '‹ 이전 공정' : '다음 공정 ›';
+  if (!auto) setPicked(true);
   if (view === '3d' && !(auto && wide)) { wide = false; animateTo(zonePose(procs[i]), 1700); }
 }
+// 공정 하나를 고른 동안(picked)은 아래 타임라인 대신 [▶ 재생]을 보인다. 2D·3D 전체 보기를 누르면 타임라인으로 돌아간다(2026-10-19 요청)
+function setPicked(on) { document.body.classList.toggle('picked', on); }
+$('btnTour').onclick = () => { if (cur >= 0) startTour(procs[cur]); };
 function finish() { finished = true; pause(); procs.forEach((p) => p.stop.classList.add('up')); } // 멀리 빠지지 않고 마지막 구역 가까이에서 천천히 돈다(전체는 [지도]나 휠로)
 addEventListener('keydown', (e) => { if (tour) { if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName || '')) return; if (e.key === 'Escape') stopTour(); else if (e.key === ' ') { e.preventDefault(); tourMod.toggle(); } else if (e.key === 'ArrowRight') tourMod.stepEq(1); else if (e.key === 'ArrowLeft') tourMod.stepEq(-1); return; } if (guideOpen) { if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') { e.preventDefault(); closeGuide(); } return; } if (e.key === ' ') { e.preventDefault(); playing ? pause() : play(); } else if (e.key === 'ArrowRight') { goTo(Math.min(procs.length - 1, cur + 1)); pause(); } else if (e.key === 'ArrowLeft') { goTo(Math.max(0, cur - 1)); pause(); } else if (e.key === 'Enter' && cur >= 0) enter(procs[cur]); else if (e.key === 'v' || e.key === 'V') setView(view === 'map' ? '3d' : 'map'); else { const n = parseInt(e.key, 10); if (n >= 1 && n <= procs.length) { goTo(n - 1); pause(); } } });
 
@@ -463,7 +471,7 @@ function markView(v) { view = v; $('v2d').classList.toggle('on', v === 'map'); $
 // 3D 버튼·V 키는 지금 구역이 아니라 3D 전체 보기로 간다: PITCH_3D만큼 기울이고 YAW_3D만큼 살짝 대각선으로 돌려 네 구역이 다 보이게(2026-10-15 요청)
 const PITCH_3D = 0.52, YAW_3D = -0.58, DIST_3D = 0.68; // DIST_3D: 위에서 본 전체 보기 거리 대비(기울이면 앞뒤가 줄어 더 가까이 와도 다 보인다)
 const pose3D = () => { const p = overviewPose(PITCH_3D); return { ...p, yaw: YAW_3D, dist: p.dist * DIST_3D }; };
-function setView(v) { markView(v); wide = true; animateTo(v === 'map' ? overviewPose() : pose3D(), 1400); }
+function setView(v) { markView(v); wide = true; setPicked(false); animateTo(v === 'map' ? overviewPose() : pose3D(), 1400); }
 $('v2d').onclick = () => setView('map'); $('v3d').onclick = () => setView('3d');
 
 // ---- 입력 ----------------------------------------------------------------------------------------------------------
@@ -625,6 +633,7 @@ function rise(p, now) {
 function placeHud(now) {
   const w = stage.clientWidth, h = stage.clientHeight;
   procs.forEach((p) => { if (!chipVisible(p, now)) { p.chip.classList.remove('on'); return; } V.set(p.foot.cx, p.modelTop + 3, p.foot.cz).project(camera); const vis = V.z < 1; p.chip.classList.toggle('on', vis); if (vis) p.chip.style.transform = `translate(${Math.min(w - 140, Math.max(140, (V.x + 1) / 2 * w)).toFixed(1)}px, ${Math.max(150, (1 - V.y) / 2 * h).toFixed(1)}px) translate(-50%, -100%)`; p.chip.style.zIndex = p.i === cur ? '3' : '1'; });
+  links.forEach((l) => { const vis = l.on && (now < l.showUntil || l.a.hoverZone || l.b.hoverZone); l.label.classList.toggle('on', vis); if (!vis) return; V.copy(l.mid).setY(2).project(camera); l.label.style.transform = `translate(${((V.x + 1) / 2 * w).toFixed(1)}px, ${((1 - V.y) / 2 * h).toFixed(1)}px) translate(-50%, -50%)`; });
 }
 function frame(now) {
   requestAnimationFrame(frame);

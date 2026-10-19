@@ -502,17 +502,16 @@ async function leave(url) {
   }
   location.assign(url);
 }
-// 테마: 사용자가 고른 값(st-rookie-theme) → 시스템 설정. 학습 기록과 같은 규칙이다.
-const THEME_KEY = 'st-rookie-theme';
+// 테마: 기본은 밝은 테마(학습 기록과 같음, 2026-10-19 요청). 이 화면에서 ☾/☀로 고른 값(st-rookie-exam-theme)만 따른다.
+// 3D 화면이 쓰는 st-rookie-theme과 시스템 설정은 읽지 않는다(거기서 어두운 테마를 골랐다고 시험 화면까지 어두워지지 않게)
+const THEME_KEY = 'st-rookie-exam-theme';
 const savedTheme = () => { try { const t = localStorage.getItem(THEME_KEY); return t === 'light' || t === 'dark' ? t : null; } catch { return null; } };
-const lightQuery = matchMedia('(prefers-color-scheme: light)');
-const systemTheme = () => (lightQuery.matches ? 'light' : 'dark');
+const systemTheme = () => 'light';
 function theme(value, persist = false) {
   document.body.dataset.theme = value; $('theme').textContent = value === 'dark' ? '☀' : '☾';
   if (persist) { try { localStorage.setItem(THEME_KEY, value); } catch {} }
 }
 $('theme').addEventListener('click', () => theme(document.body.dataset.theme === 'dark' ? 'light' : 'dark', true));
-lightQuery.addEventListener('change', () => { if (!savedTheme()) theme(systemTheme()); });
 stage.mobile.addEventListener('change', sizeCharacter);
 $('sfx').addEventListener('click', () => { setSfxOn(!sfxOn()); renderSfx(); });
 // 시험지 목록으로: 집중 화면을 끄고 지금 시험의 공정 시험지를 보여 준다(시험 판은 아래에 그대로 남는다)

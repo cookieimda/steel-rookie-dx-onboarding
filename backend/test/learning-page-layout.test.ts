@@ -114,7 +114,7 @@ test("반투명 판·주황 버튼·선 없음: 배경 빛 번짐, 판 외곽선
   assert.match(css, /\.dg-ink\s*\{[^}]*backdrop-filter:\s*var\(--blur\)/);
   // 검증 반영(2026-10-15): 주황으로 채운 버튼은 주 행동(평가 시험) 하나, 버튼에는 흐림 없음, 라이트 튜터는 그라데이션 대신 단색
   assert.match(css, /\.dg-btn-primary\s*\{\s*background:\s*var\(--orange\)/);
-  assert.match(template, /class="dg-btn dg-btn-soft[^"]*">3D 공정 화면</);
+  assert.match(template, /class="dg-btn dg-btn-soft[^"]*">3D 공정 시연</); // 공정 화면(steel-index). '3D 공정 화면'은 처음 지도(steel-intro)로 가는 버튼(2026-10-19)
   assert.doesNotMatch(css, /\.dg-btn[^{]*\{[^}]*backdrop-filter/);
   assert.match(css, /body\[data-theme="light"\] \.dg-ink\s*\{[^}]*background:\s*#c9bab3/);
   assert.doesNotMatch(css, /\.dg-ftabs button\[aria-selected="true"\]::after/);

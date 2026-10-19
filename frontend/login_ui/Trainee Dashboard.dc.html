@@ -350,8 +350,8 @@
       </span>
       <!-- 사원증 칩: 연속 학습일과 직급. 누르면 학습 모듈의 사원증 탭을 연다 -->
       <sc-if value="{{ hasCard }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ openCard }}" title="내 사원증 보기" class="dg-btn dg-btn-plain dg-cut dg-s ec-chip"><span aria-hidden="true">{{ chipFlame }}</span>{{ streakNow }}일 <em>· {{ rankTitle }}</em></button></sc-if>
-      <button type="button" onClick="{{ logout }}" class="dg-btn dg-btn-plain dg-cut dg-s">로그아웃</button>
-      <a href="/3d-demo/steel-index.html" target="_top" class="dg-btn dg-btn-soft dg-cut dg-s">3D 공정 화면</a>
+      <a href="/3d-demo/steel-intro.html" target="_top" class="dg-btn dg-btn-plain dg-cut dg-s">3D 공정 화면</a><!-- 처음 4공정 지도(steel-intro)로. 로그아웃 자리(2026-10-19 요청) -->
+      <a href="/3d-demo/steel-index.html" target="_top" class="dg-btn dg-btn-soft dg-cut dg-s">3D 공정 시연</a>
       <a href="/exam" target="_top" class="dg-btn dg-btn-primary dg-cut dg-s">평가 시험</a>
     </nav>
   </header>
@@ -957,7 +957,6 @@ class Component extends DCLogic {
     return {
       loadError: S.error,
       theme: S.theme,
-      logout: () => { try { localStorage.removeItem('st-rookie-token'); sessionStorage.removeItem('st-rookie-token'); } catch (e) {} window.top.location.href = '/login_ui/home-sleek.html'; },
       // AI 튜터
       aiDot: S.ai === 'ok' ? 'var(--ok)' : S.ai === 'off' ? 'var(--bad)' : 'var(--dim)',
       aiLabel: S.ai === 'ok' ? 'AI 연결됨' : S.ai === 'off' ? 'AI 연결 안 됨' : '확인 중',

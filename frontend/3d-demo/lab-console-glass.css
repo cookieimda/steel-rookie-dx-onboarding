@@ -105,6 +105,11 @@
 .lab-slider input::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; margin-top: -6px; border-radius: 50%; background: #fff; border: 0; box-shadow: 0 0 0 4px rgba(255, 255, 255, .1), 0 2px 6px rgba(0, 0, 0, .5); }
 .lab-slider input::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 0; box-shadow: 0 0 0 4px rgba(255, 255, 255, .1), 0 2px 6px rgba(0, 0, 0, .5); }
 .lab-slider input:focus-visible { outline: 2px solid rgba(255, 255, 255, .6); outline-offset: 4px; }
+/* What-if 조건 슬라이더: 줄 간격을 좁혀 8개가 스크롤 없이 한 화면에 보이게 */
+.lab-inputs .lab-pane-body { gap: 12px; }
+.lab-inputs .lab-slider { gap: 0 8px; padding: 6px 0; }
+.lab-inputs .lab-slider input { min-height: 22px; }
+.lab-inputs .lab-button { min-height: 38px; }
 
 /* 버튼: 유리 위 옅은 면 */
 .lab-button { background: var(--glass-3); border: 1px solid var(--glass-line); border-radius: 10px; color: var(--ink); }

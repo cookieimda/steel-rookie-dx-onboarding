@@ -40,9 +40,9 @@
     /* 공정 칩: 번호 · 이름 · [들어가기]. 기본은 숨김, 솟을 때 3초·마우스를 올리면 보인다 */
     .pc { position: absolute; left: 0; top: 0; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; opacity: 0; transition: opacity .3s var(--ease); pointer-events: none; }
     .pc.on { opacity: 1; pointer-events: auto; }
-    .pc .box { display: flex; align-items: center; gap: 10px; padding: 7px 7px 7px 8px; border-radius: 999px; background: var(--surf); border: 1px solid var(--line); box-shadow: var(--shadow); white-space: nowrap; }
-    .pc .num { width: 26px; height: 26px; border-radius: 50%; background: var(--molten); color: #1a0e02; font: 500 13px/1 var(--f-mono); display: grid; place-items: center; flex: none; }
-    .pc .nm { font: 700 16px/1 var(--f-body); }
+    .pc .box { display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 14px; border-radius: 999px; background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0) 45%), rgba(20,22,28,.55); box-shadow: 0 24px 60px -18px rgba(0,0,0,.6); -webkit-backdrop-filter: blur(18px) saturate(1.2); backdrop-filter: blur(18px) saturate(1.2); white-space: nowrap; } /* 재생 바(intro-tour.css .tbar)와 같은 유리판. 강조는 [들어가기 →] 하나만 */
+    .pc .num { font: 700 16px/1 var(--f-mono); color: #ffb37a; flex: none; } /* 이름(16px)과 같은 크기 */
+    .pc .nm { font: 700 16px/1 var(--f-body); margin-right: 6px; }
     .pc button { height: 32px; padding: 0 14px; border-radius: 999px; border: 0; background: #f2f2f2; color: #111; font: 700 15px/1 var(--f-body); cursor: pointer; transition: background .2s var(--ease), color .2s var(--ease); }
     .pc button:hover { background: #fff; }
     .pc button[data-enter]:hover { background: var(--molten); color: #fff; } /* [들어가기 →]: 마우스를 올리면 주황 캡슐 + 흰 글자 */
@@ -53,19 +53,22 @@
     .fl.on { opacity: 1; }
     .fl i { font-style: normal; color: var(--molten); }
 
-    .flow { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); width: min(880px, calc(100vw - 44px)); z-index: 5; display: flex; align-items: center; gap: 16px; padding: 10px 16px 10px 10px; border-radius: 999px; background: var(--surf); border: 1px solid var(--line); box-shadow: var(--shadow); pointer-events: auto; box-sizing: border-box; }
-    .flow .pl { width: 32px; height: 32px; border-radius: 50%; border: 0; background: #f2f2f2; display: grid; place-items: center; cursor: pointer; flex: none; }
-    .flow .lbl { font: 400 12px/1 var(--f-mono); letter-spacing: .22em; color: var(--dim); white-space: nowrap; }
-    .flow .tl { flex: 1; position: relative; height: 44px; margin: 0 64px 0 14px; } /* 오른쪽 여백: 마지막 이름(4 열간압연)이 점 가운데로 튀어나와 [다음 공정] 버튼과 붙어 보이지 않게 */
-    .flow .tl::before { content: ""; position: absolute; left: 0; right: 0; top: 14px; height: 1px; background: rgba(255,255,255,.18); }
-    .flow .tl .fill { position: absolute; left: 0; top: 14px; height: 1px; background: var(--molten); transition: width .5s var(--ease); }
-    .flow .tl button { position: absolute; top: 14px; transform: translate(-50%, -50%); width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(255,255,255,.4); background: var(--night); cursor: pointer; padding: 0; }
-    .flow .tl button.up { border-color: var(--molten); background: var(--molten); }
-    .flow .tl button.cur { width: 16px; height: 16px; border-color: var(--molten); background: var(--molten); } /* 지금 공정: 주황 테두리 고리 대신 꽉 찬 큰 점 */
-    .flow .tl button span { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); font: 500 15px/1 var(--f-body); color: var(--muted); white-space: nowrap; }
-    .flow .tl button.cur span, .flow .tl button.up span { color: #fff; font-weight: 700; }
-    .flow .nx { height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--text); font: 600 15px/1 var(--f-body); cursor: pointer; white-space: nowrap; }
-    .flow .nx:hover { background: var(--surf2); }
+    /* 아래 공정 바: 설비 재생 바(intro-tour.css .tbar)와 같은 모양. 유리판·테두리 없음, 지금 공정은 주황 마름모 + 주황 글자 */
+    .flow { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); width: min(880px, calc(100vw - 44px)); z-index: 5; display: flex; align-items: center; gap: 14px; min-height: 80px; padding: 0 14px; border-radius: 28px; background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0) 45%), rgba(20,22,28,.55); box-shadow: 0 24px 60px -18px rgba(0,0,0,.6); -webkit-backdrop-filter: blur(18px) saturate(1.2); backdrop-filter: blur(18px) saturate(1.2); pointer-events: auto; box-sizing: border-box; }
+    .flow .pl { width: 46px; height: 46px; border-radius: 50%; border: 0; background: rgba(255,255,255,.1); display: grid; place-items: center; cursor: pointer; flex: none; }
+    .flow .pl:hover { background: rgba(255,255,255,.16); }
+    .flow .tl { flex: 1; position: relative; height: 52px; margin: 0 48px 0 36px; } /* 양옆 여백: 처음·마지막 이름이 점 가운데로 튀어나와 버튼과 붙어 보이지 않게 */
+    .flow .tl::before { content: ""; position: absolute; left: 0; right: 0; top: 13px; height: 2px; background: rgba(255,255,255,.12); }
+    .flow .tl .fill { position: absolute; left: 0; top: 13px; height: 2px; background: var(--molten); transition: width .5s var(--ease); }
+    .flow .tl button { position: absolute; top: 14px; transform: translate(-50%, -50%); width: 24px; height: 24px; border: 0; background: transparent; cursor: pointer; padding: 0; }
+    .flow .tl button::before { content: ""; position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: #3a3a40; transition: transform .2s var(--ease), background .2s var(--ease); }
+    .flow .tl button.up::before { background: var(--molten); }
+    .flow .tl button.cur::before { background: #ff9e64; border-radius: 2px; transform: scale(1.5) rotate(45deg); }
+    .flow .tl button span { position: absolute; top: 24px; left: 50%; transform: translateX(-50%); font: 500 14px/1.25 var(--f-body); color: rgba(255,255,255,.6); white-space: nowrap; }
+    .flow .tl button:hover span { color: rgba(255,255,255,.85); }
+    .flow .tl button.cur span { color: #ffb37a; font-weight: 700; }
+    .flow .nx { height: 38px; padding: 0 14px; border-radius: 999px; border: 0; background: rgba(255,255,255,.1); color: #fff; font: 700 15px/1 var(--f-body); cursor: pointer; white-space: nowrap; flex: none; }
+    .flow .nx:hover { background: rgba(255,255,255,.18); }
 
 
     /* 조작 안내: 처음 들어오면 먼저 보이고, [시작하기]를 누르면 공정이 순서대로 이어진다 */
@@ -87,7 +90,7 @@
     #load b { font: 400 13px/1 var(--f-mono); letter-spacing: .3em; color: #9a9aa0; }
     #load .bar { width: 180px; height: 1px; background: rgba(255,255,255,.14); overflow: hidden; margin-top: 14px; }
     #load .bar i { display: block; height: 100%; width: 0; background: #f2f2f2; transition: width .3s var(--ease); }
-    @media (max-width: 900px) { .ttl p { display: none; } .ttl h1 { font-size: 20px; } .flow .lbl { display: none; } .flow .tl button span { font-size: 12px; } }
+    @media (max-width: 900px) { .ttl p { display: none; } .ttl h1 { font-size: 20px; } .flow .tl button span { font-size: 12px; } .flow .tl { margin: 0 36px 0 28px; } }
     @media (prefers-reduced-motion: reduce) { .pc, .fl, .flow .tl .fill, #load { transition: none; } }
   </style>
 </head>
@@ -101,8 +104,7 @@
   </div>
 
   <div class="flow">
-    <button class="pl" id="btnPlay" title="재생" aria-label="재생"><img class="ic" id="icPlay" width="16" height="16" alt=""></button>
-    <span class="lbl">PROCESS FLOW</span>
+    <button class="pl" id="btnPlay" title="재생" aria-label="재생"><img class="ic" id="icPlay" width="18" height="18" alt=""></button>
     <div class="tl" id="tl"><div class="fill" id="tlFill" style="width:0"></div></div>
     <button class="nx" id="btnNext">다음 공정 ›</button>
   </div>

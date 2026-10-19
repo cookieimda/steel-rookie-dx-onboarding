@@ -46,10 +46,11 @@ export function attachLabConsole({ api, scene, camera, reduced, pickEquipment })
     left.querySelectorAll('[data-lab-point]').forEach(dot => dot.setAttribute('r', Number(dot.dataset.labPoint) === selected ? '7' : '3'));
   }
   function inputPanel() {
-    right.innerHTML = `<header class="lab-pane-head"><span>CONDITION EXPERIMENT</span><h2>What-if</h2><b>조건을 바꾸고 전광판 확인</b></header><div class="lab-pane-body">
+    // 머리(What-if 제목)는 두지 않는다: 패널 이름은 aria-label이 맡고, 초기화를 맨 위에 둬 조건 슬라이더가 스크롤 없이 보이게 한다
+    right.innerHTML = `<div class="lab-pane-body">
+      ${api.hasToken() ? '<button type="button" class="lab-button" data-lab-reset>↺ 기준 조건으로 초기화</button>' : '<a class="lab-button" href="/login">로그인하기 →</a>'}
       <div class="lab-gauge-slot" data-lab-gauge></div><div class="lab-fields" data-lab-fields></div>
       <p class="lab-status" data-lab-status role="status" aria-live="polite">${api.hasToken() ? '계산 모델을 불러오는 중…' : '로그인하면 조건을 바꾸고 전광판 결과를 확인할 수 있습니다.'}</p>
-      ${api.hasToken() ? '<button type="button" class="lab-button" data-lab-reset>↺ 기준 조건으로 초기화</button>' : '<a class="lab-button" href="/login">로그인하기 →</a>'}
       <details><summary>계산 가정</summary><p class="lab-muted" data-lab-assumptions>교육용 간이 모델 · 실제 운전 지침이 아닙니다.</p></details>
       <div class="lab-sr" data-lab-quotes aria-label="공정 뒤 전광판의 계산 결과"></div></div>`;
     right.querySelector('[data-lab-reset]')?.addEventListener('click', () => { inputs = {}; clearTimeout(timer); calculate(true); });

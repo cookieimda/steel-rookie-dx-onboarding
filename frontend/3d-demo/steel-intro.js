@@ -438,9 +438,9 @@ $('guideGo').onclick = closeGuide;
 // ---- 진행(타임라인) --------------------------------------------------------------------------------------------
 let cur = -1, playing = true, finished = false, hot = null;
 const tl = $('tl'); procs.forEach((p, i) => { const b = document.createElement('button'); b.style.left = `${(i / (procs.length - 1)) * 100}%`; b.innerHTML = `<span>${i + 1} ${esc(p.data.name)}</span>`; b.title = `${p.data.name} 구역`; b.onclick = () => { goTo(i); pause(); }; p.stop = b; tl.appendChild(b); });
-$('icPlay').src = icon('play', '#111111', 1.8);
-function pause() { playing = false; $('icPlay').src = icon('play', '#111111', 1.8); $('btnPlay').title = '재생'; $('btnPlay').setAttribute('aria-label', '재생'); }
-function play() { playing = true; $('icPlay').src = icon('stop', '#111111', 1.8); $('btnPlay').title = '멈춤'; $('btnPlay').setAttribute('aria-label', '멈춤'); if (finished || cur >= procs.length - 1) { finished = false; goTo(0, true); } }
+$('icPlay').src = icon('play', '#f2f2f2', 1.6);
+function pause() { playing = false; $('icPlay').src = icon('play', '#f2f2f2', 1.6); $('btnPlay').title = '재생'; $('btnPlay').setAttribute('aria-label', '재생'); }
+function play() { playing = true; $('icPlay').src = icon('stop', '#f2f2f2', 1.6); $('btnPlay').title = '멈춤'; $('btnPlay').setAttribute('aria-label', '멈춤'); if (finished || cur >= procs.length - 1) { finished = false; goTo(0, true); } }
 $('btnPlay').onclick = () => (playing ? pause() : play());
 // [다음 공정 ›] — 마지막 공정(열간압연)에서는 [‹ 이전 공정]으로 바뀌어 앞 공정(연주)으로 돌아간다
 const atLast = () => cur >= procs.length - 1;

@@ -39,9 +39,7 @@ export function createLabWorld(scene, reduced) {
   }
   function focus(id) {
     if (pulse) { reaction.remove(pulse); pulse.geometry.dispose(); pulse.material.dispose(); }
-    const p = centerOf(id); if (!p) return;
-    pulse = new THREE.Mesh(new THREE.TorusGeometry(2.2, .035, 8, 64), new THREE.MeshBasicMaterial({ color: 0xffb982, transparent: true, opacity: .8, depthWrite: false }));
-    pulse.rotation.x = -Math.PI / 2; pulse.position.set(p.x, .2, p.z); pulse.raycast = () => {}; reaction.add(pulse);
+    pulse = null; // 설비 바닥 고리는 그리지 않는다(2026-10-19): 고른 설비는 외곽선·흑백 대비(lab-outline.js)로 충분히 보인다
   }
   function flow(aId, bId, color) {
     const a = centerOf(aId), b = centerOf(bId); if (!a || !b || aId === bId) return;

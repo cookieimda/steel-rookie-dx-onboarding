@@ -169,15 +169,15 @@
   padding: 0 !important; background: none !important; border: 0 !important; border-radius: 0 !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
   color: rgba(255, 255, 255, .78) !important; font: 400 14px/1.2 var(--f-body) !important; text-shadow: 0 1px 8px rgba(0, 0, 0, .85);
 }
-.tag .k i { width: auto !important; height: auto !important; background: none !important; color: rgba(141, 255, 191, .9) !important; font: 500 12px/1 var(--f-mono) !important; }
+.tag .k i { width: auto !important; height: auto !important; background: none !important; color: rgba(255, 158, 100, .9) !important; font: 500 12px/1 var(--f-mono) !important; }
 .tag .k .tl { grid-column: 1 / -1; font-size: 12px; color: rgba(255, 255, 255, .5); margin-top: 4px; }
 .tag .k .tv { grid-column: 1 / -1; font: 200 30px/1.05 var(--f-num); color: #fff; letter-spacing: -.01em; }
 .tag .ld {
   position: relative; width: 1px !important; height: 70px !important;
-  background: linear-gradient(to top, rgba(141, 255, 191, .95), rgba(255, 255, 255, .55)) !important;
+  background: linear-gradient(to top, rgba(255, 158, 100, .95), rgba(255, 255, 255, .55)) !important;
 }
 .tag .ld::before { content: ""; position: absolute; top: 0; right: 0; width: 12px; height: 1px; background: rgba(255, 255, 255, .55); } /* 위 끝에서 글자 쪽으로 꺾이는 짧은 선 */
-.tag .ld::after { content: ""; position: absolute; left: 50%; bottom: -5px; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 3px rgba(141, 255, 191, .35), 0 0 14px 4px rgba(141, 255, 191, .55); } /* 설비 위 빛나는 점 */
+.tag .ld::after { content: ""; position: absolute; left: 50%; bottom: -5px; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 3px rgba(255, 158, 100, .35), 0 0 14px 4px rgba(255, 158, 100, .55); } /* 설비 위 빛나는 점 */
 
 /* ---- What-if 원호 온도 다이얼(lab-gauge-arc.js) ---- */
 .lab-arc { position: relative; margin: 4px auto 0; max-width: 260px; }
@@ -313,8 +313,8 @@ body.lab-dock .lab-dock-split::after { /* 가운데 손잡이 */
   content: ""; position: absolute; left: 50%; top: 50%; width: 44px; height: 4px; border-radius: 4px; transform: translate(-50%, -50%);
   background: rgba(255, 255, 255, .18); transition: background .15s, width .15s;
 }
-body.lab-dock .lab-dock-split:hover::before, body.lab-dock .lab-dock-split:focus-visible::before, body.lab-dock.lab-dock-resizing .lab-dock-split::before { height: 2px; background: rgba(141, 255, 191, .55); }
-body.lab-dock .lab-dock-split:hover::after, body.lab-dock .lab-dock-split:focus-visible::after, body.lab-dock.lab-dock-resizing .lab-dock-split::after { width: 64px; background: #8dffbf; }
+body.lab-dock .lab-dock-split:hover::before, body.lab-dock .lab-dock-split:focus-visible::before, body.lab-dock.lab-dock-resizing .lab-dock-split::before { height: 2px; background: rgba(255, 158, 100, .55); }
+body.lab-dock .lab-dock-split:hover::after, body.lab-dock .lab-dock-split:focus-visible::after, body.lab-dock.lab-dock-resizing .lab-dock-split::after { width: 64px; background: #ff9e64; }
 body.lab-dock-resizing, body.lab-dock-resizing * { cursor: row-resize !important; user-select: none; }
 @media (prefers-reduced-motion: reduce) { .lab-dock-split::before, .lab-dock-split::after { transition: none; } }
 
@@ -437,3 +437,14 @@ body.lab-dock .lab-temperature .lab-temperature-result b { font-size: 20px; }
 .eq-pin.dim { opacity: .45; }
 .eq-pin.dim:hover { opacity: 1; }
 .eq-pin:focus-visible { outline: 2px solid rgba(255, 255, 255, .7); outline-offset: 2px; }
+
+/* 고른 설비 큰 칩(.tag): 글자만 떠 있어 밝은 설비 위에서 묻혀서, 설비 이름표(.eq-pin)와 같은 어두운 유리판을 깐다.
+   번호도 이름표처럼 주황 글자(본문 글꼴). 지시선·빛나는 점·배치는 그대로 */
+.tag .k {
+  padding: 10px 14px 12px !important; border-radius: 14px !important;
+  background: rgba(20, 22, 28, .78) !important; -webkit-backdrop-filter: blur(10px) !important; backdrop-filter: blur(10px) !important;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .45); color: #fff !important; font-weight: 600 !important; text-shadow: none;
+}
+.tag .k i { color: #ffb37a !important; font: 600 14px/1.2 var(--f-body) !important; }
+.tag .k .tl { color: rgba(255, 255, 255, .62); }
+.tag .k .tv { font-weight: 300; }

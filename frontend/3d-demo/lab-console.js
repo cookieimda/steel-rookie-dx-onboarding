@@ -35,7 +35,8 @@ export function attachLabConsole({ api, scene, camera, reduced, pickEquipment })
       <section class="lab-temperature-result" data-lab-temperature-result></section>
       <p class="lab-muted">그래프는 학습 자료의 단계별 예시 온도입니다. 실험 결과는 별도 계기와 공정 뒤 전광판에 표시됩니다.</p></div></div>`;
       // 묶음(.lab-temp-col): 대시보드 카드에서는 왼쪽·오른쪽 칸으로 따로 쌓이고, 옆 패널에서는 풀려(display: contents) 원래 순서(order)로 보인다
-    left.querySelector('[data-lab-position]').oninput = e => { selected = Number(e.target.value); describeStep(); world.focus(points[selected].id); };
+    // 단계 탐색: 다른 설비의 단계로 넘어가면 3D에서도 그 설비를 고른다(같은 설비 안의 단계 이동은 카메라를 움직이지 않는다)
+    left.querySelector('[data-lab-position]').oninput = e => { const before = points[selected]?.id; selected = Number(e.target.value); describeStep(); world.focus(points[selected].id); if (points[selected].id !== before) pickEquipment(points[selected].id); };
     left.querySelector('[data-lab-equipment]').onclick = () => points[selected] && pickEquipment(points[selected].id);
     left.querySelector('[data-lab-speed]').oninput = e => { world.speed(Number(e.target.value)); left.querySelector('[data-lab-speed-text]').textContent = `${Number(e.target.value).toFixed(1)}×`; };
     describeStep();
@@ -110,5 +111,10 @@ export function attachLabConsole({ api, scene, camera, reduced, pickEquipment })
     if (api.hasToken()) calculate(true);
   }
   const setProgress = text => { const el = left.querySelector('[data-lab-progress]'); if (el) el.textContent = text; };
-  return { setProcess, setProgress, bounds: world.bounds, tick: now => world.tick(now, camera), clear: () => { epoch++; clearTimeout(timer); world.clear(); } };
+  // 3D에서 설비를 고르면 단계 탐색을 그 설비의 첫 단계로 옮긴다(이미 그 설비의 단계면 그대로)
+  function selectEquipment(id) {
+    if (points[selected]?.id === id) return; const i = points.findIndex(p => p.id === id); if (i < 0) return;
+    selected = i; const range = left.querySelector('[data-lab-position]'); if (range) range.value = String(i); describeStep(); world.focus(id);
+  }
+  return { setProcess, setProgress, selectEquipment, bounds: world.bounds, tick: now => world.tick(now, camera), clear: () => { epoch++; clearTimeout(timer); world.clear(); } };
 }

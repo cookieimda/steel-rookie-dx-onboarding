@@ -437,3 +437,14 @@ body.lab-dock .lab-temperature .lab-temperature-result b { font-size: 20px; }
 .eq-pin.dim { opacity: .45; }
 .eq-pin.dim:hover { opacity: 1; }
 .eq-pin:focus-visible { outline: 2px solid rgba(255, 255, 255, .7); outline-offset: 2px; }
+
+/* 고른 설비 큰 칩(.tag): 글자만 떠 있어 밝은 설비 위에서 묻혀서, 설비 이름표(.eq-pin)와 같은 어두운 유리판을 깐다.
+   번호도 이름표처럼 주황 글자(본문 글꼴). 지시선·빛나는 점·배치는 그대로 */
+.tag .k {
+  padding: 10px 14px 12px !important; border-radius: 14px !important;
+  background: rgba(20, 22, 28, .78) !important; -webkit-backdrop-filter: blur(10px) !important; backdrop-filter: blur(10px) !important;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .45); color: #fff !important; font-weight: 600 !important; text-shadow: none;
+}
+.tag .k i { color: #ffb37a !important; font: 600 14px/1.2 var(--f-body) !important; }
+.tag .k .tl { color: rgba(255, 255, 255, .62); }
+.tag .k .tv { font-weight: 300; }

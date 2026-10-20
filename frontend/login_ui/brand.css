@@ -1,0 +1,77 @@
+/* ST-ROOKIE 공통 브랜드 토큰: "한 브랜드, 두 가지 조명"
+   - 밝은 조명(교육장): 학습 기록 · 평가 시험          - 어두운 조명(공장 현장·조정실): 로그인 · 3D 공정 지도 · 3D 공정 화면
+   - 조명이 바뀔 때 달라지는 것은 바탕 밝기뿐. 주황 포인트 · 헤더 구조(로고 + [ 모드 ] 태그) · 글꼴 · 칩 모양은 고정한다.
+   쓰는 법: 각 페이지 <head>의 맨 마지막에 이 파일을 읽고, <html data-brand="learn|exam|intro|index|home">로 페이지를 알린다.
+   이 파일은 색·글꼴·모서리 변수와 겉모양만 덮어쓴다. 클래스 이름·배치·JS 동작은 바꾸지 않는다. 지우면 원래 화면으로 돌아간다. */
+
+:root {
+  /* 브랜드 1색: 주황. 밝은 바탕 위 글자는 대비를 위해 진한 단계를 쓴다 */
+  --brand-orange: #ff9e64;
+  --brand-orange-ink: #1a0b03;          /* 주황 바탕 위 글자 */
+  --brand-orange-deep: #9a4512;         /* 밝은 바탕 위 주황 글자(대비 4.5:1 이상) */
+  --brand-orange-soft: rgba(255, 140, 70, .14);
+
+  /* 표면 2색: 어두운 표면(3D 화면·데이터 창), 밝은 표면(교육장) */
+  --surface-dark: #15171c;
+  --surface-dark-2: #1d2027;
+  --surface-dark-line: rgba(255, 255, 255, .09);
+  --surface-light: #f4f0ed;
+  --surface-light-card: rgba(255, 255, 255, .62);
+
+  /* 의미 색: 브랜드 색과 따로 쓴다(통과=초록, 위험=빨강, 주의=노랑) */
+  --state-ok: #177a42;  --state-ok-on-dark: #6fcf97;
+  --state-bad: #c53030; --state-bad-on-dark: #ff6b6b;
+  --state-mid: #9a6200; --state-mid-on-dark: #e8c25a;
+
+  /* 글꼴 2종 + 숫자용 고정폭 */
+  --font-display: "Montserrat", "Pretendard", "Noto Sans KR", sans-serif;   /* 영문 제목·태그라인 */
+  --font-body: "Pretendard", "Noto Sans KR", -apple-system, "Malgun Gothic", sans-serif; /* 한글 본문 */
+  --font-num: "JetBrains Mono", ui-monospace, Consolas, monospace;          /* 01 제선 같은 번호 */
+
+  /* 모서리 3단계 */
+  --r-s: 8px; --r-m: 12px; --r-l: 16px;
+}
+
+/* ── 공통 장치 1: [ 모드 ] 태그라인. 학습 기록 LEARN & ASK · 평가 시험 PROVE & PASS · 3D SEE & RUN ── */
+html[data-brand="exam"] .topbar .role::before,
+html[data-brand="learn"] .dg-header > .dg-label::before { content: "[ "; }
+html[data-brand="exam"] .topbar .role::after,
+html[data-brand="learn"] .dg-header > .dg-label::after { content: " ]"; }
+
+/* ── 공통 장치 2: 어두운 조명으로 넘어가는 링크(3D 화면) 예고: 작은 어두운 칩 + ↗ ── */
+html[data-brand="learn"] body[data-theme="light"] a[href^="/3d-demo/"]::after,
+html[data-brand="exam"] body[data-theme="light"] a[href^="/3d-demo/"]::after {
+  content: "↗"; display: inline-grid; place-items: center; width: 18px; height: 18px; margin-left: 6px; border-radius: 5px;
+  background: var(--surface-dark); color: var(--brand-orange); font: 700 11px/1 var(--font-body);
+}
+
+/* ─────────────── 평가 시험(/exam): 강조색 청록 → 브랜드 주황. 초록은 통과·완료 상태에만 ─────────────── */
+html[data-brand="exam"] body {
+  --accent: var(--brand-orange); --accent-ink: var(--brand-orange-ink);
+  --accent-text: var(--brand-orange); --accent-soft: rgba(255, 158, 100, .14);
+}
+html[data-brand="exam"] body[data-theme="light"] {
+  --accent: var(--brand-orange); --accent-ink: var(--brand-orange-ink);
+  --accent-text: var(--brand-orange-deep); --accent-soft: var(--brand-orange-soft);
+}
+
+/* ─────────────── 학습 기록(Trainee Dashboard) ─────────────── */
+/* AI 튜터 판: 라이트에서 화면의 30%를 차지하던 회갈색 단색 → 밝은 표면 카드(글자색은 기본 진한 글자) */
+html[data-brand="learn"] body[data-theme="light"] .dg-ink.tutor {
+  --panel: rgba(255, 255, 255, .5); --panel2: rgba(60, 40, 30, .06); --chip-on: rgba(60, 40, 30, .12);
+  --line: rgba(60, 40, 30, .14); --text: #1d1714; --muted: #574a44; --dim: #776a64; --bubble-in: rgba(60, 40, 30, .06);
+  --orange-text: var(--brand-orange-deep); --ok: var(--state-ok); --mid: var(--state-mid); --bad: var(--state-bad);
+  background: var(--surface-light-card); box-shadow: inset 0 0 0 1px rgba(60, 40, 30, .08);
+}
+
+/* ─────────────── 3D 공정 지도(steel-intro) · 3D 공정 화면(steel-index): 같은 로고 + [ SEE & RUN ] ─────────────── */
+html[data-brand="intro"] .ttl::before,
+html[data-brand="index"] #hud::before {
+  content: "ST-ROOKIE   [ SEE & RUN ]"; white-space: pre; display: block;
+  font: 700 13px/1 var(--font-display); letter-spacing: .14em; color: rgba(255, 255, 255, .78);
+}
+html[data-brand="intro"] .ttl::before { margin-bottom: 10px; padding-left: 18px; background: linear-gradient(var(--brand-orange), var(--brand-orange)) 0 50% / 10px 10px no-repeat; }
+html[data-brand="index"] #hud::before {
+  position: absolute; left: 18px; top: 18px; z-index: 1; padding: 9px 12px 9px 30px; border-radius: var(--r-s);
+  background: linear-gradient(var(--brand-orange), var(--brand-orange)) 12px 50% / 10px 10px no-repeat, rgba(13, 17, 20, .72);
+}

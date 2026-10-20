@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ko">
+<html lang="ko" data-brand="exam">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,10 +8,11 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Montserrat:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
   <link rel="stylesheet" href="/login_ui/exam.css">
+  <link rel="stylesheet" href="/login_ui/brand.css"><!-- 공통 브랜드 토큰: 강조색을 학습 기록과 같은 주황으로 -->
   <script type="module" src="/login_ui/exam.js"></script>
 </head>
 <body data-theme="light">
-  <!-- 학습 기록(Trainee Dashboard.dc.html)과 같은 체계(2026-10-15): 판 없는 헤더(로고 · ST-ROOKIE · PROVE & PASS / 테마 · 로그아웃 · 보조 버튼 둘), [ TRAINEE ] 눈썹 + 영어 제목, 외곽선 없는 판. 강조색은 청록 -->
+  <!-- 학습 기록(Trainee Dashboard.dc.html)과 같은 체계(2026-10-15): 판 없는 헤더(로고 · ST-ROOKIE · PROVE & PASS / 테마 · 로그아웃 · 보조 버튼 둘), [ TRAINEE ] 눈썹 + 영어 제목, 외곽선 없는 판. 강조색은 공통 브랜드 주황(/brand/brand.css), 초록은 통과 상태에만 -->
   <header class="topbar">
     <a class="brand" href="/login_ui/home-sleek.html" data-leave><span class="brand-mark" aria-hidden="true"></span>ST-ROOKIE</a>
     <span class="role">PROVE &amp; PASS</span>
@@ -20,8 +21,10 @@
     <nav class="top-nav" aria-label="주 메뉴">
       <button type="button" class="icon-button" id="theme" aria-label="테마 전환">☀</button>
       <button type="button" class="text-button" id="logout">로그아웃</button>
+      <!-- 학습 기록 헤더와 같은 순서·모양: 3D 공정 화면(글자) · 3D 공정 시연(옅은 판) · 다른 모드로 가는 주 버튼(주황) -->
+      <a class="btn ghost" href="/3d-demo/steel-intro.html" data-leave>3D 공정 화면</a>
       <a class="btn secondary" href="/3d-demo/steel-index.html" data-leave>3D 공정 시연</a>
-      <a class="btn secondary" href="/login" data-leave>학습 기록</a>
+      <a class="btn" href="/login" data-leave>학습 기록</a>
     </nav>
   </header>
   <main>

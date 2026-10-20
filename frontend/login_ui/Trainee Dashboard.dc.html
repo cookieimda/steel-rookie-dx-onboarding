@@ -633,6 +633,11 @@
           </div>
         </div>
 
+        <!-- ⑦-2 What-if 시냅스: 같은 What-if 계산을 조건 → 성분 → 결과 그래프로(whatif-synapse.js). 바뀐 선을 따라 빛이 번진다 -->
+        <div class="lb-pane" style="display:{{ labShowSynapse }};">
+          <x-import component-from-global-scope="whatif-synapse" theme="{{ theme }}" hint-size="100%,900" style="display:block;width:100%;min-width:0;"></x-import>
+        </div>
+
         <!-- ⑧ 설비 메모: 설비에 남긴 질문·메모·팁을 동기들과 공유 -->
         <div class="lb-pane" style="display:{{ labShowNotes }};">
           <div class="lb-row"><select class="lb-select" style="max-width:360px;" value="{{ noEq }}" onChange="{{ noPick }}" aria-label="설비"><sc-for list="{{ noEquipment }}" as="o" hint-placeholder-count="4"><option value="{{ o.value }}">{{ o.label }}</option></sc-for></select>
@@ -813,6 +818,8 @@ class Component extends DCLogic {
     });
     // 튜터 패널 머리의 포석호 <cp-character>(x-import가 등록을 기다린다)
     import('../3d-demo/cp-character.js').catch(e => console.warn('[cp-character] 불러오지 못함', e));
+    // 학습 랩 'What-if 시냅스' 탭의 <whatif-synapse>(x-import가 등록을 기다린다)
+    import('./whatif-synapse.js').catch(e => console.warn('[whatif-synapse] 불러오지 못함', e));
     fetch('/api/status').then(r => r.ok ? r.json() : null).then(s => this.setState({ ai: s && s.connected ? 'ok' : 'off' }), () => this.setState({ ai: 'off' }));
     // 튜터 선 맞춤: 창 크기·모듈 크기·단계 설명이 바뀔 때마다 다시 잰다. 단계 설명은 바뀔 때 0.3초 들어오는 움직임이 있어 끝난 뒤 한 번 더 잰다
     this._align = () => { requestAnimationFrame(() => this.alignTutor()); clearTimeout(this._alignT); this._alignT = setTimeout(() => this.alignTutor(), 350); };

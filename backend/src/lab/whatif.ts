@@ -160,8 +160,103 @@ export function downstreamOf(r: WhatIfResult) {
   return out;
 }
 
+/**
+ * What-if 시냅스(학습 랩): 같은 계산을 '조건 → 성분 → 결과' 그래프로 펼친다. 선(edge)마다 흐르는 양을 지금 조건과 기준 조건으로 같이 준다.
+ * - kg 선: 원료·연료·석회석이 성분(Fe·SiO2·Al2O3·CaO·MgO·탄소)으로 보내는 양, 성분이 결과(슬래그량·CO2 등)로 보내는 양(용선 1톤당 kg).
+ * - ℃ 선: 용선 온도 근사의 항(기준 조건과의 차이). 기준이면 0이다.
+ * - 염기도 선은 양이 아니라 몫(CaO ÷ SiO2)이라 성분 양을 그대로 싣고 sign으로 분자(+)·분모(−)를 표시한다.
+ * 결과 노드 값은 simulate()와 같고(테스트로 확인), 화면은 지금 값과 기준 값의 차이로 늘어남·줄어듦을 그린다.
+ */
+export type SynapseKind = "ore" | "fuel" | "air" | "flux" | "element" | "heat" | "output";
+export interface SynapseNode { id: string; label: string; kind: SynapseKind; unit: string; value: number; base: number; desc: string }
+export interface SynapseEdge { from: string; to: string; unit: "kg" | "℃"; value: number; base: number; sign: 1 | -1; why: string }
+
+const SYN_NODES: Omit<SynapseNode, "value" | "base">[] = [
+  { id: "sinter_pct", label: "소결광", kind: "ore", unit: "kg/t", desc: "가루 철광석을 구워 덩어리로 만든 원료예요. CaO가 많이 들어 있어 슬래그 염기도를 올려요." },
+  { id: "pellet_pct", label: "펠릿", kind: "ore", unit: "kg/t", desc: "고운 철광석을 구슬처럼 빚어 구운 원료예요. 철 함량이 높고 맥석(SiO2 등)이 적어요." },
+  { id: "lump_pct", label: "괴광", kind: "ore", unit: "kg/t", desc: "캐낸 그대로의 덩어리 철광석이에요. Al2O3가 상대적으로 많아요." },
+  { id: "coke_kg", label: "코크스", kind: "fuel", unit: "kg/t", desc: "노 안의 열과 환원 가스(CO)를 만드는 주 연료예요. 탄소 90%, 나머지는 회분이에요." },
+  { id: "pci_kg", label: "미분탄", kind: "fuel", unit: "kg/t", desc: "풍구로 불어 넣는 보조 연료예요. 코크스 일부를 대신하지만 풍구 앞을 식히는 효과도 있어요." },
+  { id: "blast_temp_c", label: "송풍 온도", kind: "air", unit: "℃", desc: "열풍로가 데운 바람의 온도예요. 뜨거울수록 노에 들어가는 열이 늘어요." },
+  { id: "oxygen_pct", label: "산소 부화", kind: "air", unit: "%p", desc: "바람에 산소를 더한 정도예요. 연료가 더 세게 타서 풍구 앞 온도가 올라가요." },
+  { id: "limestone_kg", label: "석회석", kind: "flux", unit: "kg/t", desc: "CaO를 더하는 플럭스예요. 슬래그 염기도와 슬래그량을 올려요." },
+  { id: "fe", label: "Fe 철", kind: "element", unit: "kg/t", desc: "원료 속 철이에요. 이 모델은 철이 모두 용선(955kg/t)으로 간다고 단순화했어요." },
+  { id: "sio2", label: "SiO2 실리카", kind: "element", unit: "kg/t", desc: "원료 맥석과 연료 회분의 실리카예요. 일부(규소)는 용선으로 가고 나머지는 슬래그로 가요. 염기도의 분모예요." },
+  { id: "al2o3", label: "Al2O3 알루미나", kind: "element", unit: "kg/t", desc: "원료와 회분의 알루미나예요. 모두 슬래그로 가요." },
+  { id: "cao", label: "CaO 석회", kind: "element", unit: "kg/t", desc: "소결광과 석회석에서 오는 석회예요. 슬래그로 가고 염기도의 분자예요." },
+  { id: "mgo", label: "MgO 마그네시아", kind: "element", unit: "kg/t", desc: "원료와 회분의 마그네시아예요. 모두 슬래그로 가요." },
+  { id: "c", label: "C 탄소", kind: "element", unit: "kg/t", desc: "연료 속 탄소예요. 40kg/t는 용선에 녹고 나머지는 CO2가 된다고 본 단순 상한이에요." },
+  { id: "heat", label: "열", kind: "heat", unit: "℃", desc: "용선 온도 근사에서 연료·송풍·산소가 더하거나 빼는 온도예요(기준 조건과의 차이, 교육용 가정 계수)." },
+  { id: "ore_kg", label: "철 원료", kind: "output", unit: "kg/t", desc: "용선 1톤을 만드는 데 드는 철 원료 양이에요. 원료의 철 함량이 낮을수록 늘어요." },
+  { id: "slag_kg", label: "슬래그량", kind: "output", unit: "kg/t", desc: "슬래그 = SiO2 + Al2O3 + CaO + MgO. 보통 175~350kg/t예요(BREF)." },
+  { id: "basicity", label: "염기도", kind: "output", unit: "", desc: "CaO ÷ SiO2. 1.0보다 낮으면 황 제거가 약해지고 1.2보다 높으면 슬래그가 잘 흐르지 않아요." },
+  { id: "fuel_rate_kg", label: "연료비", kind: "output", unit: "kg/t", desc: "코크스 + 미분탄. EU 고로는 453~514kg/t예요(BREF)." },
+  { id: "co2_kg", label: "CO2", kind: "output", unit: "kg/t", desc: "연료 탄소 중 용선에 녹은 40kg을 뺀 나머지가 모두 CO2가 된다고 본 상한이에요." },
+  { id: "hot_metal_temp_c", label: "용선 온도", kind: "output", unit: "℃", desc: "기준 1,500℃에 열 항과 슬래그 항을 더한 선형 근사예요(1,380~1,560℃로 자름)." },
+];
+
+const OXIDE_NAME = { sio2: "SiO2", al2o3: "Al2O3", cao: "CaO", mgo: "MgO" };
+
+function synapseParts(input: WhatIfInput, slagBase: number) {
+  const ore = HOT_METAL.fe / ((input.sinter_pct * ORES.sinter.fe + input.pellet_pct * ORES.pellet.fe + input.lump_pct * ORES.lump.fe) / 10000);
+  const oreKg = { sinter_pct: ore * input.sinter_pct / 100, pellet_pct: ore * input.pellet_pct / 100, lump_pct: ore * input.lump_pct / 100 };
+  const oreSrc = { sinter_pct: ORES.sinter, pellet_pct: ORES.pellet, lump_pct: ORES.lump };
+  const ash = { coke_kg: input.coke_kg * COKE.ash / 100, pci_kg: input.pci_kg * PCI.ash / 100 };
+  const e: Omit<SynapseEdge, "base">[] = [];
+  const add = (from: string, to: string, unit: SynapseEdge["unit"], value: number, why: string, sign: 1 | -1 = 1) => e.push({ from, to, unit, value, sign, why });
+  for (const k of ["sinter_pct", "pellet_pct", "lump_pct"] as const) {
+    const o = oreSrc[k], kg = oreKg[k];
+    add(k, "fe", "kg", kg * o.fe / 100, `철 ${o.fe}%`);
+    for (const x of ["sio2", "al2o3", "cao", "mgo"] as const) add(k, x, "kg", kg * o[x] / 100, `${OXIDE_NAME[x]} ${o[x]}%`);
+    add(k, "ore_kg", "kg", kg, "넣는 원료 양");
+  }
+  for (const k of ["coke_kg", "pci_kg"] as const) {
+    add(k, "c", "kg", input[k] * (k === "coke_kg" ? COKE.c : PCI.c) / 100, `탄소 ${k === "coke_kg" ? COKE.c : PCI.c}%`);
+    for (const x of ["sio2", "al2o3", "cao", "mgo"] as const) add(k, x, "kg", ash[k] * ASH[x], "회분 속 성분");
+    add(k, "fuel_rate_kg", "kg", input[k], "연료 양");
+  }
+  add("limestone_kg", "cao", "kg", input.limestone_kg * LIMESTONE_CAO, "CaCO3 → CaO(약 53%)");
+  // 용선 온도 근사의 열 항(simulate()와 같은 계수, 기준 조건과의 차이)
+  add("coke_kg", "heat", "℃", 0.6 * (input.coke_kg - BASELINE.coke_kg), "연료 +0.6℃/kg");
+  add("pci_kg", "heat", "℃", 0.6 * (input.pci_kg - BASELINE.pci_kg) - 0.2 * (input.pci_kg - BASELINE.pci_kg), "연료 +0.6℃/kg, 풍구 냉각 −0.2℃/kg");
+  add("blast_temp_c", "heat", "℃", 0.15 * (input.blast_temp_c - BASELINE.blast_temp_c), "+0.15℃/℃");
+  add("oxygen_pct", "heat", "℃", 6 * (input.oxygen_pct - BASELINE.oxygen_pct), "+6℃/%p");
+  // 성분 → 결과
+  const sum = (to: string) => e.filter((x) => x.to === to).reduce((a, x) => a + x.value, 0);
+  const siToMetal = HOT_METAL.si * (60.08 / 28.09);
+  const oxide = { sio2: sum("sio2") - siToMetal, al2o3: sum("al2o3"), cao: sum("cao"), mgo: sum("mgo") };
+  add("fe", "ore_kg", "kg", sum("fe"), "철은 모두 용선으로(955kg/t)");
+  for (const x of ["sio2", "al2o3", "cao", "mgo"] as const) add(x, "slag_kg", "kg", oxide[x], x === "sio2" ? "용선으로 간 규소만큼 빼고 슬래그로" : "모두 슬래그로");
+  add("cao", "basicity", "kg", oxide.cao, "분자(CaO)", 1);
+  add("sio2", "basicity", "kg", oxide.sio2, "분모(SiO2) — 늘면 염기도가 내려가요", -1);
+  const carbon = sum("c");
+  add("c", "co2_kg", "kg", Math.max(0, carbon - HOT_METAL.c) * (44.01 / 12.01), "용선에 녹은 40kg을 뺀 탄소 × 44/12");
+  const slag = oxide.sio2 + oxide.al2o3 + oxide.cao + oxide.mgo;
+  add("heat", "hot_metal_temp_c", "℃", sum("heat"), "열 항의 합");
+  add("slag_kg", "hot_metal_temp_c", "℃", -0.12 * (slag - slagBase), "기준보다 슬래그가 많으면 −0.12℃/kg", -1);
+  return { edges: e, ore, oxide, slag, carbon };
+}
+
+export function synapseOf(input: WhatIfInput) {
+  const slagBase = simulate(BASELINE).slag_kg;
+  const now = synapseParts(input, slagBase), base = synapseParts(BASELINE, slagBase);
+  const r = simulate(input), b = simulate(BASELINE);
+  const inflow = (parts: ReturnType<typeof synapseParts>, id: string) => parts.edges.filter((x) => x.to === id).reduce((a, x) => a + x.value, 0);
+  const valueOf = (parts: ReturnType<typeof synapseParts>, res: WhatIfResult, inp: WhatIfInput, n: (typeof SYN_NODES)[number]) => {
+    if (n.kind === "output") return res[n.id as keyof WhatIfResult] as number;
+    if (n.kind === "element" || n.kind === "heat") return n.id === "sio2" ? parts.oxide.sio2 : inflow(parts, n.id);
+    if (n.kind === "ore") return parts.edges.find((x) => x.from === n.id && x.to === "ore_kg")!.value;
+    return inp[n.id as keyof WhatIfInput];
+  };
+  const rd = (x: number) => Math.round(x * 100) / 100;
+  return {
+    nodes: SYN_NODES.map((n) => ({ ...n, value: rd(valueOf(now, r, input, n)), base: rd(valueOf(base, b, BASELINE, n)) })),
+    edges: now.edges.map((x, i) => ({ ...x, value: rd(x.value), base: rd(base.edges[i].value) })),
+  };
+}
+
 export function whatIf(raw: Partial<WhatIfInput>) {
   const input = normalizeInput(raw);
   const result = simulate(input);
-  return { input, result, baseline: simulate(BASELINE), effects: effectsOf(input), downstream: downstreamOf(result), assumptions: ASSUMPTIONS };
+  return { input, result, baseline: simulate(BASELINE), effects: effectsOf(input), downstream: downstreamOf(result), assumptions: ASSUMPTIONS, synapse: synapseOf(input) };
 }

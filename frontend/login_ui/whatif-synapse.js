@@ -1,7 +1,9 @@
 // What-if 시냅스(학습 기록 화면 → 학습 랩 → 'What-if 시냅스' 탭). <whatif-synapse theme="light|dark">
-// What-if 계산(POST /api/lab/whatif, backend/src/lab/whatif.ts)을 '조건 → 성분 → 결과' 그래프로 그린다. 응답의 synapse가 선마다 흐르는 양(지금·기준)을 준다.
+// What-if 계산(POST /api/lab/whatif, backend/src/lab/whatif.ts)을 '조건 → 성분·반응 → 결과' 그래프로 그린다. 응답의 synapse가 선마다 흐르는 양(지금·기준)과
+// 그 선이 거치는 고로 반응(reaction·also), 반응 목록(식·설명·근거 문헌)을 준다.
 // - 조건을 바꾸면 바뀐 선을 따라 빛이 조건 → 성분 → 결과 순서로 번지고(시냅스 발화), 늘어난 선은 빨강·줄어든 선은 파랑, 그대로인 선은 흐리게.
-// - 실선은 성분 질량 수지(kg), 점선은 용선 온도 근사의 가정 계수(℃). 끝이 막대(⊣)인 선은 억제(늘면 결과가 줄어듦: SiO2 → 염기도, 슬래그 → 온도).
+// - 실선은 성분 질량 수지(kg), 점선은 풍구 앞 화염 온도의 문헌 계수(℃). 끝이 막대(⊣)인 선은 억제(늘면 결과가 줄어듦: SiO2 → 염기도, 미분탄 → 화염 온도).
+// - 아래 '반응' 버튼을 누르면 그 반응이 일어나는 선만 밝히고, 풀이에 반응식·설명·출처를 보여 준다.
 // - 노드를 누르면 그 노드로 들어오고 나가는 선을 풀이(아래 '풀이')하고, 이어진 경로만 밝힌다. 조건을 바꿀 때마다 '변화 기록'에 한 줄씩 남는다.
 // 그래프 판은 테마와 상관없이 어두운 바탕(참고: Graphify 화면)이고, 나머지 글자·판은 페이지 토큰(--text, --panel …)을 따른다.
 
@@ -22,15 +24,15 @@ const PRESETS = [
 // 열 순서(겹침이 적게): 조건 · 성분 · 결과
 const COLS = [
   ['sinter_pct', 'pellet_pct', 'lump_pct', 'limestone_kg', 'coke_kg', 'pci_kg', 'blast_temp_c', 'oxygen_pct'],
-  ['fe', 'sio2', 'al2o3', 'cao', 'mgo', 'c', 'heat'],
-  ['ore_kg', 'slag_kg', 'basicity', 'co2_kg', 'fuel_rate_kg', 'hot_metal_temp_c'],
+  ['fe', 'sio2', 'al2o3', 'cao', 'mgo', 'c', 'raceway'],
+  ['ore_kg', 'slag_kg', 'basicity', 'co2_kg', 'fuel_rate_kg', 'raft_c'],
 ];
 const COLOR = {
   ore: '#c8a26a', fuel: '#ff8a5b', air: '#6aa8ff', flux: '#7fd1b9', heat: '#ff6b3d', output: '#e9eef5',
   fe: '#b8c0cc', sio2: '#e0c35a', al2o3: '#a98bef', cao: '#5fd0b5', mgo: '#ef8b6f', c: '#d6d6d6',
 };
 const UP = '#ff5d5d', DOWN = '#4f9dff';
-const KIND_LABEL = { ore: '철 원료', fuel: '연료', air: '바람', flux: '플럭스', element: '성분', heat: '열', output: '결과' };
+const KIND_LABEL = { ore: '철 원료', fuel: '연료', air: '바람', flux: '플럭스', element: '성분', heat: '반응', output: '결과' };
 const W = 760, H = 600, X = [130, 380, 580];
 
 const fmt = (x, unit) => {
@@ -57,6 +59,9 @@ const CSS = `
 .s input { grid-column: 1 / -1; width: 100%; accent-color: var(--orange, #ff9e64); }
 .s b { font-family: var(--mono, monospace); font-size: 14px; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.chips button[aria-pressed="true"] { background: var(--text); color: var(--bg, #fff); }
+.ex-d a { color: inherit; }
+.eq { font-family: var(--mono, monospace); font-size: 15px; background: var(--panel2, rgba(0,0,0,.06)); border-radius: 8px; padding: 6px 10px; margin: 6px 0; }
 button { font: inherit; cursor: pointer; border: 0; border-radius: 9px; padding: 6px 10px; font-size: 14px; background: var(--panel2, rgba(0,0,0,.06)); color: var(--text); }
 button:hover { background: var(--chip-on, rgba(0,0,0,.12)); }
 button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
@@ -87,7 +92,7 @@ svg text { font-family: var(--font-ko, sans-serif); paint-order: stroke; stroke:
 class WhatIfSynapse extends HTMLElement {
   constructor() {
     super();
-    this.input = {}; this.data = null; this.prev = null; this.sel = null; this.log = []; this.fireAt = 0; this.timer = 0; this.raf = 0;
+    this.input = {}; this.data = null; this.prev = null; this.sel = null; this.rx = null; this.log = []; this.fireAt = 0; this.timer = 0; this.raf = 0;
     const root = this.attachShadow({ mode: 'open' });
     root.innerHTML = `<style>${CSS}</style>
       <div class="top"><b>What-if 시냅스</b>
@@ -95,10 +100,11 @@ class WhatIfSynapse extends HTMLElement {
         <span class="lg"><i class="dot" style="background:${COLOR.air}"></i>바람</span><span class="lg"><i class="dot" style="background:${COLOR.flux}"></i>플럭스</span>
         <span class="lg"><i class="dot" style="background:${COLOR.sio2}"></i>성분</span><span class="lg"><i class="dot" style="background:#9aa3ad;outline:2px solid #e9eef5"></i>결과</span>
         <span class="lg"><i class="ln" style="border-color:${UP}"></i>늘어남</span><span class="lg"><i class="ln" style="border-color:${DOWN}"></i>줄어듦</span>
-        <span class="lg"><i class="ln dash" style="border-color:#9aa3ad"></i>가정 계수(℃)</span><span class="lg">⊣ 억제</span></div>
+        <span class="lg"><i class="ln dash" style="border-color:#9aa3ad"></i>화염 온도 계수(℃, 문헌)</span><span class="lg">⊣ 억제</span></div>
       <div class="stage"><div class="hd">synapse · 제선 고로</div><div class="cols">${['조건', '성분', '결과'].map((t, i) => `<span style="left:${(X[i] / W) * 100}%">${t}</span>`).join('')}</div>
         <svg id="g" viewBox="0 0 ${W} ${H}" role="img" aria-label="조건이 성분을 거쳐 결과로 이어지는 그래프"></svg></div>
       <div class="chips" id="pre"><span class="note" style="margin:0;align-self:center;">해 보기</span></div>
+      <div class="chips" id="rx" style="margin-top:6px"><span class="note" style="margin:0;align-self:center;">고로 반응</span></div>
       <div class="grid">
         <div class="box"><h4>조건</h4><div id="sl"></div>
           <button id="reset" type="button">기준 조건으로</button>
@@ -106,7 +112,7 @@ class WhatIfSynapse extends HTMLElement {
         <div class="box"><h4>풀이</h4><div id="ex" class="mono"></div></div>
         <div class="box"><h4>변화 기록</h4><div id="log" class="mono log"></div><div id="warn"></div></div>
       </div>
-      <div class="note">교육용 간이 모델이에요. kg 선은 성분 질량 수지, ℃ 선은 방향을 보여 주려고 정한 가정 계수예요(학습 랩 What-if의 '계산 가정'과 같아요). <span id="err" class="err"></span></div>`;
+      <div class="note">교육용 간이 모델이에요. kg 선은 성분 질량 수지, ℃ 선은 풍구 앞 화염 온도의 문헌 계수(Babich & Senk 2015 표 17.3 범위의 가운데 값)예요(학습 랩 What-if의 '계산 가정'과 같아요). <span id="err" class="err"></span></div>`;
     this.$ = (id) => root.getElementById(id);
     this.$('reset').addEventListener('click', () => this.apply({}, '기준 조건으로'));
     for (const [label, patch] of PRESETS) {
@@ -164,6 +170,7 @@ class WhatIfSynapse extends HTMLElement {
       this.timer = setTimeout(() => this.run(`${def[1]} ${fmt(this.prevVal(k), def[2])} → ${fmt(Number(e.target.value), def[2])}`), 250);
     }));
     this.$('share').textContent = `철 원료 비율은 합이 100%가 되게 맞춰 계산해요(지금 소결 ${Math.round(input.sinter_pct)} · 펠릿 ${Math.round(input.pellet_pct)} · 괴광 ${Math.round(input.lump_pct)}).`;
+    this.drawRx();
     this.drawGraph();
     this.explain();
     this.$('log').innerHTML = this.log.map((l) => `<div><span class="t">${l.t}</span>${esc(l.text)}</div>`).join('');
@@ -184,7 +191,7 @@ class WhatIfSynapse extends HTMLElement {
     const svg = this.$('g'), { nodes, edges } = this.data.synapse, pos = this.layout();
     const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
     const maxKg = Math.max(...edges.filter((e) => e.unit === 'kg').map((e) => Math.max(e.value, e.base)), 1);
-    const reach = this.sel ? this.connected(this.sel, edges) : null;
+    const reach = this.rx ? this.byReaction(this.rx, edges) : this.sel ? this.connected(this.sel, edges) : null;
     svg.replaceChildren();
     const defs = document.createElementNS(NS, 'defs');
     defs.innerHTML = `<filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`
@@ -212,7 +219,8 @@ class WhatIfSynapse extends HTMLElement {
       if (e.sign < 0) p.setAttribute('marker-end', `url(#bar-${dir})`);
       if (reach && !reach.edges.has(e)) p.classList.add('dim');
       const tt = document.createElementNS(NS, 'title');
-      tt.textContent = `${byId[e.from].label} → ${byId[e.to].label} · ${fmt(e.value, e.unit)} (기준 ${fmt(e.base, e.unit)}) · ${e.why}`;
+      const rxName = (id) => this.data.synapse.reactions?.find((r) => r.id === id)?.name;
+      tt.textContent = `${byId[e.from].label} → ${byId[e.to].label} · ${fmt(e.value, e.unit)} (기준 ${fmt(e.base, e.unit)}) · ${e.why}${e.reaction ? ` · 반응: ${[e.reaction, ...(e.also || [])].map(rxName).join(', ')}` : ''}`;
       p.append(tt); eg.append(p);
       if (ch) this.paths.push({ el: p, len: p.getTotalLength(), dir, col: a.col, n: 1 + Math.round(2 * Math.min(1, Math.abs(e.value - e.base) / (e.unit === 'kg' ? 30 : 15))), hidden: reach && !reach.edges.has(e) });
     }
@@ -247,7 +255,7 @@ class WhatIfSynapse extends HTMLElement {
       lab.textContent = n.label;
       sub.textContent = `${fmt(n.value, n.unit)}${ch ? ` ${n.value > n.base ? '▲' : '▼'}${fmt(Math.abs(n.value - n.base), n.unit)}` : ''}`;
       g.append(lab, sub);
-      const pick = () => { this.sel = this.sel === n.id ? null : n.id; this.drawGraph(); this.explain(); };
+      const pick = () => { this.sel = this.sel === n.id ? null : n.id; this.rx = null; this.drawRx(); this.drawGraph(); this.explain(); };
       g.addEventListener('click', pick);
       g.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); pick(); } });
       ng.append(g);
@@ -289,17 +297,40 @@ class WhatIfSynapse extends HTMLElement {
     }
   }
 
+  // 반응 버튼: 누르면 그 반응이 일어나는 선만 밝힌다(다시 누르면 끔)
+  drawRx() {
+    const box = this.$('rx');
+    box.querySelectorAll('button').forEach((b) => b.remove());
+    for (const r of this.data?.synapse.reactions || []) {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = r.name; b.setAttribute('aria-pressed', String(this.rx === r.id));
+      b.addEventListener('click', () => { this.rx = this.rx === r.id ? null : r.id; this.sel = null; this.drawRx(); this.drawGraph(); this.explain(); });
+      box.append(b);
+    }
+  }
+  byReaction(id, edges) {
+    const es = new Set(edges.filter((e) => e.reaction === id || (e.also || []).includes(id))), nodes = new Set();
+    for (const e of es) { nodes.add(e.from); nodes.add(e.to); }
+    return { nodes, edges: es };
+  }
+
   explain() {
     const ex = this.$('ex');
     if (!this.data) return;
     const { nodes, edges } = this.data.synapse, byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
+    if (this.rx) {
+      const r = this.data.synapse.reactions.find((x) => x.id === this.rx), es = [...this.byReaction(this.rx, edges).edges];
+      ex.innerHTML = `<div class="ex-t">${esc(r.name)} <span class="tag">고로 반응</span></div><div class="eq">${esc(r.eq)}</div><div class="ex-d">${esc(r.note)}</div>
+        <div class="ex-d">이 반응이 걸린 선 ${es.length}개: ${es.map((e) => `${esc(byId[e.from].label)} → ${esc(byId[e.to].label)}`).join(' · ') || '없음(설명만)'}</div>
+        <div class="ex-d">출처: ${r.sources.map((x) => `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>`).join(' · ')}</div>`;
+      return;
+    }
     if (!this.sel) {
       const moved = edges.filter((e) => changed(e.value, e.base)).length;
       ex.innerHTML = `<div class="ex-t">노드를 눌러 보세요</div><div class="ex-d">조건(왼쪽)을 누르면 그 조건이 어떤 성분을 거쳐 어떤 결과까지 이어지는지, 결과(오른쪽)를 누르면 어떤 조건에서 왔는지 길만 밝혀요. 지금 기준과 달라진 선 ${moved}개.</div>`;
       return;
     }
     const n = byId[this.sel], cls = (v, b) => (changed(v, b) ? (v > b ? 'up' : 'down') : 'same');
-    const line = (e, other, dirSym) => `<div class="row"><span>${dirSym} ${esc(byId[other].label)}</span><b>${fmt(e.value, e.unit)}</b><span class="tag">기준 ${fmt(e.base, e.unit)}</span><span class="${cls(e.value, e.base)}">${arrow(e.value, e.base, e.unit)}</span><span class="tag">[${e.unit === 'kg' ? '질량 수지' : '가정 계수'}${e.sign < 0 ? ' · 억제' : ''}] ${esc(e.why)}</span></div>`;
+    const line = (e, other, dirSym) => `<div class="row"><span>${dirSym} ${esc(byId[other].label)}</span><b>${fmt(e.value, e.unit)}</b><span class="tag">기준 ${fmt(e.base, e.unit)}</span><span class="${cls(e.value, e.base)}">${arrow(e.value, e.base, e.unit)}</span><span class="tag">[${e.unit === 'kg' ? '질량 수지' : '문헌 계수'}${e.sign < 0 ? ' · 억제' : ''}] ${esc(e.why)}</span></div>`;
     const ins = edges.filter((e) => e.to === n.id), outs = edges.filter((e) => e.from === n.id);
     ex.innerHTML = `<div class="ex-t">${esc(n.label)} <span class="tag">${KIND_LABEL[n.kind]}</span> · ${fmt(n.value, n.unit)} <span class="${cls(n.value, n.base)}">${arrow(n.value, n.base, n.unit)}</span></div>
       <div class="ex-d">${esc(n.desc)}</div>

@@ -38,8 +38,8 @@ test("What-if: 기준 조건은 슬래그 175~350kg·염기도 1.0~1.2(BREF)·1,
   assert.ok(base.slag_kg >= 175 && base.slag_kg <= 350, String(base.slag_kg));
   assert.ok(base.basicity >= 1.0 && base.basicity <= 1.2, String(base.basicity));
   assert.equal(base.fuel_rate_kg, 480, "JFE 코크스 380 + 미분탄 100kg/t");
-  // 화면에 보이는 가정마다 출처(BREF·JFE)나 '가정'을 밝힌다(단순화 설명인 CO2 줄은 예외).
-  for (const line of ASSUMPTIONS.filter((l) => !l.startsWith("CO2"))) assert.match(line, /BREF|JFE|가정/, line);
+  // 화면에 보이는 가정마다 출처(BREF·JFE·Babich & Senk·Carpenter·IPCC)나 '가정'을 밝힌다(단순화 설명인 CO2 줄은 예외).
+  for (const line of ASSUMPTIONS.filter((l) => !l.startsWith("CO2"))) assert.match(line, /BREF|JFE|Babich|Carpenter|IPCC|가정/, line);
   assert.equal(base.hot_metal_temp_c, 1500);
   assert.deepEqual(base.warnings, []);
   const pellet = whatIf({ sinter_pct: 30, pellet_pct: 60, lump_pct: 10 }).result;

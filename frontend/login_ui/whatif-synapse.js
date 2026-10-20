@@ -66,12 +66,12 @@ button { font: inherit; cursor: pointer; border: 0; border-radius: 9px; padding:
 button:hover { background: var(--chip-on, rgba(0,0,0,.12)); }
 button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 .note { font-size: 13px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
-.stage { position: relative; background: #12141a; border-radius: 14px; overflow: hidden; min-height: 300px; }
+.stage { position: relative; background: var(--surface-dark, #12141a); border-radius: 14px; overflow: hidden; min-height: 300px; }
 .stage .hd { position: absolute; right: 14px; top: 10px; font: 600 13px var(--mono, monospace); color: #9aa3ad; letter-spacing: .02em; pointer-events: none; }
 .stage .cols { position: absolute; top: 10px; left: 0; right: 0; height: 18px; pointer-events: none; font: 600 12px var(--mono, monospace); color: #6e7681; }
 .stage .cols span { position: absolute; transform: translateX(-50%); }
 svg { display: block; width: 100%; height: auto; }
-svg text { font-family: var(--font-ko, sans-serif); paint-order: stroke; stroke: #12141a; stroke-width: 4px; stroke-linejoin: round; }
+svg text { font-family: var(--font-ko, sans-serif); paint-order: stroke; stroke: var(--surface-dark, #12141a); stroke-width: 4px; stroke-linejoin: round; }
 .node { cursor: pointer; }
 .node:focus { outline: none; }
 .node:focus-visible circle.core { stroke: #fff; stroke-width: 2.5; }
@@ -162,12 +162,13 @@ class WhatIfSynapse extends HTMLElement {
     // 슬라이더
     const sl = this.$('sl');
     sl.innerHTML = SLIDERS.map(([k, label, unit, min, max, step]) => `<label class="s"><span>${label}</span><b>${fmt(input[k], unit)}</b><input type="range" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${input[k]}" aria-label="${label}"></label>`).join('');
-    sl.querySelectorAll('input').forEach((el) => el.addEventListener('input', (e) => {
-      const k = e.target.dataset.k, def = SLIDERS.find((s) => s[0] === k);
-      this.input = { ...this.data.input, ...this.input, [k]: Number(e.target.value) };
-      e.target.previousElementSibling.textContent = fmt(Number(e.target.value), def[2]);
+    // 값은 이벤트 때 바로 읽는다: 0.25초 뒤에는 e.target이 섀도 루트 밖 <whatif-synapse>로 바뀌어 value가 없다(변화 기록에 'NaN kg/t'가 찍히던 원인)
+    sl.querySelectorAll('input').forEach((el) => el.addEventListener('input', () => {
+      const k = el.dataset.k, def = SLIDERS.find((s) => s[0] === k), v = Number(el.value);
+      this.input = { ...this.data.input, ...this.input, [k]: v };
+      el.previousElementSibling.textContent = fmt(v, def[2]);
       clearTimeout(this.timer);
-      this.timer = setTimeout(() => this.run(`${def[1]} ${fmt(this.prevVal(k), def[2])} → ${fmt(Number(e.target.value), def[2])}`), 250);
+      this.timer = setTimeout(() => this.run(`${def[1]} ${fmt(this.prevVal(k), def[2])} → ${fmt(v, def[2])}`), 250);
     }));
     this.$('share').textContent = `철 원료 비율은 합이 100%가 되게 맞춰 계산해요(지금 소결 ${Math.round(input.sinter_pct)} · 펠릿 ${Math.round(input.pellet_pct)} · 괴광 ${Math.round(input.lump_pct)}).`;
     this.drawRx();

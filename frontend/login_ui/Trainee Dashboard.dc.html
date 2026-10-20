@@ -826,8 +826,6 @@ class Component extends DCLogic {
     });
     // 튜터 패널 머리의 포석호 <cp-character>(x-import가 등록을 기다린다)
     import('../3d-demo/cp-character.js').catch(e => console.warn('[cp-character] 불러오지 못함', e));
-    // 학습 랩 사고 사례의 상황판 <incident-board>(x-import가 등록을 기다린다)
-    import('./incident-board.js').catch(e => console.warn('[incident-board] 불러오지 못함', e));
     fetch('/api/status').then(r => r.ok ? r.json() : null).then(s => this.setState({ ai: s && s.connected ? 'ok' : 'off' }), () => this.setState({ ai: 'off' }));
     // 튜터 선 맞춤: 창 크기·모듈 크기·단계 설명이 바뀔 때마다 다시 잰다. 단계 설명은 바뀔 때 0.3초 들어오는 움직임이 있어 끝난 뒤 한 번 더 잰다
     this._align = () => { requestAnimationFrame(() => this.alignTutor()); clearTimeout(this._alignT); this._alignT = setTimeout(() => this.alignTutor(), 350); };
@@ -849,6 +847,8 @@ class Component extends DCLogic {
     if (!auth) { this.setState({ error: '로그인한 뒤 학습 현황을 볼 수 있습니다.' }); return; }
     // 학습 랩(learning-lab.js): 이 화면의 리플레이 기록을 시작한다(본인만 보고 [기록 끄기]로 멈춘다)
     import('./learning-lab.js').then(({ createLearningLab }) => { this.lab = createLearningLab(this); this.lab.track('start', { tab: this.state.moduleTab, process: this.state.processId }); this.lab.startBell(); this.forceUpdate(); });
+    // 학습 랩 사고 사례의 상황판 <incident-board>(x-import가 등록을 기다린다)
+    import('./incident-board.js').catch(e => console.warn('[incident-board] 불러오지 못함', e));
     fetch('/api/me/dashboard', { headers: { authorization: 'Bearer ' + auth } })
       .then(async response => { if (!response.ok) throw new Error('학습 현황을 DB에서 불러오지 못했습니다.'); return response.json(); })
       .then(data => { this.setState({ data, loadedAt: new Date() }); this.checkPromotion(data); }, error => this.setState({ error: error.message }));

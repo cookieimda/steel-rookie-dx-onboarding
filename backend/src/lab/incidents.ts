@@ -10,10 +10,27 @@ import { NODES } from "./causal.js";
 
 const Question = z.object({ id: z.string(), prompt: z.string(), options: z.array(z.string()).min(2).max(6), answer: z.number().int().min(0), explain: z.string() })
   .refine((q) => q.answer < q.options.length, "정답 번호가 보기 수보다 커요.");
+/** 역할(사람·장비·통제): 사고 상황판이 얼굴 줄로 그린다. */
+const Role = z.object({ id: z.string().regex(/^[a-z0-9_]+$/), name: z.string(), kind: z.enum(["person", "device", "control"]) });
+/**
+ * 관문: 지켰다면 사고를 막았을 안전 절차. at 장면에서 지켜져야 했고, 실제로는 actual(skipped 건너뜀·kept 지킴)이었다.
+ * passed_by는 그 관문을 지키는 갈림길 선택(장면 at의 보기 option)이다. 내용은 대책 문제 정답·갈림길의 안전한 선택에서만 가져온다.
+ */
+const Gate = z.object({
+  id: z.string(), label: z.string(), role: z.string(), at: z.number().int().min(0), actual: z.enum(["skipped", "kept"]),
+  passed_by: z.array(z.object({ at: z.number().int().min(0), option: z.number().int().min(0) })).optional(),
+});
 const Scenario = z.object({
   id: z.string().regex(/^[a-z0-9-]+$/), section: z.enum(SECTION_ORDER as [Section, ...Section[]]), title: z.string(), hazard: z.string(), summary: z.string(),
+  /** 실제 공개 재해사례의 출처(사례집 이름·발간 기관·사례 번호·쪽·주소). 내용은 이 원문을 요약한 것이다. */
+  source: z.object({ title: z.string(), publisher: z.string(), case: z.string(), page: z.number().int().min(1).optional(), url: z.string().url() }).optional(),
+  roles: z.array(Role).optional(), gates: z.array(Gate).optional(),
+  /** 역할·관문을 팀이 검수했는지. false면 화면에 '초안'으로 밝힌다. */
+  gates_reviewed: z.boolean().optional(),
   timeline: z.array(z.object({
     time: z.string(), text: z.string(), equipment_id: z.string(),
+    /** 이 장면에서 움직인 역할(roles의 id). */
+    actor: z.string().optional(),
     /** 갈림길: "여기서 다르게 했다면?" 실제로 일어난 선택(actual) 하나와 다른 선택들, 고르면 결과(outcome)를 보여 준다. */
     branch: z.object({ prompt: z.string(), options: z.array(z.object({ text: z.string(), outcome: z.string(), actual: z.boolean().optional(),
       /** 이 선택을 인과 지도 조정 값으로(선택). 3D 갈림길 패널에서 [인과 지도에서 이 선택 보기]로 연다. */
@@ -41,8 +58,25 @@ export function loadIncidents(path = INCIDENTS_PATH, known?: Set<string>) {
       if (!n?.control) throw new Error(`사고 사례 ${s.id}: 인과 지도에 조정할 수 없는 값 ${k}`);
       if (v < n.control.min || v > n.control.max) throw new Error(`사고 사례 ${s.id}: ${k} = ${v}, 범위 밖이에요`);
     }
+    checkRolesAndGates(s);
   }
   return parsed;
+}
+
+/** 역할·관문이 서로·타임라인과 맞는지: 역할 id, 장면 번호, 관문을 지키는 선택은 실제로 일어난 선택이 아닌 갈림길 보기여야 한다. */
+export function checkRolesAndGates(s: IncidentScenario) {
+  const roles = new Set((s.roles ?? []).map((r) => r.id));
+  if (roles.size !== (s.roles ?? []).length) throw new Error(`사고 사례 ${s.id}: 역할 id가 겹쳐요`);
+  s.timeline.forEach((t, i) => { if (t.actor && !roles.has(t.actor)) throw new Error(`사고 사례 ${s.id}: 장면 ${i}의 없는 역할 ${t.actor}`); });
+  for (const g of s.gates ?? []) {
+    if (!roles.has(g.role)) throw new Error(`사고 사례 ${s.id}: 관문 ${g.id}의 없는 역할 ${g.role}`);
+    if (g.at >= s.timeline.length) throw new Error(`사고 사례 ${s.id}: 관문 ${g.id}의 장면 ${g.at}가 없어요`);
+    for (const p of g.passed_by ?? []) {
+      const opt = s.timeline[p.at]?.branch?.options[p.option];
+      if (!opt) throw new Error(`사고 사례 ${s.id}: 관문 ${g.id}를 지키는 갈림길 보기(${p.at}, ${p.option})가 없어요`);
+      if (opt.actual) throw new Error(`사고 사례 ${s.id}: 관문 ${g.id}는 실제로 일어난 선택으로 지킬 수 없어요`);
+    }
+  }
 }
 
 /** 사람·문항마다 같은 순서로 섞는다(새로고침해도 같다). */
@@ -57,6 +91,7 @@ export function shuffledKeys(userId: string, scenarioId: string, questionId: str
 export function scenarioView(s: IncidentScenario, userId: string) {
   return {
     id: s.id, section: s.section, title: s.title, hazard: s.hazard, summary: s.summary, timeline: s.timeline, reflection: s.reflection,
+    roles: s.roles ?? [], gates: s.gates ?? [], gates_reviewed: s.gates_reviewed ?? false, source: s.source ?? null,
     questions: s.questions.map((q) => ({ id: q.id, prompt: q.prompt, options: shuffledKeys(userId, s.id, q.id, q.options.length).map((key) => ({ key, text: q.options[key] })) })),
   };
 }

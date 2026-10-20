@@ -53,7 +53,7 @@ test("What-if: 기준 조건은 슬래그 175~350kg·염기도 1.0~1.2(BREF)·1,
 });
 
 test("사고 사례: 파일 형식·설비 id 확인, 보기 순서는 사람마다 같게 섞고 채점은 원래 key로", () => {
-  const known = new Set(["taphole_casthouse", "blast_furnace", "bof_converter", "tapping_ladle_crane", "ladle_turret", "cc_mold", "secondary_cooling", "finishing_mill", "runout_table"]);
+  const known = new Set(["coke_oven", "oxygen_lance_offgas", "tundish", "finishing_mill"]);
   const file = loadIncidents(undefined, known);
   assert.equal(file.scenarios.length, 4);
   assert.throws(() => loadIncidents(undefined, new Set(["x"])), /없는 설비 id/);

@@ -87,6 +87,8 @@ export function blendPose(a, b, k) {
 
 const BLEND_SECONDS = 0.2;
 const LOAD_TIMEOUT_MS = 15000;
+/** 모델 얼굴 위에 표정 판(cp-face.js)을 덮을지. 지금 모델은 얼굴을 그대로 쓴다(attachFace 설명). */
+const DRAW_FACE_PLATE = false;
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.160.0/+esm';
 const LOADER_URL = 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js/+esm';
 const ROOM_URL = 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/environments/RoomEnvironment.js/+esm';
@@ -197,6 +199,10 @@ class GltfRenderer {
 
   /** 얼굴 판: 새겨진 눈·코·입을 덮고 표정을 그린다. 못 만들면(얼굴을 못 찾음) 모델 얼굴 그대로 둔다. */
   attachFace(model) {
+    // 꺼 둠(2026-10-21): 지금 포석호 모델(tutor.glb)은 텍스처에 눈·코·입이 깔끔하게 그려져 있다. 판이 그 위에 표정을 새로 그리면
+    // 감은 눈·웃는 눈·깜빡임·시선 따라가기 때마다 원래 눈·입이 밑으로 비쳐 두 겹으로 보였다. 모델 얼굴을 그대로 쓴다
+    // (몸 움직임·감정 배경 효과는 그대로). 다시 켜려면 DRAW_FACE_PLATE를 true로 하고 cp-face.js의 눈·코·입 좌표를 모델에 맞춘다.
+    if (!DRAW_FACE_PLATE) return;
     if (this.disposed || this.face) return;
     try {
       this.face = buildFacePlate(this.THREE, model);

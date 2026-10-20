@@ -47,22 +47,27 @@ const INK = '#2b2622';
 export function drawFace(ctx, { expression = 'neutral', blink = false, skin = '#eeeeec', gaze = null }) {
   const S = 512, cx = 256;
   ctx.clearRect(0, 0, S, S);
-  // 피부: 새겨진 눈·코·입을 덮는 부분(불투명) → 가장자리로 갈수록 투명.
+  // 피부 덮개: 눈·코·입·미소선 바로 둘레만 작게 덮는다(가장자리 6px만 흐리게). 기본 표정은 모델에 새겨진 눈·코·입 위에 같은 자리로
+  // 그려지므로 덮개가 없어도 맞지만, 웃는 눈(^^)·우는 표정처럼 모양이 바뀔 때 원래 눈·입이 비치지 않게 덮는다(2026-10-21). 전에는 판 전체(반지름 185~254)를 덮어
+  // 큰 분홍 볼 안쪽까지 덮개가 깔려 볼이 흐려지고 얼굴 가운데가 연분홍으로 뿌옇게 보였다. 볼은 모델 텍스처 그대로 또렷하게 남긴다.
+  // 덮개 색(skin)은 sampleSkin이 볼의 분홍을 피해 하얀 피부만 읽는다.
   ctx.save();
-  ctx.translate(cx, 256);
-  ctx.scale(1, 0.96);
-  const g = ctx.createRadialGradient(0, 0, 185, 0, 0, 254);
-  g.addColorStop(0, skin);
-  g.addColorStop(1, `${skin}00`);
-  ctx.fillStyle = g;
+  ctx.filter = 'blur(6px)';
+  ctx.fillStyle = skin;
   ctx.beginPath();
-  ctx.arc(0, 0, 252, 0, Math.PI * 2);
+  ctx.ellipse(cx - 91, 179, 30, 31, 0, 0, Math.PI * 2); // 왼눈(모델 눈 ±91·y179)
+  ctx.ellipse(cx + 91, 179, 30, 31, 0, 0, Math.PI * 2); // 오른눈
+  ctx.ellipse(cx, 205, 50, 40, 0, 0, Math.PI * 2);       // 코·'ω' 입(y172~238)
+  ctx.ellipse(cx, 346, 40, 18, 0, 0, Math.PI * 2);       // 미소선(y346)
   ctx.fill();
   ctx.restore();
 
-  const eyeY = 198, eyeDX = 96, eyeR = 25;
-  const noseY = 194, jointY = 226, mouthEndY = 222, mouthDX = 56;
-  const smileY = 383, smileDX = 44;
+  // 눈·코·입 자리는 지금 포석호 모델(tutor.glb)에 새겨진 굴곡(원래 텍스처의 검은 부분)을 판 좌표로 재서 맞췄다(2026-10-21):
+  // 눈 가운데 ±91·y179·반지름 약 24, 코·ω 입 가로 ±42·y172~238, 미소선 가운데 y346·가로 ±30. 검은 선이 원래 눈·코·입 바로 위에 그려진다.
+  // 모델을 바꾸면 이 값을 다시 잰다(판 좌표에서 원래 텍스처의 검은 부분 위치).
+  const eyeY = 179, eyeDX = 91, eyeR = 24;
+  const noseY = 180, jointY = 214, mouthEndY = 218, mouthDX = 42;
+  const smileY = 346, smileDX = 30;
   const line = (w, color = INK) => { ctx.strokeStyle = color; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; };
 
   // 원래 눈: 진한 테두리 + 회색 눈동자 + 왼쪽 위 빛 반사. look은 눈동자·반사를 옮긴다(위를 봄 등).
@@ -356,7 +361,9 @@ export function buildFacePlate(THREE, model, { document: doc = globalThis.docume
   return { mesh, canvas, ctx, texture, center: CENTER, skin: sampleSkin(THREE, meshes, hitAt, { X0, Y0, W, H }, doc) };
 }
 
-/** 피부색: 얼굴 판 가장자리 둘레에서 모델 색 텍스처를 읽어 평균(판과 머리가 이어지게). 못 읽으면 기본색. */
+/** 피부색: 얼굴 판 가장자리 둘레에서 모델 색 텍스처를 읽어 평균(판과 머리가 이어지게). 못 읽으면 기본색.
+ *  둘레가 볼터치 같은 색 무늬에 걸리면(새 포석호 모델은 볼이 크고 분홍) 판이 분홍빛 회색이 되어 흰 머리와 두 색으로 갈라져 보였다.
+ *  그래서 읽은 점 중 채도가 낮은 절반(바탕 피부)만 평균한다. 얼굴이 고른 색이면 전과 같다. */
 function sampleSkin(THREE, meshes, hitAt, { X0, Y0, W, H }, doc) {
   try {
     const map = meshes[0].material?.map;
@@ -366,18 +373,21 @@ function sampleSkin(THREE, meshes, hitAt, { X0, Y0, W, H }, doc) {
     c.width = img.width; c.height = img.height;
     const cx = c.getContext('2d', { willReadFrequently: true });
     cx.drawImage(img, 0, 0);
-    let r = 0, g = 0, b = 0, n = 0;
+    const picks = [];
     for (let k = 0; k < 16; k++) {
       const a = (Math.PI * 2 * k) / 16;
       const h = hitAt(X0 + W / 2 + Math.cos(a) * W * 0.42, Y0 + H / 2 + Math.sin(a) * H * 0.42);
       if (!h?.uv) continue;
       const u = ((h.uv.x % 1) + 1) % 1, v = ((h.uv.y % 1) + 1) % 1;
       const px = cx.getImageData(Math.floor(u * (img.width - 1)), Math.floor((map.flipY ? 1 - v : v) * (img.height - 1)), 1, 1).data;
-      r += px[0]; g += px[1]; b += px[2]; n++;
+      picks.push([px[0], px[1], px[2]]);
     }
-    if (!n) return '#eeeeec';
+    if (!picks.length) return '#eeeeec';
+    const sat = ([r, g, b]) => Math.max(r, g, b) - Math.min(r, g, b);
+    const base = picks.sort((p, q) => sat(p) - sat(q)).slice(0, Math.max(1, Math.ceil(picks.length / 2)));
+    const n = base.length, sum = (i) => base.reduce((s, p) => s + p[i], 0);
     const hex = (x) => Math.round(x / n).toString(16).padStart(2, '0');
-    return `#${hex(r)}${hex(g)}${hex(b)}`;
+    return `#${hex(sum(0))}${hex(sum(1))}${hex(sum(2))}`;
   } catch {
     return '#eeeeec';
   }

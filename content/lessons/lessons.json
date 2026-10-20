@@ -43,10 +43,10 @@
         {
           "title": "다르게 했다면?",
           "lab": "incident",
-          "scenario": "ironmaking-co-gas",
+          "scenario": "coke-night-inspection",
           "at": 1,
           "pick": 1,
-          "note": "안전한 선택과 실제 선택을 번갈아 눌러 결과를 비교하게 하세요. 교육용 가상 사례예요."
+          "note": "안전한 선택과 실제 선택을 번갈아 눌러 결과를 비교하게 하세요. 철강산업 중대재해 사례집의 실제 사례예요."
         }
       ]
     },

@@ -248,11 +248,19 @@
     @media (prefers-reduced-motion: reduce) { .lb-flash, .lb-back { animation: none !important; } }
     /* ── 학습 랩 추가(2026-10-15): 사고 사례 · What-if · 설비 메모 · 내 오답 유형 · 알림 벨(lab-extras.js) ── */
     .lb-area { width: 100%; padding: 10px 12px; border-radius: var(--cut-s); border: 1px solid var(--line); background: var(--panel2); color: var(--text); font-size: 15px; font-family: inherit; resize: vertical; }
+    /* 사고 진행 한 덩어리: 왼쪽 사례 목록 카드처럼 얇은 테두리·둥근 모서리, 머리 띠와 기록 사이에 선 */
+    .ic-run { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--cut-s); }
+    .ic-run > x-import, .ic-run > incident-board { padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+    .ic-hint { font-size: 15px; }
+    .ic-src { align-self: flex-start; font-size: 15px; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
+    .ic-src:hover { color: var(--text); }
+    .ic-eq { font-style: normal; font-weight: 700; font-size: 15px; color: var(--muted); margin-right: 8px; white-space: nowrap; }
+    .ic-time li.now .ic-eq { color: var(--orange-text); }
     .ic-time { list-style: none; margin: 0; padding: 0 0 0 14px; border-left: 3px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
-    .ic-time li { position: relative; display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 10px; align-items: start; font-size: 15px; line-height: 1.55; animation: lb-in .35s ease; }
+    .ic-time li { position: relative; display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; gap: 10px; align-items: start; font-size: 15px; line-height: 1.55; animation: lb-in .35s ease; }
     .ic-time li::before { content: ""; position: absolute; left: -22px; top: 6px; width: 12px; height: 12px; border-radius: 50%; background: var(--line); }
     .ic-time li.now::before { background: var(--bad); box-shadow: 0 0 0 4px color-mix(in srgb, var(--bad) 25%, transparent); }
-    .ic-time li b { font-family: var(--mono); color: var(--muted); }
+    .ic-time li b { font-family: var(--mono); color: var(--muted); white-space: nowrap; }
     .ic-time .lb-btn { height: 32px; padding: 0 10px; }
     /* 갈림길: 장면 아래 줄 전체. 고른 선택이 안전하면 초록, 실제로 일어난 일이면 빨강 */
     .ic-br { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: var(--cut-s); background: var(--panel2); }
@@ -587,11 +595,16 @@
               <sc-if value="{{ icHas }}" hint-placeholder-val="{{ false }}">
                 <div class="lb-row" style="justify-content:space-between;"><strong style="font-size:18px;">{{ icTitle }}</strong><span class="lb-chip">위험 · {{ icHazard }}</span></div>
                 <span>{{ icSummary }}</span>
-                <span class="lb-muted">🔀 {{ icBranchCount }} · 장면마다 "다르게 했다면?"을 눌러 결과를 비교해 보세요</span>
-                <ol class="ic-time"><sc-for list="{{ icSteps }}" as="t" hint-placeholder-count="2"><li class="{{ t.cls }}"><b>{{ t.time }}</b><span>{{ t.text }}</span><button type="button" class="lb-btn ghost" onClick="{{ t.onShow }}">설비 보기</button>
+                <sc-if value="{{ icHasSource }}" hint-placeholder-val="{{ false }}"><a class="ic-src" href="{{ icSourceUrl }}" target="_blank" rel="noopener">📄 출처 · {{ icSource }}</a></sc-if>
+                <!-- 사고 진행: 머리 띠(incident-board.js: 장면 시각·장면 사슬·상태·현황 칩) 아래에 타임라인을 기록처럼 이어 붙여 한 덩어리로 -->
+                <div class="ic-run">
+                <x-import component-from-global-scope="incident-board" board="{{ icBoard }}" hint-size="100%,120" style="display:block;width:100%;min-width:0;"></x-import>
+                <span class="lb-muted ic-hint">장면마다 "다르게 했다면?"을 눌러 결과를 비교해 보세요</span>
+                <ol class="ic-time"><sc-for list="{{ icSteps }}" as="t" hint-placeholder-count="2"><li class="{{ t.cls }}"><b>{{ t.time }}</b><span><em class="ic-eq">{{ t.eq }}</em>{{ t.text }}</span><button type="button" class="lb-btn ghost" onClick="{{ t.onShow }}">설비 보기</button>
                   <sc-if value="{{ t.hasBranch }}" hint-placeholder-val="{{ false }}"><div class="ic-br"><span class="ic-br-q">🔀 {{ t.brPrompt }}</span>
                     <div class="ic-br-opts"><sc-for list="{{ t.brOpts }}" as="o" hint-placeholder-count="2"><button type="button" class="{{ o.cls }}" aria-pressed="{{ o.on }}" onClick="{{ o.onClick }}">{{ o.text }}</button></sc-for></div>
                     <sc-if value="{{ t.brHasOutcome }}" hint-placeholder-val="{{ false }}"><span class="ic-br-out {{ t.brOutCls }}" role="status">{{ t.brOutcome }}</span><a class="ic-br-3d" href="{{ t.brHref }}">🏭 3D 공장에서 이 갈림길 보기</a></sc-if></div></sc-if></li></sc-for></ol>
+                </div>
                 <sc-if value="{{ icMoreSteps }}" hint-placeholder-val="{{ true }}"><div class="lb-row"><button type="button" class="lb-btn" onClick="{{ icNext }}">다음 장면 ▶</button><button type="button" class="lb-btn ghost" onClick="{{ icAllSteps }}">끝까지 보기</button></div></sc-if>
                 <sc-if value="{{ icShowQs }}" hint-placeholder-val="{{ false }}">
                   <strong>원인 분석</strong>
@@ -813,6 +826,8 @@ class Component extends DCLogic {
     });
     // 튜터 패널 머리의 포석호 <cp-character>(x-import가 등록을 기다린다)
     import('../3d-demo/cp-character.js').catch(e => console.warn('[cp-character] 불러오지 못함', e));
+    // 학습 랩 사고 사례의 상황판 <incident-board>(x-import가 등록을 기다린다)
+    import('./incident-board.js').catch(e => console.warn('[incident-board] 불러오지 못함', e));
     fetch('/api/status').then(r => r.ok ? r.json() : null).then(s => this.setState({ ai: s && s.connected ? 'ok' : 'off' }), () => this.setState({ ai: 'off' }));
     // 튜터 선 맞춤: 창 크기·모듈 크기·단계 설명이 바뀔 때마다 다시 잰다. 단계 설명은 바뀔 때 0.3초 들어오는 움직임이 있어 끝난 뒤 한 번 더 잰다
     this._align = () => { requestAnimationFrame(() => this.alignTutor()); clearTimeout(this._alignT); this._alignT = setTimeout(() => this.alignTutor(), 350); };

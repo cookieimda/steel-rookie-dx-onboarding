@@ -317,21 +317,18 @@ test("3D 실습 통계 · 수업: 수업별 연 사람·끝 단계까지 간 사
   assert.equal(st.lessons.find((x) => x.id === "diagnose-drill")!.learners, 0);
 });
 
-test("갈림길 → 인과 지도: 연주 브레이크아웃 사례에서 실제 선택(속도 올림·유지)은 브레이크아웃 위험을 범위 밖으로, 다른 선택은 범위 안으로", async () => {
-  const { simulateCausal } = await import("../src/lab/causal.js");
-  const s = loadIncidents().scenarios.find((x) => x.id === "casting-breakout")!;
-  const branches = s.timeline.filter((t) => t.branch?.options.some((o) => o.causal));
-  assert.equal(branches.length, 2);
-  for (const t of branches) for (const o of t.branch!.options) {
-    const risk = simulateCausal(o.causal!).nodes.find((n) => n.id === "breakout")!;
-    assert.equal(risk.status, o.actual ? "warn" : "ok", `${o.text}: ${risk.value}`);
-  }
-  // 조정할 수 없는 값·범위 밖은 파일 검사에서 막는다
+test("갈림길 → 인과 지도: 실제 사례로 바꾼 뒤에는 인과 지도 값이 없고, 값을 넣으면 조정할 수 없는 값·범위 밖을 파일 검사에서 막는다", () => {
+  // 사고 사례는 철강산업 중대재해 사례집의 실제 사례라 인과 지도 모델 변수(주조 속도 등)에 맞는 값이 없다
+  assert.ok(loadIncidents().scenarios.every((s) => s.timeline.every((t) => (t.branch?.options ?? []).every((o) => !o.causal))));
   const raw = JSON.parse(readFileSync(join(process.cwd(), "content", "scenarios", "incidents.json"), "utf8"));
   const dir = mkdtempSync(join(tmpdir(), "inc-causal-"));
-  raw.scenarios.find((x: any) => x.id === "casting-breakout").timeline[0].branch.options[0].causal = { breakout: 50 };
+  const withBranch = raw.scenarios.flatMap((x: any) => x.timeline).find((t: any) => t.branch);
+  withBranch.branch.options[0].causal = { breakout: 50 };
   writeFileSync(join(dir, "a.json"), JSON.stringify(raw));
   assert.throws(() => loadIncidents(join(dir, "a.json")), /조정할 수 없는 값/);
+  withBranch.branch.options[0].causal = { cast_speed: 9 };
+  writeFileSync(join(dir, "b.json"), JSON.stringify(raw));
+  assert.throws(() => loadIncidents(join(dir, "b.json")), /범위 밖/);
 });
 
 test("거꾸로 추론 기록·통계: 채점할 때 답을 남기고, 통계는 정답률·헷갈리는 원인(많이 고른 다른 답)·지우기", async () => {
@@ -365,7 +362,7 @@ test("변수 → 관련 실습: 주조 속도는 이상 상황 훈련·되돌리
   const r = await call("GET", "/api/lab/causal/related?var=cast_speed");
   assert.deepEqual(r.json.faults.map((f: any) => f.id), ["casting-breakout-alarm"]);
   assert.ok(r.json.puzzles.length >= 1 && r.json.puzzles.every((p: any) => ["목표", "흔들림"].includes(p.role)));
-  assert.ok(r.json.branches.some((b: any) => b.scenario === "casting-breakout"));
+  assert.deepEqual(r.json.branches, []); // 실제 사고 사례에는 인과 지도 값이 없다
   assert.ok(r.json.lessons.some((l: any) => l.lesson === "field-judgment"));
   assert.equal((await call("GET", "/api/lab/causal/related?var=nope")).status, 404);
   const coil = await call("GET", "/api/lab/causal/related?var=coiling_temp");

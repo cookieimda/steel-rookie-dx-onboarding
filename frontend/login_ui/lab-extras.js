@@ -113,10 +113,24 @@ export function createLabExtras(c, { api, set, S, fail }) {
       icList: (list?.scenarios || []).map(x => ({ title: x.title, hazard: x.hazard, section: SECTION_LABEL[x.section], best: x.best == null ? '아직 안 풀었어요' : `최고 ${Math.round(x.best * 100)}점 · ${x.attempts}번`, on: cur?.id === x.id, onClick: () => openIncident(x.id) })),
       icDisclaimer: list?.disclaimer || '', icHas: !!cur, icNone: !cur,
       icTitle: cur?.title || '', icHazard: cur?.hazard || '', icSummary: cur?.summary || '',
+      // 실제 공개 재해사례의 출처(사례집·사례 번호·쪽)
+      icHasSource: !!cur?.source, icSource: cur?.source ? `${cur.source.publisher} 「${cur.source.title}」 ${cur.source.case}${cur.source.page ? ` (${cur.source.page}쪽)` : ''}` : '', icSourceUrl: cur?.source?.url || '',
+      // 사고 상황판(incident-board.js): 지금 장면까지의 시계·역할 줄·관문 상태·현황. x-import가 속성을 문자열로 넘기므로 JSON으로 준다
+      icBoard: cur ? JSON.stringify({
+        id: cur.id, section: SECTION_LABEL[cur.section], hazard: cur.hazard, step,
+        roles: cur.roles || [], gates: cur.gates || [], reviewed: !!cur.gates_reviewed,
+        steps: cur.timeline.map((t, i) => {
+          const pick = (s.labIncBr || {})[i], opt = t.branch && pick != null ? t.branch.options[pick] : null;
+          const eq = (c.state.processes || []).flatMap(p => p.equipment).find(e => e.id === t.equipment_id);
+          return { time: t.time, text: t.text, equipment: eq?.name || t.equipment_id, actor: t.actor || '', branch: !!t.branch, pickIndex: pick ?? null, pick: opt ? (opt.actual ? 'actual' : 'safe') : null };
+        }),
+      }) : '',
       icSteps: (cur?.timeline || []).slice(0, step).map((t, i, all) => {
         // 갈림길: "여기서 다르게 했다면?" 고른 선택의 결과(안전한 결과는 초록, 실제로 일어난 일은 빨강)
         const pick = (s.labIncBr || {})[i], opt = t.branch && pick != null ? t.branch.options[pick] : null;
-        return { time: t.time, text: t.text, cls: i === all.length - 1 ? 'now' : '', onShow: () => showOn2d(cur.section, t.equipment_id),
+        // 줄 앞 이름표: 이 장면에서 움직인 역할(없으면 설비 이름)
+        const who = (cur.roles || []).find(r => r.id === t.actor)?.name || (c.state.processes || []).flatMap(p => p.equipment).find(e => e.id === t.equipment_id)?.name || t.equipment_id;
+        return { time: t.time, text: t.text, eq: who, cls: i === all.length - 1 ? 'now' : '', onShow: () => showOn2d(cur.section, t.equipment_id),
           hasBranch: !!t.branch, brPrompt: t.branch?.prompt || '',
           brOpts: (t.branch?.options || []).map((o, k) => ({ text: o.text, on: pick === k, cls: pick === k ? (o.actual ? 'actual' : 'safe') : '',
             onClick: () => { c.setState(prev => ({ labIncBr: { ...(prev.labIncBr || {}), [i]: k } })); api('POST', `/api/lab/incidents/${cur.id}/branch`, { at: i, pick: k }).catch(() => {}); } })),
@@ -124,7 +138,6 @@ export function createLabExtras(c, { api, set, S, fail }) {
           brHref: opt ? `/3d-demo/Steel%20Academy%20v4.dc.html?p=${cur.section}&lab=incident&scenario=${cur.id}&at=${i}&pick=${pick}` : '',
           brHasOutcome: !!opt, brOutcome: opt ? `${opt.actual ? '그대로 가면 → ' : '다르게 했다면 → '}${opt.outcome}` : '', brOutCls: opt ? (opt.actual ? 'actual' : 'safe') : '' };
       }),
-      icBranchCount: cur ? `다르게 해 본 갈림길 ${Object.keys(s.labIncBr || {}).length} / ${cur.timeline.filter(t => t.branch).length}` : '',
       icMoreSteps: !!cur && step < cur.timeline.length, icNext: () => set({ labIncStep: step + 1 }), icAllSteps: () => set({ labIncStep: cur.timeline.length }),
       icShowQs: !!cur && step >= cur.timeline.length,
       icQs: (cur?.questions || []).map((q, qi) => {

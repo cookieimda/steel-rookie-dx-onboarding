@@ -214,7 +214,7 @@ test("HTTP xAPI 3D 실습 살펴봄: 인과 따라가기·조건 링크(변수)�
   assert.equal(tour.status, 201);
   assert.equal(tour.json.object.definition.name["ko-KR"], "인과 따라가기 · 코크스비");
   assert.match(tour.json.object.id, /\/activities\/causal-tour\/coke_rate$/);
-  const inc = await call("POST", "/api/me/lab/xapi", lee, { verb: "experienced", practice: "incident-3d", object_id: "ironmaking-co-gas" });
+  const inc = await call("POST", "/api/me/lab/xapi", lee, { verb: "experienced", practice: "incident-3d", object_id: "coke-night-inspection" });
   assert.equal(inc.status, 201);
   assert.match(inc.json.object.definition.name["ko-KR"], /^사고 사례 갈림길 3D · /);
   assert.equal((await call("POST", "/api/me/lab/xapi", lee, { verb: "experienced", practice: "causal-map-link", object_id: "nope" })).status, 404);

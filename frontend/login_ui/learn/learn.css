@@ -1,0 +1,100 @@
+/* 새 학습 기록(LEARN & ASK) 포석호 도감. 3D 공정 화면과 같은 어두운 조명: 차콜 바탕 + 주황 1색 + 미색,
+   Montserrat(영문 제목) · Pretendard(한글) · JetBrains Mono(번호) */
+:root {
+  --bg: #0e0f12; --s1: #15171c; --s2: #1d2027; --line: rgba(255,255,255,.09); --line2: rgba(255,255,255,.16);
+  --ink: #f2efe9; --ink2: rgba(242,239,233,.72); --ink3: rgba(242,239,233,.48);
+  --o: #ff9e64; --o-ink: #1a0b03; --o-glow: rgba(255,158,100,.35);
+  --f-d: "Montserrat", "Pretendard", sans-serif; --f-b: "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif; --f-m: "JetBrains Mono", ui-monospace, monospace;
+  --ease: cubic-bezier(.2,.8,.2,1);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background:
+    radial-gradient(900px 600px at 85% -10%, rgba(255,158,100,.16), transparent 60%),
+    radial-gradient(700px 500px at 0% 110%, rgba(255,120,60,.10), transparent 60%),
+    linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px) 0 0 / 56px 56px,
+    linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px) 0 0 / 56px 56px,
+    var(--bg);
+  color: var(--ink); font: 15px/1.6 var(--f-b); -webkit-font-smoothing: antialiased; overflow: hidden;
+}
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--o); outline-offset: 3px; }
+
+/* 헤더: 로고 · [ LEARN & ASK ] · 오른쪽 이동 버튼(기존 학습 기록 헤더와 같은 순서) */
+.bar { position: fixed; inset: 0 0 auto 0; z-index: 20; display: flex; align-items: center; gap: 16px; padding: 18px 28px; }
+.logo { display: inline-flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; font: 800 18px var(--f-d); letter-spacing: .02em; }
+.logo i { width: 14px; height: 14px; border-radius: 3px; background: var(--o); box-shadow: 0 0 14px var(--o-glow); }
+.tag { font: 600 12px var(--f-d); letter-spacing: .24em; color: var(--ink3); }
+.nav { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.nb { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 10px; border: 0; text-decoration: none; font-weight: 700; font-size: 15px; cursor: pointer; transition: background .2s, color .2s, filter .2s; }
+.nb.plain { background: transparent; color: var(--ink2); font-weight: 500; }
+.nb.plain:hover { background: rgba(255,255,255,.06); color: var(--ink); }
+.nb.soft { background: rgba(255,255,255,.08); color: var(--ink); }
+.nb.soft:hover { background: rgba(255,255,255,.14); }
+.nb.primary { background: var(--o); color: var(--o-ink); }
+.nb.primary:hover { filter: brightness(1.08); }
+.nb.icon { width: 40px; padding: 0; justify-content: center; background: transparent; color: var(--ink2); }
+.nb.icon:hover { background: rgba(255,255,255,.06); color: var(--ink); }
+.nb .go { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 5px; background: #000; color: var(--o); font-size: 11px; }
+.stage { position: fixed; inset: 0; }
+
+/* 공통 부품 */
+.art svg { display: block; width: 100%; height: 100%; }
+.btn { display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 20px; border-radius: 999px; border: 0; background: var(--o); color: var(--o-ink); font-weight: 700; cursor: pointer; text-decoration: none; transition: transform .2s var(--ease), box-shadow .2s; }
+.btn:hover { transform: translateY(-1px); box-shadow: 0 8px 24px var(--o-glow); }
+.btn.ghost { background: rgba(255,255,255,.07); color: var(--ink); }
+.btn.sm { height: 32px; padding: 0 12px; font-size: 13px; }
+.num { font: 700 13px var(--f-m); color: var(--o); letter-spacing: .04em; }
+.en { font: 700 12px var(--f-d); letter-spacing: .22em; color: var(--ink3); }
+.how { margin: 0; padding: 0; list-style: none; counter-reset: s; display: grid; gap: 8px; }
+.how li { counter-increment: s; display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; color: var(--ink2); }
+.how li::before { content: counter(s); width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; background: rgba(255,158,100,.14); color: var(--o); font: 700 12px var(--f-m); }
+cp-character { display: block; }
+
+/* 포석호 도감: 왼쪽 아이템 박스, 오른쪽 효과·사용법 + 포석호(단축키 안내도 말풍선 안에) */
+.dex { position: absolute; inset: 84px 28px 28px; display: grid; grid-template-columns: minmax(320px, 440px) 1fr; gap: 24px; }
+.dex-box { background: var(--s1); border: 1px solid var(--line); border-radius: 20px; padding: 22px; display: flex; flex-direction: column; gap: 16px; }
+.dex-box h2 { margin: 0; font: 800 13px var(--f-d); letter-spacing: .24em; color: var(--ink3); }
+.dex-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.slot { position: relative; aspect-ratio: 1; border-radius: 16px; border: 1px solid var(--line); background: var(--s2); padding: 12px; cursor: pointer; transition: transform .2s var(--ease), border-color .2s, box-shadow .2s; }
+.slot:hover { transform: translateY(-2px); border-color: var(--line2); }
+.slot[aria-pressed="true"] { border-color: var(--o); box-shadow: 0 0 0 3px rgba(255,158,100,.25), 0 0 26px rgba(255,158,100,.25); }
+.slot .num { position: absolute; left: 10px; top: 7px; font-size: 11px; }
+.slot .art { width: 100%; height: 100%; }
+.dex-detail { position: relative; background: linear-gradient(160deg, var(--s2), var(--s1)); border: 1px solid var(--line); border-radius: 20px; padding: 28px 32px; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto 1fr; gap: 12px 28px; overflow: hidden; }
+.dex-head { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 14px; border-bottom: 1px solid var(--line); padding-bottom: 14px; }
+.dex-head h2 { margin: 0; font: 900 32px var(--f-b); }
+.dex-head .en { margin-left: auto; }
+.dex-art { border-radius: 16px; background: radial-gradient(circle at 50% 60%, rgba(255,158,100,.18), transparent 70%); padding: 10px; align-self: start; }
+.dex-info h4 { margin: 0 0 6px; font: 700 12px var(--f-d); letter-spacing: .2em; color: var(--o); }
+.dex-info p { margin: 0 0 18px; color: var(--ink2); }
+.dex-actions { display: flex; gap: 10px; margin-top: 18px; }
+.dex-guide { position: absolute; right: 24px; bottom: 20px; display: flex; align-items: flex-end; gap: 4px; width: min(500px, 50%); }
+.dex-guide cp-character { width: 150px; height: 170px; flex: none; }
+.bubble { position: relative; flex: 1; margin-bottom: 30px; padding: 14px 18px; border-radius: 16px; background: var(--ink); color: #1d1714; font-size: 15px; line-height: 1.55; box-shadow: 0 12px 30px rgba(0,0,0,.35); }
+.bubble::after { content: ""; position: absolute; left: -8px; bottom: 22px; border: 8px solid transparent; border-right-color: var(--ink); border-left: 0; }
+.bubble > b { display: block; font-size: 12px; color: #b4521a; margin-bottom: 2px; letter-spacing: .04em; }
+.bubble .keys { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(29,23,20,.12); font-size: 12px; color: #6d605a; }
+.bubble .keys span { display: inline-flex; align-items: center; gap: 3px; }
+.bubble kbd { min-width: 20px; height: 20px; padding: 0 5px; display: inline-grid; place-items: center; border-radius: 5px; background: #fff; border: 1px solid rgba(29,23,20,.18); box-shadow: 0 1px 0 rgba(29,23,20,.18); font: 600 11px var(--f-m); color: #1d1714; }
+/* [사용하기]: 그 기능의 실제 화면이 도감 판 위에 뜬다 */
+.dex-live { position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column; border-radius: 20px; overflow: hidden; background: #f4f0ed; border: 1.5px solid var(--o); animation: grow .35s var(--ease) both; }
+.dex-live[hidden] { display: none; }
+.dex-live-bar { flex: none; display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--s1); border-bottom: 1px solid var(--line); }
+.dex-live-t { font-weight: 700; margin-right: auto; }
+.dex-live iframe { flex: 1; width: 100%; border: 0; background: #f4f0ed; }
+@keyframes grow { from { opacity: .4; transform: scale(.96); } to { opacity: 1; transform: none; } }
+
+@media (max-width: 1000px) {
+  body { overflow: auto; } .stage { position: static; padding-top: 76px; } .bar { position: absolute; flex-wrap: wrap; } .tag { display: none; }
+  .dex { position: static; margin: 0 16px 16px; grid-template-columns: 1fr; } .dex-grid { grid-template-columns: repeat(5, 1fr); }
+  .dex-detail { grid-template-columns: 1fr; min-height: 640px; } .dex-guide { position: static; width: auto; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+/* 말풍선 안 [포석호에게 묻기]: 도감의 포석호가 곧 튜터 채팅의 입구 */
+.bubble .ask { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; height: 34px; padding: 0 14px; border: 0; border-radius: 999px; background: #1d1714; color: #fff; font-weight: 700; font-size: 14px; cursor: pointer; transition: background .2s; }
+.bubble .ask:hover { background: #b4521a; }
+.dex-live-bar [hidden] { display: none; }
+/* 작동 단계 + 포석호 채팅: 실제 화면 창이 아이템 박스까지 덮는 도감 전체 폭으로 넓어진다(도면 | 채팅 나란히) */
+.dex.live-wide .dex-live { position: fixed; inset: 84px 28px 28px; }

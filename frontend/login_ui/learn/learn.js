@@ -49,14 +49,14 @@ $stage.innerHTML = `<section class="cf">
   <div class="guide">${char('greet')}<div class="bubble"><b>${POSEOKHO.name}</b><span id="say"></span>
     <button type="button" class="ask" id="ask">💬 포석호에게 묻기</button>
     <div class="keys" aria-label="단축키"><span><kbd>←</kbd><kbd>→</kbd> 넘기기</span><span><kbd>Enter</kbd> 열기</span><span><kbd>Esc</kbd> 카드로</span></div></div></div>
-  <div class="brief" id="brief" hidden role="dialog" aria-label="포석호 설명">
+  <div class="brief" id="brief" hidden role="dialog" aria-label="포석호 설명"><button type="button" class="live-x brief-x" id="bClose" aria-label="닫기" title="닫기 (Esc)">✕</button>
     <div class="brief-stage"><div class="brief-glow"></div>${char('explain')}</div>
     <div class="brief-side"><span class="num" id="bNum"></span><h2 id="bName"></h2>
       <ol class="brief-steps" id="bSteps"></ol>
       <div class="brief-sub" aria-live="polite"><b>${POSEOKHO.name}</b><span id="bSub"></span></div>
       <div class="brief-bar"><i id="bProg"></i></div>
       <div class="brief-ctl"><button type="button" class="btn ghost sm" id="bMute"></button><button type="button" class="btn ghost sm" id="bAgain">↺ 다시 듣기</button>
-        <button type="button" class="btn ghost sm" id="bClose">← 카드로</button><button type="button" class="btn" id="bGo">바로 사용하기 →</button></div></div>
+        <button type="button" class="btn" id="bGo">바로 사용하기 →</button></div></div>
   </div>
   <div class="live" id="live" hidden><div class="live-bar"><button type="button" class="btn ghost sm" id="full" aria-pressed="false">⛶ 전체 화면으로 보기</button><span class="num" id="lNum"></span><span class="live-t" id="lName"></span>
     <button type="button" class="btn ghost sm" id="askBar">💬 포석호에게 묻기</button><button type="button" class="live-x" id="back" aria-label="닫기" title="닫기 (Esc)">✕</button></div><iframe id="frame" title="실제 화면"></iframe></div>`;

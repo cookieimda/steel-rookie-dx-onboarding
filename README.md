@@ -2,7 +2,7 @@
 
 > 제철 4대 공정(제선·제강·연주·열간압연)을 3D 공장 위에서 직접 조작하며 배우고, LLM 튜터에게 묻고, 자신의 말로 설명하는 시험까지 한 흐름으로 잇는 **신입사원 온보딩 DX 프로토타입**입니다.
 
-![3D 공정 인과 지도](docs/portfolio/02-causal-map.jpg)
+![3D 공정 화면: 고로 조건을 바꾸면 조업 전광판과 용선 온도가 함께 바뀌는 What-if 실험](docs/portfolio/01-3d-process-whatif.jpg)
 
 | 항목 | 내용 |
 |---|---|
@@ -28,11 +28,11 @@ ST-ROOKIE는 이 문제를 세 단계로 풀었습니다.
 
 ## 화면
 
-| 제철 공정 지도 | 되돌리기 퍼즐 |
+| 제철 공정 지도 | 사고 사례 갈림길 3D 재현 |
 |---|---|
-| ![공정 지도](docs/portfolio/01-plant-map.jpg) | ![되돌리기 퍼즐](docs/portfolio/03-rebalance-puzzle.jpg) |
-| **학습 화면 + 튜터 캐릭터 안내** | **설명형 평가 시험** |
-| ![학습 화면](docs/portfolio/04-learn-tutor-tour.jpg) | ![시험](docs/screenshots/exam/question-desktop.png) |
+| ![공정 지도](docs/portfolio/02-plant-map.jpg) | ![사고 사례 갈림길](docs/portfolio/03-incident-replay.jpg) |
+| **학습 화면 + 튜터 캐릭터 포석호 안내** | **설명형 평가 시험** |
+| ![학습 화면](docs/portfolio/04-learn-tutor.jpg) | ![시험](docs/portfolio/05-exam.jpg) |
 
 ## 주요 기능
 

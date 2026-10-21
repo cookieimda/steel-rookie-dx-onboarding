@@ -16,9 +16,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const TONES = ['linear-gradient(160deg,#ff9e64,#c4521a)', 'linear-gradient(160deg,#3a3f4b,#1d2027)', 'linear-gradient(160deg,#f3c492,#b8692f)', 'linear-gradient(160deg,#ff7a59,#9b3320)',
   'linear-gradient(160deg,#ffb074,#d9682a)', 'linear-gradient(160deg,#2f343e,#15171c)', 'linear-gradient(160deg,#ffd2a8,#c98446)', 'linear-gradient(160deg,#e98a5a,#7c2f17)',
   'linear-gradient(160deg,#ff9e64,#5a2410)', 'linear-gradient(160deg,#4a4f5c,#1d2027)'];
-function typeInto(el, text, ms = 22) {
-  clearInterval(el._t); if (reduce) { el.textContent = text; return; }
-  let i = 0; el.textContent = ''; el._t = setInterval(() => { el.textContent = text.slice(0, ++i); if (i >= text.length) clearInterval(el._t); }, ms);
+function typeInto(el, text, ms = 22, done) {
+  clearInterval(el._t); if (reduce) { el.textContent = text; done?.(); return; }
+  let i = 0; el.textContent = ''; el._t = setInterval(() => { el.textContent = text.slice(0, ++i); if (i >= text.length) { clearInterval(el._t); done?.(); } }, ms);
 }
 const char = (motion = 'idle') => `<cp-character model="${POSEOKHO.model}" motion="${motion}" aria-label="튜터 ${POSEOKHO.name}"></cp-character>`;
 
@@ -66,7 +66,8 @@ const deck = $('deck'), cards = [...deck.children], dots = [...$('dots').childre
 const guide = $stage.querySelector('.guide cp-character'), say = $('say');
 const brief = $('brief'), bChar = brief.querySelector('cp-character'), live = $('live'), frame = $('frame');
 let cur = 0;
-const talk = (text, motion = 'explain', back = 2600) => { typeInto(say, text); guide.setAttribute('motion', motion); clearTimeout(guide._t); guide._t = setTimeout(() => guide.setAttribute('motion', 'idle'), back); };
+// [포석호에게 묻기]는 말이 다 찍힌 뒤에 나타난다(타이핑하는 동안 글자를 따라 밀려가지 않게)
+const talk = (text, motion = 'explain', back = 2600) => { const btn = $('ask'); btn.hidden = true; typeInto(say, text, 22, () => { btn.hidden = false; }); guide.setAttribute('motion', motion); clearTimeout(guide._t); guide._t = setTimeout(() => guide.setAttribute('motion', 'idle'), back); };
 
 // ── 카드 넘기기 ──
 function show(i, speak = true) {

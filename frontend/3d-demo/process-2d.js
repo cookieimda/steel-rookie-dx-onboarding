@@ -201,7 +201,7 @@ class Process2D extends HTMLElement {
     const items = this.items(), go = PROCS[this.pi + 1] ? 1 : this.pi > 0 ? -1 : 0;
     const thumb = id => `<svg class="svg thumb" viewBox="0 0 600 320" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">${SCENES[id] || ''}</svg>`;
     this.$('chapters').innerHTML = `<div class="ch-h">설비 ${items.length}${go ? `<button class="ch-go" data-go="${go}">${go > 0 ? '다음 공정 →' : '← 이전 공정'}</button>` : ''}</div>`
-      + `<div class="ch-row">${items.map((d, i) => `<button class="ch" data-i="${i}" aria-current="${i === this.ei}"><span class="th">${thumb(d.id)}</span><span class="meta"><span class="k">${String(i + 1).padStart(2, '0')} · ${d.steps.length}단계</span><span class="nm">${esc(d.name)}</span></span></button>`).join('')}</div>`;
+      + `<div class="ch-row">${items.map((d, i) => `<button class="ch" data-i="${i}" aria-current="${i === this.ei}"><span class="th">${thumb(d.id)}</span><span class="meta"><span class="k">${String(i + 1).padStart(2, '0')}</span><span class="nm">${esc(d.name)}</span></span></button>`).join('')}</div>`;
     const goBtn = this.$('chapters').querySelector('.ch-go');
     if (goBtn) goBtn.onclick = () => { this.hidePeek(); this.pi += go; this.ei = 0; this.sub = 0; this.render(); this.emit(); };
     this.$('chapters').querySelectorAll('.ch').forEach(b => {

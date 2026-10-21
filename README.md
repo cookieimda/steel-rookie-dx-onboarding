@@ -28,19 +28,23 @@ ST-ROOKIE는 이 문제를 세 단계로 풀었습니다.
 
 ## 화면
 
-| 제철 공정 지도 (4개 공정 전체) | 사고 사례 갈림길 3D 재현 |
+| 제철 공정 지도 (4개 공정 전체) | What-if: 코크스 380 → 310kg/t, 송풍 온도 1,150 → 1,250℃ |
 |---|---|
-| ![공정 지도](docs/portfolio/02-plant-map.jpg) | ![사고 사례 갈림길](docs/portfolio/03-incident-replay.jpg) |
+| ![공정 지도](docs/portfolio/02-plant-map.jpg) | ![What-if](docs/portfolio/03-whatif.jpg) |
 | **학습 화면 + 튜터 캐릭터 포석호 안내** | **설명형 평가 시험** |
-| ![학습 화면](docs/portfolio/04-learn-tutor.jpg) | ![시험](docs/portfolio/05-exam.jpg) |
+| ![학습 화면](docs/portfolio/05-learn-tutor.jpg) | ![시험](docs/portfolio/06-exam.jpg) |
+
+**What-if 시냅스**: 같은 계산을 "조건 → 성분 → 결과" 그래프로 펼친 화면입니다. 아래는 [코크스 줄이기]를 눌렀을 때로, 줄어든 선(파랑)을 따라 코크스 → C·SiO2 → CO2·연료비·슬래그량으로 영향이 번지고, 오른쪽 아래 변화 기록에 문헌 기준 경고(염기도, 연료비)가 남습니다.
+
+![What-if 시냅스](docs/portfolio/04-whatif-synapse.jpg)
 
 ## 주요 기능
 
 - **3D 제철소**: Three.js로 부지·설비 GLB 모델을 올리고, 공정별 작동 단계를 재생합니다. 낮·밤 장면, 2D/3D 전환, 저사양 PC를 위한 자동 품질 조정을 지원합니다.
 - **공정 인과 지도**: 변수 20개·연결 17개로 된 교육용 인과 모델입니다. 조건을 바꾸면 하류 값이 위상 순서로 반응하고, 3D 위에 흐름·이상 값 링·이름표로 보입니다. 공정 사이 시간 지연(예: 제선 → 제강 2~4시간)도 반영했습니다.
 - **인과형 문제**: 인과 퀴즈(방향 맞히기), 거꾸로 추론(증상 → 원인), 되돌리기 퍼즐(못 바꾸는 값이 흔들릴 때 다른 값으로 보상)을 제공합니다. 모델로 풀이가 있는 퍼즐만 내도록 테스트로 보장합니다.
-- **What-if 시냅스**: 고로 투입 조건이 원소·반응을 거쳐 슬래그량·CO2·연료비로 이어지는 경로를 문헌값 근거와 함께 보여 줍니다.
-- **사고 사례 갈림길**: 실제 철강 사고 사례를 단계별로 재현하고, 다른 선택을 했다면 어떻게 됐을지 3D로 보여 줍니다.
+- **What-if**: 고로에 넣는 원료 배합(소결광·펠릿·괴광), 코크스·미분탄, 송풍 온도, 산소 부화, 석회석을 바꾸면 용선 온도·슬래그량·염기도·연료비·CO2를 다시 계산합니다. 정상 범위를 벗어나면 BREF 등 문헌 기준을 근거로 경고합니다.
+- **What-if 시냅스**: 같은 계산을 조건 → 성분(Fe·SiO2·Al2O3·CaO·MgO·C) → 결과 그래프로 보여 줍니다. 바뀐 선을 따라 빛이 번지고(늘면 빨강, 줄면 파랑), 노드나 고로 반응(풍구 연소, 철광석 환원, 부두아르 반응, 석회석 분해 등)을 누르면 반응식과 근거 문헌을 보여 줍니다.
 - **LLM 학습 튜터**: 포스코 공개 공식 자료 목록을 검색해 근거를 붙여 답합니다. 모델이 제시한 출처는 서버가 수집한 목록과 대조한 뒤에만 링크로 보여 줍니다. Gemini와 로컬 Ollama 중에서 고를 수 있습니다.
 - **설명형 시험과 AI 평가**: 루브릭(개념별 핵심 요소·오개념)에 따라 채점하고, 부족한 부분은 다른 각도의 추가 질문으로 다시 확인합니다.
 - **운영·관측**: 관리자 대시보드, 학습자별·개념별 통계, xAPI 학습 기록, LLM 호출 trace(Langfuse 연동), 사용자별 일일 호출 한도를 제공합니다.
@@ -52,12 +56,16 @@ ST-ROOKIE는 이 문제를 세 단계로 풀었습니다.
 | 영역 | 한 일 | 주요 파일 |
 |---|---|---|
 | **3D 인과 실습 (학습 랩)** | 인과 모델과 시뮬레이션, 인과 퀴즈·거꾸로 추론·시간 질문·되돌리기 퍼즐 설계와 구현, 3D 흐름·링·카메라 따라가기 효과 | `backend/src/lab/causal.ts`, `frontend/3d-demo/sim-lab.js`, `causal-lab.*` |
-| **이상 상황 훈련·사고 사례** | 훈련 원인을 인과 지도 조건과 연결, 가상 사례를 실제 철강 사고 사례로 교체, 갈림길 3D 재현과 안전 게이트 표시 | `backend/src/lab/faults.ts`, `incidents.ts`, `frontend/3d-demo/incident-replay.js` |
-| **What-if 시냅스** | 고로 문헌값(화염 온도, 석회석 분해 CO2 등)에 근거한 입력 → 반응 → 결과 추적 화면 | `backend/src/lab/whatif.ts`, `frontend/login_ui/whatif-synapse.js` |
+| **What-if · What-if 시냅스** | 고로 조건 → 결과 계산 모델과 문헌값(화염 온도 계수, 석회석 분해 CO2, 용선 탄소 등) 검증 테스트, 3D 화면의 조업 전광판·온도 다이얼, 조건 → 성분 → 결과 시냅스 그래프와 반응 풀이 | `backend/src/lab/whatif.ts`, `frontend/3d-demo/lab-dock.js`, `frontend/login_ui/whatif-synapse.js` |
+| **이상 상황 훈련** | 훈련 원인을 인과 지도 조건과 연결해, 훈련이 끝나면 그 조건으로 하류 공정까지 따라가 보게 함 | `backend/src/lab/faults.ts`, `content/faults/faults.json` |
 | **학습 기록·사원증·보고서** | 오늘의 실습 경로 추천, 사원증 XP·배지, A4 학습 보고서(PDF 인쇄), xAPI 기록 | `backend/src/lab/practice-path.ts`, `backend/src/me/employee-card.ts`, `frontend/login_ui/learner-report*` |
 | **운영 통계·수업 모드** | 관리자용 3D 실습 통계, 교육 담당자의 수업 모드(수업 3개) | `backend/src/lab/practice-stats.ts`, `lessons.ts`, `frontend/login_ui/admin-ops.js` |
 | **학습 화면·튜터 캐릭터** | 카드 캐러셀형 학습 화면, 음성으로 안내하는 첫 방문 투어, 3D 튜터 캐릭터 모델·표정·동작 | `frontend/login_ui/learn/`, `tutor-tour/`, `frontend/3d-demo/cp-character.js` |
 | **3D 화면 품질** | 공장 전체 보기, 발표 모드와 자동 품질 저하, FPS·draw call 표시, 브랜드 디자인 토큰 통일 | `frontend/3d-demo/perf-mode.js`, `sleek-overview.js`, `frontend/login_ui/brand.css` |
+
+### 도전해 본 것: 안전 사고 사례 학습
+
+공개된 철강업 중대재해 사례집을 바탕으로, 신입사원이 "그 순간 다르게 판단했다면?"을 단계별로 생각해 보는 안전 교육도 시도했습니다. 다만 실제 피해자가 있는 사례이므로, 공개 포트폴리오에서는 화면을 싣지 않고 이렇게 시도했다는 사실만 적습니다.
 
 설계 메모: [docs/learning-lab.md](docs/learning-lab.md)
 
@@ -102,7 +110,7 @@ flowchart LR
 backend/   서버 (auth, lab, learning, checkpoint, admin, db/migrations) + 테스트
 llm/       LLM 클라이언트, 프롬프트, 검색, 평가 세트
 frontend/  3d-demo/ (3D 공정 화면), login_ui/ (로그인·학습·시험·대시보드)
-content/   루브릭, 수업, 훈련, 사고 사례 데이터
+content/   루브릭, 수업, 훈련 데이터
 models/    3D 모델과 생성 스크립트
 docs/      설계 문서와 스크린샷
 ```

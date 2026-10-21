@@ -1,4 +1,4 @@
-/* 새 학습 기록(LEARN & ASK) 포석호 도감. 3D 공정 화면과 같은 어두운 조명: 차콜 바탕 + 주황 1색 + 미색,
+/* 새 학습 기록(LEARN & ASK). 3D 공정 화면과 같은 어두운 조명: 차콜 바탕 + 주황 1색 + 미색,
    Montserrat(영문 제목) · Pretendard(한글) · JetBrains Mono(번호) */
 :root {
   --bg: #0e0f12; --s1: #15171c; --s2: #1d2027; --line: rgba(255,255,255,.09); --line2: rgba(255,255,255,.16);
@@ -46,55 +46,77 @@ button { font: inherit; color: inherit; }
 .btn.ghost { background: rgba(255,255,255,.07); color: var(--ink); }
 .btn.sm { height: 32px; padding: 0 12px; font-size: 13px; }
 .num { font: 700 13px var(--f-m); color: var(--o); letter-spacing: .04em; }
-.en { font: 700 12px var(--f-d); letter-spacing: .22em; color: var(--ink3); }
-.how { margin: 0; padding: 0; list-style: none; counter-reset: s; display: grid; gap: 8px; }
-.how li { counter-increment: s; display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; color: var(--ink2); }
-.how li::before { content: counter(s); width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; background: rgba(255,158,100,.14); color: var(--o); font: 700 12px var(--f-m); }
 cp-character { display: block; }
 
-/* 포석호 도감: 왼쪽 아이템 박스, 오른쪽 효과·사용법 + 포석호(단축키 안내도 말풍선 안에) */
-.dex { position: absolute; inset: 84px 28px 28px; display: grid; grid-template-columns: minmax(320px, 440px) 1fr; gap: 24px; }
-.dex-box { background: var(--s1); border: 1px solid var(--line); border-radius: 20px; padding: 22px; display: flex; flex-direction: column; gap: 16px; }
-.dex-box h2 { margin: 0; font: 800 13px var(--f-d); letter-spacing: .24em; color: var(--ink3); }
-.dex-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-.slot { position: relative; aspect-ratio: 1; border-radius: 16px; border: 1px solid var(--line); background: var(--s2); padding: 12px; cursor: pointer; transition: transform .2s var(--ease), border-color .2s, box-shadow .2s; }
-.slot:hover { transform: translateY(-2px); border-color: var(--line2); }
-.slot[aria-pressed="true"] { border-color: var(--o); box-shadow: 0 0 0 3px rgba(255,158,100,.25), 0 0 26px rgba(255,158,100,.25); }
-.slot .num { position: absolute; left: 10px; top: 7px; font-size: 11px; }
-.slot .art { width: 100%; height: 100%; }
-.dex-detail { position: relative; background: linear-gradient(160deg, var(--s2), var(--s1)); border: 1px solid var(--line); border-radius: 20px; padding: 28px 32px; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto 1fr; gap: 12px 28px; overflow: hidden; }
-.dex-head { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 14px; border-bottom: 1px solid var(--line); padding-bottom: 14px; }
-.dex-head h2 { margin: 0; font: 900 32px var(--f-b); }
-.dex-head .en { margin-left: auto; }
-.dex-art { border-radius: 16px; background: radial-gradient(circle at 50% 60%, rgba(255,158,100,.18), transparent 70%); padding: 10px; align-self: start; }
-.dex-info h4 { margin: 0 0 6px; font: 700 12px var(--f-d); letter-spacing: .2em; color: var(--o); }
-.dex-info p { margin: 0 0 18px; color: var(--ink2); }
-.dex-actions { display: flex; gap: 10px; margin-top: 18px; }
-.dex-guide { position: absolute; right: 24px; bottom: 20px; display: flex; align-items: flex-end; gap: 4px; width: min(500px, 50%); }
-.dex-guide cp-character { width: 150px; height: 170px; flex: none; }
-.bubble { position: relative; flex: 1; margin-bottom: 30px; padding: 14px 18px; border-radius: 16px; background: var(--ink); color: #1d1714; font-size: 15px; line-height: 1.55; box-shadow: 0 12px 30px rgba(0,0,0,.35); }
+/* 카드 넘기기(커버플로): 가운데 카드를 열면 포석호 브리핑 → 실제 화면 */
+.cf { position: absolute; inset: 70px 0 0; display: grid; grid-template-rows: 1fr auto; place-items: center; padding-bottom: 28px; }
+.cf-deck { position: relative; width: 100%; height: min(440px, 52vh); perspective: 1400px; }
+.cf-card { position: absolute; left: 50%; top: 0; width: min(320px, 70vw); height: 100%; margin-left: calc(min(320px, 70vw) / -2); border: 0; padding: 0; background: none; cursor: pointer;
+  transition: transform .6s var(--ease), opacity .6s var(--ease), filter .6s; }
+.cf-face { position: absolute; inset: 0; border-radius: 22px; overflow: hidden; display: flex; flex-direction: column; text-align: left; background: var(--tone); box-shadow: 0 30px 60px rgba(0,0,0,.45); }
+.cf-face .art { flex: 1; padding: 28px 20px 0; }
+.cf-face .cap { padding: 16px 20px 20px; background: linear-gradient(transparent, rgba(0,0,0,.35)); }
+.cf-face .cap .num { color: rgba(255,255,255,.85); }
+.cf-face .cap h3 { margin: 2px 0 0; font: 800 22px var(--f-b); color: #fff; }
+/* 가운데 카드의 재생 표시: 열면 포석호 설명 영상이 나온다 */
+.cf-play { position: absolute; right: 16px; top: 16px; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: rgba(14,15,18,.55); color: #fff; font-size: 16px; opacity: 0; transform: scale(.8); transition: opacity .3s, transform .3s var(--ease); backdrop-filter: blur(6px); }
+.cf-card.on .cf-play { opacity: 1; transform: none; }
+.cf-card.on:hover .cf-play { background: var(--o); color: var(--o-ink); }
+.cf-text { width: min(560px, 90vw); text-align: center; }
+.cf-text h2 { margin: 8px 0 4px; font: 800 26px var(--f-b); }
+.cf-text p { margin: 0 auto 14px; color: var(--ink2); max-width: 480px; }
+.cf-nav { display: flex; align-items: center; justify-content: center; gap: 18px; margin-bottom: 14px; }
+.cf-nav > button { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line2); background: transparent; cursor: pointer; font-size: 18px; }
+.dots { display: flex; gap: 8px; }
+.dots button { width: 8px; height: 8px; padding: 0; border-radius: 50%; border: 0; background: var(--line2); cursor: pointer; transition: width .3s var(--ease), background .3s; }
+.dots button[aria-current="true"] { width: 26px; border-radius: 4px; background: var(--o); }
+
+/* 오른쪽 아래 포석호 + 말풍선(단축키 안내도 말풍선 안에) */
+.guide { position: fixed; right: 24px; bottom: 20px; z-index: 5; display: flex; align-items: flex-end; gap: 4px; width: min(470px, 40vw); }
+.guide cp-character { width: 130px; height: 150px; flex: none; }
+.bubble { position: relative; flex: 1; margin-bottom: 26px; padding: 14px 18px; border-radius: 16px; background: var(--ink); color: #1d1714; font-size: 15px; line-height: 1.55; box-shadow: 0 12px 30px rgba(0,0,0,.35); }
 .bubble::after { content: ""; position: absolute; left: -8px; bottom: 22px; border: 8px solid transparent; border-right-color: var(--ink); border-left: 0; }
 .bubble > b { display: block; font-size: 12px; color: #b4521a; margin-bottom: 2px; letter-spacing: .04em; }
+.bubble .ask { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; height: 34px; padding: 0 14px; border: 0; border-radius: 999px; background: #1d1714; color: #fff; font-weight: 700; font-size: 14px; cursor: pointer; transition: background .2s; }
+.bubble .ask:hover { background: #b4521a; }
 .bubble .keys { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(29,23,20,.12); font-size: 12px; color: #6d605a; }
 .bubble .keys span { display: inline-flex; align-items: center; gap: 3px; }
 .bubble kbd { min-width: 20px; height: 20px; padding: 0 5px; display: inline-grid; place-items: center; border-radius: 5px; background: #fff; border: 1px solid rgba(29,23,20,.18); box-shadow: 0 1px 0 rgba(29,23,20,.18); font: 600 11px var(--f-m); color: #1d1714; }
-/* [사용하기]: 그 기능의 실제 화면이 도감 판 위에 뜬다 */
-.dex-live { position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column; border-radius: 20px; overflow: hidden; background: #f4f0ed; border: 1.5px solid var(--o); animation: grow .35s var(--ease) both; }
-.dex-live[hidden] { display: none; }
-.dex-live-bar { flex: none; display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--s1); border-bottom: 1px solid var(--line); }
-.dex-live-t { font-weight: 700; margin-right: auto; }
-.dex-live iframe { flex: 1; width: 100%; border: 0; background: #f4f0ed; }
+
+/* 브리핑 영상: 큰 포석호가 말하고, 오른쪽에 사용법 단계·자막·진행 막대 */
+.brief { position: fixed; inset: 84px 28px 28px; z-index: 10; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: center; padding: 28px 40px; border-radius: 24px;
+  background: radial-gradient(700px 500px at 30% 60%, rgba(255,158,100,.18), transparent 65%), linear-gradient(160deg, #1d2027, #0e0f12); border: 1px solid var(--line2); box-shadow: 0 40px 80px rgba(0,0,0,.55); animation: grow .4s var(--ease) both; }
+.brief[hidden] { display: none; }
+.brief-stage { position: relative; height: 100%; min-height: 360px; display: grid; place-items: center; }
+.brief-stage cp-character { width: min(420px, 100%); height: min(520px, 62vh); }
+.brief-glow { position: absolute; left: 50%; bottom: 8%; width: 60%; height: 40px; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(rgba(255,158,100,.35), transparent 70%); filter: blur(6px); }
+.brief-side h2 { margin: 4px 0 18px; font: 900 40px/1.1 var(--f-b); }
+.brief-steps { margin: 0 0 20px; padding: 0; list-style: none; counter-reset: s; display: grid; gap: 10px; }
+.brief-steps li { counter-increment: s; display: grid; grid-template-columns: 32px 1fr; gap: 12px; align-items: center; padding: 10px 14px; border-radius: 12px; background: rgba(255,255,255,.04); color: var(--ink3); transition: background .3s, color .3s, transform .3s var(--ease); }
+.brief-steps li::before { content: counter(s); width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; background: rgba(255,255,255,.08); font: 700 13px var(--f-m); }
+.brief-steps li.on { background: rgba(255,158,100,.16); color: var(--ink); transform: translateX(6px); }
+.brief-steps li.on::before { background: var(--o); color: var(--o-ink); }
+.brief-steps li.done { color: var(--ink2); }
+.brief-steps li.done::before { content: "✓"; color: var(--o); }
+.brief-sub { min-height: 84px; padding: 14px 18px; border-radius: 14px; background: var(--ink); color: #1d1714; font-size: 17px; line-height: 1.55; }
+.brief-sub b { display: block; font-size: 12px; color: #b4521a; letter-spacing: .04em; }
+.brief-bar { height: 4px; margin: 16px 0; border-radius: 2px; background: rgba(255,255,255,.1); overflow: hidden; }
+.brief-bar i { display: block; height: 100%; width: 0; background: var(--o); }
+.brief-ctl { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.brief-ctl #bGo { margin-left: auto; }
+
+/* 실제 화면 */
+.live { position: fixed; inset: 84px 28px 28px; z-index: 12; display: flex; flex-direction: column; border-radius: 20px; overflow: hidden; background: #f4f0ed; border: 1.5px solid var(--o); animation: grow .35s var(--ease) both; }
+.live[hidden] { display: none; }
+.live-bar { flex: none; display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--s1); border-bottom: 1px solid var(--line); }
+.live-bar [hidden] { display: none; }
+.live-t { font-weight: 700; margin-right: auto; }
+.live iframe { flex: 1; width: 100%; border: 0; background: #f4f0ed; }
 @keyframes grow { from { opacity: .4; transform: scale(.96); } to { opacity: 1; transform: none; } }
 
 @media (max-width: 1000px) {
-  body { overflow: auto; } .stage { position: static; padding-top: 76px; } .bar { position: absolute; flex-wrap: wrap; } .tag { display: none; }
-  .dex { position: static; margin: 0 16px 16px; grid-template-columns: 1fr; } .dex-grid { grid-template-columns: repeat(5, 1fr); }
-  .dex-detail { grid-template-columns: 1fr; min-height: 640px; } .dex-guide { position: static; width: auto; }
+  .tag { display: none; } .guide { width: calc(100vw - 32px); right: 16px; } .guide cp-character { width: 90px; height: 110px; }
+  .cf-deck { height: 40vh; } .cf-text p { display: none; }
+  .brief { grid-template-columns: 1fr; overflow-y: auto; padding: 20px; } .brief-stage { min-height: 260px; } .brief-stage cp-character { height: 300px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
-/* 말풍선 안 [포석호에게 묻기]: 도감의 포석호가 곧 튜터 채팅의 입구 */
-.bubble .ask { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; height: 34px; padding: 0 14px; border: 0; border-radius: 999px; background: #1d1714; color: #fff; font-weight: 700; font-size: 14px; cursor: pointer; transition: background .2s; }
-.bubble .ask:hover { background: #b4521a; }
-.dex-live-bar [hidden] { display: none; }
-/* 작동 단계 + 포석호 채팅: 실제 화면 창이 아이템 박스까지 덮는 도감 전체 폭으로 넓어진다(도면 | 채팅 나란히) */
-.dex.live-wide .dex-live { position: fixed; inset: 84px 28px 28px; }

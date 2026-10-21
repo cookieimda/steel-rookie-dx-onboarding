@@ -1,0 +1,152 @@
+// 이해도 확인 캐릭터(frontend/3d-demo/cp-character.js)의 동작 선택과 몸 전체 움직임. 브라우저 없이 순수 함수만 확인한다.
+import assert from "node:assert/strict";
+import { join } from "node:path";
+import test from "node:test";
+import { pathToFileURL } from "node:url";
+
+const load = (file: string) => import(pathToFileURL(join(process.cwd(), "frontend", "3d-demo", file)).href);
+const { MOTIONS, PROCEDURAL, MOTION_ALIAS, resolveMotion, poseAt, blendPose, CpCharacter } = await load("cp-character.js");
+const { MOTION_BY_TYPE, motionFor } = await load("checkpoint-chat.js");
+const { EXPRESSION_BY_MOTION, MOOD_BY_MOTION, POP_MOTIONS } = await load("cp-face.js");
+
+test("미통과 완료는 웃음·축하 효과 없이 아쉬움을 표현하고 통과 완료만 축하한다", () => {
+  const retry = motionFor("result", { unlocked: false }), passed = motionFor("result", { unlocked: true });
+  assert.equal(EXPRESSION_BY_MOTION[retry], "sad");
+  assert.equal(MOOD_BY_MOTION[retry], "sad");
+  assert.equal(POP_MOTIONS.has(retry), false);
+  assert.equal(EXPRESSION_BY_MOTION[passed], "excited");
+  assert.equal(MOOD_BY_MOTION[passed], "celebrate");
+  for (let t = 0; t < 3; t += .1) assert.ok(poseAt(retry, t).y <= 0, "미통과는 축하 점프를 하지 않는다");
+});
+
+type Pose = { y: number; rx: number; ry: number; rz: number; sy: number };
+const REST: Pose = { y: 0, rx: 0, ry: 0, rz: 0, sy: 1 };
+const close = (a: number, b: number, eps = 1e-9) => Math.abs(a - b) < eps;
+
+test("브라우저가 없어도 모듈을 불러오고, 엘리먼트 클래스는 있되 등록은 하지 않는다", () => {
+  assert.equal(typeof CpCharacter, "function");
+  // framing(얼굴 가까이)·gaze(마우스 따라 보기)는 학습 기록 튜터 머리에서만 켜는 선택 속성
+  assert.deepEqual(CpCharacter.observedAttributes, ["motion", "model", "fallback", "framing", "gaze"]);
+});
+
+test("동작 선택: 같은 이름의 클립 → 그 이름의 몸 전체 움직임 → 대체 이름표 → idle", () => {
+  assert.deepEqual(resolveMotion("praise", ["praise", "idle"]), { kind: "clip", name: "praise" });
+  assert.deepEqual(resolveMotion("praise", ["idle"]), { kind: "procedural", name: "praise" });
+  assert.deepEqual(resolveMotion("ask", []), { kind: "procedural", name: "idle" }, "몸 전체 움직임이 없으면 대체 이름표");
+  assert.deepEqual(resolveMotion("greet", []), { kind: "procedural", name: "greet" });
+  assert.deepEqual(resolveMotion("greet", ["greet"]), { kind: "clip", name: "greet" }, "클립이 있으면 대체보다 클립");
+  assert.deepEqual(resolveMotion("ask", []), { kind: "procedural", name: "idle" });
+  assert.deepEqual(resolveMotion("unknown", []), { kind: "procedural", name: "idle" });
+  assert.deepEqual(resolveMotion(undefined, []), { kind: "procedural", name: "idle" });
+  assert.deepEqual(resolveMotion("", [""]), { kind: "procedural", name: "idle" }, "빈 이름은 클립으로 보지 않는다");
+});
+
+test("모든 이름표가 몸 전체 움직임으로 정의되거나 대체되고, 대체 대상은 정의된 움직임이다", () => {
+  for (const motion of MOTIONS) {
+    const r = resolveMotion(motion, []);
+    assert.equal(r.kind, "procedural", motion);
+    assert.ok(PROCEDURAL[r.name], motion);
+    if (!PROCEDURAL[motion]) assert.equal(r.name, MOTION_ALIAS[motion], `${motion}은 대체 이름표를 쓴다`);
+  }
+  assert.deepEqual(Object.keys(PROCEDURAL).sort(), ["ask_again", "celebrate", "cheer_retry", "encourage", "explain", "greet", "idle", "praise", "sorry", "thinking"]);
+  for (const target of Object.values(MOTION_ALIAS)) assert.ok(PROCEDURAL[target as string], String(target));
+});
+
+test("몸 전체 움직임: 대기는 작게 흔들리고, 튀기·점프는 땅에서 시작해 끝나면 대기로 돌아간다", () => {
+  for (let t = 0; t < 5; t += 0.1) {
+    const p: Pose = poseAt("idle", t);
+    assert.ok(Math.abs(p.y) <= 0.015 + 1e-9, `idle y ${p.y}`);
+    assert.equal(p.ry, 0);
+  }
+  for (const name of ["praise", "celebrate", "greet"]) {
+    const { duration } = PROCEDURAL[name];
+    assert.ok(close(poseAt(name, 0).y, 0), `${name} 시작은 바닥`);
+    const peak = Math.max(...Array.from({ length: 50 }, (_, i) => poseAt(name, (duration * i) / 50).y));
+    assert.ok(peak > 0.1, `${name} 동안 크게 뜬다 ${peak}`);
+    const after: Pose = poseAt(name, duration + 0.3), idle: Pose = poseAt("idle", 0.3);
+    for (const k of Object.keys(REST) as (keyof Pose)[]) assert.ok(close(after[k], idle[k]), `${name}이 끝나면 대기(끝난 뒤 시간 기준): ${k}`);
+  }
+  assert.ok(close(poseAt("celebrate", PROCEDURAL.celebrate.duration - 1e-6).ry, Math.PI * 2, 1e-4), "점프하며 한 바퀴");
+  assert.ok(close(poseAt("praise", PROCEDURAL.praise.duration / 2).y, 0), "통통 튀기는 두 번: 중간에 한 번 착지");
+});
+
+test("몸 전체 움직임: 갸웃은 기운 채 유지하고, 좌우 흔들기·천천히 기울기는 반복한다", () => {
+  const tilt = poseAt("ask_again", PROCEDURAL.ask_again.duration);
+  assert.ok(tilt.rz > 0.15);
+  assert.deepEqual(poseAt("ask_again", 10), tilt, "끝난 뒤에도 기운 자세");
+  const sway = [0.4, 1.2].map((t) => poseAt("explain", t).ry);
+  assert.ok(sway[0]! > 0.1 && sway[1]! < -0.1, `좌우로 흔든다 ${sway}`);
+  assert.ok(close(poseAt("explain", 0.4).ry, poseAt("explain", 2.0).ry), "주기 1.6초로 반복");
+  assert.ok(close(poseAt("thinking", 0.8).rz, poseAt("thinking", 4.0).rz), "주기 3.2초로 반복");
+  assert.ok(Math.abs(poseAt("thinking", 0.8).rz) <= 0.12 + 1e-9, "천천히 기운다");
+  const droop = poseAt("sorry", 3);
+  assert.ok(droop.rx > 0.15 && droop.sy < 1 && droop.y < 0, "아쉬움: 고개를 숙이고 작아진다");
+  assert.ok(Math.max(...[0.1, 0.2, 0.3].map((t) => poseAt("encourage", t).rx)) > 0.1, "응원: 끄덕인다");
+  assert.ok(poseAt("cheer_retry", 0.175).y <= 0, "다시 도전: 축하 점프 대신 차분하게 고개를 숙인다");
+});
+
+test("움직임 줄이기 설정이면 어떤 동작이든 기본 자세", () => {
+  for (const name of Object.keys(PROCEDURAL)) assert.deepEqual(poseAt(name, 0.3, { reducedMotion: true }), REST, name);
+});
+
+test("동작 전환 보간: 시작은 이전 자세, 끝은 새 자세", () => {
+  const a: Pose = { y: 0.3, rx: 0, ry: 1, rz: 0.2, sy: 1.1 };
+  const b: Pose = { ...REST };
+  assert.deepEqual(blendPose(a, b, 0), a);
+  assert.deepEqual(blendPose(a, b, 1), b);
+  const mid: Pose = blendPose(a, b, 0.5);
+  assert.ok(mid.y < a.y && mid.y > b.y);
+});
+
+test("checkpoint-chat.js가 내는 이름표는 모두 MOTIONS에 있고, 몸 전체 움직임이나 대체 이름표로 해석된다", () => {
+  // motionFor(발화 type) 결과 + characterMotion의 요청 중(thinking)·발화 없음(idle).
+  const produced = new Set<string>([
+    ...(Object.values(MOTION_BY_TYPE) as string[]),
+    motionFor("result", { unlocked: true }),
+    motionFor("result", { unlocked: false }),
+    motionFor("unknown"),
+    "thinking",
+    "idle",
+  ]);
+  for (const motion of produced) {
+    assert.ok(MOTIONS.includes(motion), `${motion}이 MOTIONS에 없다`);
+    const r = resolveMotion(motion, []);
+    assert.equal(r.kind, "procedural", motion);
+    assert.ok(r.name === motion || r.name === MOTION_ALIAS[motion], `${motion} → ${r.name}: 같은 이름이거나 대체 이름표여야 한다`);
+  }
+  assert.deepEqual([...produced].sort(), [...MOTIONS].sort(), "두 모듈의 이름표 목록이 같다(한쪽에만 있는 이름표 없음)");
+});
+
+test("표정·감정 배경: 모든 이름표에 표정이 있고, 감정 배경은 정해 둔 감정만, 감정이 바뀌면 '톡' 커졌다 돌아온다", async () => {
+  const face = await load("cp-face.js");
+  const { moodParticles } = await load("cp-character.js");
+  for (const motion of MOTIONS) assert.ok(face.EXPRESSIONS.includes(face.EXPRESSION_BY_MOTION[motion]), `${motion} 표정`);
+  assert.equal(face.EXPRESSION_BY_MOTION.praise, "happy");
+  assert.equal(face.EXPRESSION_BY_MOTION.sorry, "sad");
+  assert.equal(face.EXPRESSION_BY_MOTION.celebrate, "excited");
+  for (const mood of Object.values(face.MOOD_BY_MOTION) as string[]) {
+    assert.ok(face.MOODS.includes(mood), mood);
+    assert.ok(moodParticles(mood).length > 0, `${mood} 조각`);
+  }
+  assert.equal(face.MOOD_BY_MOTION.idle, undefined, "대기에는 배경 효과 없음");
+  assert.deepEqual(moodParticles("unknown"), []);
+  assert.equal(face.popAt(0), 1);
+  assert.ok(face.popAt(face.POP.seconds / 2) > 1.1, "중간에 커짐");
+  assert.equal(face.popAt(face.POP.seconds), 1, "끝나면 원래 크기");
+  for (const m of face.POP_MOTIONS) assert.ok(MOTIONS.includes(m), m);
+  const blinks = Array.from({ length: 20 }, (_, i) => face.nextBlinkIn(() => i / 20));
+  assert.ok(blinks.every((s: number) => s >= 2.6 && s <= 5), "깜빡임 간격 2.6~5초");
+});
+
+test("drawFace: 표정마다 캔버스 그리기 명령만 쓰고(브라우저 없이 가짜 캔버스), 예외 없이 그린다", async () => {
+  const face = await load("cp-face.js");
+  const calls: string[] = [];
+  const ctx = new Proxy({}, {
+    get: (_t, k) => (k === "createRadialGradient" ? () => ({ addColorStop() {} }) : (...a: unknown[]) => { calls.push(String(k)); return a; }),
+    set: () => true,
+  });
+  for (const expression of face.EXPRESSIONS) for (const blink of [false, true]) face.drawFace(ctx, { expression, blink, skin: "#cccccc" });
+  // 따라 보기(gaze): 끝 방향을 줘도 예외 없이 그린다
+  for (const expression of face.EXPRESSIONS) face.drawFace(ctx, { expression, skin: "#cccccc", gaze: { x: 1, y: -1 } });
+  assert.ok(calls.includes("ellipse") && calls.includes("stroke"));
+});

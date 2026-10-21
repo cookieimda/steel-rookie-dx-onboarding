@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>철든 신입 도입 화면</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #020306; color: #93a0b0; font-family: "IBM Plex Sans KR", sans-serif; }
+  body { display: grid; place-items: center; }
+  button { padding: 10px 20px; border: 1px solid rgba(255,255,255,.18); border-radius: 999px; background: transparent; color: #eef2f6; font: inherit; cursor: pointer; }
+</style>
+<!-- 도입 애니메이션 미리보기. 실제 페이지(지금은 로그인 화면)에는 data-always 없이 같은 줄을 <head>에 넣는다. -->
+<script src="./intro.js" data-always="true"></script>
+</head>
+<body>
+  <button type="button" onclick="location.reload()">다시 보기</button>
+</body>
+</html>

@@ -1,0 +1,450 @@
+/* 3D 공정 화면(steel-index) 유리 패널: lab-console.css(팀원A) 뒤에 읽어 색·투명도·글자 무게만 덮어쓴다. 배치·크기·동작은 lab-console.css 그대로.
+   레퍼런스(가운데 3D + 양옆 조절 패널) 명도 대비: 배경보다 4~8%만 밝은 반투명 판 + 흐림, 얇은 밝은 테두리,
+   라벨은 흐리게(55%), 주요 숫자는 얇고 크고 밝게(95%). 색은 의미가 있는 곳(오름 파랑·내림 빨강·온도 스펙트럼·선택 표시)에만 쓴다. */
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500&display=swap");
+
+:root {
+  --glass: rgba(34, 38, 50, .42);        /* 판: 남회색 바탕보다 살짝 밝게, 3D가 비치게 */
+  --glass-2: rgba(255, 255, 255, .045);   /* 판 안의 작은 칸 */
+  --glass-3: rgba(255, 255, 255, .08);    /* 버튼·누름 */
+  --glass-line: rgba(255, 255, 255, .09); /* 얇은 테두리 */
+  --glass-hi: rgba(255, 255, 255, .07);   /* 위쪽 가장자리 빛 */
+  --ink-hi: rgba(255, 255, 255, .95);     /* 주요 숫자 */
+  --ink: rgba(255, 255, 255, .82);        /* 본문 */
+  --ink-lo: rgba(255, 255, 255, .55);     /* 라벨 */
+  --ink-xlo: rgba(255, 255, 255, .36);    /* 눈금·보조 */
+  --up: #7aa7ff; --down: #ff6b6b;
+  --f-num: "Manrope", "Noto Sans KR", system-ui, sans-serif;
+  --blur: blur(18px) saturate(1.15);
+}
+
+/* ---- 3D 바탕: 아래는 검정보다 밝은 짙은 회색, 위로 갈수록 검정(레퍼런스의 잔잔한 세로 그라데이션) ----
+   screen 합성이라 어두운 곳만 밝아지고 밝은 설비 모델은 거의 그대로다. 장면 색(steel-index.js)은 건드리지 않는다. */
+#stage::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; mix-blend-mode: screen;
+  /* 회색이 화면 위 30% 지점(패널 머리 아래)까지 올라오고, 그 위만 검정으로 잦아든다 */
+  background: linear-gradient(to top, rgba(86, 89, 98, .7) 0%, rgba(70, 73, 82, .6) 30%, rgba(52, 55, 64, .46) 52%, rgba(36, 38, 46, .32) 70%, rgba(14, 15, 19, .1) 86%, rgba(0, 0, 0, 0) 100%);
+}
+
+/* ---- 양옆 패널 ---- */
+.lab-pane, .process-lab .right {
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  border: 1px solid var(--glass-line); border-radius: 16px;
+  box-shadow: inset 0 1px 0 var(--glass-hi), 0 24px 60px rgba(0, 0, 0, .35);
+  color: var(--ink);
+}
+.lab-pane-head { background: transparent; border-bottom: 1px solid rgba(255, 255, 255, .06); padding: 20px 22px 16px; }
+.lab-pane-head > span { color: var(--ink-xlo); letter-spacing: .16em; }
+.lab-pane-head h2 { font: 300 26px/1.25 var(--f-num); letter-spacing: -.01em; color: var(--ink-hi); }
+.lab-pane-head > b { color: var(--ink-lo); font-size: 14px; }
+.lab-pane-body { scrollbar-color: rgba(255, 255, 255, .18) transparent; }
+
+/* 큰 값: 얇고 밝게 */
+.lab-step-value > span { color: var(--ink-lo); font-size: 14px; }
+.lab-step-value > strong { font: 200 34px/1.25 var(--f-num); letter-spacing: -.01em; color: var(--ink-hi); }
+.lab-gauge strong { font: 200 34px/1.4 var(--f-num); color: var(--ink-hi); }
+.lab-gauge strong small { font: 300 16px var(--f-num); color: var(--ink-lo); }
+.lab-temperature-result b { font: 300 24px var(--f-num); color: var(--ink-hi); }
+
+/* What-if 온도 계기는 위에 고정(sticky)하지 않는다. 판이 반투명이라 고정하면 아래로 내릴 때 슬라이더가 비쳐 겹친다 */
+.lab-gauge-slot { position: static; }
+
+/* 판 안의 칸: 테두리 대신 아주 옅은 면 */
+.lab-gauge, .lab-temperature-result > div, .lab-status {
+  background: var(--glass-2); border: 1px solid rgba(255, 255, 255, .06); border-radius: 12px; box-shadow: none;
+}
+.lab-temperature-result > div, .lab-status { border-left-width: 1px; }
+.lab-gauge > span, .lab-temperature-result span, .lab-scale, .lab-gauge p, .lab-muted, .lab-pane summary { color: var(--ink-lo); }
+.lab-status { color: var(--ink); }
+.lab-temperature-result small { color: var(--ink-lo); }
+
+/* 왜곡 유리 카드(레퍼런스의 OEE·Pump Trips 칸): 판 뒤에 흐릿하게 번진 빛 얼룩이 천천히 일렁여 굴절된 듯 보이게 한다.
+   일부 카드에만 쓴다(What-if 온도 계기·실험 온도 칸). 글자는 얼룩 위에 둔다 */
+.lab-gauge, .lab-temperature-result > div { position: relative; overflow: hidden; isolation: isolate; }
+.lab-gauge > *, .lab-temperature-result > div > * { position: relative; z-index: 1; }
+.lab-gauge::before, .lab-temperature-result > div::before {
+  content: ""; position: absolute; inset: -35%; z-index: 0; pointer-events: none; mix-blend-mode: screen; opacity: 1;
+  background:
+    radial-gradient(16% 30% at 62% 36%, rgba(255, 255, 255, .5), transparent 70%),
+    radial-gradient(10% 22% at 70% 50%, rgba(230, 236, 255, .34), transparent 72%),
+    radial-gradient(24% 30% at 38% 64%, rgba(122, 150, 255, .34), transparent 70%),
+    radial-gradient(14% 22% at 78% 68%, rgba(255, 112, 96, .3), transparent 72%),
+    conic-gradient(from 210deg at 58% 48%, transparent 0 14%, rgba(255, 255, 255, .22) 22%, transparent 32% 60%, rgba(170, 190, 255, .18) 70%, transparent 82%);
+  filter: blur(11px) contrast(1.25);
+  transform: rotate(-10deg) scale(1.05);
+  animation: lab-warp 22s ease-in-out infinite alternate;
+}
+/* 굴절된 가장자리: 왼쪽은 따뜻하게, 오른쪽은 차갑게 아주 얇게 번진다 */
+.lab-gauge::after, .lab-temperature-result > div::after {
+  content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none; border-radius: inherit;
+  box-shadow: inset 1px 0 0 rgba(255, 140, 120, .16), inset -1px 0 0 rgba(130, 165, 255, .18), inset 0 1px 0 rgba(255, 255, 255, .1);
+}
+.lab-temperature-result > div:nth-child(2n)::before { animation-delay: -9s; transform: rotate(14deg) scale(1.1); }
+@keyframes lab-warp {
+  0% { transform: rotate(-10deg) scale(1.05) translate(0, 0); }
+  50% { transform: rotate(4deg) scale(1.16) translate(-4%, 3%); }
+  100% { transform: rotate(12deg) scale(1.08) translate(3%, -2%); }
+}
+@media (prefers-reduced-motion: reduce) { .lab-gauge::before, .lab-temperature-result > div::before { animation: none; } }
+
+/* 온도 그래프: 흐린 격자 + 밝은 가는 선, 고른 단계만 따뜻한 점 */
+.lab-chart { background: linear-gradient(rgba(255, 255, 255, .045) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, .045) 1px, transparent 1px); background-size: 22px 22px; }
+.lab-chart path { stroke: rgba(255, 255, 255, .12); }
+.lab-chart text { fill: var(--ink-xlo); }
+.lab-chart polyline { stroke: rgba(255, 255, 255, .85); stroke-width: 1.6; }
+.lab-chart circle { fill: var(--hot); stroke: rgba(13, 17, 20, .9); stroke-width: 2; }
+
+/* 슬라이더: 가는 밝은 선 + 흰 손잡이. 값은 얇은 숫자 */
+.lab-slider { border-bottom: 1px solid rgba(255, 255, 255, .06); color: var(--ink); }
+.lab-slider output { font: 400 15px var(--f-num); color: var(--ink-hi); }
+.lab-slider input { -webkit-appearance: none; appearance: none; background: transparent; min-height: 28px; }
+.lab-slider input::-webkit-slider-runnable-track { height: 2px; border-radius: 2px; background: rgba(255, 255, 255, .2); }
+.lab-slider input::-moz-range-track { height: 2px; border-radius: 2px; background: rgba(255, 255, 255, .2); }
+.lab-slider input::-moz-range-progress { height: 2px; border-radius: 2px; background: rgba(255, 255, 255, .75); }
+.lab-slider input::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; margin-top: -6px; border-radius: 50%; background: #fff; border: 0; box-shadow: 0 0 0 4px rgba(255, 255, 255, .1), 0 2px 6px rgba(0, 0, 0, .5); }
+.lab-slider input::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 0; box-shadow: 0 0 0 4px rgba(255, 255, 255, .1), 0 2px 6px rgba(0, 0, 0, .5); }
+.lab-slider input:focus-visible { outline: 2px solid rgba(255, 255, 255, .6); outline-offset: 4px; }
+/* What-if 조건 슬라이더: 줄 간격을 좁혀 8개가 스크롤 없이 한 화면에 보이게 */
+.lab-inputs .lab-pane-body { gap: 12px; }
+.lab-inputs .lab-slider { gap: 0 8px; padding: 6px 0; }
+.lab-inputs .lab-slider input { min-height: 22px; }
+.lab-inputs .lab-button { min-height: 38px; }
+
+/* 버튼: 유리 위 옅은 면 */
+.lab-button { background: var(--glass-3); border: 1px solid var(--glass-line); border-radius: 10px; color: var(--ink); }
+.lab-button:hover { background: rgba(255, 255, 255, .13); border-color: rgba(255, 255, 255, .2); color: var(--ink-hi); }
+
+/* 온도 스펙트럼 바늘은 흰색 유지, 바는 조금 얇게 */
+.lab-spectrum { height: 6px; border-radius: 6px; margin: 16px 0 10px; }
+.lab-spectrum i { top: -6px; height: 18px; width: 2px; border-radius: 2px; }
+
+/* ---- 위 알약 바·아래 재생 바도 같은 유리 ---- */
+.top .tabs, .top .seg, .top .rb { background: rgba(26, 29, 38, .5); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); }
+.top .rb:hover, .top .tabs button:hover { background: rgba(255, 255, 255, .1); }
+.bar { background: rgba(26, 29, 38, .5); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); border: 1px solid var(--glass-line); box-shadow: inset 0 1px 0 var(--glass-hi), 0 18px 40px rgba(0, 0, 0, .35); }
+.bar .play { background: var(--glass-3); border-color: var(--glass-line); }
+/* 아래 재생 바: 스크롤바 없이 바를 위아래로 키우고, 긴 설비 이름은 '…'로 자르지 않고 두 줄로 다 보인다 */
+.bar { height: auto; min-height: 88px; padding-block: 12px; }
+/* 양옆 패널은 바 위에서 끝나므로, 바는 패널 사이로 좁히지 않고 화면 폭까지 쓸 수 있다.
+   바가 두 줄 이름만큼 높아져도 겹치지 않게 패널 아래 끝을 조금 올린다(lab-console.css의 106px → 128px) */
+.process-lab .bar, .process-lab.panel .bar { max-width: calc(100vw - 32px); }
+@media (min-width: 1001px) { .lab-pane, .process-lab .right { bottom: 128px; } }
+.bar .track, .process-lab .bar .track { overflow: visible; }
+.bar .stop, .process-lab .bar .stop { min-width: 64px; max-width: 108px; flex-shrink: 1; white-space: normal; }
+.bar .stop span { overflow: visible; text-overflow: clip; white-space: normal; word-break: keep-all; text-align: center; line-height: 1.3; }
+
+/* 흐림을 못 쓰는 브라우저는 판을 조금 더 진하게 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .lab-pane, .process-lab .right, .top .tabs, .top .seg, .top .rb, .bar { background: rgba(22, 25, 33, .9); }
+}
+
+/* ---- 위 알약 바: 평소엔 화면 위로 숨기고, 마우스가 화면 맨 위 56px 안에 오면(steel-index.js가 body.peek를 붙임) 스르륵 내려온다.
+   키보드로 들어가도 보인다(:focus-within). 좁은 화면(760px 이하)은 숨기지 않는다 ---- */
+@media (min-width: 761px) {
+  body:not(.peek) .top:not(:focus-within) { transform: translate(-50%, calc(-100% - 16px)); opacity: 0; pointer-events: none; }
+}
+
+/* ---- 스크롤바: 가는 세로선 + 위아래 화살표가 든 알약 손잡이(레퍼런스) ---- */
+.lab-pane-body, .right .scroll, .lab-board-table { scrollbar-width: auto; scrollbar-color: auto; } /* 크롬에서 아래 ::-webkit 스타일이 먹도록 표준 속성을 되돌린다 */
+.lab-pane-body::-webkit-scrollbar, .right .scroll::-webkit-scrollbar, .lab-board-table::-webkit-scrollbar { width: 20px; }
+.lab-pane-body::-webkit-scrollbar-track, .right .scroll::-webkit-scrollbar-track, .lab-board-table::-webkit-scrollbar-track { background: linear-gradient(90deg, transparent 9.5px, rgba(255, 255, 255, .12) 9.5px 10.5px, transparent 10.5px); margin-block: 10px; }
+.lab-pane-body::-webkit-scrollbar-thumb, .right .scroll::-webkit-scrollbar-thumb, .lab-board-table::-webkit-scrollbar-thumb {
+  border: 2px solid transparent; border-radius: 999px; background-clip: padding-box;
+  background-color: rgba(58, 63, 75, .95);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 24' fill='none' stroke='%23c9ced8' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 7l3-3 3 3M2 17l3 3 3-3'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: center; background-size: 9px 22px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08);
+}
+.lab-pane-body::-webkit-scrollbar-thumb:hover, .right .scroll::-webkit-scrollbar-thumb:hover, .lab-board-table::-webkit-scrollbar-thumb:hover { background-color: rgba(78, 84, 98, .98); }
+.lab-pane-body::-webkit-scrollbar-button, .right .scroll::-webkit-scrollbar-button, .lab-board-table::-webkit-scrollbar-button { display: none; height: 0; }
+@supports (-moz-appearance: none) { .lab-pane-body, .right .scroll, .lab-board-table { scrollbar-width: thin; scrollbar-color: rgba(120, 128, 145, .6) transparent; } }
+
+/* ---- 3D 위 설비 칩 → 상자 없는 지시선 표시(레퍼런스의 Peak temp): 설비 위 점 → 세로선 → 왼쪽에 이름과 강조 숫자(오른쪽은 설비 설명 패널이 열리는 자리) ----
+   칩은 steel-index.js가 inline style로 만들므로 !important로 덮어쓴다. 칩 위치(점이 설비 위)는 그대로다 */
+.tag { gap: 0 !important; }
+.tag .k {
+  position: absolute; right: calc(50% + 14px); bottom: calc(100% - 22px); justify-items: end; text-align: right;
+  display: grid !important; grid-template-columns: auto auto; align-items: baseline; column-gap: 6px; row-gap: 2px;
+  padding: 0 !important; background: none !important; border: 0 !important; border-radius: 0 !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+  color: rgba(255, 255, 255, .78) !important; font: 400 14px/1.2 var(--f-body) !important; text-shadow: 0 1px 8px rgba(0, 0, 0, .85);
+}
+.tag .k i { width: auto !important; height: auto !important; background: none !important; color: rgba(255, 158, 100, .9) !important; font: 500 12px/1 var(--f-mono) !important; }
+.tag .k .tl { grid-column: 1 / -1; font-size: 12px; color: rgba(255, 255, 255, .5); margin-top: 4px; }
+.tag .k .tv { grid-column: 1 / -1; font: 200 30px/1.05 var(--f-num); color: #fff; letter-spacing: -.01em; }
+.tag .ld {
+  position: relative; width: 1px !important; height: 70px !important;
+  background: linear-gradient(to top, rgba(255, 158, 100, .95), rgba(255, 255, 255, .55)) !important;
+}
+.tag .ld::before { content: ""; position: absolute; top: 0; right: 0; width: 12px; height: 1px; background: rgba(255, 255, 255, .55); } /* 위 끝에서 글자 쪽으로 꺾이는 짧은 선 */
+.tag .ld::after { content: ""; position: absolute; left: 50%; bottom: -5px; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 3px rgba(255, 158, 100, .35), 0 0 14px 4px rgba(255, 158, 100, .55); } /* 설비 위 빛나는 점 */
+
+/* ---- What-if 원호 온도 다이얼(lab-gauge-arc.js) ---- */
+.lab-arc { position: relative; margin: 4px auto 0; max-width: 260px; }
+.lab-arc svg { display: block; width: 100%; height: auto; overflow: visible; }
+.lab-arc-track { fill: none; stroke: rgba(255, 255, 255, .1); stroke-width: 10; stroke-linecap: round; }
+.lab-arc-fill { fill: none; stroke-width: 10; stroke-linecap: round; filter: drop-shadow(0 0 8px rgba(240, 138, 60, .45)); } /* 색은 다이얼마다 만든 주황 그라데이션(stroke 속성) */
+.lab-arc-ticks line { stroke: rgba(255, 255, 255, .28); stroke-width: 1.4; stroke-linecap: round; }
+.lab-arc-knob { fill: #fff; stroke: #f08a3c; stroke-width: 3; filter: drop-shadow(0 0 8px rgba(255, 194, 122, .6)); }
+.lab-arc-val { position: absolute; left: 0; right: 0; top: 47%; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
+.lab-arc-val strong { font: 200 30px/1 var(--f-num); color: var(--ink-hi); letter-spacing: -.02em; }
+.lab-arc-val strong small { font: 300 14px var(--f-num); color: var(--ink-lo); margin-left: 2px; }
+.lab-arc-val em { font: 500 12px/1.3 var(--f-body); font-style: normal; color: var(--ink-lo); }
+.lab-arc-val em.up { color: #ff9a76; } .lab-arc-val em.down { color: var(--up); }
+.lab-arc-gauge .lab-scale { margin-top: -18px; padding: 0 14px; }
+.lab-arc-gauge p { text-align: center; }
+
+/* ==== 대시보드 배치(body.lab-dock, lab-dock.js · 폭 1001px 이상): 왼쪽 위 3D 뷰 · 그 아래 탭 카드 · 오른쪽 What-if 열 ====
+   단계 설명(#right)과 온도 흐름(.lab-temperature)은 원래 패널을 그대로 쓰고, 카드 본문 자리에 겹쳐 고른 탭만 보인다 */
+body.lab-dock {
+  --dock-g: 16px; --dock-r: 340px; --dock-b: clamp(260px, 37vh, 380px); --dock-tabs: 48px;
+  --dock-w: calc(100vw - var(--dock-r) - var(--dock-g) * 3);
+}
+/* 3D 뷰 카드(설비 칩 #hud도 같은 자리) */
+body.lab-dock #stage, body.lab-dock #hud { inset: auto; top: var(--dock-g); left: var(--dock-g); width: var(--dock-w); height: calc(100vh - var(--dock-b) - var(--dock-g) * 3); border-radius: 16px; overflow: hidden; }
+body.lab-dock #stage { box-shadow: 0 0 0 1px var(--glass-line), 0 24px 60px rgba(0, 0, 0, .35); }
+/* 위 알약 바·아래 재생 바는 3D 뷰 가운데에 */
+body.lab-dock .top { left: calc(var(--dock-g) + var(--dock-w) / 2); top: calc(var(--dock-g) + 10px); }
+body.lab-dock.process-lab .bar, body.lab-dock.process-lab.panel .bar { left: calc(var(--dock-g) + var(--dock-w) / 2); right: auto; transform: translateX(-50%); bottom: calc(var(--dock-b) + var(--dock-g) * 2 + 12px); max-width: calc(var(--dock-w) - 32px); }
+/* 오른쪽 What-if 열: 위아래 끝까지, 설비 설명이 열려도 숨기지 않는다 */
+body.lab-dock .lab-inputs { top: var(--dock-g); right: var(--dock-g); bottom: var(--dock-g); width: var(--dock-r); }
+body.lab-dock.process-lab.panel .lab-inputs { visibility: visible; }
+
+/* 아래 탭 카드 */
+.lab-dock-card { display: none; }
+.lab-dock-card, .lab-dock-card * { box-sizing: border-box; } /* height:100% + 안쪽 여백이 카드 밖으로 넘치지 않게 */
+body.lab-dock .lab-dock-card {
+  position: fixed; left: var(--dock-g); bottom: var(--dock-g); width: var(--dock-w); height: var(--dock-b); z-index: 5;
+  display: flex; flex-direction: column; color: var(--ink);
+  background: var(--glass); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  border: 1px solid var(--glass-line); border-radius: 16px; box-shadow: inset 0 1px 0 var(--glass-hi), 0 24px 60px rgba(0, 0, 0, .35);
+}
+.lab-dock-tabs { flex: none; height: var(--dock-tabs); display: flex; align-items: center; gap: 4px; padding: 0 12px; border-bottom: 1px solid rgba(255, 255, 255, .06); }
+.lab-dock-tabs button { height: 32px; padding: 0 14px; border: 0; border-radius: 8px; background: transparent; color: var(--ink-lo); font: 500 14px var(--f-body); cursor: pointer; }
+.lab-dock-tabs button:hover { color: var(--ink); background: rgba(255, 255, 255, .05); }
+.lab-dock-tabs button[aria-selected="true"] { color: var(--ink-hi); background: rgba(255, 255, 255, .1); }
+.lab-dock-tabs button:focus-visible { outline: 2px solid rgba(255, 255, 255, .6); outline-offset: 2px; }
+.lab-dock-note { margin-left: auto; font: 400 11px var(--f-mono); letter-spacing: .08em; color: var(--ink-xlo); }
+.lab-dock-body { position: relative; flex: 1; min-height: 0; }
+.lab-dock-body > [data-dock-pane] { display: none; }
+body.lab-dock[data-lab-tab="board"] .lab-board { display: grid; }
+body.lab-dock[data-lab-tab="steps"]:not(.panel) .lab-dock-empty[data-dock-pane="steps"] { display: block; }
+.lab-dock-empty { margin: 0; padding: 22px; color: var(--ink-lo); font-size: 14px; line-height: 1.7; }
+
+/* 조업 전광판: 왼쪽 표 + 오른쪽 고른 지표의 실험 변경 이력 차트 */
+.lab-board { height: 100%; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 20px; padding: 10px 18px 12px; } /* 줄 높이를 카드에 묶어 안의 다이얼·차트가 넘치지 않게 */
+.lab-board-table { min-width: 0; overflow-x: hidden; overflow-y: auto; } /* 세로로만 넘겨 본다(알약 스크롤바) */
+.lab-board table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+.lab-board caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.lab-board th { text-align: left; font: 400 12px var(--f-body); color: var(--ink-xlo); padding: 4px 8px 6px; border-bottom: 1px solid rgba(255, 255, 255, .07); }
+.lab-board td { padding: 6px 8px; border-bottom: 1px solid rgba(255, 255, 255, .04); color: var(--ink); white-space: nowrap; }
+.lab-board tbody tr { cursor: pointer; }
+.lab-board tbody tr:hover td { background: rgba(255, 255, 255, .035); }
+.lab-board tbody tr.on td { background: rgba(255, 255, 255, .07); }
+.lab-board tbody tr:focus-visible { outline: 2px solid rgba(255, 255, 255, .5); outline-offset: -2px; }
+.lab-board td.v { font: 400 16px var(--f-num); color: var(--ink-hi); }
+.lab-board td.v small { font-size: 12px; color: var(--ink-lo); }
+.lab-board td.b { color: var(--ink-lo); }
+.lab-board tr.up td.v, .lab-board tr.up td.d { color: #ff8a7a; }
+.lab-board tr.down td.v, .lab-board tr.down td.d { color: var(--up); }
+.lab-board td.d { font: 500 13px var(--f-num); color: var(--ink-xlo); }
+.lab-spark { display: block; width: 110px; height: 24px; }
+.lab-spark polyline, .lab-spark line { fill: none; stroke: rgba(255, 255, 255, .45); stroke-width: 1.6; stroke-linejoin: round; }
+.lab-spark.up polyline { stroke: #ff8a7a; } .lab-spark.down polyline { stroke: var(--up); }
+.lab-board-legend { margin: 8px 0 0; font-size: 12px; color: var(--ink-xlo); }
+.lab-board-chart { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 6px; padding-left: 18px; border-left: 1px solid rgba(255, 255, 255, .06); }
+.lab-dock-chart-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.lab-dock-chart-head b { font: 500 14px var(--f-body); color: var(--ink-hi); }
+.lab-dock-chart-head span { font-size: 12px; color: var(--ink-xlo); }
+.lab-dock-chart { width: 100%; height: auto; flex: 1; min-height: 0; }
+.lab-dock-chart .grid { stroke: rgba(255, 255, 255, .06); }
+.lab-dock-chart text { fill: var(--ink-xlo); font: 400 11px var(--f-num); }
+.lab-dock-chart .base { stroke: rgba(255, 255, 255, .35); stroke-dasharray: 4 4; }
+.lab-dock-chart .val { fill: none; stroke: #cfd6e0; stroke-width: 2; stroke-linejoin: round; }
+.lab-dock-chart .area { fill: rgba(207, 214, 224, .08); }
+.lab-dock-chart .end { fill: #fff; stroke: rgba(13, 17, 20, .9); stroke-width: 2; }
+.lab-dock-chart.up .val { stroke: #ff8a7a; } .lab-dock-chart.up .area { fill: rgba(255, 138, 122, .1); }
+.lab-dock-chart.down .val { stroke: var(--up); } .lab-dock-chart.down .area { fill: rgba(122, 167, 255, .12); }
+
+/* 단계 설명: 설비 설명 패널(#right)을 카드 본문 자리에. 단계 설명 탭일 때만 보인다 */
+body.lab-dock.process-lab .right {
+  top: auto; right: auto; left: var(--dock-g); bottom: var(--dock-g); width: var(--dock-w); max-width: none;
+  height: calc(var(--dock-b) - var(--dock-tabs) - 1px); z-index: 6;
+  background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; border: 0; box-shadow: none; border-radius: 0 0 16px 16px;
+}
+body.lab-dock:not([data-lab-tab="steps"]) .right { display: none !important; }
+body.lab-dock .right .scroll { padding: 16px 22px 12px; }
+body.lab-dock .right .scroll > * { max-width: 920px; }
+
+/* 온도 흐름: 왼쪽 패널을 카드 본문 자리에 가로로 펼친다(머리는 탭이 대신). 온도 흐름 탭일 때만 보인다 */
+body.lab-dock .lab-temperature {
+  top: auto; left: var(--dock-g); bottom: var(--dock-g); width: var(--dock-w);
+  height: calc(var(--dock-b) - var(--dock-tabs) - 1px); z-index: 6;
+  background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; border: 0; box-shadow: none; border-radius: 0 0 16px 16px;
+}
+body.lab-dock:not([data-lab-tab="temp"]) .lab-temperature { display: none; }
+body.lab-dock .lab-temperature .lab-pane-head { display: none; }
+body.lab-dock .lab-temperature .lab-pane-body {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1fr); grid-auto-flow: row dense; align-content: start; gap: 8px 28px; padding: 14px 22px;
+}
+body.lab-dock .lab-temperature .lab-chart { grid-column: 2; grid-row: 1 / span 5; align-self: start; }
+
+/* 온도 다이얼은 대시보드 배치에서 What-if 열 대신 전광판 오른쪽에(용선 온도 줄) — 같은 숫자가 두 곳에 겹쳐 보이지 않게 */
+body.lab-dock .lab-inputs .lab-gauge-slot { display: none; }
+/* 카드 높이 안에서 다이얼이 줄어든다(잘리지 않게): 제목 · 다이얼(남는 높이 전부) · 눈금 범위 · 안내 */
+.lab-board-chart .lab-arc-gauge { flex: 1 1 0; min-height: 0; overflow: hidden; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; justify-items: center; gap: 2px; padding: 10px 14px; }
+.lab-board-chart .lab-arc-gauge > span { justify-self: start; }
+.lab-board-chart .lab-arc { width: 100%; max-width: none; height: 100%; min-height: 0; margin: 0; }
+.lab-board-chart .lab-arc svg { width: 100%; height: 100%; }
+.lab-board-chart .lab-arc-gauge .lab-scale { width: min(100%, 300px); margin-top: -8px; }
+.lab-board-chart .lab-arc-gauge > p { margin: 0; font-size: 12px; }
+
+/* 3D 뷰 ↔ 아래 카드 크기 조절 손잡이(lab-dock.js): 두 카드 사이 16px 틈 전체가 잡는 곳, 평소엔 옅은 선, 올리거나 끌면 밝은 선 + 가운데 손잡이 */
+.lab-dock-split { display: none; }
+body.lab-dock .lab-dock-split {
+  display: block; position: fixed; z-index: 7; left: var(--dock-g); width: var(--dock-w);
+  bottom: calc(var(--dock-b) + var(--dock-g)); height: var(--dock-g); cursor: row-resize; touch-action: none; outline: none;
+}
+body.lab-dock .lab-dock-split::before { /* 가로선 */
+  content: ""; position: absolute; left: 24px; right: 24px; top: 50%; height: 1px; transform: translateY(-50%);
+  background: rgba(255, 255, 255, .06); transition: background .15s, height .15s;
+}
+body.lab-dock .lab-dock-split::after { /* 가운데 손잡이 */
+  content: ""; position: absolute; left: 50%; top: 50%; width: 44px; height: 4px; border-radius: 4px; transform: translate(-50%, -50%);
+  background: rgba(255, 255, 255, .18); transition: background .15s, width .15s;
+}
+body.lab-dock .lab-dock-split:hover::before, body.lab-dock .lab-dock-split:focus-visible::before, body.lab-dock.lab-dock-resizing .lab-dock-split::before { height: 2px; background: rgba(255, 158, 100, .55); }
+body.lab-dock .lab-dock-split:hover::after, body.lab-dock .lab-dock-split:focus-visible::after, body.lab-dock.lab-dock-resizing .lab-dock-split::after { width: 64px; background: #ff9e64; }
+body.lab-dock-resizing, body.lab-dock-resizing * { cursor: row-resize !important; user-select: none; }
+@media (prefers-reduced-motion: reduce) { .lab-dock-split::before, .lab-dock-split::after { transition: none; } }
+
+/* ---- 2026-10-16 정리: 설비 재생·단계 설명은 제철 공정 지도(steel-intro의 [▶ 재생])로 옮겼다 ----
+   아래 설비 재생 바(#bar)와 외관/대시보드 전환은 이 화면에서 감춘다(steel-index.js가 요소를 참조하므로 지우지 않고 숨김).
+   고른 공정 탭의 밑줄(steel-index.html의 inset 그림자)도 없앤다: UI에 외곽선·밑줄을 쓰지 않는다 */
+#bar { display: none !important; }
+.top .seg[aria-label="보기"] { display: none !important; }
+.top .tabs button.on, .top .seg button.on { box-shadow: none !important; }
+/* What-if 패널 화면 위 알약 바: 바·공정 탭 묶음·아이콘 버튼의 테두리와 구분선을 없앤다(steel-index.html의 border·:hover border-color를 덮어씀). 면은 바탕 톤으로만 나눈다 */
+.top { border-color: transparent !important; }
+.top .tabs, .top .seg, .top .rb, .top .rb:hover { border-color: transparent !important; box-shadow: none !important; }
+.top .sep { display: none; }
+
+/* ---- 2026-10-19 가독성: 유리판 분위기는 그대로 두고, 얇은 숫자·회색뿐인 화면을 또렷하게 ----
+   숫자는 굵기 200~300 → 400~500, 라벨은 한 단계 밝게. 강조색은 홈 공정 바·재생 바와 같은 주황(#ff9e64 · 글자 #ffb37a)을
+   '고른 것'(탭·표의 고른 줄·슬라이더 값과 채움)에만 쓴다. 오름 빨강·내림 파랑은 그대로 */
+:root { --accent: #ff9e64; --accent-ink: #ffb37a; --accent-soft: rgba(255, 158, 100, .14); }
+.lab-pane, .process-lab .right, body.lab-dock .lab-dock-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .055), rgba(255, 255, 255, 0) 42%), var(--glass);
+}
+
+/* What-if 슬라이더: 라벨 밝게, 값은 주황, 트랙은 4px에 채운 만큼 주황(--p는 lab-console.js) */
+.lab-slider > span { font-weight: 500; color: rgba(255, 255, 255, .9); }
+.lab-slider output { font: 600 15px var(--f-num); color: var(--accent-ink); }
+.lab-slider input::-webkit-slider-runnable-track { height: 4px; border-radius: 4px; background: linear-gradient(90deg, var(--accent) var(--p, 0%), rgba(255, 255, 255, .14) var(--p, 0%)); }
+.lab-slider input::-moz-range-track { height: 4px; border-radius: 4px; background: rgba(255, 255, 255, .14); }
+.lab-slider input::-moz-range-progress { height: 4px; border-radius: 4px; background: var(--accent); }
+.lab-slider input::-webkit-slider-thumb { width: 16px; height: 16px; margin-top: -6px; box-shadow: 0 0 0 4px rgba(255, 158, 100, .25), 0 2px 6px rgba(0, 0, 0, .5); }
+.lab-slider input::-moz-range-thumb { width: 16px; height: 16px; box-shadow: 0 0 0 4px rgba(255, 158, 100, .25), 0 2px 6px rgba(0, 0, 0, .5); }
+.lab-slider:hover > span { color: #fff; }
+.lab-inputs .lab-button { font-weight: 600; color: var(--ink-hi); }
+.lab-status { border-left: 2px solid var(--accent); }
+
+/* 아래 카드 탭: 고른 탭은 주황 */
+.lab-dock-tabs button { font-weight: 600; color: rgba(255, 255, 255, .62); }
+.lab-dock-tabs button[aria-selected="true"] { color: var(--accent-ink); background: var(--accent-soft); }
+.lab-dock-note { color: var(--ink-lo); }
+
+/* 조업 전광판 표: 줄 높이·글자를 키우고, 고른 줄은 왼쪽 주황 막대 + 옅은 주황 바탕 */
+.lab-board th { font: 500 12px var(--f-body); color: var(--ink-lo); }
+.lab-board td { padding: 8px 10px; font-size: 15px; color: rgba(255, 255, 255, .88); }
+.lab-board td.v { font: 600 17px var(--f-num); }
+.lab-board td.b { font-family: var(--f-num); color: rgba(255, 255, 255, .6); }
+.lab-board td.d { color: var(--ink-lo); }
+.lab-board tbody tr.on td { background: var(--accent-soft); }
+.lab-board tbody tr.on td:first-child { box-shadow: inset 3px 0 0 var(--accent); color: #fff; font-weight: 600; }
+.lab-board tbody tr td:first-child { border-radius: 0; }
+.lab-spark polyline, .lab-spark line { stroke: rgba(255, 255, 255, .3); }
+.lab-board-legend { color: var(--ink-lo); }
+
+/* 온도 다이얼·차트 제목: 숫자 굵게, 제목 밝게 */
+.lab-arc-val strong { font-weight: 400; }
+.lab-arc-val em { color: rgba(255, 255, 255, .7); }
+.lab-board-chart .lab-arc-gauge > span, .lab-dock-chart-head b { font-weight: 600; color: rgba(255, 255, 255, .9); }
+.lab-gauge > span, .lab-scale, .lab-gauge p { color: rgba(255, 255, 255, .62); }
+.lab-gauge strong, .lab-step-value > strong { font-weight: 300; }
+
+/* 온도 흐름 탭: 카드 높이 안에 다 보이게(스크롤 없음). 왼쪽 묶음 · 그래프 · 오른쪽 묶음 세 칸이고(lab-console.js .lab-temp-col),
+   칸마다 따로 쌓여 한 칸이 길어져도(열간압연은 실험 온도 카드 2개) 다른 칸 줄 높이가 늘지 않는다. 그래프는 칸 높이에 맞춰 줄어든다(viewBox 비율 유지) */
+.lab-temp-col { display: contents; } /* 옆 패널(좁은 화면): 묶음을 풀고 원래 순서로 */
+.lab-temp-a .lab-step-value { order: 1; } .lab-temperature .lab-chart { order: 2; } .lab-temp-c > .lab-slider { order: 3; } .lab-temp-a .lab-button { order: 4; }
+.lab-temp-c .lab-temperature-result { order: 5; } .lab-temp-a .lab-slider { order: 6; } .lab-temp-c .lab-muted { order: 7; } .lab-temp-a .lab-muted { order: 8; }
+body.lab-dock .lab-temperature .lab-pane-body { height: 100%; overflow: hidden; box-sizing: border-box; padding: 12px 22px; grid-template-rows: minmax(0, 1fr); align-items: stretch; gap: 0 28px; }
+body.lab-dock .lab-temperature .lab-temp-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 0; overflow: hidden; }
+body.lab-dock .lab-temperature .lab-temp-a { grid-column: 1; grid-row: 1; }
+body.lab-dock .lab-temperature .lab-chart { grid-column: 2; grid-row: 1; width: 100%; height: 100%; min-height: 0; padding: 0; align-self: stretch; }
+body.lab-dock .lab-temperature .lab-temp-c { grid-column: 3; grid-row: 1; }
+body.lab-dock .lab-temperature .lab-temp-col > * { flex: none; margin: 0; }
+body.lab-dock .lab-temperature .lab-temp-a .lab-step-value { gap: 2px; }
+body.lab-dock .lab-temperature .lab-temp-a .lab-button { min-height: 38px; }
+body.lab-dock .lab-temperature .lab-temp-a > .lab-muted { margin-top: auto; font-size: 12px; } /* 진행 문구는 왼쪽 칸 맨 아래 */
+body.lab-dock .lab-temperature .lab-temp-c > .lab-muted { flex: 0 1 auto; min-height: 0; overflow: hidden; font-size: 12px; line-height: 1.5; }
+body.lab-dock .lab-temperature .lab-step-value > strong { font-size: 28px; line-height: 1.2; }
+body.lab-dock .lab-temperature .lab-step-value > span { font-size: 13px; }
+body.lab-dock .lab-temperature .lab-slider { padding: 4px 0; gap: 0 8px; }
+body.lab-dock .lab-temperature .lab-slider input { min-height: 22px; }
+body.lab-dock .lab-temperature .lab-temperature-result { gap: 6px; }
+body.lab-dock .lab-temperature .lab-temperature-result > div { padding: 8px 12px; gap: 2px; }
+body.lab-dock .lab-temperature .lab-temperature-result b { font-size: 20px; }
+
+/* What-if 기준값 눈금(lab-console.js .lab-base, --bf = 0~1): 슬라이더와 같은 칸에 겹쳐 그 자리에 세로 눈금.
+   손잡이(16px) 가운데가 닿는 범위(8px ~ 100%-8px)에 맞춘다. 손잡이가 기준 자리에 있으면 손잡이에 가려진다. 뜻은 초기화 버튼 아래 한 줄(.lab-base-note)로 알린다 */
+.lab-slider { position: relative; }
+.lab-slider .lab-base { grid-column: 1 / -1; grid-row: 2; align-self: center; position: relative; height: 14px; pointer-events: none; }
+.lab-slider .lab-base::before { content: ""; position: absolute; top: 0; bottom: 0; left: calc(8px + (100% - 16px) * var(--bf, 0)); width: 2px; margin-left: -1px; border-radius: 1px; background: rgba(255, 255, 255, .75); box-shadow: 0 0 0 1px rgba(0, 0, 0, .35); }
+.lab-slider input { position: relative; z-index: 1; grid-row: 2; }
+@media (max-width: 1000px) { .lab-slider .lab-base, .lab-slider input { grid-row: 3; } }
+.lab-base-note { margin: -4px 0 0; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-lo); }
+.lab-base-note::before { content: ""; width: 2px; height: 12px; border-radius: 1px; background: rgba(255, 255, 255, .75); }
+
+/* 조업 전광판 표: 스크롤 없이 카드 높이에 맞춘다. 줄은 어느 공정이든 6개 이하(lab-display-data.js slice(0, 6))라
+   표를 남는 높이 전부로 늘려 줄 높이가 카드 크기(위아래 손잡이로 바뀜)를 따라가고, 글자는 화면 높이에 따라 조금 줄어든다 */
+.lab-board-table { display: flex; flex-direction: column; overflow: hidden; }
+.lab-board-table table { flex: 1 1 0; min-height: 0; height: 100%; }
+.lab-board-table .lab-board-legend { flex: none; margin-top: 6px; }
+.lab-board th { padding: 2px 10px 4px; }
+.lab-board td { padding: 0 10px; font-size: clamp(13px, 1.7vh, 15px); }
+.lab-board td.v { font-size: clamp(14px, 2vh, 17px); }
+.lab-spark { height: clamp(16px, 2.4vh, 24px); }
+
+/* What-if 열: 화면이 높으면 아래가 비지 않게 슬라이더 묶음이 남는 높이를 나눠 쓰고(줄 사이 최대 한 줄 높이 정도), [계산 가정]은 패널 맨 아래에 붙인다.
+   화면이 낮으면 지금처럼 촘촘하게 붙는다 */
+.lab-inputs .lab-pane-body { flex: 1 1 auto; }
+.lab-inputs .lab-fields { display: flex; flex-direction: column; }
+/* 높이를 나눠 쓰는 건 슬라이더가 6개 이상일 때만(제선 8개). 열간압연처럼 2개뿐이면 나눠 쓰면 간격이 지나치게 벌어져 위에서부터 붙인다 */
+.lab-inputs .lab-fields:has(> .lab-slider:nth-child(6)) { flex: 1 1 auto; justify-content: space-evenly; max-height: 760px; }
+.lab-inputs .lab-pane-body > details { margin-top: auto; }
+
+/* ---- 3D 위 설비 이름표(steel-index.js pinFor): 번호 + 이름, 누르지 않아도 늘 보인다. 고른 설비는 큰 칩(.tag)이 대신하고,
+   설비를 고른 동안 나머지 이름표는 옅어진다(.dim). 번호 색은 홈 공정 바·재생 바와 같은 주황 */
+.eq-pin {
+  position: absolute; left: 0; top: 0; display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; margin-top: -6px;
+  border: 0; border-radius: 999px; background: rgba(20, 22, 28, .62); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .35); color: rgba(255, 255, 255, .92); font: 600 13px/1 var(--f-body); white-space: nowrap;
+  pointer-events: auto; cursor: pointer; transition: opacity .2s, background .2s;
+}
+.eq-pin i { padding-right: 7px; border-right: 1px solid rgba(255, 255, 255, .16); font: 600 13px/1 var(--f-body); font-style: normal; color: #ffb37a; } /* 번호는 원 없이 주황 글자, 이름과 같은 글꼴·크기(홈 공정 칩과 같은 방식) */
+.eq-pin:hover { background: rgba(20, 22, 28, .85); color: #fff; z-index: 2; }
+.eq-pin.dim { opacity: .45; }
+.eq-pin.dim:hover { opacity: 1; }
+.eq-pin:focus-visible { outline: 2px solid rgba(255, 255, 255, .7); outline-offset: 2px; }
+
+/* 고른 설비 큰 칩(.tag): 글자만 떠 있어 밝은 설비 위에서 묻혀서, 설비 이름표(.eq-pin)와 같은 어두운 유리판을 깐다.
+   번호도 이름표처럼 주황 글자(본문 글꼴). 지시선·빛나는 점·배치는 그대로 */
+.tag .k {
+  padding: 10px 14px 12px !important; border-radius: 14px !important;
+  background: rgba(20, 22, 28, .78) !important; -webkit-backdrop-filter: blur(10px) !important; backdrop-filter: blur(10px) !important;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .45); color: #fff !important; font-weight: 600 !important; text-shadow: none;
+}
+.tag .k i { color: #ffb37a !important; font: 600 14px/1.2 var(--f-body) !important; }
+.tag .k .tl { color: rgba(255, 255, 255, .62); }
+.tag .k .tv { font-weight: 300; }

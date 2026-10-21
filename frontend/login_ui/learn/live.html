@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>실제 화면 · ST-ROOKIE</title>
+  <!-- 새 학습 기록(learn.html)의 [사용하기] 창. 주소 뒤 #기능 id(steps·todo·report·incident·whatif·synapse·notes·patterns·card·exam)를 보고
+       실제 학습 기록(Trainee Dashboard.dc.html) 또는 평가 시험(/exam)을 안쪽에 띄워 그 탭을 눌러 둔다.
+       기존 화면 파일은 고치지 않는다: 같은 서버(같은 출처)라 안쪽 문서에 '이 창 전용' 스타일만 넣고 버튼을 대신 누른다. -->
+  <style>
+    html, body { margin: 0; height: 100%; background: #f4f0ed; font: 15px/1.5 "Pretendard", "Malgun Gothic", sans-serif; color: #1d1714; }
+    iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #f4f0ed; }
+    iframe[hidden] { display: none; }
+    .msg { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; }
+    .msg[hidden] { display: none; }
+    form { display: grid; gap: 10px; width: min(320px, 90vw); text-align: left; }
+    form h2 { margin: 0 0 4px; font-size: 20px; }
+    form p { margin: 0 0 6px; color: #574a44; font-size: 14px; }
+    input { height: 42px; padding: 0 12px; border-radius: 10px; border: 1px solid rgba(60,40,30,.2); font: inherit; }
+    button { height: 44px; border-radius: 999px; border: 0; background: #ff9e64; color: #1a0b03; font: 700 15px inherit; cursor: pointer; }
+    .err { color: #c53030; font-size: 14px; min-height: 1.4em; }
+    .loading { color: #776a64; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <iframe id="dash" title="학습 기록" hidden></iframe>
+  <iframe id="exam" title="평가 시험" hidden></iframe>
+  <div class="msg" id="login" hidden>
+    <form id="form"><h2>로그인이 필요해요</h2><p>실제 화면은 내 학습 기록을 불러와요. 학습 기록과 같은 아이디로 로그인하세요.</p>
+      <input id="id" autocomplete="username" placeholder="아이디" required><input id="pw" type="password" autocomplete="current-password" placeholder="비밀번호" required>
+      <button type="submit">로그인</button><span class="err" id="err"></span></form>
+  </div>
+  <div class="msg loading" id="wait">실제 화면을 여는 중…</div>
+  <script>
+    const TOKEN = 'st-rookie-token';
+    const token = () => { try { return localStorage.getItem(TOKEN) || sessionStorage.getItem(TOKEN) || ''; } catch (e) { return ''; } };
+    // [새 창으로]로 열렸는데 이 탭에 로그인 정보가 없으면(로그인 상태 유지를 끄면 탭 전용 sessionStorage에만 있다) 연 창(같은 사이트)의 것을 이 탭에 옮겨 둔다
+    (() => { if (token()) return; try { const t = window.opener && window.opener.location.origin === location.origin && window.opener.sessionStorage.getItem(TOKEN); if (t) sessionStorage.setItem(TOKEN, t); } catch (e) {} })();
+    // 기능 → 실제 화면에서 누를 탭(모듈 탭 · 학습 랩 하위 탭). only: 학습 랩 안에서 그 부분만 남긴다
+    const ROUTES = {
+      // todo: 하위 탭을 한 번 눌러야 실습 경로를 불러온다
+      // tutor: 오른쪽 포석호 채팅을 함께 보인다(채팅은 2D 작동 단계와 이어져 있어 작동 단계에서만). ask: 채팅 입력창에 바로 커서를 둔다
+      steps: { tab: '작동 단계', tutor: true }, ask: { tab: '작동 단계', tutor: true, ask: true }, todo: { tab: '학습 랩', sub: '간격 반복', only: 'path' },
+      report: { tab: '학습 랩', sub: '보고서' }, incident: { tab: '학습 랩', sub: '사고 사례' },
+      whatif: { tab: '학습 랩', sub: 'What-if' }, synapse: { tab: '학습 랩', sub: 'What-if 시냅스' }, notes: { tab: '학습 랩', sub: '설비 메모' },
+      patterns: { tab: '학습 랩', sub: '내 오답 유형' }, card: { tab: '사원증' }, exam: { page: 'exam' },
+    };
+    // 이 창 안에서만 쓰는 스타일: 헤더·탭 줄을 숨겨 그 기능만 크게 보인다. 튜터 열은 작동 단계(html.hub-tutor)에서만 보인다
+    const DASH_CSS = `
+      .dashboard-header, .dg-ftabs, section[data-sec="lab"] > .dg-section-head, section[data-sec="lab"] [role="tablist"] { display: none !important; }
+      html:not(.hub-tutor) .side { display: none !important; }
+      html:not(.hub-tutor) .learn { grid-template-columns: 1fr !important; }
+      html.hub-tutor .side { margin-top: 0 !important; }
+      .dg-pop { animation: none !important; }
+      .dg-main { width: calc(100% - 24px) !important; padding: 12px 0 24px !important; }
+      html:not(.hub-todo) .lb-path { display: none !important; }
+      html.hub-todo section[data-sec="lab"] > :not(.lb-path):not(:has(.lb-path)) { display: none !important; }`;
+    const EXAM_CSS = `.topbar { display: none !important; } main { padding-top: 16px !important; }`;
+    // 작동 단계: 도면(600:320)이 폭을 꽉 채우면 아래 단계 설명·설비 목록이 창 밖으로 밀려 스크롤해야 보인다.
+    // 이 창에서만 여백을 줄이고 설비 목록은 그림 없이 이름만 보인 뒤, 남는 높이를 재서 도면을 줄인다(--hub-svg-h).
+    // 도면은 2D 모듈(process-2d) 그림자 안에 있어 그 안에 스타일을 넣는다
+    const FIT_CSS = `.svg.hl { width: min(100%, calc(var(--hub-svg-h, 99999px) * 600 / 320)); margin-inline: auto; }
+      .root { padding: 12px 14px 16px; gap: 10px; } .layout { gap: 10px; } .body { gap: 8px; }
+      .stepcard { padding: 8px 14px; gap: 2px; } .stepcard p { line-height: 1.5; }
+      .chapters { --chapters-pad: 6px 8px; } .chapters .ch-h { padding: 0 2px 4px 6px; } .ch .th { display: none; } .ch { padding: 4px 6px; gap: 0; } .ch .nm { -webkit-line-clamp: 1; }`;
+    function fitSteps(f) {
+      const d = f.contentDocument, m = d && d.querySelector('process-2d'), sr = m && m.shadowRoot;
+      if (!sr || !d.documentElement.classList.contains('hub-tutor')) return;
+      if (!sr.getElementById('hub-fit')) { const s = d.createElement('style'); s.id = 'hub-fit'; s.textContent = FIT_CSS; sr.append(s); }
+      const svg = sr.querySelector('.svg.hl'); if (!svg) return;
+      m.style.removeProperty('--hub-svg-h');
+      // 넘친 만큼 = 모듈 아래쪽(문서 기준) + 24px - 창 높이. 모듈 아래 다른 내용이 있어도 모듈만 본다.
+      // 24px는 학습 기록 본문의 아래 여백이자 튜터 칸 최대 높이(100dvh - 위치 - 24px)의 여백이라, 모듈·튜터 아래가 같은 선에서 끝나고 창이 스크롤되지 않는다
+      const w = f.contentWindow, over = m.getBoundingClientRect().bottom + w.scrollY + 24 - w.innerHeight;
+      if (over > 0) m.style.setProperty('--hub-svg-h', Math.max(160, svg.getBoundingClientRect().height - over - 2) + 'px');
+    }
+    // 창 크기·단계 설명 길이가 바뀌면 다시 맞춘다
+    function watchFit(f) {
+      const m = f.contentDocument.querySelector('process-2d');
+      if (f._fit || !m) return;
+      const fit = () => { cancelAnimationFrame(f._fitR); f._fitR = requestAnimationFrame(() => fitSteps(f)); };
+      f._fit = new ResizeObserver(fit); f._fit.observe(m);
+      f.contentWindow.addEventListener('resize', fit);
+    }
+    const $ = (id) => document.getElementById(id);
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    function inject(frame, css) {
+      const d = frame.contentDocument; if (!d || d.getElementById('hub-embed')) return;
+      const s = d.createElement('style'); s.id = 'hub-embed'; s.textContent = css; (d.head || d.documentElement).append(s);
+    }
+    // 실제 화면이 그려질 때까지 기다렸다가 글자로 버튼을 찾아 누른다. 막 열린 화면은 버튼이 보여도 아직 눌리지 않을 때가 있어서
+    // 누른 뒤 그 탭이 골라졌는지(그리고 done()이 참인지) 확인하고, 아니면 다시 누른다. 이미 골라진 탭도 누른다: 그래야 그 탭의 자료를 불러온다
+    async function press(doc, scope, label, done = () => true, my) {
+      const find = () => [...doc.querySelectorAll(`${scope} button`)].find((x) => (x.firstChild?.textContent || x.textContent).trim() === label);
+      for (let i = 0; i < 40 && my === seq; i++) {
+        const b = find();
+        if (b) { b.click(); await sleep(300); if (find()?.getAttribute('aria-selected') === 'true' && done()) return true; }
+        else await sleep(150);
+      }
+      return false;
+    }
+    let ready = { dash: null, exam: null }, seq = 0;
+    function load(which) {
+      if (ready[which]) return ready[which];
+      const f = $(which);
+      ready[which] = new Promise((res) => { f.addEventListener('load', () => { inject(f, which === 'exam' ? EXAM_CSS : DASH_CSS); res(f); }, { once: true }); });
+      f.src = which === 'exam' ? '/exam' : '/login_ui/Trainee%20Dashboard.dc.html';
+      return ready[which];
+    }
+    async function show(id) {
+      const r = ROUTES[id] || ROUTES.steps, my = ++seq;
+      if (!token()) { $('wait').hidden = true; $('login').hidden = false; $('dash').hidden = true; $('exam').hidden = true; return; }
+      $('login').hidden = true;
+      const which = r.page === 'exam' ? 'exam' : 'dash', f = await load(which);
+      if (my !== seq) return;
+      $('dash').hidden = which !== 'dash'; $('exam').hidden = which !== 'exam'; $('wait').hidden = true;
+      if (which === 'exam') { f.contentWindow.scrollTo(0, 0); return; }
+      const d = f.contentDocument; d.documentElement.classList.toggle('hub-todo', r.only === 'path');
+      d.documentElement.classList.toggle('hub-tutor', !!r.tutor);
+      f.contentWindow.dispatchEvent(new Event('resize')); // 튜터 열을 보이거나 숨긴 뒤 학습 기록이 튜터 높이를 다시 맞추게
+      await press(d, '.dg-ftabs', r.tab, undefined, my);
+      if (r.sub) await press(d, 'section[data-sec="lab"] [role="tablist"]', r.sub, r.only === 'path' ? () => !!d.querySelector('.lb-path') : undefined, my);
+      if (my !== seq) return;
+      f.contentWindow.scrollTo(0, 0);
+      if (r.tutor) { watchFit(f); fitSteps(f); }
+      // [포석호에게 묻기]: 채팅 입력창에 커서를 둔다(입력창이 그려질 때까지 잠깐 기다린다)
+      if (r.ask) for (let i = 0; i < 20 && my === seq; i++) { const input = d.getElementById('tutorInput'); if (input) { f.contentWindow.focus(); input.focus(); break; } await sleep(150); }
+    }
+    $('form').addEventListener('submit', async (e) => {
+      e.preventDefault(); $('err').textContent = '';
+      try {
+        const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username: $('id').value.trim(), password: $('pw').value }) });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok || !j.token) throw new Error(j.error || '로그인하지 못했어요');
+        sessionStorage.setItem(TOKEN, j.token); ready = { dash: null, exam: null }; show(location.hash.slice(1));
+      } catch (err) { $('err').textContent = err.message; }
+    });
+    // 새 탭에 로그인 정보가 없으면(로그인 상태 유지를 끄면 탭 전용 sessionStorage에만 있다) 열려 있는 학습 기록 탭(learn.js)에 물어 이 탭에 옮겨 둔다.
+    // BroadcastChannel은 같은 사이트의 탭끼리만 통한다. 1.2초 안에 답이 없으면 로그인 창을 보인다
+    function adopt() {
+      if (token() || !('BroadcastChannel' in window)) return Promise.resolve();
+      return new Promise((done) => {
+        const bc = new BroadcastChannel('st-rookie-auth'), end = () => { clearTimeout(to); bc.close(); done(); };
+        const to = setTimeout(end, 1200);
+        bc.onmessage = (e) => { if (e.data && e.data.type === 'token' && e.data.token) { try { sessionStorage.setItem(TOKEN, e.data.token); } catch (err) {} end(); } };
+        bc.postMessage({ type: 'need-token' });
+      });
+    }
+    addEventListener('hashchange', () => show(location.hash.slice(1)));
+    adopt().then(() => show(location.hash.slice(1)));
+  </script>
+</body>
+</html>

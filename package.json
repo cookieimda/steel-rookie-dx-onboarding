@@ -1,0 +1,44 @@
+{
+  "name": "st-rookie",
+  "version": "1.0.0",
+  "description": "포스코 공개 자료 기반 제선 공정 질문형 교육 MVP",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npm run start",
+    "build": "tsc --noEmit false --outDir .build",
+    "start": "npm run build && node --env-file-if-exists=.env .build/backend/src/ironmaking-server.js",
+    "start:gemini": "npm run build && node --env-file-if-exists=.env scripts/start-gemini.mjs",
+    "start:ollama": "npm run build && node --env-file-if-exists=.env scripts/start-ollama.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test .build/backend/test/*.test.js",
+    "eval:evaluator": "npm run build && node --env-file-if-exists=.env .build/llm/eval/run-evaluator.js",
+    "eval:export-human": "npm run build && node .build/llm/eval/export-human.js",
+    "eval:questions": "npm run build && node --env-file-if-exists=.env .build/llm/eval/sample-questions.js",
+    "eval:learning": "npm run build && node --env-file-if-exists=.env .build/llm/eval/run-learning.js",
+    "eval:retrieval": "npm run build && node .build/llm/eval/run-retrieval.js",
+    "eval:supplement": "npm run build && node --env-file-if-exists=.env .build/llm/eval/run-supplement.js",
+    "trace:report": "npm run build && node --env-file-if-exists=.env .build/llm/eval/trace-report.js",
+    "trace:langfuse": "npm run build && node --env-file-if-exists=.env .build/llm/eval/trace-langfuse.js",
+    "tunnel": "node --env-file-if-exists=.env scripts/tunnel.mjs",
+    "db:reset-user": "npm run build && node --env-file-if-exists=.env .build/backend/src/db/reset-user.js",
+    "db:seed-demo": "npm run build && node --env-file-if-exists=.env .build/backend/src/db/seed-demo-records.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cookieimda/steel-rookie-dx-onboarding.git"
+  },
+  "dependencies": {
+    "ajv": "^8.20.0",
+    "bcryptjs": "^3.0.3",
+    "express": "^5.2.1",
+    "jose": "^6.2.12",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.3",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

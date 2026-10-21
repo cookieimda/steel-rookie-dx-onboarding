@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="ko" data-brand="intro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ST-ROOKIE · 제철 공정 지도</title>
+  <!-- 첫 화면(밤의 지도 테이블): 홈과 같은 밤 배경에서 흰 점이 모여 포항제철소 부지(위성 사진 기준 윤곽)와 공정 모양이 되고, 밤의 지도로 바뀐다.
+       제선 → 제강 → 연주 → 열연 구역이 1·2·3·4 순서로 땅에서 솟고, 주황 불빛(가로등·투광등·항만·도시 창)이 켜진다.
+       공정 칩(번호·이름·[시연])은 구역이 솟을 때 3초만 보이고, 그 구역에 마우스를 올리면 다시 보인다. 로직은 steel-intro.js. 설계 노트는 저장소 밖에 둔다 -->
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/+esm">
+  <link rel="stylesheet" href="./intro-tour.css"><!-- 공정 [▶ 재생] 단계 카드·재생 바(intro-tour.js) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Montserrat:wght@500;700;800&family=Noto+Sans+KR:wght@300;400;500;600;700;900&display=swap">
+  <style>
+    /* 홈(login_ui/home-sleek)과 같은 밤 UI: 어두운 불투명 표면, 얇은 경계선, 흰 글자, 흰 CTA. 글자 15px 이상 */
+    :root { --night: #141416; --surf: rgba(20,20,23,.94); --surf2: #232327; --line: rgba(255,255,255,.12); --text: #f2f2f2; --muted: #a1a1a6; --dim: #7a7a80; --molten: #ff6b35; --f-body: "Noto Sans KR", "Pretendard", system-ui, sans-serif; --f-mono: "JetBrains Mono", ui-monospace, Consolas, monospace; --f-en: "Montserrat", "Noto Sans KR", sans-serif; --ease: cubic-bezier(.2,.8,.2,1); --shadow: 0 16px 34px -10px rgba(0,0,0,.6); color-scheme: dark; }
+    html, body { margin: 0; height: 100%; background: var(--night); color: var(--text); font-family: var(--f-body); font-size: 15px; overflow: hidden; -webkit-font-smoothing: antialiased; }
+    button { font-family: inherit; }
+    button:focus-visible, a:focus-visible { outline: 2px solid var(--molten); outline-offset: 2px; }
+    #stage { position: fixed; inset: 0; }
+    #stage canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+    #stage.dragging canvas { cursor: grabbing; }
+    #hud { position: fixed; inset: 0; pointer-events: none; }
+    img.ic { display: block; }
+
+    .top { position: fixed; top: 18px; left: 22px; right: 22px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; pointer-events: none; z-index: 5; }
+    .ttl { padding: 12px 18px; border-radius: 16px; background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0) 45%), rgba(20,22,28,.55); box-shadow: 0 24px 60px -18px rgba(0,0,0,.6); -webkit-backdrop-filter: blur(18px) saturate(1.2); backdrop-filter: blur(18px) saturate(1.2); /* 안내 카드와 같은 반투명 유리, 테두리 없음 */ pointer-events: auto; max-width: 520px; transition: opacity .9s var(--ease), transform .9s var(--ease); }
+    .ttl.out { opacity: 0; transform: translateY(-10px); pointer-events: none; } /* 제목 카드는 처음 잠깐만 보이고 사라진다 */
+    .ttl h1 { margin: 0; font: 800 22px/1.15 var(--f-body); letter-spacing: -.01em; }
+    .ttl p { margin: 4px 0 0; font: 400 15px/1.4 var(--f-body); color: var(--muted); }
+    .seg { position: absolute; left: 50%; top: 0; transform: translateX(-50%); /* 위 가운데(2026-10-19 요청). 제목 카드는 왼쪽 그대로 */ pointer-events: auto; display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 999px; background: var(--surf); border: 1px solid var(--line); box-shadow: var(--shadow); }
+    .seg button { height: 36px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: 600 15px/1 var(--f-body); cursor: pointer; }
+    .seg button.on { background: #f2f2f2; color: #111; }
+    .seg button.vw { width: 48px; padding: 0; display: grid; place-items: center; } /* 3D(집)·2D(평면도) 아이콘 버튼. 3D가 앞(2026-10-19 요청) */
+    .seg button:focus-visible { outline: none; } /* 2D·3D 토글은 포커스 외곽선을 그리지 않는다(2026-10-15 요청) */
+    .seg .sep { width: 1px; height: 22px; background: var(--line); margin: 0 4px; }
+    .seg a { height: 36px; padding: 0 14px; border-radius: 999px; display: inline-flex; align-items: center; color: var(--text); font: 600 15px/1 var(--f-body); text-decoration: none; }
+    .seg a.vw { width: 48px; padding: 0; justify-content: center; color: var(--muted); } /* learn(펼친 책) 아이콘. 3D·2D 아이콘과 같은 크기·색 */
+    .seg a:hover { background: var(--surf2); color: var(--text); }
+
+    /* 공정 칩: 번호 · 이름 · [시연]. 기본은 숨김, 솟을 때 3초·마우스를 올리면 보인다 */
+    .pc { position: absolute; left: 0; top: 0; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; opacity: 0; transition: opacity .3s var(--ease); pointer-events: none; }
+    .pc.on { opacity: 1; pointer-events: auto; }
+    .pc .box { display: flex; align-items: center; gap: 10px; padding: 7px 7px 7px 8px; border-radius: 999px; background: var(--surf); border: 1px solid var(--line); box-shadow: var(--shadow); white-space: nowrap; }
+    .pc .num { min-width: 30px; height: 26px; padding: 0 6px; box-sizing: border-box; border-radius: 4px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); color: #ff9e64; font: 700 14px/1 var(--f-mono); letter-spacing: .04em; display: grid; place-items: center; flex: none; } /* 두 자리 주황 숫자 + 어두운 네모(공정 화면 번호와 같은 모양, 2026-10-19 요청) */
+    .pc .nm { font: 700 16px/1 var(--f-body); }
+    .pc button { height: 32px; padding: 0 14px; border-radius: 999px; border: 0; background: #f2f2f2; color: #111; font: 700 15px/1 var(--f-body); cursor: pointer; transition: background .2s var(--ease), color .2s var(--ease); }
+    .pc button:hover { background: #fff; }
+    .pc button[data-enter]:hover { background: var(--molten); color: #fff; } /* [시연 →]: 마우스를 올리면 주황 캡슐 + 흰 글자 */
+    .pc .stem { width: 1px; height: 30px; background: rgba(255,255,255,.55); }
+    .pc .dot { width: 7px; height: 7px; border-radius: 50%; background: #fff; box-shadow: 0 0 8px rgba(255,170,90,.9); }
+
+    .fl { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); padding: 6px 11px; border-radius: 999px; background: var(--surf); border: 1px solid var(--line); color: var(--text); font: 600 15px/1 var(--f-body); white-space: nowrap; opacity: 0; transition: opacity .3s var(--ease); pointer-events: none; }
+    .fl.on { opacity: 1; }
+    .fl i { font-style: normal; color: var(--molten); }
+
+    .flow { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); width: min(660px, calc(100vw - 44px)); /* 점 사이 줄을 0.7배로(880px일 때 대비, 2026-10-19 요청) */ z-index: 5; display: flex; align-items: center; gap: 16px; padding: 10px 16px 10px 10px; border-radius: 999px; background: var(--surf); border: 1px solid var(--line); box-shadow: var(--shadow); pointer-events: auto; box-sizing: border-box; }
+    /* 공정 하나를 고르면(body.picked) 타임라인을 숨기고 그 자리에 [▶ 재생](칩에 있던 버튼)을 보인다. 재생 중(touring)에는 둘 다 숨긴다 */
+    .flow, .tour-go { transition: opacity .3s var(--ease); }
+    .tour-go { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 5; height: 48px; padding: 0 26px; border-radius: 999px; border: 1px solid var(--line); background: var(--surf); box-shadow: var(--shadow); color: var(--text); font: 700 16px/1 var(--f-body); cursor: pointer; opacity: 0; pointer-events: none; }
+    .tour-go:hover { background: var(--molten); color: #fff; }
+    body.picked .flow { opacity: 0; pointer-events: none; }
+    body.picked .tour-go { opacity: 1; pointer-events: auto; }
+    body.touring .flow, body.touring .tour-go { opacity: 0; pointer-events: none; }
+    .flow .pl { width: 32px; height: 32px; border-radius: 50%; border: 0; background: #f2f2f2; display: grid; place-items: center; cursor: pointer; flex: none; }
+    .flow .tl { flex: 1; position: relative; height: 44px; margin: 0 40px 0 24px; } /* 양쪽 여백: 첫·마지막 이름(1 제선·4 열간압연)이 점 가운데로 튀어나와 캡슐 밖으로 나가지 않게 */
+    .flow .tl::before { content: ""; position: absolute; left: 0; right: 0; top: 14px; height: 1px; background: rgba(255,255,255,.18); }
+    .flow .tl .fill { position: absolute; left: 0; top: 14px; height: 1px; background: var(--molten); transition: width .5s var(--ease); }
+    .flow .tl button { position: absolute; top: 14px; transform: translate(-50%, -50%); width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(255,255,255,.4); background: var(--night); cursor: pointer; padding: 0; }
+    .flow .tl button.up { border-color: var(--molten); background: var(--molten); }
+    .flow .tl button.cur { width: 16px; height: 16px; border-color: var(--molten); background: var(--molten); } /* 지금 공정: 주황 테두리 고리 대신 꽉 찬 큰 점 */
+    .flow .tl button span { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); font: 500 15px/1 var(--f-body); color: var(--muted); white-space: nowrap; }
+    .flow .tl button.cur span, .flow .tl button.up span { color: #fff; font-weight: 700; }
+
+
+    /* 조작 안내: 처음 들어오면 먼저 보이고, [시작하기]를 누르면 공정이 순서대로 이어진다 */
+    .guide { position: fixed; inset: 0; z-index: 8; display: grid; place-items: center; background: rgba(8,8,10,.45); transition: opacity .4s var(--ease); }
+    .guide.off { opacity: 0; pointer-events: none; }
+    /* 카드는 재생 단계 카드(intro-tour.css)와 같은 반투명 유리: 뒤 3D가 흐리게 비치고 테두리는 없다. 키 칩도 같은 반투명 둥근 네모 */
+    .guide .card { width: min(480px, calc(100vw - 32px)); box-sizing: border-box; padding: 32px 30px 28px; border-radius: 22px; background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0) 45%), rgba(20,22,28,.55); box-shadow: 0 24px 60px -18px rgba(0,0,0,.6); -webkit-backdrop-filter: blur(18px) saturate(1.2); backdrop-filter: blur(18px) saturate(1.2); }
+    .guide h2 { margin: 0; font: 800 24px/1.25 var(--f-body); }
+    .guide p { margin: 10px 0 26px; color: rgba(255,255,255,.65); font: 400 15px/1.6 var(--f-body); }
+    .guide ul { list-style: none; margin: 0 0 30px; padding: 0; display: grid; gap: 18px; }
+    .guide li { display: flex; align-items: flex-start; gap: 14px; font: 400 15px/1.6 var(--f-body); color: rgba(255,255,255,.85); } /* 설명 첫 줄이 키 칩 윗줄에 맞춰 시작 */
+    .guide kbd { flex: none; min-width: 96px; padding: 3px 10px; border-radius: 8px; background: rgba(255,255,255,.1); color: #fff; font: 700 14px/1.6 var(--f-body); text-align: center; box-sizing: border-box; }
+    .guide button { width: 100%; height: 48px; border: 0; border-radius: 999px; background: #f2f2f2; color: #111; font: 700 16px/1 var(--f-body); cursor: pointer; transition: background .2s var(--ease), color .2s var(--ease); }
+    .guide button:hover { background: var(--molten); color: #fff; } /* 마우스를 올리면 주황 캡슐 + 흰 글자 */
+    .guide button:focus-visible { outline: none; } /* 시작하기 둘레 주황 외곽선 없음 */
+
+    #load { position: fixed; inset: 0; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 45%, #232327 0%, var(--night) 60%); z-index: 9; transition: opacity .6s var(--ease); }
+    #load.off { opacity: 0; pointer-events: none; }
+    #load b { font: 400 13px/1 var(--f-mono); letter-spacing: .3em; color: #9a9aa0; }
+    #load .bar { width: 180px; height: 1px; background: rgba(255,255,255,.14); overflow: hidden; margin-top: 14px; }
+    #load .bar i { display: block; height: 100%; width: 0; background: #f2f2f2; transition: width .3s var(--ease); }
+    @media (max-width: 900px) { .ttl p { display: none; } .ttl h1 { font-size: 20px; } .flow .tl button span { font-size: 12px; } }
+    @media (prefers-reduced-motion: reduce) { .pc, .fl, .flow .tl .fill, #load { transition: none; } }
+  </style>
+  <link rel="stylesheet" href="/login_ui/brand.css"><!-- 공통 브랜드 토큰: ST-ROOKIE [ SEE & RUN ] -->
+</head>
+<body>
+  <div id="stage" aria-label="포항제철소 밤 지도 위 제철 공정 3D. 제선, 제강, 연주, 열연 구역이 순서대로 올라오고, 구역에 마우스를 올리면 들어가기 버튼이 보입니다."></div>
+  <div id="hud"></div>
+
+  <div class="top">
+    <div class="ttl" id="ttl"><h1>제철 공정 지도</h1><p>제선 → 제강 → 연주 → 열연 구역이 차례로 올라옵니다. 구역에 마우스를 올려 그 공정으로 들어가세요.</p></div>
+    <div class="seg" role="group" aria-label="보기"><button id="v3d" class="vw on" aria-pressed="true" aria-label="3D 입체 보기" title="3D 입체 보기"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9v11h14V9"/><path d="M10 20v-6h4v6"/></svg></button><button id="v2d" class="vw" aria-pressed="false" aria-label="2D 평면 보기" title="2D 평면 보기"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M4 12h16M12 4v16"/></svg></button><span class="sep"></span><a href="/login" class="vw" title="learn" aria-label="learn"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6.5C10.3 5.2 7.6 4.6 3 4.8v13.4c4.6-.2 7.3.4 9 1.8 1.7-1.4 4.4-2 9-1.8V4.8c-4.6-.2-7.3.4-9 1.7z"/><path d="M12 6.5V20"/></svg></a></div>
+  </div>
+
+  <div class="flow">
+    <button class="pl" id="btnPlay" title="재생" aria-label="재생"><img class="ic" id="icPlay" width="16" height="16" alt=""></button>
+    <div class="tl" id="tl"><div class="fill" id="tlFill" style="width:0"></div></div>
+  </div>
+  <button type="button" class="tour-go" id="btnTour" title="고른 공정을 설비 하나하나, 단계별 설명과 함께 재생합니다">▶ 재생</button>
+
+
+  <div class="guide off" id="guide" role="dialog" aria-modal="true" aria-labelledby="guideTtl">
+    <div class="card">
+      <h2 id="guideTtl">이렇게 둘러보세요</h2>
+      <p>시작하면 제선 → 제강 → 연주 → 열연 공정이 순서대로 이어집니다.</p>
+      <ul>
+        <li><kbd>드래그</kbd>화면을 돌려 봅니다 (2D에서는 위에서 본 채로 돌아갑니다)</li>
+        <li><kbd>마우스 휠</kbd>확대·축소합니다</li>
+        <li><kbd>구역 클릭</kbd>그 공정으로 다가가고, 아래 [▶ 재생]으로 설비를 차례로 보거나 [시연]으로 공정 화면(조업 전광판·What-if)에 갑니다 (Esc: 재생 끝내기)</li>
+        <li><kbd>← → · 1~4</kbd>공정을 옮깁니다 (Space: 재생·멈춤)</li>
+        <li><kbd>2D · 3D · V</kbd>위에서 본 평면 보기와 입체 보기를 바꿉니다 (2D에서 위아래로 드래그해도 3D로 바뀝니다)</li>
+      </ul>
+      <button type="button" id="guideGo">시작하기</button>
+    </div>
+  </div>
+
+  <div id="load"><div style="display:flex;flex-direction:column;align-items:center"><b>ST-ROOKIE</b><div class="bar"><i id="loadbar"></i></div></div></div>
+
+  <script type="module" src="./perf-hud.js"></script><!-- ?perf=1일 때만 FPS·드로우 콜 표시 -->
+  <script type="module" src="./steel-intro.js"></script>
+</body>
+</html>

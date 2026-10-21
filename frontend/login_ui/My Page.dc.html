@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>ST-ROOKIE · 학습 기록</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    html, body { margin: 0; min-height: 100%; background: #1c1c1c; color: #f2f2f2; }
+    * { box-sizing: border-box; }
+    /* 스크롤바: 안쪽 화면(학습 기록·관리자)과 같은 얇은 테마색 */
+    html, body * { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .13) transparent; }
+  </style>
+</helmet>
+<div style="min-height:100vh;">
+  <!-- 로그인 화면은 홈(home-sleek.html)에만 있다. 여기는 로그인한 사람의 역할별 대시보드만 띄우고, 토큰이 없거나 만료됐으면 홈으로 보낸다. -->
+  <sc-if value="{{ isAdmin }}" hint-placeholder-val="{{ false }}">
+    <iframe title="관리자 학습 현황" src="./Admin%20Dashboard.dc.html" style="display:block;width:100%;height:100vh;border:0;"></iframe>
+  </sc-if>
+  <sc-if value="{{ isTrainee }}" hint-placeholder-val="{{ false }}">
+    <iframe title="신입사원 학습 현황" src="{{ traineeSrc }}" style="display:block;width:100%;height:100vh;border:0;"></iframe>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+// 로그인 API는 docs/auth-api.md. 서버(npm start)가 이 페이지를 /login으로 서빙한다.
+const TOKEN_KEY = 'st-rookie-token';
+const HOME_URL = '/login_ui/home-sleek.html';
+const tokenStore = {
+  get() { try { return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY); } catch (e) { return null; } },
+  clear() { try { localStorage.removeItem(TOKEN_KEY); sessionStorage.removeItem(TOKEN_KEY); } catch (e) {} },
+};
+const toHome = () => window.location.replace(HOME_URL);
+
+class Component extends DCLogic {
+  state = { user: null };
+  componentDidMount() {
+    const token = tokenStore.get();
+    if (!token) return toHome();
+    fetch('/api/auth/me', { headers: { authorization: 'Bearer ' + token } })
+      .then(res => res.ok ? res.json() : Promise.reject(res))
+      .then(({ user }) => this.setState({ user }), err => { if (err && err.status === 401) tokenStore.clear(); toHome(); });
+  }
+  renderVals() {
+    const u = this.state.user;
+    // 신입사원은 새 학습 기록(LEARN & ASK 포석호 도감, learn/learn.html)으로 간다. 기능 화면은 도감의 [사용하기]가 기존 대시보드를 띄운다.
+    // 공정 화면에서 넘어온 맥락(?p=공정&eq=설비&ask=1)은 AI 튜터가 있는 기존 신입사원 대시보드에 그대로 넘긴다(#140)
+    const q = new URLSearchParams(window.location.search), toTutor = q.has('p') || q.has('eq') || q.has('ask');
+    return { isAdmin: !!u && u.role === 'admin', isTrainee: !!u && u.role !== 'admin', traineeSrc: toTutor ? './Trainee%20Dashboard.dc.html' + window.location.search : './learn/learn.html' };
+  }
+}
+</script>
+</body>
+</html>

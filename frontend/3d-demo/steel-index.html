@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="ko" data-brand="index">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ST-ROOKIE · Steel Process Index</title>
+  <!-- 공정 인덱스 3D: 슬레이트 테이블 위에 공정 하나만 올리고, v4 3D 화면의 UI(상단 알약 바·왼쪽 설비 목록·오른쪽 상세/단계/튜터 패널·하단 재생 바)와 상호작용을 옮겨 왔다.
+       로직은 steel-index.js(독립 페이지, support.js를 쓰지 않는다). 아이콘·온도 보조는 steel-index-ui.js(v4에서 옮김). 설계 노트는 저장소 밖에 둔다, 설계 노트는 저장소 밖에 둔다
+       스타일 원칙((저장소 밖 설계 노트)): 사용자가 읽는 일반 텍스트는 15px 이상, 패널은 불투명(3D 위 글래스는 상단 알약 바와 설비 칩만), 포커스 표시, 클릭 대상 40px 이상. -->
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/+esm">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;700&family=Noto+Sans+KR:wght@400;500;600;700;900&display=swap">
+  <style>
+    /* 표면: 피드백대로 Slate-900 불투명 + Slate-700 경계선 */
+    :root { --chrome: rgb(15,23,42); --chrome2: #141d33; --chrome3: #1e293b; --chrome4: #283548; --line: rgba(51,65,85,.6); --line2: rgba(51,65,85,.9); --text: #f2f2f2; --muted: #b3b3b8; --dim: #80808a; --accent: #f2f2f2; --accent-ink: #111; --hot: #ff9e64; --molten: #ff6b35; --warn: #f5b13d; --ok: #3ddc97; --cyan: #ff9e64; /* 이름은 그대로 두고 값만 UI 주황(설비 번호 핀·핫스팟, 2026-10-14 요청) */ --ease: cubic-bezier(.2,.8,.2,1); --t-fast: .15s; --t-base: .25s; --f-body: "Noto Sans KR", "Pretendard", system-ui, sans-serif; --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace; --r-s: 8px; --r-m: 12px; --r-l: 16px; color-scheme: dark; }
+    html, body { margin: 0; height: 100%; background: #0d1114; color: var(--text); font-family: var(--f-body); font-size: 15px; overflow: hidden; -webkit-font-smoothing: antialiased; }
+    button { font-family: inherit; }
+    button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--molten); outline-offset: 2px; }
+    #stage { position: fixed; inset: 0; }
+    #stage canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+    #stage.dragging canvas { cursor: grabbing; }
+    #hud { position: fixed; inset: 0; pointer-events: none; }
+    img.ic { display: block; }
+    .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+    /* ---- 상단 알약 바 (v4). 임시 컨트롤이라 반투명을 둔다 ---- */    .top { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 7; display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 999px; background: rgba(18,18,20,.9); border: 1px solid var(--line2); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+    /* 설비 차례로 보기(재생) 중에는 알약 바를 위로 숨긴다. 마우스를 화면 위쪽으로 가져가면(body.peek) 내려온다 */
+    .top { transition: transform .35s var(--ease), opacity .35s var(--ease); width: max-content; max-width: calc(100vw - 20px); } /* left:50% 때문에 반 폭으로 줄어 글자가 한 자씩 줄바꿈되던 것을 막는다 */
+    .top .tabs button, .top .seg button { white-space: nowrap; }
+    body.touring:not(.peek) .top { transform: translate(-50%, calc(-100% - 16px)); opacity: 0; pointer-events: none; }
+    .top .rb { width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--chrome3); color: var(--text); display: grid; place-items: center; cursor: pointer; position: relative; transition: background var(--t-fast) var(--ease); }
+    .top .rb:hover { background: var(--chrome4); }
+    .top .rb[hidden] { display: none; }
+    .top .rb.on { background: var(--accent); }
+    .top .rb .dot { position: absolute; top: 6px; right: 6px; width: 9px; height: 9px; border-radius: 50%; background: #ff5a5a; border: 2px solid #121214; display: none; }
+    .top .rb.unread .dot { display: block; }
+    .top .tabs { display: flex; align-items: center; gap: 2px; padding: 0 5px; height: 40px; border-radius: 999px; background: var(--chrome3); }
+    .top .tabs button { height: 32px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: 600 15px/1 var(--f-body); cursor: pointer; display: flex; align-items: center; gap: 7px; transition: background var(--t-fast), color var(--t-fast); }
+    .top .tabs button code { font: 500 12px/1 var(--f-mono); color: var(--dim); }
+    .top .tabs button:hover { background: rgba(255,255,255,.06); color: var(--text); }
+    .top .tabs button.on { background: var(--accent); color: var(--accent-ink); }
+    .top .tabs button.on code { color: #6b6b70; }
+    .top .seg { display: flex; align-items: center; gap: 2px; padding: 0 4px; height: 40px; border-radius: 999px; background: var(--chrome3); }
+    .top .seg button { height: 32px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: 600 15px/1 var(--f-body); cursor: pointer; }
+    .top .seg button.on { background: var(--accent); color: var(--accent-ink); }
+    .top .sep { width: 1px; height: 26px; background: var(--line2); margin: 0 4px; }
+    .hint { position: fixed; top: 20px; right: 18px; z-index: 5; font: 400 15px/1 var(--f-body); color: var(--muted); pointer-events: none; white-space: nowrap; }
+
+
+    /* ---- 오른쪽 패널 (반투명 + 흐림. 3D가 비치게, 2026-10-14 요청) ---- */
+    .right { position: fixed; top: 62px; right: 10px; bottom: 96px; z-index: 6; width: 440px; max-width: calc(100vw - 20px); border-radius: var(--r-l); background: rgba(15,23,42,.66); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--line2); display: none; flex-direction: column; overflow: hidden; }
+    .right.on { display: flex; }
+    .right .scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 22px 18px; display: flex; flex-direction: column; scrollbar-width: thin; }
+    .right .eyebrow { font: 400 13px/1 var(--f-mono); letter-spacing: .06em; color: var(--muted); }
+    .right h1 { margin: 10px 0 0; font: 900 28px/1.15 var(--f-body); letter-spacing: -.02em; }
+    .right .x { position: absolute; top: 14px; right: 14px; width: 40px; height: 40px; border: 0; border-radius: 50%; background: transparent; cursor: pointer; display: grid; place-items: center; }
+    .right .x:hover { background: var(--chrome3); }
+    .right h2 { margin: 20px 0 8px; font: 500 15px/1 var(--f-body); color: var(--muted); }
+    .right p { margin: 0; font: 400 16px/1.6 var(--f-body); color: #e4e4e6; text-wrap: pretty; }
+    .right .io { display: grid; grid-template-columns: 1fr 20px 1fr; align-items: center; gap: 10px; padding: 12px 14px; border-radius: var(--r-m); background: rgba(30,41,59,.55); margin-top: 14px; }
+    .right .io small { display: block; font: 400 15px/1 var(--f-body); color: var(--muted); margin-bottom: 6px; }
+    .right .io b { font: 700 15px/1.4 var(--f-body); }
+    .right .io span { color: var(--muted); font-size: 18px; text-align: center; }
+    .right .note { display: grid; grid-template-columns: 14px 1fr; gap: 8px; margin-top: 6px; font: 400 15px/1.55 var(--f-body); color: #c3ccd7; }
+    .right .note i { font-style: normal; color: var(--accent); }
+    .right .foot { display: flex; gap: 8px; padding: 10px 16px 12px; border-top: 1px solid var(--line); }
+    .right .foot button { flex: 1; height: 44px; border-radius: 999px; border: 1px solid var(--line2); background: var(--chrome3); color: var(--text); font: 600 15px/1 var(--f-body); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; }
+    .right .foot button.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 700; }
+    .right .foot button:hover { filter: brightness(1.1); }
+    .right .steps { margin-top: 10px; border-top: 1px solid var(--line2); }
+    .right .steps button { width: 100%; display: grid; grid-template-columns: 40px minmax(0,1fr); gap: 10px; padding: 10px 2px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+    .right .steps button:hover { background: rgba(255,255,255,.04); }
+    .right .steps .tile { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; background: var(--chrome3); border: 1.5px solid #6b7686; }
+    .right .steps .zone { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; font: 700 15px/1.2 var(--f-body); }
+    .right .steps .zone code { font: 400 13px/1 var(--f-mono); color: var(--hot); white-space: nowrap; }
+    .right .steps .tx { margin-top: 3px; font: 400 15px/1.55 var(--f-body); color: #c3ccd7; }
+
+    /* 단계 보기: L1(설비·단계·상태) / L2(핵심 수치·현장 포인트) / L3(원리·반응) 3단 블록 */
+    .lv { padding: 14px 0; border-bottom: 1px solid var(--line2); }
+    .lv.l1 { padding-top: 0; }
+    .lv.l3 { border-bottom: 0; }
+    .lvh { font: 500 15px/1 var(--f-body); color: var(--muted); margin-bottom: 10px; }
+    .badges { display: flex; gap: 6px; margin-top: 10px; }
+    .badge { display: inline-flex; align-items: center; height: 28px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line2); background: var(--chrome3); font: 600 15px/1 var(--f-body); color: var(--muted); }
+    .badge.run { border-color: rgba(61,220,151,.5); color: var(--ok); }
+    .badge.run::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); margin-right: 7px; animation: blink 1.2s infinite; }
+    @keyframes blink { 0%, 100% { opacity: .2 } 50% { opacity: 1 } }
+    .kpi { display: flex; flex-direction: column; gap: 3px; margin-top: 10px; padding: 12px 14px; border-radius: var(--r-m); background: rgba(30,41,59,.55); }
+    .kpi b { font: 700 32px/1.1 var(--f-body); letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+    .kpi span { font: 400 15px/1.4 var(--f-body); color: var(--muted); }
+    .kpi small { font: 400 15px/1.4 var(--f-mono); color: var(--dim); }
+    .hots { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+    .hots li button { width: 100%; display: grid; grid-template-columns: 18px 1fr; gap: 10px; align-items: start; padding: 9px 10px; border: 1px solid transparent; border-radius: var(--r-s); background: transparent; color: var(--text); text-align: left; cursor: pointer; font: 400 15px/1.45 var(--f-body); }
+    .hots li button:hover { background: rgba(255,255,255,.05); }
+    .hots li.on button { background: rgba(255,158,100,.1); border-color: rgba(255,158,100,.5); }
+    .hots li button i { width: 12px; height: 12px; border-radius: 50%; margin-top: 5px; background: var(--cyan); box-shadow: 0 0 0 3px rgba(255,158,100,.25); }
+    .hots li button b { display: block; font-weight: 600; }
+    .hots li button small { display: block; font-size: 15px; color: var(--muted); }
+    /* 3D 위 핫스팟 핀(step-fx 말풍선을 바꾼 것). 글은 패널 '현장 포인트'에서 */
+    .sfx.lh-hot { pointer-events: none; }
+    .sfx.lh-hot .lh-pin { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; background: var(--cyan); box-shadow: 0 0 0 0 rgba(255,158,100,.6); cursor: pointer; pointer-events: auto; padding: 0; animation: lhPulse 1.6s ease-out infinite; }
+    .sfx.lh-hot .lh-pin i { display: block; width: 100%; height: 100%; }
+    .sfx.lh-hot.on .lh-pin { background: var(--molten); box-shadow: 0 0 0 4px rgba(255,107,53,.35); animation: none; transform: translate(-50%, -50%) scale(1.25); }
+    @keyframes lhPulse { 0% { box-shadow: 0 0 0 0 rgba(255,158,100,.6); } 70% { box-shadow: 0 0 0 10px rgba(255,158,100,0); } 100% { box-shadow: 0 0 0 0 rgba(255,158,100,0); } }
+    @media (prefers-reduced-motion: reduce) { .sfx.lh-hot .lh-pin, .badge.run::before { animation: none; } }
+    /* 단계 보기 (v4 단면 보기 카드) */
+    .stepcard .no { display: flex; align-items: center; gap: 12px; height: 50px; padding: 0 14px; border-radius: 999px; background: rgba(255,158,100,.16); box-shadow: 0 6px 18px rgba(255,120,30,.18); font: 700 17px/1 var(--f-body); }
+    .stepcard .no i { width: 28px; height: 28px; border-radius: 50%; background: #ff9e64; color: #1a1206; font: 700 15px/1 var(--f-mono); font-style: normal; display: grid; place-items: center; }
+    .stepcard .no em { margin-left: auto; width: 10px; height: 10px; border-radius: 3px; background: #6b7686; }
+    .stepcard .heat { position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 10px; padding: 14px 16px 12px; border-radius: var(--r-m); background: #17120e; margin-top: 16px; }
+    .stepcard .heat .bg { position: absolute; left: -30%; top: -40%; width: 160%; height: 180%; opacity: .4; pointer-events: none; }
+    .stepcard .heat > * { position: relative; }
+    .stepcard .heat .lab { font: 400 15px/1 var(--f-body); color: #f3ebe2; }
+    .stepcard .heat .val { font: 900 34px/1.1 var(--f-body); letter-spacing: -.01em; font-variant-numeric: tabular-nums; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+    .right, .bar { box-shadow: 0 20px 25px -5px rgba(0,0,0,.5); }
+    /* 온도 막대. 클래스가 .bar이면 하단 재생 바 규칙(position: fixed)이 같이 걸려 막대가 패널 구석으로 가고 표시(.fill)만 눈금 위에 남았다(2026-10-14) */
+    .stepcard .heat .hbar-wrap { position: relative; }
+    .stepcard .heat .hbar { height: 10px; border-radius: 5px; background: linear-gradient(90deg,#3b82f6 0%,#facc15 40%,#f97316 65%,#ef4444 100%); opacity: .3; }
+    .stepcard .heat .fill { position: absolute; top: -2px; height: 14px; border-radius: 7px; background: linear-gradient(90deg,#ffd27a,#ff6b35); }
+    .stepcard .heat .scale { display: flex; justify-content: space-between; margin-top: 6px; font: 400 12px/1 var(--f-mono); color: #d2c6b8; }
+    .stepcard .heat .note2 { font: 400 15px/1.5 var(--f-body); color: #c4b6a6; }
+
+
+    /* ---- 하단 재생 바 (반투명 + 흐림) ---- */
+    .bar { position: fixed; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 16px; height: 74px; padding: 0 22px 0 12px; border-radius: 999px; background: rgba(15,23,42,.7); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--line2); max-width: calc(100vw - 20px); }
+    body.panel .bar { left: calc((100vw - 460px) / 2); max-width: calc(100vw - 480px); } /* 패널 왼쪽 영역 가운데, 폭은 내용만큼(전에는 그 영역을 다 채워 길었다) */
+    .bar .play { width: 48px; height: 48px; border-radius: 50%; border: 1px solid var(--line2); background: var(--chrome3); color: var(--text); display: grid; place-items: center; cursor: pointer; flex: none; }
+    .bar .play:hover { background: var(--chrome4); }
+    .bar .track { display: flex; align-items: flex-start; position: relative; }
+    .bar .track::before { content: ""; position: absolute; left: 10px; right: 10px; top: 7px; height: 2px; background: var(--line2); }
+    .bar .stop { width: auto; min-width: 96px; max-width: 150px; display: flex; flex-direction: column; align-items: center; gap: 9px; border: 0; background: transparent; color: var(--muted); font: 500 15px/1 var(--f-body); cursor: pointer; white-space: nowrap; position: relative; padding: 0 8px; }
+    .bar .stop span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+    .bar .stop i { width: 9px; height: 9px; border-radius: 50%; background: var(--chrome4); border: 2px solid #4a4a4e; margin-top: 3px; transition: transform var(--t-fast); }
+    .bar .stop.done i { background: #fff; border-color: #fff; }
+    .bar .stop.cur { color: #fff; font-weight: 700; }
+    .bar .stop.cur i { background: #fff; border-color: #fff; transform: scale(1.7); }
+    .bar .speed { height: 36px; min-width: 44px; padding: 0 8px; border: 0; border-radius: 999px; background: transparent; color: var(--text); font: 700 15px/1 var(--f-mono); cursor: pointer; }
+    .bar .speed:hover { background: var(--chrome3); }
+    @media (max-width: 1280px) { body.panel .bar .stop { width: 84px; font-size: 13px; } .bar .stop { width: 96px; } }
+    /* 좁은 화면: 오른쪽 패널이 열리면 왼쪽 목록을 접고(머리만), 상단 바를 줄인다 */
+    @media (max-width: 1100px) { .top { top: 8px; gap: 4px; padding: 4px; } .top .tabs button { padding: 0 8px; } .top .tabs button code { display: none; } .hint { display: none; } .right { top: 58px; } }
+    @media (max-width: 760px) { .right { width: calc(100vw - 20px); top: 60px; } .right h1 { font-size: 24px; } .bar { height: 64px; gap: 10px; } .bar .stop { width: 66px; font-size: 12px; } .bar .play { width: 44px; height: 44px; } .hint { display: none; } .top .tabs button { padding: 0 8px; } .top .tabs button code, .top .seg { display: none; } }
+
+    /* 상태: 로딩·오류 */
+    #load { position: fixed; inset: 0; display: grid; place-items: center; background: #0d1114; z-index: 9; transition: opacity .6s var(--ease); }
+    #load.off { opacity: 0; pointer-events: none; }
+    #load .bar2 { width: 180px; height: 1px; background: rgba(255,255,255,.12); overflow: hidden; margin-top: 14px; }
+    #load .bar2 i { display: block; height: 100%; width: 0; background: var(--molten); transition: width .3s var(--ease); }
+    #load b { font: 500 13px/1 var(--f-mono); letter-spacing: .22em; color: var(--muted); }
+    #load .err { margin-top: 14px; font: 400 15px/1.5 var(--f-body); color: var(--warn); text-align: center; max-width: 360px; display: none; }
+    .toast { position: fixed; left: 50%; bottom: 100px; transform: translateX(-50%); z-index: 8; padding: 10px 16px; border-radius: 999px; background: var(--chrome); border: 1px solid rgba(245,177,61,.5); color: #ffd58a; font: 500 15px/1.3 var(--f-body); display: none; }
+    .toast.on { display: block; }
+    @media (prefers-reduced-motion: reduce) { #load, .bar .stop i { transition: none; } }
+
+    /* ---- HUD 스킨(2026-10-14 요청: 터미널/HUD 느낌). 아주 어두운 반투명 유리, 모노 라벨, 가는 주황 선, 모서리를 비스듬히 자른 판. 아래 규칙이 위의 알약(999px) 규칙을 덮어쓴다 ---- */
+    :root { --glass: rgba(6,12,18,.58); --glass2: rgba(255,255,255,.045); --edge: rgba(255,255,255,.1); --edge2: rgba(255,158,100,.45); --r-s: 3px; --r-m: 4px; --r-l: 6px; }
+    .top { border-radius: 4px; background: var(--glass); border-color: var(--edge); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); padding: 4px 8px; gap: 4px; clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px)); }
+    .top .rb { border-radius: 4px; background: transparent; border: 1px solid transparent; }
+    .top .rb:hover { background: var(--glass2); border-color: var(--edge); }
+    .top .rb.on { background: var(--hot); border-color: transparent; }
+    .top .tabs, .top .seg { border-radius: 4px; background: transparent; border: 1px solid var(--edge); height: 36px; padding: 0 2px; }
+    .top .tabs button, .top .seg button { border-radius: 3px; height: 30px; }
+    .top .tabs button.on, .top .seg button.on { background: rgba(255,158,100,.14); color: var(--hot); box-shadow: inset 0 -2px 0 var(--hot); }
+    .top .tabs button.on code { color: var(--hot); }
+    .top .sep { background: var(--edge); }
+    .hint { font: 400 13px/1 var(--f-mono); letter-spacing: .1em; color: var(--dim); }
+    .right { border-radius: 6px; background: var(--glass); border-color: var(--edge); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: none; clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px)); }
+    .right::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: linear-gradient(90deg, var(--hot), rgba(255,158,100,0) 70%); pointer-events: none; z-index: 1; }
+    .right .eyebrow, .right h2, .lvh, .right .io small, .kpi small { font-family: var(--f-mono); letter-spacing: .08em; font-size: 13px; }
+    .right .x, .right .steps .tile, .badge { border-radius: 4px; }
+    /* 긴 설명에서도 설비 이름·단계 머리는 위에 붙어 있고(sticky), 닫기(.x)는 패널 구석에, 단계 이동은 아래 .foot에 고정(#140) */
+    .right .phead, .stepcard .lv.l1 { position: sticky; top: -20px; z-index: 2; margin: -20px -22px 0; padding: 20px 22px 10px; background: rgba(6,12,18,.94); }
+    .stepcard .lv.l1 { border-bottom: 1px solid var(--line2); }
+    .right .x { z-index: 3; } /* 고정된 머리 위에 닫기 버튼이 오게 */
+    /* 좁은 화면(≤760px): 상단 바·재생 바를 화면 폭에 맞추고 안에서 가로 스크롤(조작 바가 화면 밖으로 넘어가지 않게, #140) */
+    @media (max-width: 760px) {
+      .top { left: 8px; right: 8px; transform: none; width: auto; max-width: none; overflow-x: auto; scrollbar-width: none; clip-path: none; }
+      body.touring:not(.peek) .top { transform: translateY(calc(-100% - 16px)); }
+      .bar, body.panel .bar { left: 8px; right: 8px; transform: none; width: auto; max-width: none; overflow-x: auto; scrollbar-width: none; clip-path: none; }
+      .bar .track { flex: none; }
+      .right { bottom: 84px; clip-path: none; }
+    }
+    .right .io, .kpi { border-radius: 4px; background: var(--glass2); border: 1px solid var(--edge); border-left: 2px solid var(--edge2); }
+    .stepcard .heat { border-radius: 4px; }
+    .right .foot { border-top-color: var(--edge); }
+    .right .foot button { border-radius: 4px; background: transparent; border-color: var(--edge); }
+    .right .foot button.primary { background: rgba(255,158,100,.14); color: var(--hot); border: 1px solid var(--edge2); }
+    .right .foot button.primary:hover { background: var(--hot); color: var(--accent-ink); filter: none; }
+    .stepcard .no { border-radius: 4px; background: var(--glass2); border: 1px solid var(--edge2); box-shadow: none; }
+    .stepcard .no i { border-radius: 3px; }
+    .badge { background: transparent; }
+    .badge.run { border-color: var(--edge2); color: var(--hot); } /* '재생 중' 배지의 초록이 거슬린다는 의견 → 주황(2026-10-14) */
+    .badge.run::before { background: var(--hot); }
+    .bar { border-radius: 4px; background: var(--glass); border-color: var(--edge); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: none; height: 68px; clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px); }
+    .bar .play { border-radius: 4px; background: transparent; border-color: var(--edge2); }
+    .bar .play:hover { background: rgba(255,158,100,.14); }
+    .bar .track::before { background: var(--edge); }
+    .bar .stop i { border-radius: 2px; background: transparent; border-color: var(--dim); }
+    .bar .stop.done i { background: var(--hot); border-color: var(--hot); }
+    .bar .stop.cur { color: var(--hot); }
+    .bar .stop.cur i { background: var(--hot); border-color: var(--hot); transform: scale(1.5) rotate(45deg); }
+    .bar .speed { border-radius: 4px; border: 1px solid var(--edge); }
+    .toast { border-radius: 4px; background: var(--glass); backdrop-filter: blur(18px); }
+    .tag .k { border-radius: 4px !important; background: var(--glass) !important; border-color: var(--edge2) !important; backdrop-filter: blur(12px) !important; }
+    .tag .k i { border-radius: 3px !important; }
+  </style>
+  <link rel="stylesheet" href="./lab-console.css">
+  <link rel="stylesheet" href="./lab-console-glass.css">
+  <link rel="stylesheet" href="/login_ui/brand.css"><!-- 공통 브랜드 토큰: ST-ROOKIE [ SEE & RUN ] -->
+</head>
+<body>
+  <div id="stage" aria-label="제철 공정 3D. 위 알약 바에서 공정을 고르고, 왼쪽 설비 목록이나 3D를 클릭하면 설비를 확대해 보여 줍니다."></div>
+  <div id="hud"></div>
+
+  <!-- 상단 알약 바: 홈 · 공정 탭 · 외관/대시보드 · 닫기 | 테마 · 마이페이지 · 로그아웃(토큰이 있을 때만). 튜터는 #140으로 마이페이지에만. 설비 차례로 보기(재생) 중에는 위로 숨고 마우스를 위쪽에 가져가면 내려온다 -->
+  <div class="top" id="top">
+    <button class="rb" id="btnHome" title="홈으로" aria-label="홈으로"><img class="ic" id="icHome" width="22" height="22" alt=""></button>
+    <div class="tabs" id="tabs" role="tablist" aria-label="공정 선택"></div>
+    <div class="seg" role="group" aria-label="보기"><button id="btnView3d" class="on" aria-pressed="true">외관</button><button id="btnViewBoard" aria-pressed="false">대시보드</button></div>
+    <button class="rb" id="btnClose" title="설비 보기 끝내기" aria-label="설비 보기 끝내기"><img class="ic" id="icClose" width="20" height="20" alt=""></button>
+    <span class="sep"></span>
+    <button class="rb" id="btnTheme" title="라이트 모드로" aria-label="테마 바꾸기"><img class="ic" id="icTheme" width="22" height="22" alt=""></button>
+    <button class="rb" id="btnUser" title="마이페이지" aria-label="마이페이지"><img class="ic" id="icUser" width="22" height="22" alt=""></button>
+    <button class="rb" id="btnLogout" title="로그아웃" aria-label="로그아웃" hidden><img class="ic" id="icLogout" width="22" height="22" alt=""></button>
+  </div>
+  <div class="hint">드래그 회전 · 휠 확대</div>
+
+  <!-- 왼쪽: 학습 현황 + 설비 목록 -->
+
+  <!-- 오른쪽 패널: 설비 상세 / 단계 보기 / AI 튜터 -->
+  <aside class="right" id="right" aria-live="polite"></aside>
+
+  <!-- 하단 재생 바 -->
+  <div class="bar" id="bar">
+    <button class="play" id="btnPlay" title="설비 차례로 보기" aria-label="설비 차례로 보기"><img class="ic" id="icPlay" width="26" height="26" alt=""></button>
+    <div class="track" id="track"></div>
+    <button class="speed" id="btnSpeed" title="재생 속도">1×</button>
+  </div>
+
+  <div class="toast" id="toast" role="status"></div>
+  <div id="load"><div style="display:flex;flex-direction:column;align-items:center"><b>ST-ROOKIE</b><div class="bar2"><i id="loadbar"></i></div><div class="err" id="loaderr"></div></div></div>
+
+  <script type="module" src="./perf-hud.js"></script><!-- ?perf=1일 때만 FPS·드로우 콜 표시 -->
+  <script type="module" src="./steel-index.js"></script>
+</body>
+</html>

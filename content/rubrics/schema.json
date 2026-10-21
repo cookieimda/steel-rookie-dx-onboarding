@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "content/rubrics/schema.json",
+  "title": "섹션 루브릭",
+  "description": "체크포인트 평가자가 읽는 섹션별 루브릭. 파일 하나가 섹션 하나다.",
+  "type": "object",
+  "required": ["section", "reviewed", "concepts"],
+  "additionalProperties": false,
+  "properties": {
+    "reviewed": {
+      "description": "팀 검수를 마쳤는지. false인 루브릭을 로드하면 경고 로그를 남긴다.",
+      "type": "boolean"
+    },
+    "glossary": {
+      "description": "섹션 단위 용어집(선택). 평가자는 같은 용어의 동의어를 같은 말로 본다.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["term", "aliases"],
+        "additionalProperties": false,
+        "properties": {
+          "term": { "description": "루브릭에서 쓰는 기준 용어.", "type": "string", "minLength": 1 },
+          "aliases": {
+            "description": "같은 뜻으로 인정하는 표현.",
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "section": {
+      "description": "섹션(공정) id. frontend/3d-demo/data.js의 PROCESSES[].id와 같다.",
+      "enum": ["ironmaking", "steelmaking", "continuous_casting", "rolling"]
+    },
+    "concepts": {
+      "description": "체크포인트에서 묻는 순서대로 나열한다.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/concept" }
+    }
+  },
+  "$defs": {
+    "concept": {
+      "type": "object",
+      "required": ["concept_id", "name", "key_points", "correct", "partial", "wrong", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "concept_id": {
+          "description": "개념 id. DB의 점수·오개념 기록이 참조하므로 한 번 정하면 바꾸지 않는다.",
+          "type": "string",
+          "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$"
+        },
+        "name": {
+          "description": "화면과 튜터 발화에 쓰는 개념 이름.",
+          "type": "string",
+          "minLength": 1
+        },
+        "key_points": {
+          "description": "정답에 들어가야 할 핵심 요소.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["point", "quote"],
+            "additionalProperties": false,
+            "properties": {
+              "point": {
+                "description": "핵심 요소를 한 문장으로.",
+                "type": "string",
+                "minLength": 1
+              },
+              "quote": {
+                "description": "source 문서에서 그대로 옮긴 근거 문장.",
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "correct": {
+          "description": "correct 판정 기준.",
+          "type": "string",
+          "minLength": 1
+        },
+        "partial": {
+          "description": "partial 판정 기준.",
+          "type": "string",
+          "minLength": 1
+        },
+        "wrong": {
+          "description": "wrong 판정 기준. 대표적인 오개념을 함께 적는다.",
+          "type": "string",
+          "minLength": 1
+        },
+        "answer_terms": {
+          "description": "튜터 질문에 쓰면 안 되는 정답 용어(선택). 용어집 동의어도 함께 막는다. 개념 이름에 든 말은 제외된다.",
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "questions": {
+          "description": "질문 은행: 첫 질문 후보(선택). 튜터는 하나를 골라 말투만 다듬는다. 핵심 요소 전체를 묻고, 핵심 요소·정답 용어·그 동의어 표현을 쓰지 않는다. 비어 있으면 LLM이 질문을 만든다.",
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 3,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "recheck_questions": {
+          "description": "질문 은행: 재확인 질문 후보(선택). 첫 질문과 다른 각도로 묻는다. questions와 겹치면 안 된다. 비어 있으면 LLM이 질문을 만든다.",
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "equipment_ids": {
+          "description": "이 개념과 관련된 3D 설비 id(선택, frontend/3d-demo/data_v2.js 기준). 보충학습에서 설명할 때 이 설비를 화면에 보여 준다. 같은 공정의 설비만 쓴다(테스트로 확인).",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$" }
+        },
+        "fallback_question": {
+          "description": "질문 은행이 비어 LLM이 만든 질문이 유출 검사에 두 번 걸리면 쓰는 고정 질문(선택). 정답 용어와 근거 문장 표현이 없어야 한다.",
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "description": "quote를 가져온 문서.",
+          "type": "object",
+          "required": ["file"],
+          "additionalProperties": false,
+          "properties": {
+            "file": {
+              "description": "저장소 루트 기준 경로. 보통 content/materials/{섹션}/section.md.",
+              "type": "string",
+              "minLength": 1
+            },
+            "ref": {
+              "description": "문서 안의 위치(제목, 자료 id 등).",
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,49 @@
+/* Uses the existing 3D page palette. Only measured categories and changes add colors. */
+.lab-pane { position: fixed; top: 80px; bottom: 106px; width: 300px; z-index: 5; display: flex; flex-direction: column; color: var(--text); background: rgba(15,23,42,.93); border: 1px solid var(--line2); border-radius: 12px; overflow: hidden; }
+.lab-temperature { left: 16px; }
+.lab-inputs { right: 16px; width: 330px; }
+.lab-pane-head { padding: 18px 20px; flex-shrink: 0; background: var(--chrome2); border-bottom: 1px solid var(--line2); }
+.lab-pane-head > span { font: 11px var(--f-mono); letter-spacing: .14em; color: var(--hot); }
+.lab-pane-head h2 { margin: 8px 0 6px; font-size: 23px; line-height: 1.3; }
+.lab-pane-head > b { font-size: 15px; font-weight: 400; color: var(--muted); }
+.lab-pane-body { min-height: 0; padding: 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; scrollbar-width: thin; scrollbar-color: #475569 transparent; }
+.lab-step-value { display: flex; flex-direction: column; gap: 8px; }
+.lab-step-value > span { color: var(--muted); font-size: 15px; }
+.lab-step-value > strong { color: var(--hot); font-size: 29px; font-weight: 600; line-height: 1.4; }
+.lab-chart { width: 100%; overflow: visible; padding: 8px 0; background: linear-gradient(#33415522 1px,transparent 1px),linear-gradient(90deg,#33415522 1px,transparent 1px); background-size: 22px 22px; }
+.lab-chart path { stroke: #334155; }
+.lab-chart text { fill: #a3aab7; font: 17px var(--f-body); }
+.lab-chart polyline { fill: none; stroke: var(--hot); stroke-width: 3; stroke-linejoin: round; }
+.lab-chart circle { fill: var(--hot); stroke: #141d33; stroke-width: 1; }
+.lab-slider { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 6px 8px; font-size: 15px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.lab-slider output { color: var(--hot); font: 500 15px var(--f-mono); font-variant-numeric: tabular-nums; }
+.lab-slider input { grid-column: 1 / -1; width: 100%; min-height: 32px; margin: 0; accent-color: var(--hot); cursor: pointer; }
+.lab-button { display: inline-flex; justify-content: center; align-items: center; min-height: 44px; padding: 8px 10px; border: 1px solid var(--line2); border-radius: 6px; background: var(--chrome3); color: var(--text); font: 500 15px var(--f-body); text-decoration: none; cursor: pointer; }
+.lab-button:hover { border-color: var(--hot); color: var(--hot); }
+.lab-muted { color: var(--muted); font: 15px/1.7 var(--f-body); margin: 0; }
+.lab-temperature-result { display: flex; flex-direction: column; gap: 8px; }
+.lab-temperature-result > div { padding: 12px; background: var(--chrome3); border-left: 2px solid var(--hot); display: grid; grid-template-columns: 1fr auto; gap: 7px; }
+.lab-temperature-result span { grid-column: 1 / -1; font-size: 14px; color: var(--muted); }
+.lab-temperature-result b { color: #ffd0ab; font: 600 21px var(--f-mono); }
+.lab-temperature-result small { color: var(--muted); font-size: 13px; align-self: center; }
+.lab-gauge-slot { position: sticky; top: -18px; z-index: 2; }
+.lab-gauge { padding: 14px; border-radius: 7px; border: 1px solid #475569; background: var(--chrome2); box-shadow: 0 12px 20px #0003; }
+.lab-gauge > span { font-size: 14px; color: var(--muted); }
+.lab-gauge strong { display: block; font: 600 28px/1.6 var(--f-mono); color: #ffd0ab; }
+.lab-gauge strong small { font-size: 17px; }
+.lab-spectrum { position: relative; height: 15px; margin: 15px 0 8px; border-radius: 3px; background: linear-gradient(90deg,#578bd8,#49b3c6 22%,#8bc767 43%,#dfc653 62%,#f39645 82%,#ec6065); }
+.lab-spectrum i { position: absolute; top: -5px; height: 25px; width: 3px; margin-left: -1px; background: #fff; box-shadow: 0 0 5px #000; transition: left .18s; }
+.lab-scale { display: flex; justify-content: space-between; color: var(--muted); font-size: 13px; }
+.lab-gauge p { margin: 10px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.lab-status { margin: 0; padding: 12px; font-size: 15px; line-height: 1.65; border-left: 2px solid var(--hot); background: var(--chrome3); color: #c3ccd7; }
+.lab-pane summary { min-height: 40px; cursor: pointer; color: var(--muted); font-size: 15px; }
+.lab-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.process-lab .hint { display: none; }
+.process-lab .bar,.process-lab.panel .bar { left: 50%; right: auto; transform: translateX(-50%); max-width: calc(100vw - 710px); }
+.process-lab .bar .track { min-width: 0; overflow-x: auto; scrollbar-width: thin; }
+.process-lab .bar .stop { min-width: 88px; max-width: 110px; }
+.process-lab .right { top: 80px; right: 16px; bottom: 106px; width: 330px; z-index: 7; background: rgba(15,23,42,.97); }
+.process-lab.panel .lab-inputs { visibility: hidden; }
+@media(max-width:1250px) and (min-width:1001px) { .lab-temperature { width: 260px; left: 12px; } .lab-inputs { width: 280px; right: 12px; } .process-lab .bar,.process-lab.panel .bar { max-width: calc(100vw - 600px); } }
+@media(max-width:1000px) { .lab-pane { top: auto; bottom: 88px; max-height: 40vh; width: calc(50% - 18px); } .lab-temperature { left: 12px; } .lab-inputs { right: 12px; } .lab-pane-head { padding: 12px; } .lab-pane-head > span { font-size: 9px; letter-spacing: .04em; } .lab-pane-head h2 { font-size: 18px; } .lab-pane-head > b { font-size: 13px; } .lab-pane-body { padding: 12px; gap: 12px; } .lab-slider { grid-template-columns: 1fr; } .lab-slider output { grid-row: 2; } .lab-slider input { grid-row: 3; } .lab-step-value strong { font-size: 22px; } .lab-gauge-slot { top: -12px; } .lab-gauge { padding: 9px; } .lab-gauge strong { font-size: 21px; } .process-lab .bar,.process-lab.panel .bar { left: 8px; right: 8px; width: auto; max-width: none; transform: none; } .process-lab .right { top: 70px; bottom: 88px; width: calc(100vw - 24px); right: 12px; } }
+@media(prefers-reduced-motion:reduce) { .lab-spectrum i { transition: none; } }

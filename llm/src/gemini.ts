@@ -1,0 +1,182 @@
+// Gemini GenerateContent 호출 공통 코드. 평가자와 튜터가 함께 쓴다.
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { LlmUnavailableError } from "../../backend/src/checkpoint/types.js";
+import { performance } from "node:perf_hooks";
+import type { GenerateRequest, LlmClient } from "./llm-client.js";
+import { currentTrace, type LlmCallRecord } from "./trace.js";
+
+/** GEMINI_MODEL이 비어 있을 때 쓰는 모델. */
+export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite";
+
+/** 호출 하나의 시간 제한(ms): GEMINI_TIMEOUT_MS(양의 정수)가 있으면 그 값, 없거나 잘못됐으면 60초. */
+export function geminiTimeoutMs(): number {
+  const value = Number(process.env.GEMINI_TIMEOUT_MS);
+  return Number.isInteger(value) && value > 0 ? value : 60_000;
+}
+
+export type { GenerateRequest, LlmClient } from "./llm-client.js";
+
+export interface GeminiOptions {
+  apiKey?: string;
+  model?: string;
+  fetch?: typeof fetch;
+  /** 호출 하나의 시간 제한(ms). 없으면 GEMINI_TIMEOUT_MS, 그것도 없으면 60초. Gemini가 몰려 느릴 때(짧은 호출도 70초 넘음) 늘린다. */
+  timeoutMs?: number;
+  /** 실제 호출 직전에 부른다(예: 사용자별 호출 수 제한). 예외를 던지면 호출하지 않는다. */
+  beforeCall?: () => void;
+}
+
+/** 연결·HTTP 오류의 종류. 재시도할지는 호출하는 쪽(예: 평가 스크립트)이 정한다. */
+export type GeminiFailure = "rate_limit" | "timeout" | "network" | "http";
+
+/** Gemini 호출 실패. 서버는 LlmUnavailableError로 처리하고, 평가 스크립트는 reason으로 재시도를 정한다. */
+export class GeminiCallError extends LlmUnavailableError {
+  constructor(message: string, readonly reason: GeminiFailure, readonly httpStatus?: number) {
+    super(message);
+  }
+
+  /** 429, 시간 초과, 연결 실패(fetch failed 등)는 잠시 뒤 다시 하면 될 수 있다. */
+  get retryable(): boolean {
+    return this.reason !== "http";
+  }
+}
+
+function connectionError(error: unknown): GeminiCallError {
+  const e = error as Error;
+  const timeout = e?.name === "TimeoutError" || e?.name === "AbortError";
+  return new GeminiCallError(`Gemini 연결 실패: ${e?.message ?? String(error)}`, timeout ? "timeout" : "network");
+}
+
+export class GeminiClient implements LlmClient {
+  constructor(private readonly options: GeminiOptions = {}) {}
+
+  /** 응답 텍스트를 돌려준다. 키가 없거나 연결·HTTP 오류면 LlmUnavailableError. */
+  async generate(req: GenerateRequest): Promise<string> {
+    // 서버가 키 없이도 시작할 수 있도록 호출할 때 읽는다.
+    const apiKey = this.options.apiKey ?? process.env.GEMINI_API_KEY;
+    if (!apiKey) throw new LlmUnavailableError("GEMINI_API_KEY가 설정되지 않았습니다.", 503);
+    const model = this.options.model ?? (process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL);
+    this.options.beforeCall?.();
+    // 요청 trace(trace.ts)가 있으면 호출마다 시간·실패 종류·토큰 수를 남긴다.
+    const trace = currentTrace();
+    const started = performance.now();
+    const usage: { tokens?: LlmCallRecord["tokens"] } = {};
+    // provider를 붙여 남긴다(ollama.ts는 ollama:모델). trace:report가 provider·모델별로 나눠 센다.
+    const label = `gemini:${model}`;
+    try {
+      const text = await this.call(req, apiKey, model, usage);
+      trace?.llm({ model: label, ms: Math.round(performance.now() - started), ok: true, streamed: !!req.onText, ...usage });
+      return text;
+    } catch (error) {
+      const failure = error instanceof GeminiCallError ? { failure: error.reason, ...(error.httpStatus ? { http_status: error.httpStatus } : {}) } : { failure: "error" };
+      trace?.llm({ model: label, ms: Math.round(performance.now() - started), ok: false, streamed: !!req.onText, ...failure });
+      throw error;
+    }
+  }
+
+  private async call(req: GenerateRequest, apiKey: string, model: string, usage: { tokens?: LlmCallRecord["tokens"] }): Promise<string> {
+    const doFetch = this.options.fetch ?? fetch;
+    let response: Response;
+    try {
+      response = await doFetch(
+        // onText가 있으면 streamGenerateContent(SSE)로 받아 조각마다 알린다.
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:${req.onText ? "streamGenerateContent?alt=sse" : "generateContent"}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: req.system }] },
+            contents: [{ role: "user", parts: [{ text: req.prompt }] }],
+            generationConfig: {
+              temperature: req.temperature,
+              maxOutputTokens: req.maxOutputTokens,
+              ...(req.responseSchema
+                ? { responseMimeType: "application/json", responseSchema: req.responseSchema }
+                : { responseMimeType: "text/plain" }),
+            },
+          }),
+          // 시험 작업이 취소되면(req.signal) 추론도 끊는다. 시간 제한은 geminiTimeoutMs().
+          signal: req.signal ? AbortSignal.any([req.signal, AbortSignal.timeout(this.options.timeoutMs ?? geminiTimeoutMs())]) : AbortSignal.timeout(this.options.timeoutMs ?? geminiTimeoutMs()),
+        },
+      );
+    } catch (error) {
+      throw connectionError(error);
+    }
+    if (!response.ok) {
+      throw new GeminiCallError(`Gemini HTTP ${response.status}`, response.status === 429 ? "rate_limit" : "http", response.status);
+    }
+    type Result = { candidates?: { content?: { parts?: { text?: string }[] } }[]; usageMetadata?: UsageMetadata };
+    const textOf = (r: Result) => {
+      // 스트리밍은 조각마다 usageMetadata가 올 수 있고 마지막 값이 전체다.
+      if (r.usageMetadata) usage.tokens = tokensOf(r.usageMetadata);
+      return r.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
+    };
+    if (req.onText) {
+      let text = "";
+      try {
+        await readLines(response, (line) => {
+          if (!line.startsWith("data:")) return;
+          text += textOf(JSON.parse(line.slice(5)) as Result);
+          req.onText!(text);
+        });
+      } catch (error) {
+        throw error instanceof SyntaxError ? new GeminiCallError("Gemini 응답이 JSON이 아님", "http", response.status) : connectionError(error);
+      }
+      return text;
+    }
+    let result: Result;
+    try {
+      // 본문을 읽는 중에도 시간 초과·연결 끊김이 날 수 있다.
+      result = (await response.json()) as typeof result;
+    } catch (error) {
+      throw error instanceof SyntaxError ? new GeminiCallError("Gemini 응답이 JSON이 아님", "http", response.status) : connectionError(error);
+    }
+    return textOf(result);
+  }
+}
+
+interface UsageMetadata {
+  promptTokenCount?: number;
+  candidatesTokenCount?: number;
+  thoughtsTokenCount?: number;
+  totalTokenCount?: number;
+}
+
+function tokensOf(u: UsageMetadata): LlmCallRecord["tokens"] {
+  return { prompt: u.promptTokenCount, output: u.candidatesTokenCount, thoughts: u.thoughtsTokenCount, total: u.totalTokenCount };
+}
+
+/** 응답 본문을 줄 단위로 읽는다(SSE·NDJSON 스트리밍). 빈 줄은 건너뛴다. */
+export async function readLines(response: Response, onLine: (line: string) => void): Promise<void> {
+  if (!response.body) throw new Error("응답 본문이 없습니다.");
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
+    buffer += decoder.decode(chunk, { stream: true });
+    let nl: number;
+    while ((nl = buffer.indexOf("\n")) >= 0) {
+      const line = buffer.slice(0, nl).trim();
+      buffer = buffer.slice(nl + 1);
+      if (line) onLine(line);
+    }
+  }
+  const rest = (buffer + decoder.decode()).trim();
+  if (rest) onLine(rest);
+}
+
+const PROMPT_DIR = join(process.cwd(), "llm", "prompts");
+
+/** llm/prompts/{name}.md를 읽어 {{key}}를 채운다. 빠진 값이 있으면 예외. */
+export function renderPrompt(name: string, values: Record<string, string>): string {
+  const template = readFileSync(join(PROMPT_DIR, `${name}.md`), "utf8");
+  return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => {
+    if (!(key in values)) throw new Error(`프롬프트 ${name}에 값이 없다: ${key}`);
+    return values[key]!;
+  });
+}
+
+/** 구분자(<question>, <answer>)를 닫거나 새로 열 수 없게 꺾쇠를 이스케이프한다. */
+export function escapeDelimited(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}

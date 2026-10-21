@@ -1,0 +1,488 @@
+<!doctype html>
+<!--
+  체크포인트(이해도 확인) 테스트 페이지. 메인 페이지(Steel Academy.dc.html)와 연결하지 않은 단독 페이지다.
+  - 메인 페이지에 붙였던 원본 UI는 태그 archive/checkpoint-ui-v1에 있다. 프론트가 확정되면 메인 페이지에 다시 적용한다.
+  - 서버 상태 머신(/api/checkpoints)이 상태를 관리하고, 이 페이지는 상태와 튜터 발화만 그린다.
+  - 아래쪽 '캐릭터 동작 미리보기'는 이해도 확인 오버레이 캐릭터(cp-character.js)를 이름표별로 눌러 본다(입장 없이 보인다).
+  - [임시] 원격 팀원 테스트용 사용자 구분(?user=이름 → X-User-Id)과 접속 비밀번호(X-Test-Passcode).
+    로그인(JWT)이 생기면 입장 화면과 두 헤더를 지운다.
+-->
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>이해도 확인 테스트</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: oklch(0.14 0.02 245); --panel: oklch(0.18 0.02 245); --panel2: oklch(0.27 0.022 245);
+    --line: oklch(1 0 0 / .16); --text: oklch(0.96 0.006 240); --muted: oklch(0.7 0.02 240);
+    --accent: oklch(0.74 0.19 45); --accent-ink: oklch(0.18 0.05 45);
+    --danger-bg: oklch(0.32 0.09 25); --danger: oklch(0.86 0.1 25);
+    --ok: oklch(0.8 0.14 150); --ok-bg: oklch(0.3 0.06 150);
+    --warn: oklch(0.85 0.13 85); --warn-bg: oklch(0.33 0.06 85);
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: oklch(0.95 0.008 245); --panel: oklch(1 0 0); --panel2: oklch(0.93 0.01 245);
+      --line: oklch(0 0 0 / .1); --text: oklch(0.22 0.02 245); --muted: oklch(0.5 0.02 245);
+      --accent: oklch(0.62 0.19 45); --accent-ink: oklch(0.99 0 0);
+      --danger-bg: oklch(0.94 0.04 25); --danger: oklch(0.45 0.16 25);
+      --ok: oklch(0.48 0.13 150); --ok-bg: oklch(0.93 0.05 150);
+      --warn: oklch(0.52 0.12 75); --warn-bg: oklch(0.95 0.05 85);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body { background: var(--bg); color: var(--text); font-family: "IBM Plex Sans KR", system-ui, sans-serif; font-size: 15px; line-height: 1.55; }
+  button, input { font: inherit; }
+  [hidden] { display: none !important; }
+  main { max-width: 720px; margin: 0 auto; padding: 24px 16px 40px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+  h1 { font-size: 20px; margin: 0; }
+  .muted { color: var(--muted); }
+  .mono { font-family: "IBM Plex Mono", monospace; font-size: 12px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .btn { border: 1px solid var(--line); background: var(--panel2); color: var(--text); border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  .notice { background: var(--danger-bg); color: var(--danger); border-radius: 8px; padding: 8px 12px; margin: 12px 0 0; }
+
+  /* 입장 화면 */
+  #gate form { display: grid; gap: 12px; max-width: 360px; }
+  #gate label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+  #gate input { padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel2); color: var(--text); }
+
+  /* 섹션 목록 */
+  #sections ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  #sections li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+  #sections .state { font-size: 13px; color: var(--muted); }
+
+  /* 체크포인트 진행 */
+  .cp-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .dots { display: flex; gap: 6px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--line); }
+  .dot.done { background: var(--accent); }
+  .dot.current { background: var(--text); box-shadow: 0 0 0 2px var(--accent); }
+  #messages { display: grid; gap: 10px; margin: 12px 0; }
+  .msg { padding: 10px 12px; border-radius: 10px; background: var(--panel2); white-space: pre-wrap; max-width: 92%; }
+  .msg .label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 2px; }
+  .msg.user { justify-self: end; background: var(--accent); color: var(--accent-ink); }
+  .msg.feedback { background: var(--ok-bg); }
+  .msg.error { background: var(--danger-bg); color: var(--danger); }
+  .msg.question .label, .msg.recheck_question .label { color: var(--accent); }
+  .pending { color: var(--muted); font-size: 13px; }
+  #composer { display: flex; gap: 8px; }
+  #composer input { flex: 1; min-width: 0; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel2); color: var(--text); }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+
+  /* 결과 차트: 개념별 가로 막대 + 전체 이해도 게이지(80% 기준선) */
+  #result { margin-top: 16px; display: grid; gap: 14px; }
+  .gauge { position: relative; height: 18px; border-radius: 9px; background: var(--panel2); overflow: visible; }
+  .gauge .fill { height: 100%; border-radius: 9px; }
+  .gauge .threshold { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--text); }
+  .gauge .threshold span { position: absolute; top: -18px; transform: translateX(-50%); font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .bar-row { display: grid; grid-template-columns: minmax(0, 1fr) 2fr; gap: 10px; align-items: center; font-size: 13px; }
+  .bar { height: 12px; background: var(--panel2); border-radius: 6px; }
+  .bar div { height: 100%; border-radius: 6px; }
+  .pass { padding: 8px 12px; border-radius: 8px; font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>이해도 확인 테스트</h1>
+    <span class="mono muted" id="who"></span>
+  </header>
+
+  <section id="gate" class="card" hidden>
+    <form id="gate-form">
+      <p style="margin:0">테스트에 쓸 이름을 입력해 주세요. 같은 이름이면 기록이 이어집니다.</p>
+      <label id="gate-name-field">이름
+        <input id="gate-name" autocomplete="off" maxlength="32">
+      </label>
+      <label id="gate-pass-field">접속 비밀번호
+        <input id="gate-pass" type="password" autocomplete="off">
+      </label>
+      <button class="btn primary" type="submit">입장</button>
+      <p class="notice" id="gate-error" hidden></p>
+    </form>
+  </section>
+
+  <section id="sections" hidden>
+    <p class="muted" style="margin-top:0">섹션 마지막의 이해도 확인을 진행합니다. 다음 섹션은 앞 섹션을 통과해야 열립니다.</p>
+    <ul id="section-list"></ul>
+    <p class="notice" id="sections-notice" hidden></p>
+  </section>
+
+  <section id="checkpoint" class="card" hidden>
+    <div class="cp-head">
+      <div>
+        <strong id="cp-title"></strong>
+        <div class="muted" id="cp-concept" style="font-size:13px"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="mono muted" id="cp-counter"></span>
+        <div class="dots" id="cp-dots"></div>
+      </div>
+    </div>
+    <div id="messages"></div>
+    <div class="pending" id="cp-pending" hidden>튜터가 답을 준비하고 있어요…</div>
+    <div class="actions">
+      <button class="btn primary" id="cp-ready" hidden>준비됐어요</button>
+      <button class="btn primary" id="cp-retry" hidden>다시 채점하기</button>
+    </div>
+    <form id="composer">
+      <input id="cp-input" autocomplete="off" placeholder="답변을 입력하세요">
+      <button class="btn primary" type="submit" id="cp-send">보내기</button>
+    </form>
+    <p class="notice" id="cp-notice" hidden></p>
+
+    <div id="result" hidden>
+      <div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:22px"><strong>전체 이해도</strong><span class="mono" id="gauge-text"></span></div>
+        <div class="gauge"><div class="fill" id="gauge-fill"></div><div class="threshold" id="gauge-threshold"><span></span></div></div>
+      </div>
+      <div class="pass" id="pass-label"></div>
+      <div id="bars" style="display:grid;gap:8px"></div>
+    </div>
+    <div class="actions" style="margin-top:14px">
+      <button class="btn" id="cp-exit">섹션 목록으로</button>
+    </div>
+  </section>
+
+  <section class="card" id="character-preview">
+    <details>
+      <summary><strong>캐릭터 동작 미리보기</strong> <span class="muted" style="font-size:13px">cp-character.js · 이름표별 동작</span></summary>
+      <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;margin-top:12px">
+        <cp-character id="char" motion="idle" model="models/character/tutor.glb" style="background:var(--panel2);border-radius:12px"></cp-character>
+        <div style="flex:1;min-width:240px;display:grid;gap:10px">
+          <div id="char-motions" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+          <div class="mono muted" id="char-status" style="font-size:13px;white-space:pre-line"></div>
+          <form id="char-model-form" style="display:flex;gap:6px">
+            <input id="char-model" class="mono" style="flex:1;min-width:0" value="models/character/tutor.glb" aria-label="모델 주소">
+            <button class="btn" type="submit">다시 불러오기</button>
+          </form>
+          <p class="muted" style="margin:0;font-size:13px">모델 주소를 비우거나 없는 파일로 바꾸면 대체 실루엣이 보여요. 클립 이름이 이름표와 같으면 클립, 아니면 몸 전체 움직임으로 보여요.</p>
+        </div>
+      </div>
+    </details>
+  </section>
+</main>
+
+<script type="module">
+import { MOTIONS, resolveMotion } from './cp-character.js';
+const char = document.getElementById('char');
+const status = document.getElementById('char-status');
+let fallbackReason = null;
+const show = () => {
+  const motion = char.getAttribute('motion');
+  const r = resolveMotion(motion, char.clips);
+  const how = char.rendererKind === 'image' ? '움직이지 않음(대체 이미지)' : r.kind === 'clip' ? `클립 ${r.name}` : `몸 전체 움직임 ${r.name}`;
+  status.textContent = `렌더러: ${char.rendererKind ?? '불러오는 중'}${fallbackReason ? ` (대체 이유: ${fallbackReason})` : ''}\n클립: ${char.clips.join(', ') || '없음'}\n동작: ${motion} → ${how}`;
+  for (const b of document.querySelectorAll('#char-motions button')) b.classList.toggle('primary', b.dataset.motion === motion);
+};
+document.getElementById('char-motions').replaceChildren(...MOTIONS.map((m) => {
+  const b = document.createElement('button');
+  b.className = 'btn mono'; b.type = 'button'; b.textContent = m; b.dataset.motion = m;
+  b.onclick = () => { char.setAttribute('motion', m); show(); };
+  return b;
+}));
+char.addEventListener('cp-character-fallback', (e) => { fallbackReason = e.detail.reason; });
+char.addEventListener('cp-character-ready', show);
+document.getElementById('char-model-form').onsubmit = (e) => {
+  e.preventDefault();
+  fallbackReason = null;
+  const url = document.getElementById('char-model').value.trim();
+  if (url) char.setAttribute('model', url); else char.removeAttribute('model');
+  show();
+};
+show();
+</script>
+
+<script>
+const SECTIONS = [
+  { id: 'ironmaking', name: '제선' },
+  { id: 'steelmaking', name: '제강' },
+  { id: 'continuous_casting', name: '연주' },
+  { id: 'rolling', name: '열간압연' },
+];
+const LABEL = { intro: '튜터', question: '질문', recheck_question: '다른 각도로 다시 물어볼게요', explanation: '설명', feedback: '확인', key_points: '핵심 정리', result: '결과', error: '채점 오류' };
+const VERDICT = { correct: ['맞음', 'var(--ok)'], partial: ['부분', 'var(--warn)'], wrong: ['틀림', 'var(--danger)'] };
+const ANSWERING = ['awaiting_ready', 'awaiting_answer', 'awaiting_recheck'];
+const PASS_KEY = 'st-rookie:passcode';
+
+const S = { userName: '', passcode: '', askName: false, askPass: false, progress: {}, cp: null, msgs: [], pending: false, notice: '' };
+const $ = (id) => document.getElementById(id);
+const sectionName = (id) => SECTIONS.find((s) => s.id === id)?.name ?? id;
+const store = {
+  get() { try { return localStorage.getItem(PASS_KEY) || ''; } catch (e) { return ''; } },
+  set(v) { try { localStorage.setItem(PASS_KEY, v); } catch (e) {} },
+  clear() { try { localStorage.removeItem(PASS_KEY); } catch (e) {} },
+};
+
+// --- 입장: ?user=이름, 서버에 TEST_PASSCODE가 있을 때만 비밀번호 ---
+async function initAccess() {
+  const user = (new URLSearchParams(location.search).get('user') || '').trim();
+  let required = false;
+  try { required = !!(await (await fetch('/api/access')).json()).passcode_required; } catch (e) {}
+  const passcode = required ? store.get() : '';
+  Object.assign(S, { userName: user, passcode, askName: !user, askPass: required });
+  if (!user || (required && !passcode)) showGate('');
+  else showSections();
+}
+
+function showGate(error) {
+  $('gate-name-field').hidden = !S.askName;
+  $('gate-pass-field').hidden = !S.askPass;
+  $('gate-name').value = S.userName;
+  $('gate-pass').value = '';
+  $('gate-error').hidden = !error;
+  $('gate-error').textContent = error;
+  show('gate');
+}
+
+function reopenGate(message) {
+  store.clear();
+  Object.assign(S, { passcode: '', askPass: true });
+  showGate(message);
+}
+
+$('gate-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const name = (S.askName ? $('gate-name').value : S.userName).trim().normalize('NFC');
+  if (!/^[\p{L}\p{N}_-]{1,32}$/u.test(name)) return showGate('이름은 한글·영문·숫자·_·-로 32자 이하로 써 주세요(띄어쓰기 없이).');
+  const passcode = S.askPass ? $('gate-pass').value : '';
+  if (S.askPass && !passcode) return showGate('진행자에게 받은 접속 비밀번호를 입력해 주세요.');
+  if (passcode) store.set(passcode);
+  const url = new URL(location.href); url.searchParams.set('user', name); history.replaceState(null, '', url);
+  Object.assign(S, { userName: name, passcode, askName: false });
+  showSections();
+});
+
+async function api(method, path, body) {
+  const headers = body ? { 'Content-Type': 'application/json' } : {};
+  if (S.userName) headers['X-User-Id'] = encodeURIComponent(S.userName);
+  if (S.passcode) headers['X-Test-Passcode'] = encodeURIComponent(S.passcode);
+  const res = await fetch(path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && data.code === 'PASSCODE_REQUIRED') reopenGate('비밀번호가 맞지 않아요. 진행자에게 받은 비밀번호를 다시 입력해 주세요.');
+  if (!res.ok) { const err = new Error(data.error || `요청에 실패했어요 (${res.status})`); err.status = res.status; throw err; }
+  return data;
+}
+
+function show(id) {
+  for (const s of ['gate', 'sections', 'checkpoint']) $(s).hidden = s !== id;
+  $('who').textContent = S.userName ? `사용자: ${S.userName}` : '';
+}
+
+// --- 섹션 목록과 진입 상태 ---
+async function showSections() {
+  show('sections');
+  renderSections();
+  await Promise.all(SECTIONS.map((s) => refreshProgress(s.id)));
+  // 진행 중인 시도가 있으면 새로고침 뒤에도 이어서 연다.
+  const open = SECTIONS.map((s) => S.progress[s.id]).find((p) => p?.in_progress_attempt_id);
+  if (open && !S.cp) resume(open.in_progress_attempt_id);
+}
+
+// 이해도 확인(루브릭)이 있는 섹션. 루브릭이 없는 섹션은 진입 상태를 요청하지 않는다(콘솔 404 없음). 목록을 못 읽으면 모두 요청한다.
+let checkpointSections = null;
+function loadCheckpointSections() {
+  checkpointSections ??= api('GET', '/api/sections')
+    .then((r) => new Set(r.sections.filter((s) => s.checkpoint).map((s) => s.section)))
+    .catch(() => { checkpointSections = null; return null; });
+  return checkpointSections;
+}
+
+async function refreshProgress(section) {
+  const available = await loadCheckpointSections();
+  if (available && !available.has(section)) {
+    S.progress[section] = { unavailable: true, status: 404 };
+  } else {
+    try {
+      S.progress[section] = await api('GET', `/api/sections/${section}/progress`);
+    } catch (e) {
+      S.progress[section] = { unavailable: true, status: e.status ?? 0 };
+    }
+  }
+  renderSections();
+  if (S.cp?.state === 'completed') renderCheckpoint();
+}
+
+function entryFor(id) {
+  const p = S.progress[id];
+  if (!p) return { state: '확인 중', enabled: false };
+  if (p.unavailable) return { state: p.status === 404 ? '이해도 확인 없음' : '연결 안 됨', enabled: false };
+  if (!p.open) return { state: '잠김(앞 섹션 통과 필요)', enabled: false };
+  if (p.unlocked) return { state: `통과 · ${Math.round((p.understanding ?? 0) * 100)}%`, enabled: false, pass: true };
+  if (p.in_progress_attempt_id) return { state: '진행 중', enabled: true, label: '이어서 하기' };
+  if (p.retry_concept_ids?.length) return { state: `재도전 ${p.retry_concept_ids.length}개`, enabled: true, label: '재도전' };
+  return { state: '시작 전', enabled: true, label: '시작' };
+}
+
+function renderSections() {
+  const list = $('section-list');
+  list.replaceChildren(...SECTIONS.map((s) => {
+    const e = entryFor(s.id);
+    const li = document.createElement('li');
+    li.dataset.section = s.id;
+    const left = document.createElement('div');
+    left.innerHTML = `<strong></strong><div class="state"></div>`;
+    left.querySelector('strong').textContent = s.name;
+    left.querySelector('.state').textContent = e.state;
+    if (e.pass) left.querySelector('.state').style.color = 'var(--ok)';
+    li.append(left);
+    if (e.enabled) {
+      const b = document.createElement('button');
+      b.className = 'btn primary';
+      b.textContent = e.label;
+      b.addEventListener('click', () => start(s.id));
+      li.append(b);
+    }
+    return li;
+  }));
+  $('sections-notice').hidden = !S.notice;
+  $('sections-notice').textContent = S.notice;
+}
+
+// --- 체크포인트 진행 ---
+async function resume(attemptId) {
+  try {
+    const view = await api('GET', `/api/checkpoints/${attemptId}`);
+    enter(view, view.history || []);
+  } catch (e) {
+    S.notice = e.message; renderSections();
+  }
+}
+
+async function start(section) {
+  if (S.pending) return;
+  S.pending = true; S.notice = '';
+  try {
+    const view = await api('POST', '/api/checkpoints', { section });
+    enter(view, view.history || view.tutor.map((u) => ({ role: 'tutor', type: u.type, text: u.text })));
+  } catch (e) {
+    S.notice = e.message; renderSections();
+  } finally {
+    S.pending = false;
+    if (S.cp) renderCheckpoint();
+  }
+}
+
+function enter(view, history) {
+  S.cp = view;
+  S.msgs = history.map((m) => ({ role: m.role, type: m.type, text: m.text }));
+  S.notice = '';
+  show('checkpoint');
+  renderCheckpoint();
+}
+
+async function call(action, text) {
+  if (!S.cp || S.pending) return;
+  S.pending = true; S.notice = ''; renderCheckpoint();
+  try {
+    const view = await api('POST', `/api/checkpoints/${S.cp.attempt_id}/${action}`, text === undefined ? {} : { text });
+    // 서버가 저장한 뒤에만 사용자 메시지를 붙인다. 실패하면 입력이 그대로 남아 다시 보낼 수 있다.
+    S.cp = view;
+    if (text !== undefined) { S.msgs.push({ role: 'user', type: null, text }); $('cp-input').value = ''; }
+    S.msgs.push(...view.tutor.map((u) => ({ role: 'tutor', type: u.type, text: u.text })));
+    if (view.state === 'completed') {
+      // 통과 문구에 다음 섹션이 열렸는지(루브릭이 있는지) 반영하려고 다음 섹션도 다시 확인한다.
+      const next = SECTIONS[SECTIONS.findIndex((s) => s.id === view.section) + 1];
+      refreshProgress(view.section);
+      if (next) refreshProgress(next.id);
+    }
+  } catch (e) {
+    S.notice = e.message;
+  } finally {
+    S.pending = false; renderCheckpoint();
+  }
+}
+
+function send(text) {
+  text = (text || '').trim();
+  if (text && ANSWERING.includes(S.cp?.state)) call('messages', text);
+}
+
+$('composer').addEventListener('submit', (e) => { e.preventDefault(); send($('cp-input').value); });
+$('cp-ready').addEventListener('click', () => send('준비됐어요'));
+$('cp-retry').addEventListener('click', () => call('retry-evaluation'));
+$('cp-exit').addEventListener('click', () => { S.cp = null; S.msgs = []; S.notice = ''; showSections(); });
+
+function renderCheckpoint() {
+  const cp = S.cp; if (!cp) return;
+  const st = cp.state;
+  $('cp-title').textContent = `이해도 확인 · ${sectionName(cp.section)}${cp.kind === 'retry' ? ' (재도전)' : ''}`;
+  $('cp-concept').textContent = st === 'awaiting_ready' ? (cp.kind === 'retry' ? '지난번에 어려웠던 개념만 다시 물어볼게요' : '준비되면 시작할게요')
+    : st === 'completed' ? '모든 개념을 확인했어요' : cp.concept ? cp.concept.name : '';
+  $('cp-counter').textContent = st === 'completed' ? '완료' : cp.concept ? `개념 ${cp.concept.index}/${cp.concept.total}` : `개념 ${cp.progress.length}개`;
+  $('cp-dots').replaceChildren(...cp.progress.map((d, i) => {
+    const el = document.createElement('span');
+    el.className = `dot ${d.status}`;
+    el.title = `개념 ${i + 1}: ${d.status === 'done' ? '완료' : d.status === 'current' ? '진행 중' : '대기'}`;
+    return el;
+  }));
+  $('messages').replaceChildren(...S.msgs.map((m) => {
+    const el = document.createElement('div');
+    el.className = `msg ${m.role === 'user' ? 'user' : m.type ?? ''}`;
+    if (m.role !== 'user') {
+      const label = document.createElement('span');
+      label.className = 'label';
+      label.textContent = LABEL[m.type] || '튜터';
+      el.append(label);
+    }
+    el.append(document.createTextNode(m.text));
+    return el;
+  }));
+  $('cp-pending').hidden = !S.pending;
+  $('cp-ready').hidden = !(st === 'awaiting_ready' && !S.pending);
+  $('cp-retry').hidden = !(st === 'error' && !S.pending);
+  $('composer').hidden = st === 'completed';
+  $('cp-input').disabled = S.pending || st === 'error';
+  $('cp-send').disabled = S.pending || st === 'error';
+  $('cp-input').placeholder = st === 'awaiting_ready' ? '준비됐어요를 누르거나 입력하세요' : st === 'error' ? '다시 채점하기를 눌러 주세요' : '답변을 입력하세요';
+  $('cp-notice').hidden = !S.notice;
+  $('cp-notice').textContent = S.notice;
+  renderResult(st === 'completed' ? cp.result : null);
+  if (!S.pending && st !== 'completed') $('cp-input').focus();
+}
+
+function renderResult(r) {
+  $('result').hidden = !r;
+  if (!r) return;
+  const pct = Math.round(r.understanding * 100);
+  const threshold = Math.round((r.threshold ?? 0.8) * 100);
+  const next = SECTIONS[SECTIONS.findIndex((s) => s.id === S.cp.section) + 1];
+  $('gauge-text').textContent = `${pct}%`;
+  $('gauge-fill').style.width = `${pct}%`;
+  $('gauge-fill').style.background = r.unlocked ? 'var(--ok)' : 'var(--warn)';
+  $('gauge-threshold').style.left = `${threshold}%`;
+  $('gauge-threshold').querySelector('span').textContent = `기준 ${threshold}%`;
+  const pass = $('pass-label');
+  // 다음 섹션에 루브릭이 없으면 progress가 404다.
+  const nextReady = next && !(S.progress[next.id]?.unavailable && S.progress[next.id].status === 404);
+  pass.textContent = !r.unlocked ? `${threshold}% 미달 · 섹션을 다시 살펴본 뒤 재도전해요`
+    : !next ? '통과 · 모든 섹션을 마쳤어요'
+    : nextReady ? `통과 · ${next.name} 섹션이 열렸어요` : '통과 · 이해도 확인을 마쳤어요';
+  pass.style.background = r.unlocked ? 'var(--ok-bg)' : 'var(--warn-bg)';
+  pass.style.color = r.unlocked ? 'var(--ok)' : 'var(--warn)';
+  $('bars').replaceChildren(...r.concepts.map((c) => {
+    const [label, color] = VERDICT[c.final_verdict] ?? VERDICT.wrong;
+    const row = document.createElement('div');
+    row.className = 'bar-row';
+    row.dataset.concept = c.concept_id;
+    row.innerHTML = '<div><div class="name"></div><div class="mono muted v"></div></div><div class="bar"><div></div></div>';
+    row.querySelector('.name').textContent = c.name;
+    row.querySelector('.v').textContent = `${label} · ${c.score}점`;
+    const fill = row.querySelector('.bar div');
+    fill.style.width = `${Math.max(c.score * 100, 3)}%`;
+    fill.style.background = color;
+    return row;
+  }));
+}
+
+initAccess();
+</script>
+</body>
+</html>

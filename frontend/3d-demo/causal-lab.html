@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ST-ROOKIE · 공정 인과 실습</title>
+  <!-- 인과 실습 공간: 첫 화면(steel-intro.html)의 공장 부지를 밝은 낮 장면으로 옮기고, 3D 실습 4가지(공정 인과 지도·조업 실험·이상 상황 알아보기·공장 전체 보기)만 붙인 페이지.
+       공정 아래 발광 테두리와 공정 사이 연결선은 없다. 장면은 causal-lab.js, 실습은 sim-lab.js(밝은 테마는 아래 body.sl-light). 주소 값은 v4와 같다(?lab=map&var=… 등). -->
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/+esm">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap">
+  <style>
+    /* 밝은 UI: 흰 반투명 표면, 얇은 회색 경계선, 짙은 글자. 강조는 홈과 같은 주황. 글자 15px 이상 */
+    :root { --bg: #eef3f8; --surf: rgba(255,255,255,.94); --surf2: #f1f3f6; --line: rgba(20,30,45,.12); --text: #18202b; --muted: #5b6676; --accent: #ff6b35; --accent-ink: #b8461a; --teal: #0f9c84;
+      --f-body: "Noto Sans KR", "Pretendard", system-ui, sans-serif; --shadow: 0 12px 30px -10px rgba(20,35,60,.28); color-scheme: light; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: var(--f-body); font-size: 15px; overflow: hidden; -webkit-font-smoothing: antialiased; }
+    #stage { position: fixed; inset: 0; }
+    #stage canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
+    #stage.dragging canvas { cursor: grabbing; }
+    .top { position: fixed; top: 16px; left: 16px; right: 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; z-index: 50; pointer-events: none; } /* 3D 이름표(.sl-tag, z 55)가 제목 카드 위에 보이게 */
+    .ttl { pointer-events: auto; padding: 10px 16px; border-radius: 14px; background: var(--surf); border: 1px solid var(--line); box-shadow: var(--shadow); }
+    .ttl h1 { margin: 0; font: 800 19px/1.2 var(--f-body); letter-spacing: -.01em; }
+    .ttl p { margin: 3px 0 0; font: 400 15px/1.4 var(--f-body); color: var(--muted); }
+    .nav { pointer-events: auto; display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--surf); border: 1px solid var(--line); box-shadow: var(--shadow); }
+    .nav a { height: 36px; padding: 0 14px; border-radius: 999px; display: inline-flex; align-items: center; color: var(--text); font: 600 15px/1 var(--f-body); text-decoration: none; }
+    .nav a:hover { background: var(--surf2); }
+    .nav a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .need { position: fixed; inset: 0; display: grid; place-items: center; z-index: 70; background: rgba(238,243,248,.6); }
+    .need[hidden] { display: none; }
+    .need div { padding: 22px 24px; border-radius: 16px; background: var(--surf); border: 1px solid var(--line); box-shadow: var(--shadow); text-align: center; }
+    .need a { display: inline-block; margin-top: 12px; padding: 10px 18px; border-radius: 999px; background: var(--text); color: #fff; font-weight: 700; text-decoration: none; }
+    #load { position: fixed; inset: 0; display: grid; place-items: center; background: var(--bg); z-index: 80; transition: opacity .6s; }
+    #load.off { opacity: 0; pointer-events: none; }
+    #load b { font: 400 13px/1 "JetBrains Mono", monospace; letter-spacing: .3em; color: #7a8594; }
+    #load .bar { width: 180px; height: 2px; background: rgba(20,30,45,.1); overflow: hidden; margin-top: 14px; }
+    #load .bar i { display: block; height: 100%; width: 0; background: var(--text); transition: width .3s; }
+    @media (max-width: 740px) { .ttl p { display: none; } .ttl h1 { font-size: 17px; } .nav a { padding: 0 10px; } }
+
+    /* ── sim-lab.js 실습 패널 밝은 테마(어두운 기본 색을 덮는다) ── */
+    body.sl-light .sl-launch { bottom: 20px; }
+    body.sl-light .sl-launch button { background: var(--surf); color: var(--text); border: 1px solid var(--line); box-shadow: var(--shadow); }
+    body.sl-light .sl-launch button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+    body.sl-light .sl-panel, body.sl-light .sl-lesson, body.sl-light .sl-hint-bubble { background: rgba(255,255,255,.97); color: var(--text); border: 1px solid var(--line); box-shadow: 0 18px 40px -12px rgba(20,35,60,.3); }
+    body.sl-light .sl-lesson p, body.sl-light .sl-hint-bubble p { color: var(--muted); }
+    body.sl-light .sl-muted, body.sl-light .sl-out small, body.sl-light .sl-steps span, body.sl-light .sl-cmp th { color: var(--muted); }
+    body.sl-light .sl-box, body.sl-light .sl-out div, body.sl-light .sl-read, body.sl-light .sl-steps span { background: #f3f5f8; }
+    body.sl-light .sl-btn { background: var(--accent); color: #fff; }
+    body.sl-light .sl-btn.ghost { background: #eceff3; color: var(--text); }
+    body.sl-light .sl-steps span.on { background: var(--accent); color: #fff; }
+    body.sl-light .sl-opt { border-color: rgba(20,30,45,.18); }
+    body.sl-light .sl-link { border-color: rgba(20,30,45,.18); background: #f7f8fa; }
+    body.sl-light .sl-cmp th, body.sl-light .sl-cmp td { border-top-color: rgba(20,30,45,.1); }
+    body.sl-light .sl-gauge { background: rgba(20,30,45,.1); } body.sl-light .sl-gauge .mark { background: var(--text); }
+    body.sl-light .sl-up { color: #d0491b; } body.sl-light .sl-down { color: #2463c4; } body.sl-light .sl-ok { color: #138a52; } body.sl-light .sl-bad { color: #cc2f2f; }
+    body.sl-light .sl-cause { background: rgba(255,107,53,.08); border-left-color: var(--accent); }
+    body.sl-light .sl-next { background: rgba(204,47,47,.07); border-left-color: #cc2f2f; }
+    body.sl-light .sl-var:hover, body.sl-light .sl-var[aria-pressed="true"] { background: rgba(15,156,132,.12); }
+    body.sl-light .sl-tag { background: rgba(255,255,255,.95); color: var(--text); border: 1px solid rgba(20,30,45,.2); box-shadow: 0 4px 12px -4px rgba(20,35,60,.3); }
+    body.sl-light .sl-tag.warn { border-color: #e04848; color: #b02525; } body.sl-light .sl-tag.ok { border-color: #2fae6a; color: #16774a; }
+    body.sl-light .sl-tag.hot { border-color: var(--accent); color: var(--accent-ink); } body.sl-light .sl-tag.cold { border-color: #5a8ee0; color: #2456a8; }
+  </style>
+</head>
+<body class="sl-light">
+  <div id="stage" aria-label="포항제철소 부지 위 제철 공정 4개(제선, 제강, 연주, 열간압연)의 3D 낮 장면. 드래그로 돌리고 휠로 확대합니다."></div>
+  <div class="top">
+    <div class="ttl"><h1>공정 인과 실습</h1><p>한 공정의 조건이 다음 공정으로 어떻게 번지는지 공장 전체 위에서 봐요.</p></div>
+    <nav class="nav" aria-label="이동"><a href="/3d-demo/Steel%20Academy%20v4.dc.html?p=ironmaking">3D 학습 화면</a><a href="/login">마이페이지</a></nav>
+  </div>
+  <div class="need" id="needLogin" hidden><div><b>로그인하면 실습을 쓸 수 있어요.</b><br><a href="/login">로그인</a></div></div>
+  <div id="load"><div style="display:flex;flex-direction:column;align-items:center"><b>ST-ROOKIE</b><div class="bar"><i id="loadbar"></i></div></div></div>
+  <script>
+    (() => { let t = ''; try { t = localStorage.getItem('st-rookie-token') || sessionStorage.getItem('st-rookie-token') || ''; } catch (e) {} document.getElementById('needLogin').hidden = !!t; })();
+  </script>
+  <script type="module" src="./causal-lab.js"></script>
+</body>
+</html>

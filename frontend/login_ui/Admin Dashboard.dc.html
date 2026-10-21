@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Montserrat:wght@500;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+  <style>
+    /* 홈(home-sleek.html)·로그인(login-sleek.css)과 같은 세련안 토큰: 무채색 바탕, Pretendard·Montserrat·JetBrains Mono, 흰 CTA */
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      --font-ko: "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+      --font-en: "Montserrat", "Pretendard", sans-serif;
+      --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+      --bg: #1c1c1c; --bg-hi: #232327; --nav: rgba(18, 18, 20, .86);
+      --panel: rgba(255, 255, 255, .035); --panel2: rgba(255, 255, 255, .07); --chip-on: rgba(255, 255, 255, .14);
+      --line: rgba(255, 255, 255, .13); --text: #f5f5f5; --muted: #c4c4c9; --dim: #9a9aa0;
+      --accent: #f2f2f2; --accent-ink: #111; --ok: #6fcf97; --mid: #e8c25a; --bad: #ff6b6b;
+      background: radial-gradient(ellipse at 50% 0%, var(--bg-hi) 0%, var(--bg) 55%) fixed, var(--bg);
+      color: var(--text); font-family: var(--font-ko); letter-spacing: -0.01em; -webkit-font-smoothing: antialiased;
+    }
+    body[data-theme="light"] {
+      --bg: #f4f4f5; --bg-hi: #ffffff; --nav: rgba(255, 255, 255, .86);
+      --panel: #ffffff; --panel2: rgba(0, 0, 0, .05); --chip-on: rgba(0, 0, 0, .1);
+      --line: rgba(0, 0, 0, .1); --text: #161617; --muted: #55555c; --dim: #6b6b71;
+      --accent: #161617; --accent-ink: #fff; --ok: #177a42; --mid: #9a6200; --bad: #c53030;
+    }
+    a { color: inherit; text-decoration: none; }
+    button, input, select { font-family: inherit; letter-spacing: inherit; }
+    * { box-sizing: border-box; }
+  </style>
+</helmet>
+<div style="min-height:100vh;color:var(--text);">
+  <!-- 플로팅 네비: 홈 화면의 둥근 어두운 판 + 오른쪽 밝은 CTA -->
+  <header style="position:sticky;top:16px;z-index:5;width:min(1280px, calc(100% - 32px));margin:16px auto 0;min-height:64px;padding:10px 12px 10px 22px;display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap;background:var(--nav);border:1px solid var(--line);border-radius:18px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);">
+    <a href="/" target="_top" style="display:flex;align-items:center;gap:10px;color:var(--text);font-family:var(--font-en);font-weight:800;font-size:18px;letter-spacing:0.04em;white-space:nowrap;">
+      <span style="width:18px;height:18px;border-radius:5px;background:var(--text);box-shadow:inset 0 0 0 5px var(--bg);flex:none;"></span>ST-ROOKIE
+    </a>
+    <span style="font-family:var(--mono);font-size:13px;letter-spacing:0.22em;color:var(--muted);white-space:nowrap;">ADMIN</span>
+    <span style="font-family:var(--mono);font-size:15px;letter-spacing:0.08em;padding:3px 8px;border-radius:6px;border:1px solid var(--line);color:{{ srcColor }};white-space:nowrap;">● {{ srcLabel }}</span>
+    <div style="flex:1;"></div>
+    <nav style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+      <!-- 보고서: 엑셀(CSV)은 신입사원 통계를 내려받고(GET /api/admin/report.csv), PDF(그림)는 admin-report.html을 새 탭으로 연다. 엑셀은(엑셀에서 열림, GET /api/admin/report.csv). 화면 필터와 상관없이 전체 명단. 헤더에 둬서 어디서든 누른다 -->
+      <button type="button" onClick="{{ onReport }}" disabled="{{ reportBusy }}" title="신입사원별 공정 이해도·결과·시도 횟수·오개념 개수·마지막 학습일을 CSV로 내려받아요" style="height:38px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--text);font-size:15px;font-weight:600;cursor:pointer;white-space:nowrap;" style-hover="background:var(--panel2);">{{ reportLabel }}</button>
+      <button type="button" onClick="{{ onReportPdf }}" title="상태 분포·공정별 이해도·오답률 높은 개념 차트와 신입사원 표를 A4 보고서로 열어요. 인쇄 창에서 PDF로 저장하세요" style="height:38px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--text);font-size:15px;font-weight:600;cursor:pointer;white-space:nowrap;" style-hover="background:var(--panel2);">보고서 PDF(그림)</button>
+      <button type="button" onClick="{{ toggleTheme }}" aria-label="테마 전환" style="width:40px;height:40px;border-radius:10px;border:none;background:transparent;color:var(--muted);font-size:15px;cursor:pointer;" style-hover="background:var(--panel2);color:var(--text);">{{ themeIcon }}</button>
+      <button type="button" onClick="{{ logout }}" style="height:40px;padding:0 16px;border-radius:10px;border:none;background:transparent;color:var(--muted);font-size:15px;font-weight:500;cursor:pointer;" style-hover="background:var(--panel2);color:var(--text);">로그아웃</button>
+      <a href="/3d-demo/steel-index.html" target="_top" style="display:flex;align-items:center;height:40px;padding:0 20px;border-radius:10px;background:var(--accent);color:var(--accent-ink);font-size:15px;font-weight:700;white-space:nowrap;" style-hover="opacity:.88;">학습 화면</a>
+    </nav>
+  </header>
+
+  <main style="max-width:1280px;margin:0 auto;padding:44px clamp(16px,3vw,36px) 72px;display:flex;flex-direction:column;gap:28px;">
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px 24px;flex-wrap:wrap;">
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <span style="font-family:var(--mono);font-size:13px;letter-spacing:0.3em;color:var(--muted);">[ TRAINEE DASHBOARD ]</span>
+        <h1 style="margin:0;font-family:var(--font-en);font-weight:800;font-size:clamp(36px,5.4vw,64px);line-height:0.95;letter-spacing:0.02em;">LEARNING STATUS.</h1>
+        <span style="font-size:15px;font-weight:300;color:var(--muted);">신입사원 학습 현황 · 기준 이해도 <b style="font-weight:700;color:var(--text);">80%</b> 이상이면 섹션 통과 · 오개념은 본인만 볼 수 있어 개수만 표시합니다</span>
+      </div>
+      <span style="font-family:var(--mono);font-size:15px;letter-spacing:0.08em;color:var(--dim);">{{ updatedLabel }}</span>
+    </div>
+    <sc-if value="{{ loadError }}" hint-placeholder-val="{{ false }}">
+      <div role="alert" style="padding:14px 18px;border:1px solid var(--bad);border-radius:12px;color:var(--bad);font-size:15px;">{{ loadError }}</div>
+    </sc-if>
+
+    <section style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:18px;overflow:hidden;">
+      <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
+        <div style="display:flex;flex-direction:column;gap:10px;padding:20px 22px;background:var(--bg);">
+          <span style="font-size:15px;color:var(--muted);">{{ k.label }}</span>
+          <span style="display:flex;align-items:baseline;gap:6px;"><span style="font-family:var(--font-en);font-size:36px;font-weight:800;line-height:1;color:{{ k.color }};">{{ k.value }}</span><span style="font-size:15px;color:var(--muted);">{{ k.unit }}</span></span>
+          <span style="font-size:15px;color:var(--dim);">{{ k.sub }}</span>
+        </div>
+      </sc-for>
+    </section>
+
+    <section aria-label="AI 요약" style="display:flex;flex-direction:column;gap:10px;padding:20px 22px;background:var(--panel);border:1px solid var(--line);border-radius:18px;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <span style="font-family:var(--mono);font-size:13px;letter-spacing:0.26em;color:var(--muted);">AI SUMMARY</span>
+        <h2 style="margin:0;font-size:16px;font-weight:700;">보강할 내용</h2>
+        <span style="font-family:var(--mono);font-size:15px;padding:2px 7px;border-radius:6px;border:1px solid var(--line);color:var(--muted);">Gemini</span>
+        <span style="flex:1;"></span>
+        <span style="font-family:var(--mono);font-size:15px;color:var(--dim);">{{ aiMeta }}</span>
+      </div>
+      <p style="margin:0;font-size:15px;line-height:1.7;color:{{ aiColor }};">{{ aiText }}</p>
+      <span style="font-size:15px;color:var(--dim);">{{ aiNote }}</span>
+    </section>
+
+    <div style="display:flex;flex-wrap:wrap;gap:20px;align-items:stretch;">
+      <section style="flex:1.5 1 520px;min-width:0;display:flex;flex-direction:column;gap:16px;padding:22px;background:var(--panel);border:1px solid var(--line);border-radius:18px;">
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:8px 16px;flex-wrap:wrap;">
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <span style="font-family:var(--mono);font-size:13px;letter-spacing:0.26em;color:var(--muted);">CONCEPTS</span>
+            <h2 style="margin:0;font-size:18px;font-weight:700;">오답률 높은 개념</h2>
+            <span style="font-size:15px;color:var(--dim);">체크포인트 첫 답변이 정답이 아니었던 비율</span>
+          </div>
+          <div role="tablist" style="display:flex;gap:4px;padding:4px;border-radius:12px;background:var(--panel2);flex-wrap:wrap;">
+            <sc-for list="{{ secTabs }}" as="t" hint-placeholder-count="5">
+              <button type="button" role="tab" aria-selected="{{ t.on }}" onClick="{{ t.onClick }}" style="height:30px;padding:0 12px;border:none;border-radius:8px;background:{{ t.bg }};color:{{ t.color }};font-size:15px;font-weight:600;cursor:pointer;white-space:nowrap;">{{ t.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+        <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:15px;color:var(--muted);">
+          <span style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:3px;background:var(--bad);"></span>틀림</span>
+          <span style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:3px;background:var(--mid);"></span>부분 정답</span>
+          <span style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:3px;background:var(--muted);opacity:.6;"></span>힌트 요청</span>
+        </div>
+        <ol style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;">
+          <sc-for list="{{ concepts }}" as="c" hint-placeholder-count="8">
+            <li style="display:grid;grid-template-columns:28px minmax(120px,1fr) minmax(120px,1.4fr) 56px;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line);">
+              <span style="font-family:var(--mono);font-size:15px;font-weight:600;color:{{ c.rankColor }};">{{ c.rank }}</span>
+              <span style="display:flex;flex-direction:column;gap:3px;min-width:0;">
+                <span style="font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ c.name }}</span>
+                <span style="font-size:15px;color:var(--dim);white-space:nowrap;">{{ c.secName }}</span>
+              </span>
+              <span style="display:flex;flex-direction:column;gap:6px;">
+                <span style="display:flex;height:6px;border-radius:999px;background:var(--panel2);overflow:hidden;">
+                  <span style="width:{{ c.wWrong }};background:var(--bad);"></span>
+                  <span style="width:{{ c.wPartial }};background:var(--mid);"></span>
+                  <span style="width:{{ c.wAssist }};background:var(--muted);opacity:.6;"></span>
+                </span>
+                <span style="font-size:15px;color:var(--dim);">{{ c.detail }}</span>
+              </span>
+              <span style="text-align:right;font-family:var(--font-en);font-size:17px;font-weight:800;color:{{ c.rateColor }};">{{ c.rate }}</span>
+            </li>
+          </sc-for>
+        </ol>
+        <sc-if value="{{ conceptsEmpty }}" hint-placeholder-val="{{ false }}">
+          <span style="font-size:15px;color:var(--muted);line-height:1.6;">아직 완료한 체크포인트 기록이 없습니다.</span>
+        </sc-if>
+      </section>
+
+      <!-- 오른쪽 칸은 왼쪽 "오답률 높은 개념" 높이를 따르고, 두 목록이 그 안에서 각자 스크롤한다. -->
+      <section style="flex:1 1 340px;min-width:0;contain:size;min-height:480px;display:flex;flex-direction:column;gap:18px;padding:22px;background:var(--panel);border:1px solid var(--line);border-radius:18px;">
+        <div style="flex:1 1 0;min-height:0;display:flex;flex-direction:column;gap:12px;">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">
+            <h2 style="margin:0;font-size:18px;font-weight:700;">전 과정 수료</h2>
+            <span style="font-family:var(--mono);font-size:15px;color:var(--ok);">{{ doneCount }}</span>
+          </div>
+          <div style="display:flex;flex-direction:column;flex:1 1 auto;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--line) transparent;padding-right:4px;">
+            <sc-for list="{{ doneList }}" as="d" hint-placeholder-count="3">
+              <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line);cursor:pointer;" onClick="{{ d.open }}">
+                <span style="width:32px;height:32px;border-radius:10px;flex:none;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb, var(--ok) 16%, transparent);color:var(--ok);font-size:15px;font-weight:700;">{{ d.initial }}</span>
+                <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;">
+                  <span style="font-size:15px;font-weight:600;">{{ d.name }} <span style="font-weight:400;font-size:15px;color:var(--dim);font-family:var(--mono);">{{ d.emp }}</span></span>
+                  <span style="font-size:15px;color:var(--dim);">{{ d.sub }}</span>
+                </span>
+                <span style="font-family:var(--mono);font-size:15px;font-weight:600;">{{ d.avg }}</span>
+              </div>
+            </sc-for>
+            <sc-if value="{{ doneEmpty }}" hint-placeholder-val="{{ false }}"><span style="padding:10px 0;border-top:1px solid var(--line);font-size:15px;color:var(--muted);">아직 수료한 사람이 없습니다.</span></sc-if>
+          </div>
+        </div>
+        <div style="flex:1 1 0;min-height:0;display:flex;flex-direction:column;gap:12px;">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">
+            <h2 style="margin:0;font-size:18px;font-weight:700;">확인이 필요한 사람</h2>
+            <span style="font-family:var(--mono);font-size:15px;color:var(--bad);">{{ watchCount }}</span>
+          </div>
+          <div style="display:flex;flex-direction:column;flex:1 1 auto;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--line) transparent;padding-right:4px;">
+            <sc-for list="{{ watchList }}" as="w" hint-placeholder-count="3">
+              <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line);cursor:pointer;" onClick="{{ w.open }}">
+                <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;">
+                  <span style="font-size:15px;font-weight:600;">{{ w.name }} <span style="font-weight:400;font-size:15px;color:var(--dim);font-family:var(--mono);">{{ w.emp }}</span></span>
+                  <span style="font-size:15px;color:var(--dim);">{{ w.sub }}</span>
+                </span>
+                <span style="font-size:15px;font-weight:600;padding:3px 9px;border-radius:6px;background:{{ w.tagBg }};color:{{ w.tagColor }};white-space:nowrap;">{{ w.tag }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <section style="display:flex;flex-direction:column;gap:14px;">
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <span style="font-family:var(--mono);font-size:13px;letter-spacing:0.26em;color:var(--muted);">IRONMAKING · STEELMAKING · CASTING · ROLLING</span>
+        <h2 style="margin:0;font-size:18px;font-weight:700;">섹션별 진행</h2>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;">
+        <sc-for list="{{ secCards }}" as="s" hint-placeholder-count="4">
+          <div style="display:flex;flex-direction:column;gap:14px;padding:20px 22px;background:var(--panel);border:1px solid var(--line);border-radius:18px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-family:var(--font-en);font-size:20px;font-weight:800;color:var(--dim);">{{ s.num }}</span>
+              <span style="font-size:16px;font-weight:700;">{{ s.name }}</span>
+              <span style="flex:1;"></span>
+              <span style="font-size:15px;color:var(--muted);">평균 <b style="font-family:var(--mono);color:var(--text);">{{ s.avg }}</b></span>
+            </div>
+            <div style="position:relative;height:6px;border-radius:999px;background:var(--panel2);overflow:hidden;">
+              <span style="position:absolute;left:0;top:0;bottom:0;width:{{ s.wTaken }};background:color-mix(in srgb, var(--accent) 30%, transparent);"></span>
+              <span style="position:absolute;left:0;top:0;bottom:0;width:{{ s.wPassed }};background:var(--accent);"></span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+              <span style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:15px;color:var(--dim);">통과</span><span style="font-family:var(--mono);font-size:16px;font-weight:600;">{{ s.passed }}</span></span>
+              <span style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:15px;color:var(--dim);">미통과</span><span style="font-family:var(--mono);font-size:16px;font-weight:600;color:{{ s.failColor }};">{{ s.failed }}</span></span>
+              <span style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:15px;color:var(--dim);">평균 시도</span><span style="font-family:var(--mono);font-size:16px;font-weight:600;">{{ s.tries }}</span></span>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <section style="display:flex;flex-direction:column;gap:14px;">
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:10px 16px;flex-wrap:wrap;">
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <span style="font-family:var(--mono);font-size:13px;letter-spacing:0.26em;color:var(--muted);">TRAINEES</span>
+          <h2 style="margin:0;font-size:18px;font-weight:700;">신입사원 명단</h2>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <div role="tablist" style="display:flex;gap:4px;padding:4px;border-radius:12px;background:var(--panel2);flex-wrap:wrap;">
+            <sc-for list="{{ statusTabs }}" as="t" hint-placeholder-count="5">
+              <button type="button" role="tab" aria-selected="{{ t.on }}" onClick="{{ t.onClick }}" style="height:30px;padding:0 12px;border:none;border-radius:8px;background:{{ t.bg }};color:{{ t.color }};font-size:15px;font-weight:600;cursor:pointer;white-space:nowrap;">{{ t.label }}</button>
+            </sc-for>
+          </div>
+          <input value="{{ query }}" onChange="{{ onQuery }}" placeholder="이름·아이디·사번 검색" aria-label="검색" style="height:38px;width:220px;max-width:100%;padding:0 14px;border-radius:10px;border:1px solid transparent;background:var(--panel2);color:var(--text);font-size:15px;outline:none;" style-focus="border-color:var(--muted);">
+        </div>
+      </div>
+      <div style="overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:18px;">
+        <div style="min-width:900px;display:flex;flex-direction:column;font-size:15px;">
+          <div style="display:grid;grid-template-columns:minmax(160px,1.6fr) repeat(4,minmax(78px,1fr)) minmax(110px,1.1fr) minmax(90px,.9fr) minmax(90px,.9fr) minmax(90px,.9fr);gap:10px;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);color:var(--muted);font-size:15px;">
+            <sc-for list="{{ cols }}" as="h" hint-placeholder-count="9">
+              <button type="button" onClick="{{ h.onClick }}" style="min-height:32px;padding:0 4px;border:none;background:none;color:{{ h.color }};font-size:15px;font-weight:600;text-align:{{ h.align }};cursor:{{ h.cursor }};white-space:nowrap;">{{ h.label }}</button>
+            </sc-for>
+          </div>
+          <sc-for list="{{ rows }}" as="r" hint-placeholder-count="6">
+            <div style="display:grid;grid-template-columns:minmax(160px,1.6fr) repeat(4,minmax(78px,1fr)) minmax(110px,1.1fr) minmax(90px,.9fr) minmax(90px,.9fr) minmax(90px,.9fr);gap:10px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--line);cursor:pointer;" style-hover="background:var(--panel2);" onClick="{{ r.open }}" title="눌러서 상세 보기">
+              <span style="display:flex;flex-direction:column;gap:2px;min-width:0;"><span style="font-weight:600;">{{ r.name }}</span><span style="font-family:var(--mono);font-size:15px;color:var(--dim);">{{ r.username }} · {{ r.emp }}</span></span>
+              <sc-for list="{{ r.cells }}" as="x" hint-placeholder-count="4">
+                <span style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 4px;border-radius:8px;background:{{ x.bg }};">
+                  <span style="font-family:{{ x.font }};font-size:{{ x.size }};font-weight:600;color:{{ x.color }};">{{ x.value }}</span>
+                  <span style="font-size:15px;color:var(--dim);">{{ x.sub }}</span>
+                </span>
+              </sc-for>
+              <span style="display:flex;align-items:center;gap:8px;">
+                <span style="display:flex;gap:3px;"><sc-for list="{{ r.dots }}" as="d" hint-placeholder-count="4"><span style="width:14px;height:6px;border-radius:3px;background:{{ d.bg }};"></span></sc-for></span>
+                <span style="font-family:var(--mono);font-size:15px;">{{ r.progress }}</span>
+              </span>
+              <span style="text-align:right;font-family:var(--mono);"><b style="color:{{ r.misColor }};">{{ r.misOpen }}</b><span style="color:var(--dim);font-size:15px;"> / 해결 {{ r.misResolved }}</span></span>
+              <span style="text-align:right;color:var(--muted);font-size:15px;">{{ r.last }}</span>
+              <span style="justify-self:end;font-size:15px;font-weight:600;padding:3px 9px;border-radius:6px;background:{{ r.tagBg }};color:{{ r.tagColor }};white-space:nowrap;">{{ r.tag }}</span>
+            </div>
+          </sc-for>
+          <sc-if value="{{ rowsEmpty }}" hint-placeholder-val="{{ false }}"><span style="padding:24px 18px;text-align:center;color:var(--muted);">조건에 맞는 신입사원이 없습니다.</span></sc-if>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 신입사원 상세: 표·수료·확인 필요 목록에서 사람을 누르면 오른쪽에서 열린다. 오개념은 개수만(내용은 본인만 봄) -->
+  <sc-if value="{{ dOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ dClose }}" style="position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.45);"></div>
+    <aside role="dialog" aria-label="신입사원 상세" style="position:fixed;top:0;right:0;bottom:0;z-index:41;width:min(560px,100%);overflow-y:auto;background:var(--bg);border-left:1px solid var(--line);display:flex;flex-direction:column;gap:18px;padding:24px 22px 40px;">
+      <div style="display:flex;align-items:flex-start;gap:12px;">
+        <span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1;">
+          <span style="font-family:var(--mono);font-size:13px;letter-spacing:0.26em;color:var(--muted);">TRAINEE</span>
+          <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span style="font-size:22px;font-weight:700;">{{ dName }}</span>
+            <sc-if value="{{ dDemo }}" hint-placeholder-val="{{ false }}"><span style="font-family:var(--mono);font-size:15px;padding:2px 6px;border-radius:5px;border:1px solid var(--line);color:var(--muted);">demo</span></sc-if>
+            <span style="font-size:15px;font-weight:600;padding:3px 9px;border-radius:6px;background:{{ dTagBg }};color:{{ dTagColor }};white-space:nowrap;">{{ dTag }}</span>
+          </span>
+          <span style="font-family:var(--mono);font-size:15px;color:var(--dim);">{{ dSub }}</span>
+        </span>
+        <button type="button" onClick="{{ dClose }}" aria-label="닫기" style="flex:none;width:32px;height:32px;border:1px solid var(--line);border-radius:8px;background:none;color:var(--muted);font-size:18px;cursor:pointer;">×</button>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
+        <sc-for list="{{ dFacts }}" as="f" hint-placeholder-count="4">
+          <span style="display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:12px;background:var(--panel);border:1px solid var(--line);">
+            <span style="font-size:15px;color:var(--dim);">{{ f.label }}</span>
+            <span style="font-family:{{ f.font }};font-size:15px;font-weight:600;color:{{ f.color }};">{{ f.value }}</span>
+          </span>
+        </sc-for>
+      </div>
+
+      <sc-if value="{{ dLoading }}" hint-placeholder-val="{{ false }}"><span style="color:var(--muted);font-size:15px;">불러오는 중…</span></sc-if>
+      <sc-if value="{{ dError }}" hint-placeholder-val="{{ false }}"><span style="color:var(--bad);font-size:15px;">{{ dError }}</span></sc-if>
+
+      <sc-for list="{{ dSections }}" as="s" hint-placeholder-count="2">
+        <section style="display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:16px;background:var(--panel);border:1px solid var(--line);">
+          <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
+            <span style="font-size:16px;font-weight:700;">{{ s.name }}</span>
+            <span style="font-family:{{ s.headFont }};font-size:15px;font-weight:600;color:{{ s.headColor }};">{{ s.head }}</span>
+            <span style="font-size:15px;color:var(--dim);">{{ s.headSub }}</span>
+          </div>
+          <sc-if value="{{ s.going }}" hint-placeholder-val="{{ false }}"><span style="font-size:15px;color:var(--accent);">{{ s.goingText }}</span></sc-if>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <sc-for list="{{ s.concepts }}" as="c" hint-placeholder-count="3">
+              <div style="display:grid;grid-template-columns:minmax(0,1fr) 120px 64px;gap:10px;align-items:center;font-size:15px;">
+                <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ c.name }}</span>
+                <span style="height:6px;border-radius:3px;background:var(--panel2);overflow:hidden;"><span style="display:block;height:100%;width:{{ c.width }};background:{{ c.color }};"></span></span>
+                <span style="text-align:right;font-size:15px;font-weight:600;color:{{ c.color }};">{{ c.label }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <sc-if value="{{ s.hasAttempts }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:6px;padding-top:10px;border-top:1px solid var(--line);">
+              <span style="font-size:15px;color:var(--dim);">시도 기록</span>
+              <sc-for list="{{ s.attempts }}" as="a" hint-placeholder-count="2">
+                <div style="display:grid;grid-template-columns:90px 64px 1fr auto;gap:10px;align-items:center;font-size:15px;">
+                  <span style="font-family:var(--mono);color:var(--muted);">{{ a.when }}</span>
+                  <span style="color:var(--muted);">{{ a.kind }}</span>
+                  <span style="font-family:var(--mono);font-weight:600;color:{{ a.color }};">{{ a.value }}</span>
+                  <span style="font-weight:600;color:{{ a.resultColor }};">{{ a.result }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ s.demo }}" hint-placeholder-val="{{ false }}"><span style="font-size:15px;color:var(--dim);">이 공정은 이해도 확인이 없어 시연 개념 목록으로 계산했어요.</span></sc-if>
+        </section>
+      </sc-for>
+      <span style="font-size:15px;color:var(--dim);">오개념은 개수만 보여 줘요. 설명과 답변 원문은 본인만 볼 수 있어요.</span>
+    </aside>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;dark&quot;, &quot;light&quot;], &quot;default&quot;: &quot;dark&quot;, &quot;tsType&quot;: &quot;'dark' | 'light'&quot;}}">
+const STATUS = {
+  done: { label: '수료', bg: 'color-mix(in srgb, var(--ok) 18%, transparent)', color: 'var(--ok)' },
+  retry: { label: '재도전 필요', bg: 'color-mix(in srgb, var(--bad) 18%, transparent)', color: 'var(--bad)' },
+  active: { label: '진행 중', bg: 'color-mix(in srgb, var(--accent) 18%, transparent)', color: 'var(--accent)' },
+  idle: { label: '미시작', bg: 'var(--panel2)', color: 'var(--muted)' },
+};
+const pct = x => Math.round(x * 100) + '%';
+const uColor = u => u >= 0.8 ? 'var(--ok)' : u >= 0.6 ? 'var(--mid)' : 'var(--bad)';
+const days = iso => iso ? Math.floor((Date.now() - new Date(iso)) / 864e5) : null;
+const ago = iso => { const d = days(iso); return d == null ? '기록 없음' : d === 0 ? '오늘' : d === 1 ? '어제' : `${d}일 전`; };
+
+class Component extends DCLogic {
+  state = { P: null, data: null, error: null, ai: null, theme: this.props.theme ?? 'dark', sec: 'all', status: 'all', q: '', sort: 'progress', loadedAt: null,
+    detailId: null, detail: null, detailError: null, // 신입사원 상세 패널(GET /api/admin/trainees/:id)
+    report: null }; // 보고서 내려받기 상태: null | 'busy' | 'error'
+  componentDidMount() {
+    document.body.dataset.theme = this.state.theme;
+    import('../3d-demo/data_v2.js').then(m => this.setState({ P: m.PROCESSES }));
+    import('./admin_data.js').then(m => m.loadAdminData())
+      .then(data => this.setState({ data, error: null, loadedAt: new Date() }),
+        () => this.setState({ error: '관리자 통계를 DB에서 불러오지 못했습니다. 로그인 상태와 서버 연결을 확인해 주세요.' }));
+    // AI 요약은 따로 부른다. 키가 없거나 호출이 실패해도 나머지 화면에는 영향이 없다.
+    import('./admin_data.js').then(m => m.loadAiSummary()).then(ai => this.setState({ ai }), () => this.setState({ ai: { error: 'load' } }));
+    addEventListener('keydown', e => { if (e.key === 'Escape' && this.state.detailId) this.closeDetail(); });
+  }
+  // 신입사원 상세: 누른 사람의 상세를 불러온다. 응답이 늦게 와도 지금 열린 사람의 것만 쓴다.
+  openDetail(id) {
+    this.setState({ detailId: id, detail: null, detailError: null });
+    import('./admin_data.js').then(m => m.loadTraineeDetail(id)).then(
+      detail => { if (this.state.detailId === id) this.setState({ detail }); },
+      () => { if (this.state.detailId === id) this.setState({ detailError: '상세 정보를 불러오지 못했어요. 로그인 상태와 서버 연결을 확인해 주세요.' }); });
+  }
+  closeDetail() { this.setState({ detailId: null, detail: null, detailError: null }); }
+  detailVals(T, secs, meta) {
+    const S = this.state;
+    if (!S.detailId) return { dOpen: false };
+    const t = (S.detail && S.detail.trainee) || T.find(x => x.id === S.detailId);
+    if (!t) return { dOpen: false };
+    const status = STATUS[this.statusOf(t, secs)];
+    const date = iso => { const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`; };
+    const VERDICT = { correct: ['맞음', 'var(--ok)'], partial: ['부분', 'var(--mid)'], wrong: ['틀림', 'var(--bad)'] };
+    const dSections = (S.detail ? S.detail.sections : []).map(x => {
+      const st = x.stat;
+      const going = x.in_progress;
+      return {
+        name: `${meta(x.section).num ? meta(x.section).num + ' ' : ''}${x.name}`, demo: x.demo,
+        head: st ? pct(st.understanding) : going ? '진행 중' : '미응시',
+        headFont: st ? 'var(--mono)' : 'var(--font-ko)',
+        headColor: st ? uColor(st.understanding) : going ? 'var(--accent)' : 'var(--muted)',
+        headSub: st ? `${st.passed ? '통과' : '미통과'} · ${st.attempts}회 시도` : '',
+        going: !!going, goingText: going ? `${going.state === 'paused' ? '멈춤(나중에 이어 풀기)' : '푸는 중'} · ${going.done}/${going.total} 개념 확정` : '',
+        concepts: x.concepts.map(c => {
+          const [label, color] = c.score == null ? ['미응시', 'var(--dim)'] : c.final_verdict ? VERDICT[c.final_verdict] : ['재확인 전', 'var(--muted)'];
+          return { name: c.name, label: c.score == null ? label : `${label} · ${c.score}`, color, width: c.score == null ? '0%' : `${Math.max(c.score * 100, 3)}%` };
+        }),
+        hasAttempts: x.attempts.length > 0,
+        attempts: x.attempts.map(a => ({ when: date(a.completed_at), kind: a.kind === 'retry' ? '재도전' : '첫 시도',
+          value: a.understanding == null ? '—' : pct(a.understanding), color: a.understanding == null ? 'var(--muted)' : uColor(a.understanding),
+          result: a.unlocked ? '통과' : '미통과', resultColor: a.unlocked ? 'var(--ok)' : 'var(--bad)' })),
+      };
+    });
+    return {
+      dOpen: true, dClose: () => this.closeDetail(),
+      dName: t.name, dDemo: !!t.is_demo, dSub: `${t.username} · ${t.employee_no} · 가입 ${ago(t.created_at)}`,
+      dTag: status.label, dTagBg: status.bg, dTagColor: status.color,
+      dFacts: [
+        { label: '진도', value: `${t.passed_sections}/${secs.length}`, color: 'var(--text)', font: 'var(--mono)' },
+        { label: '미해결 오개념', value: `${t.misconceptions.open}개`, color: t.misconceptions.open ? 'var(--bad)' : 'var(--text)', font: 'var(--font-ko)' },
+        { label: '해결한 오개념', value: `${t.misconceptions.resolved}개`, color: 'var(--text)', font: 'var(--font-ko)' },
+        { label: '마지막 학습', value: ago(t.last_activity), color: 'var(--text)', font: 'var(--font-ko)' },
+      ],
+      dLoading: !S.detail && !S.detailError, dError: S.detailError, dSections,
+    };
+  }
+  aiVals() {
+    const A = this.state.ai;
+    const note = '오답률 높은 개념의 집계 숫자만 Gemini에 보냅니다. 답변 원문·오개념 내용·개인 정보는 보내지 않습니다.';
+    if (!A) return { aiText: '요약을 만드는 중…', aiColor: 'var(--muted)', aiMeta: '', aiNote: note };
+    if (A.error) {
+      const why = A.error === '429' ? '오늘 LLM 호출 한도를 다 써서' : A.error === '401' || A.error === '403' ? '관리자 로그인이 필요해서' : 'AI 연결이 안 돼서(GEMINI_API_KEY 확인)';
+      return { aiText: `${why} 요약을 만들지 못했습니다. 아래 '오답률 높은 개념'을 참고해 주세요.`, aiColor: 'var(--muted)', aiMeta: '요약 없음', aiNote: note };
+    }
+    if (!A.summary) return { aiText: '아직 요약할 오답 기록이 없습니다.', aiColor: 'var(--muted)', aiMeta: '', aiNote: note };
+    const t = new Date(A.generated_at);
+    return { aiText: A.summary, aiColor: 'var(--text)',
+      aiMeta: `${t.getHours()}:${String(t.getMinutes()).padStart(2, '0')} 생성${A.cached ? ' · 저장된 요약' : ''}`,
+      aiNote: `근거: ${A.concepts.map(c => c.name).join(' · ')}. ${note}` };
+  }
+  statusOf(t, secs) {
+    if (t.passed_sections === secs.length) return 'done';
+    if (secs.some(s => t.sections[s] && !t.sections[s].passed)) return 'retry';
+    if (secs.some(s => t.sections[s]) || t.in_progress_sections?.length) return 'active'; // 이어 풀기로 멈춘 시도도 진행 중
+    return 'idle';
+  }
+  renderVals() {
+    const S = this.state, P = S.P || [], D = S.data;
+    // 섹션 목록과 순서는 서버 응답(/api/admin/trainees의 sections)을 그대로 쓴다.
+    const secs = D ? D.trainees.sections : [];
+    const T = D ? D.trainees.trainees : [];
+    const meta = id => P.find(p => p.id === id) || { num: '', name: id, equipment: [] };
+    const eqName = (sec, id) => (meta(sec).equipment.find(e => e.id === id) || { name: id }).name;
+    const N = T.length;
+    const st = T.map(t => this.statusOf(t, secs));
+    const allU = T.flatMap(t => secs.map(s => t.sections[s]).filter(Boolean).map(x => x.understanding));
+    const openMis = T.reduce((a, t) => a + t.misconceptions.open, 0);
+    const doneN = st.filter(x => x === 'done').length;
+    const tab = (on, label, onClick) => ({ on, label, onClick, bg: on ? 'var(--chip-on)' : 'transparent', color: on ? 'var(--text)' : 'var(--muted)' });
+
+    // 오답률 높은 개념
+    const C = (D ? D.concepts.concepts : []).filter(c => S.sec === 'all' || c.section === S.sec)
+      .map(c => ({ ...c, miss: c.partial + c.wrong + c.assisted })).filter(c => c.asked > 0)
+      .sort((a, b) => b.miss / b.asked - a.miss / a.asked || b.wrong - a.wrong).slice(0, 8);
+    const concepts = C.map((c, i) => { const r = c.miss / c.asked; return {
+      rank: String(i + 1).padStart(2, '0'), rankColor: i < 3 ? 'var(--bad)' : 'var(--muted)',
+      name: c.name || eqName(c.section, c.concept_id), id: c.concept_id, secName: meta(c.section).name,
+      wWrong: pct(c.wrong / c.asked), wPartial: pct(c.partial / c.asked), wAssist: pct(c.assisted / c.asked),
+      detail: `${c.asked}회 출제 · 재확인 후에도 틀림 ${c.final_wrong} · 미해결 오개념 ${c.open}`,
+      rate: pct(r), rateColor: r >= 0.5 ? 'var(--bad)' : r >= 0.3 ? 'var(--mid)' : 'var(--text)' }; });
+
+    // 수료 / 확인 필요
+    const avgOf = t => { const u = secs.map(s => t.sections[s]).filter(Boolean); return u.length ? u.reduce((a, x) => a + x.understanding, 0) / u.length : 0; };
+    const done = T.filter((t, i) => st[i] === 'done').sort((a, b) => new Date(b.last_activity) - new Date(a.last_activity));
+    const watch = [];
+    T.forEach((t, i) => {
+      const fail = secs.find(s => t.sections[s] && !t.sections[s].passed);
+      if (fail) { const x = t.sections[fail]; watch.push({ t, w: 3, tag: '재도전 필요', c: 'bad', sub: `${meta(fail).name} ${pct(x.understanding)} · ${x.attempts}회 시도` }); }
+      else if (st[i] === 'idle') watch.push({ t, w: 1, tag: '미시작', c: 'muted', sub: `가입 ${ago(t.created_at)} · 아직 체크포인트 없음` });
+      else if (st[i] !== 'done' && days(t.last_activity) >= 3) watch.push({ t, w: 2, tag: `${days(t.last_activity)}일 미접속`, c: 'mid', sub: `진도 ${t.passed_sections}/${secs.length}` });
+      if (st[i] !== 'done' && t.misconceptions.open >= 3 && !fail) watch.push({ t, w: 2, tag: '오개념 많음', c: 'mid', sub: `미해결 오개념 ${t.misconceptions.open}개` });
+    });
+    watch.sort((a, b) => b.w - a.w);
+
+    // 섹션 카드
+    const secCards = secs.map(s => { const x = T.map(t => t.sections[s]).filter(Boolean), p = x.filter(v => v.passed).length;
+      return { num: meta(s).num, name: meta(s).name, avg: x.length ? pct(x.reduce((a, v) => a + v.understanding, 0) / x.length) : '—',
+        passed: `${p}/${N}`, failed: String(x.length - p), failColor: x.length - p ? 'var(--bad)' : 'var(--text)',
+        tries: x.length ? (x.reduce((a, v) => a + v.attempts, 0) / x.length).toFixed(1) : '—',
+        wTaken: N ? pct(x.length / N) : '0%', wPassed: N ? pct(p / N) : '0%' }; });
+
+    // 명단
+    const q = S.q.trim().toLowerCase();
+    const sorters = {
+      name: (a, b) => a.t.name.localeCompare(b.t.name, 'ko'),
+      progress: (a, b) => b.t.passed_sections - a.t.passed_sections || avgOf(b.t) - avgOf(a.t),
+      mis: (a, b) => b.t.misconceptions.open - a.t.misconceptions.open,
+      last: (a, b) => new Date(b.t.last_activity || 0) - new Date(a.t.last_activity || 0),
+    };
+    const list = T.map((t, i) => ({ t, s: st[i] }))
+      .filter(x => S.status === 'all' || x.s === S.status)
+      .filter(x => !q || [x.t.name, x.t.username, x.t.employee_no].some(v => v.toLowerCase().includes(q)))
+      .sort(sorters[S.sort]);
+    const rows = list.map(({ t, s }) => {
+      let locked = false;
+      // 칸 글씨: 숫자(이해도 %)는 고정폭, 글자('진행 중'·'잠김')는 오른쪽 상태 태그와 같은 한글 글꼴(고정폭 글꼴에는 한글이 없다)
+      const NUM = { font: 'var(--mono)', size: '15px' }, WORD = { font: 'var(--font-ko)', size: '15px' };
+      const cells = secs.map(k => { const x = t.sections[k], going = (t.in_progress_sections || []).includes(k); // 끝나지 않은 시도(진행 중·멈춤)는 실패로 세지 않고 표시만
+        if (x) { const c = { ...NUM, value: pct(x.understanding), sub: `${x.passed ? '통과' : '미통과'} · ${x.attempts}회${going ? ' · 진행 중' : ''}`, color: uColor(x.understanding), bg: `color-mix(in srgb, ${uColor(x.understanding)} 12%, transparent)` }; if (!x.passed) locked = true; return c; }
+        if (going) { locked = true; return { ...WORD, value: '진행 중', sub: '응시 중', color: 'var(--accent)', bg: 'color-mix(in srgb, var(--accent) 10%, transparent)' }; }
+        const c = { ...(locked ? WORD : NUM), value: locked ? '잠김' : '—', sub: locked ? '' : '미응시', color: 'var(--muted)', bg: 'transparent' }; locked = true; return c; });
+      return { name: t.name, username: t.username, emp: t.employee_no, cells, open: () => this.openDetail(t.id),
+        dots: secs.map(k => ({ bg: t.sections[k]?.passed ? 'var(--accent)' : 'var(--panel2)' })), progress: `${t.passed_sections}/${secs.length}`,
+        misOpen: String(t.misconceptions.open), misResolved: String(t.misconceptions.resolved), misColor: t.misconceptions.open ? 'var(--bad)' : 'var(--text)',
+        last: ago(t.last_activity), tag: STATUS[s].label, tagBg: STATUS[s].bg, tagColor: STATUS[s].color };
+    });
+    const col = (label, key, align = 'center') => ({ label: label + (key && S.sort === key ? ' ↓' : ''), align, color: key && S.sort === key ? 'var(--text)' : 'var(--muted)', cursor: key ? 'pointer' : 'default', onClick: () => key && this.setState({ sort: key }) });
+
+    const statusCount = k => k === 'all' ? N : st.filter(x => x === k).length;
+    return {
+      ...this.aiVals(),
+      ...this.detailVals(T, secs, meta),
+      srcLabel: D ? 'DB 데이터' : S.error ? '연결 오류' : '불러오는 중',
+      srcColor: D ? 'var(--ok)' : S.error ? 'var(--bad)' : 'var(--muted)',
+      loadError: S.error,
+      updatedLabel: S.loadedAt ? `불러온 시각 ${S.loadedAt.getHours()}:${String(S.loadedAt.getMinutes()).padStart(2, '0')}` : S.error ? '불러오기 실패' : '불러오는 중…',
+      themeIcon: S.theme === 'dark' ? '☀' : '☾',
+      toggleTheme: () => { const theme = S.theme === 'dark' ? 'light' : 'dark'; document.body.dataset.theme = theme; this.setState({ theme }); },
+      logout: () => {
+        try { localStorage.removeItem('st-rookie-token'); sessionStorage.removeItem('st-rookie-token'); } catch (e) {}
+        window.top.location.href = '/login_ui/home-sleek.html';
+      },
+      kpis: [
+        { label: '신입사원', value: String(N), unit: '명', sub: '가입한 trainee 계정', color: 'var(--text)' },
+        { label: '전 과정 수료', value: String(doneN), unit: `명 · ${N ? pct(doneN / N) : '0%'}`, sub: `${secs.length}개 섹션 모두 통과`, color: 'var(--ok)' },
+        { label: '평균 이해도', value: allU.length ? pct(allU.reduce((a, b) => a + b, 0) / allU.length) : '—', unit: '', sub: '응시한 섹션의 마지막 결과 평균', color: allU.length ? uColor(allU.reduce((a, b) => a + b, 0) / allU.length) : 'var(--text)' },
+        { label: '미해결 오개념', value: String(openMis), unit: '개', sub: '내용은 본인만 볼 수 있음', color: openMis ? 'var(--bad)' : 'var(--text)' },
+      ],
+      secTabs: [tab(S.sec === 'all', '전체', () => this.setState({ sec: 'all' })), ...secs.map(s => tab(S.sec === s, meta(s).name, () => this.setState({ sec: s })))],
+      concepts, conceptsEmpty: !!D && concepts.length === 0,
+      doneCount: `${doneN}명`, doneEmpty: !!D && done.length === 0,
+      doneList: done.map(t => ({ initial: t.name.slice(0, 1), name: t.name, emp: t.employee_no, avg: pct(avgOf(t)), open: () => this.openDetail(t.id),
+        sub: `${ago(t.last_activity)} 마지막 학습 · 재도전 ${secs.reduce((a, s) => a + (t.sections[s]?.attempts || 1) - 1, 0)}회` })),
+      watchCount: `${watch.length}건`,
+      watchList: watch.map(({ t, tag, c, sub }) => ({ name: t.name, emp: t.employee_no, sub, tag, open: () => this.openDetail(t.id),
+        tagBg: `color-mix(in srgb, var(--${c}) 18%, transparent)`, tagColor: `var(--${c})` })),
+      secCards,
+      statusTabs: ['all', 'done', 'active', 'retry', 'idle'].map(k => tab(S.status === k, `${k === 'all' ? '전체' : STATUS[k].label} ${statusCount(k)}`, () => this.setState({ status: k }))),
+      query: S.q, onQuery: e => this.setState({ q: e.target.value }),
+      reportBusy: S.report === 'busy', reportLabel: S.report === 'busy' ? '보고서 만드는 중…' : S.report === 'error' ? '엑셀 다시 받기' : '보고서 엑셀(CSV)',
+      // 그림 보고서: 차트·표 페이지(admin-report.html)를 새 탭으로 열고 바로 인쇄 창을 띄운다(PDF로 저장)
+      onReportPdf: () => { window.open('/login_ui/admin-report.html?print=1', '_blank'); },
+      onReport: () => { this.setState({ report: 'busy' }); import('./admin_data.js').then(m => m.downloadReport()).then(() => this.setState({ report: null }), () => this.setState({ report: 'error' })); },
+      cols: [col('신입사원', 'name', 'left'), ...secs.map(s => col(meta(s).name)), col('진도', 'progress', 'left'), col('미해결 오개념', 'mis', 'right'), col('마지막 학습', 'last', 'right'), col('상태', null, 'right')],
+      rows, rowsEmpty: !!D && rows.length === 0,
+    };
+  }
+}
+</script>
+</body>
+</html>

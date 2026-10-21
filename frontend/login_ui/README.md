@@ -1,0 +1,23 @@
+# login_ui
+
+로그인 + 마이페이지 화면. `frontend/login_ui/`에 둔다.
+
+- `home-sleek.html`: 홈 + 로그인·회원가입(로그인 화면은 여기 하나뿐). 로그인하면 3D 학습 화면(v4)으로 간다. `login-sleek.html`은 같은 로그인의 단독 페이지.
+- `My Page.dc.html`: 마이페이지(서버의 `/login`). 로그인 폼은 없고, 토큰을 확인해 역할별 대시보드를 iframe으로 띄운다. 토큰이 없거나 만료됐으면 홈(`home-sleek.html`)으로 보낸다. 서버를 켜고(`npm start`) 연다.
+- `Admin Dashboard.dc.html`: 관리자 화면. `/api/admin/trainees`와 `/api/admin/concepts`의 DB 통계를 표시한다.
+- `Trainee Dashboard.dc.html`: 신입사원 화면. `/api/me/dashboard`에서 본인 기록만 읽고 학습 모듈을 표시한다.
+- `support.js`: 화면 런타임(3d-demo의 것과 동일).
+- 교육 내용은 `../3d-demo/data_v2.js`를 읽는다(중복 없음). 3D 학습 링크도 `../3d-demo/`를 가리킨다.
+- API 형식은 [docs/auth-api.md](../../docs/auth-api.md).
+
+## 로그인 화면 구성
+- 홈(`home-sleek.html`)의 LOGIN·시작하기에서 연다. 한 패널이 모드 4개를 바꿔 가며 보여 준다: 로그인, 회원가입(이름·사번), 아이디 찾기(이름 + 사번), 비밀번호 찾기(아이디 + 이름 + 사번 → 새 비밀번호). 칸마다 `data-modes`로 보일 모드를 적는다.
+- 아이디를 찾거나 비밀번호를 바꾸면 로그인 모드로 돌아가 아이디를 채워 둔다. 시연 계정은 비밀번호를 바꿀 수 없다(서버 403).
+- 대시보드(관리자·신입사원)의 로그아웃은 토큰을 지우고 홈으로 간다.
+
+## 마이페이지 구성
+
+- 공통: 프로필, 주요 수치, 섹션별 진행 카드와 DB 연결 상태.
+- 관리자: 전체 신입사원 명단, 섹션 통계, 오답률 높은 개념. 기록이 없거나 API가 실패하면 샘플 수치 대신 빈 상태 또는 오류를 표시한다.
+- 신입사원(`Trainee Dashboard.dc.html`): 위에 2D 학습 모듈 `<process-2d>`(`../3d-demo/process-2d.js`, 제선·제강·연주·열간압연 설비 24개. 오른쪽 설비 목록은 썸네일·단계 수를 보여 주고, 올리면 미리보기 창이 뜬다)와 옆의 AI 튜터, 가운데 복습할 개념·오개념, 맨 아래 접힌 학습 현황. 튜터는 3D 화면과 같은 `learning-chat.js`를 그대로 쓰고, 모듈에서 고른 공정·설비(`process-select`)를 화면 정보로 보낸다. 테마는 `st-rookie-theme`(localStorage) → 시스템 설정 순서로 정하고 모듈에도 넘긴다.
+- 시연 계정 생성 코드는 `dev`에 머지된 #29에서 가져왔다. `npm run db:seed-demo -- 58`은 `trainee01`~`20`의 기존 시연 체크포인트 기록을 다시 만든다.

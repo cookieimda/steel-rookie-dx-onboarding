@@ -1,0 +1,24 @@
+# Render 무료 웹 서비스로 체험용 서버를 띄운다(README '바로 체험하기').
+# - 무료 플랜은 디스크가 유지되지 않아, 재시작하면 학습 기록이 비고 시연 계정은 다시 만들어진다.
+# - GEMINI_API_KEY는 Render 대시보드에서 직접 넣는다(비우면 LLM 튜터 답변만 꺼지고 3D·실습·시험은 동작).
+services:
+  - type: web
+    name: steel-rookie-dx-onboarding
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: node .build/backend/src/ironmaking-server.js
+    healthCheckPath: /api/status
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: HOST
+        value: 0.0.0.0
+      - key: JWT_SECRET
+        generateValue: true
+      - key: WARM_ANSWERS
+        value: "off"
+      - key: LLM_DAILY_LIMIT
+        value: "20"
+      - key: GEMINI_API_KEY
+        sync: false

@@ -184,8 +184,10 @@ app.use(createSupplementRouter(new SupplementEngine({
 })));
 
 const port = Number(process.env.PORT ?? 3000);
-// 이 컴퓨터에서만 접속을 받는다. 원격 공유는 cloudflared 터널(npm run tunnel)이 localhost로 넘겨준다.
-app.listen(port, "127.0.0.1", () => {
+// 기본은 이 컴퓨터에서만 접속을 받는다. 원격 공유는 cloudflared 터널(npm run tunnel)이 localhost로 넘겨준다.
+// 클라우드 배포(render.yaml)는 HOST=0.0.0.0으로 외부 접속을 받는다.
+const host = process.env.HOST?.trim() || "127.0.0.1";
+app.listen(port, host, () => {
   console.log(`제선 공정 알아보기: http://localhost:${port}`);
   console.log(`접속 비밀번호: ${passcodeRequired() ? "사용(TEST_PASSCODE)" : "사용 안 함"} · 사용자별 하루 LLM 호출 한도: ${usage.dailyLimit > 0 ? `${usage.dailyLimit}회` : "제한 없음"}`);
   console.log(`LLM: ${llmInfo.label} · 학습 프롬프트 ${profile.learning} · 채점 보강 ${profile.evaluatorGuards ? "켬" : "끔"} · 근거 겹침 검사 ${profile.groundingCheck ? "켬" : "끔"}`);

@@ -56,6 +56,31 @@
       html:not(.hub-todo) .lb-path { display: none !important; }
       html.hub-todo section[data-sec="lab"] > :not(.lb-path):not(:has(.lb-path)) { display: none !important; }`;
     const EXAM_CSS = `.topbar { display: none !important; } main { padding-top: 16px !important; }`;
+    // 작동 단계: 도면(600:320)이 폭을 꽉 채우면 아래 단계 설명·설비 목록이 창 밖으로 밀려 스크롤해야 보인다.
+    // 이 창에서만 여백을 줄이고 설비 목록은 그림 없이 이름만 보인 뒤, 남는 높이를 재서 도면을 줄인다(--hub-svg-h).
+    // 도면은 2D 모듈(process-2d) 그림자 안에 있어 그 안에 스타일을 넣는다
+    const FIT_CSS = `.svg.hl { width: min(100%, calc(var(--hub-svg-h, 99999px) * 600 / 320)); margin-inline: auto; }
+      .root { padding: 12px 14px; gap: 10px; } .layout { gap: 10px; } .body { gap: 8px; }
+      .stepcard { padding: 8px 14px; gap: 2px; } .stepcard p { line-height: 1.5; }
+      .chapters { --chapters-pad: 6px 8px; } .chapters .ch-h { padding: 0 2px 4px 6px; } .ch .th { display: none; } .ch { padding: 4px 6px; gap: 0; } .ch .nm { -webkit-line-clamp: 1; }`;
+    function fitSteps(f) {
+      const d = f.contentDocument, m = d && d.querySelector('process-2d'), sr = m && m.shadowRoot;
+      if (!sr || !d.documentElement.classList.contains('hub-tutor')) return;
+      if (!sr.getElementById('hub-fit')) { const s = d.createElement('style'); s.id = 'hub-fit'; s.textContent = FIT_CSS; sr.append(s); }
+      const svg = sr.querySelector('.svg.hl'); if (!svg) return;
+      m.style.removeProperty('--hub-svg-h');
+      // 넘친 만큼 = 모듈 아래쪽(문서 기준, 아래 여백 12px) - 창 높이. 모듈 아래 다른 내용이 있어도 모듈만 본다
+      const w = f.contentWindow, over = m.getBoundingClientRect().bottom + w.scrollY + 12 - w.innerHeight;
+      if (over > 0) m.style.setProperty('--hub-svg-h', Math.max(160, svg.getBoundingClientRect().height - over - 2) + 'px');
+    }
+    // 창 크기·단계 설명 길이가 바뀌면 다시 맞춘다
+    function watchFit(f) {
+      const m = f.contentDocument.querySelector('process-2d');
+      if (f._fit || !m) return;
+      const fit = () => { cancelAnimationFrame(f._fitR); f._fitR = requestAnimationFrame(() => fitSteps(f)); };
+      f._fit = new ResizeObserver(fit); f._fit.observe(m);
+      f.contentWindow.addEventListener('resize', fit);
+    }
     const $ = (id) => document.getElementById(id);
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     function inject(frame, css) {
@@ -96,6 +121,7 @@
       if (r.sub) await press(d, 'section[data-sec="lab"] [role="tablist"]', r.sub, r.only === 'path' ? () => !!d.querySelector('.lb-path') : undefined, my);
       if (my !== seq) return;
       f.contentWindow.scrollTo(0, 0);
+      if (r.tutor) { watchFit(f); fitSteps(f); }
       // [포석호에게 묻기]: 채팅 입력창에 커서를 둔다(입력창이 그려질 때까지 잠깐 기다린다)
       if (r.ask) for (let i = 0; i < 20 && my === seq; i++) { const input = d.getElementById('tutorInput'); if (input) { f.contentWindow.focus(); input.focus(); break; } await sleep(150); }
     }

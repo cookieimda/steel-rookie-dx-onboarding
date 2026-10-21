@@ -159,6 +159,9 @@ class GltfRenderer {
     // 환경광 반사가 강하면 흰 표면이 금속처럼 보여서 줄인다.
     model.traverse((o) => { if (o.isMesh) for (const m of [o.material].flat()) if ('envMapIntensity' in m) m.envMapIntensity = 0.45; });
     // 크기: 노드 변환을 포함한 바운딩 박스로 높이 1, 발 중앙을 원점에.
+    // 뼈대(리깅)가 있는 모델은 뼈 행렬을 먼저 계산해야 기본 자세로 크기를 잰다(안 하면 높이를 작게 재서 1.7배로 커졌다, 2026-10-21)
+    model.updateMatrixWorld(true);
+    model.traverse((o) => { if (o.isSkinnedMesh) { o.skeleton.update(); o.boundingBox = null; } });
     const box = new THREE.Box3().setFromObject(model);
     const size = box.getSize(new THREE.Vector3());
     model.scale.multiplyScalar(1 / (size.y || 1));

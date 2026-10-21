@@ -185,8 +185,8 @@ app.use(createSupplementRouter(new SupplementEngine({
 
 const port = Number(process.env.PORT ?? 3000);
 // 기본은 이 컴퓨터에서만 접속을 받는다. 원격 공유는 cloudflared 터널(npm run tunnel)이 localhost로 넘겨준다.
-// 클라우드 배포(render.yaml)는 HOST=0.0.0.0으로 외부 접속을 받는다.
-const host = process.env.HOST?.trim() || "127.0.0.1";
+// 클라우드 배포는 HOST=0.0.0.0으로 외부 접속을 받는다. Render는 RENDER=true를 넣어 주므로 HOST가 없어도 외부에 연다.
+const host = process.env.HOST?.trim() || (process.env.RENDER ? "0.0.0.0" : "127.0.0.1");
 app.listen(port, host, () => {
   console.log(`제선 공정 알아보기: http://localhost:${port}`);
   console.log(`접속 비밀번호: ${passcodeRequired() ? "사용(TEST_PASSCODE)" : "사용 안 함"} · 사용자별 하루 LLM 호출 한도: ${usage.dailyLimit > 0 ? `${usage.dailyLimit}회` : "제한 없음"}`);

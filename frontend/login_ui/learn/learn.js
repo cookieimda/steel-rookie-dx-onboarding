@@ -58,8 +58,8 @@ $stage.innerHTML = `<section class="cf">
       <div class="brief-ctl"><button type="button" class="btn ghost sm" id="bMute"></button><button type="button" class="btn ghost sm" id="bAgain">↺ 다시 듣기</button>
         <button type="button" class="btn ghost sm" id="bClose">← 카드로</button><button type="button" class="btn" id="bGo">바로 사용하기 →</button></div></div>
   </div>
-  <div class="live" id="live" hidden><div class="live-bar"><button type="button" class="btn ghost sm" id="back">← 카드로</button><span class="num" id="lNum"></span><span class="live-t" id="lName"></span>
-    <button type="button" class="btn ghost sm" id="askBar">💬 포석호에게 묻기</button><a class="btn ghost sm" id="pop" target="_blank" rel="opener">새 창으로 ↗</a></div><iframe id="frame" title="실제 화면"></iframe></div>`;
+  <div class="live" id="live" hidden><div class="live-bar"><button type="button" class="btn ghost sm" id="full" aria-pressed="false">⛶ 전체 화면으로 보기</button><span class="num" id="lNum"></span><span class="live-t" id="lName"></span>
+    <button type="button" class="btn ghost sm" id="askBar">💬 포석호에게 묻기</button><button type="button" class="live-x" id="back" aria-label="닫기" title="닫기 (Esc)">✕</button></div><iframe id="frame" title="실제 화면"></iframe></div>`;
 
 const $ = (id) => $stage.querySelector(`#${id}`);
 const deck = $('deck'), cards = [...deck.children], dots = [...$('dots').children];
@@ -151,7 +151,6 @@ $('bMute').addEventListener('click', () => { const k = VOICE_MODES.findIndex(([m
 function openLive(f, route = f.id) {
   const url = `${LIVE}#${route}`;
   $('lNum').textContent = f.num; $('lName').textContent = route === 'ask' ? `${f.name} · 포석호 채팅` : f.name;
-  $('pop').href = url;
   $('askBar').hidden = f.id === 'steps'; // 포석호 채팅은 작동 단계 옆에만 있다
   if (!frame.getAttribute('src')) frame.src = url;
   else if (frame.contentWindow.location.hash === `#${route}` && typeof frame.contentWindow.show === 'function') frame.contentWindow.show(route);
@@ -159,8 +158,11 @@ function openLive(f, route = f.id) {
   live.hidden = false;
 }
 function ask() { closeBrief(); show(FEATURES.findIndex((f) => f.id === 'steps'), false); openLive(FEATURES[cur], 'ask'); talk('궁금한 걸 채팅에 물어봐! 도면에서 설비를 먼저 고르면 그 설비를 보고 답해 줄게.', 'greet', 1800); }
-const back = () => { live.hidden = true; cards[cur].focus(); };
+// [전체 화면으로 보기]: 실제 화면 창이 위 메뉴까지 덮어 페이지 전체를 쓴다. 닫으면 원래 크기로 돌아간다
+const full = (on) => { live.classList.toggle('full', on); $('full').setAttribute('aria-pressed', on); $('full').textContent = on ? '↙ 원래 크기로' : '⛶ 전체 화면으로 보기'; };
+const back = () => { full(false); live.hidden = true; cards[cur].focus(); };
 $('ask').addEventListener('click', ask); $('askBar').addEventListener('click', ask); $('back').addEventListener('click', back);
+$('full').addEventListener('click', () => full(!live.classList.contains('full')));
 
 addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { if (!brief.hidden) closeBrief(); else if (!live.hidden) back(); return; }

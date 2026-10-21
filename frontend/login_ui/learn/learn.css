@@ -115,6 +115,7 @@ cp-character { display: block; }
 body:has(.live.full:not([hidden])) .bar { display: none; } /* 실제 화면 창은 .stage 안이라 위 메뉴(.bar)보다 앞에 못 나온다: 전체 화면일 때 메뉴를 감춘다 */
 .live-x { flex: none; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; border: 0; background: rgba(255,255,255,.08); color: inherit; font-size: 15px; cursor: pointer; transition: background .2s; }
 .live-x:hover { background: rgba(255,255,255,.18); }
+.brief-x { position: absolute; top: 16px; right: 16px; z-index: 1; } /* 포석호 설명 창 닫기(실제 화면 창의 ✕와 같은 모양) */
 .live-bar { flex: none; display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--s1); border-bottom: 1px solid var(--line); }
 .live-bar [hidden] { display: none; }
 .live-t { font-weight: 700; margin-right: auto; }

@@ -1,6 +1,6 @@
-// 새 학습 기록(LEARN & ASK): 기능 10개를 카드로 넘겨 보고, 카드를 열면 그 기능 화면으로 가기 전에
-// 포석호가 목소리(동물의 숲 같은 포석호 말투, animalese.js)와 자막으로 사용법을 설명하는 짧은 브리핑 영상이 나온다(2026-10-21 팀 회의).
-// 브리핑이 끝나거나 [바로 사용하기]를 누르면 실제 화면(live.html#기능)이 뜬다. [← 카드로] · Esc면 돌아온다.
+// 새 학습 기록(LEARN & ASK): 기능 10개를 카드로 넘겨 보고, 가운데 카드를 누르면(Enter) 그 기능의 실제 화면(live.html#기능)이 바로 뜬다.
+// [▶ 포석호 설명 듣고 열기]를 누를 때만 화면으로 가기 전에 포석호가 목소리(동물의 숲 같은 포석호 말투, animalese.js)와 자막으로
+// 사용법을 설명하는 짧은 브리핑 영상이 나온다(2026-10-21 팀 회의, 카드는 바로 열기로 바꿈). 브리핑이 끝나거나 [바로 사용하기]를 누르면 실제 화면이 뜬다. ✕ · Esc면 돌아온다.
 import { FEATURES, POSEOKHO } from './features.js';
 import { createVoice } from './animalese.js';
 
@@ -84,7 +84,7 @@ function show(i, speak = true) {
   dots.forEach((b, k) => b.setAttribute('aria-current', String(k === cur)));
   if (speak) talk(f.say);
 }
-deck.addEventListener('click', (e) => { const c = e.target.closest('.cf-card'); if (!c) return; const i = +c.dataset.i; if (i === cur) openBrief(); else show(i); });
+deck.addEventListener('click', (e) => { const c = e.target.closest('.cf-card'); if (!c) return; const i = +c.dataset.i; if (i === cur) go(); else show(i); }); // 가운데 카드는 브리핑 없이 바로 연다
 $('dots').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) show(+b.dataset.i); });
 $('prev').addEventListener('click', () => show(cur - 1));
 $('next').addEventListener('click', () => show(cur + 1));
@@ -169,9 +169,9 @@ addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { if (!brief.hidden) closeBrief(); else if (!live.hidden) back(); return; }
   if (!brief.hidden || !live.hidden) return;
   if (e.key === 'ArrowLeft') show(cur - 1); else if (e.key === 'ArrowRight') show(cur + 1);
-  else if (e.key === 'Enter' && document.activeElement?.closest('.cf-card, #open') == null) { e.preventDefault(); openBrief(); }
+  else if (e.key === 'Enter' && document.activeElement?.closest('.cf-card, #open') == null) { e.preventDefault(); go(); }
 });
 // ?f=기능 id로 들어오면 그 카드를 고른 채 시작한다(예: /login_ui/learn/learn.html?f=report)
 const f0 = FEATURES.findIndex((f) => f.id === new URLSearchParams(location.search).get('f'));
 show(f0 >= 0 ? f0 : 0, false);
-talk('어서 와! 카드를 넘겨서 하나 골라 봐. 카드를 열면 내가 먼저 쓰는 법을 말로 알려 주고, 그다음 그 화면으로 데려다줄게.', 'greet');
+talk('어서 와! 카드를 넘겨서 하나 골라 봐. 카드를 누르면 바로 열리고, [포석호 설명 듣고 열기]를 누르면 내가 먼저 쓰는 법을 말로 알려 줄게.', 'greet');

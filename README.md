@@ -117,17 +117,33 @@ docs/      설계 문서와 스크린샷
 
 ## 실행 방법
 
-Node.js 22 이상이 필요합니다.
+**Node.js 22.13 이상**(권장: 24 LTS)이 필요합니다. 먼저 `node -v`로 확인하세요.
 
 ```bash
+git clone https://github.com/cookieimda/steel-rookie-dx-onboarding.git
+cd steel-rookie-dx-onboarding
 npm ci
-cp .env.example .env    # GEMINI_API_KEY를 넣으면 LLM 튜터가 켜집니다 (없어도 3D·실습 화면은 동작)
-npm start               # http://localhost:3000
-npm test                # 빌드 후 테스트 실행
+npm start
 ```
 
-- 시연 계정(`trainee01`~`20`, `admin01`)은 서버를 켤 때 만들어지고 로그인 화면에 표시됩니다. 비밀번호는 `backend/src/auth/demo-accounts.ts`의 시연용 값입니다.
-- 3D 인과 지도 바로 가기: `/3d-demo/Steel%20Academy%20v4.dc.html?p=ironmaking&lab=map`
+1. 터미널에 `제선 공정 알아보기: http://localhost:3000`이 보이면 서버가 켜진 것입니다. **이 터미널은 닫지 말고** 그대로 두세요.
+2. 브라우저에서 <http://localhost:3000>을 엽니다. HTML 파일을 더블클릭하거나 VS Code Live Server로 열면 서버와 연결되지 않습니다.
+3. 로그인 화면의 시연 계정(`trainee01`~`20`, 관리자 `admin01`)으로 들어갑니다. 비밀번호는 `backend/src/auth/demo-accounts.ts`의 시연용 값(`steel-2026-demo`)입니다.
+
+**`.env` 파일은 없어도 됩니다.** 시작할 때 `.env not found. Continuing without it.`이 보여도 정상입니다. 3D 화면·실습·시험 화면은 그대로 동작하고, LLM 튜터 답변만 꺼집니다. 튜터까지 쓰려면 `.env.example`을 복사해 `.env`를 만들고 `GEMINI_API_KEY=`에 본인 키를 넣은 뒤 서버를 다시 켜세요(Windows: `copy .env.example .env`, macOS·Linux: `cp .env.example .env`).
+
+**"서버에 연결하지 못했어요"가 뜰 때**
+
+| 원인 | 확인·해결 |
+|---|---|
+| Node.js 버전이 낮음 | `node -v`가 22.13보다 낮으면 서버가 켜지자마자 꺼집니다. [nodejs.org](https://nodejs.org)에서 24 LTS를 설치하고 **새 터미널**에서 다시 `npm start` |
+| 서버가 꺼져 있음 | `npm start`를 실행한 터미널을 닫았거나, 에러로 멈췄는지 확인 |
+| 파일을 직접 열었음 | 주소창이 `file://`이나 `:5500`이면 안 됩니다. `http://localhost:3000`으로 열기 |
+| PowerShell에서 `npm` 실행이 막힘 | `npm.cmd ci`, `npm.cmd start`로 실행 |
+| 3000번 포트를 이미 사용 중 | PowerShell: `$env:PORT=3001; npm start` 후 `http://localhost:3001` |
+
+- 테스트: `npm test`
+- 3D 공정 화면 바로 가기: <http://localhost:3000/3d-demo/steel-index.html?p=ironmaking>
 - 로컬 모델 사용: `npm run start:ollama` ([docs/llm-providers.md](docs/llm-providers.md))
 
 ## 자료 범위와 한계

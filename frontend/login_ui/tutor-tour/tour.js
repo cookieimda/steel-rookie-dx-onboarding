@@ -1,31 +1,33 @@
-// 말하는 포석호 첫 안내: 신입사원이 학습 화면(LEARN & ASK, learn/learn.html)에 처음 들어오면 큰 포석호가 오른쪽에서 나와
+// 말하는 포석호 첫 안내: 신입사원이 학습 화면(학습 기록, Trainee Dashboard.dc.html, /login이 띄운다)에 처음 들어오면 큰 포석호가 오른쪽에서 나와
 // 화면을 차례로 짚으며 미리 만든 음성(audio/*.mp3, Supertonic M1 +7반음, scripts/tutor-tour-tts.py)과 자막으로 설명하고, 평가 시험 화면(/exam)으로 넘어가 시험 쓰는 법까지 설명한다.
 // - 계정마다 한 번만 보인다(이 브라우저 localStorage, 키에 사용자 id). ?tour=1이면 다시 보고, ?tour=reset이면 본 기록을 지운다(테스트용).
+// - 공정 화면에서 [튜터에게 묻기]로 넘어왔을 때(?p·eq·ask)는 질문하러 온 것이라 자동으로 띄우지 않는다. 헤더 [안내 다시 보기]는 window.stRookieTour()를 부른다.
 // - 학습 화면 → 시험 화면은 페이지가 바뀌므로 sessionStorage로 이어 간다. 시험 화면만 볼 때는 /exam?tour=exam.
 // - 브라우저가 소리 자동 재생을 막으면 [▶ 설명 듣기]를 누를 때 시작한다. 자막은 소리와 함께 한 글자씩 적는다.
 // - 짚을 곳이 포석호와 겹치면 포석호를 왼쪽으로 옮긴다. 안내 중에는 페이지를 누르거나 키로 조작하지 못한다(Esc: 건너뛰기).
 import '/3d-demo/cp-character.js';
 
 const TOKEN = 'st-rookie-token';
-const SEEN = (id) => `st-rookie:tutor-tour:${id}`;
+const SEEN = (id) => `st-rookie:tutor-tour:dash:${id}`; // 학습 기록 화면 안내(카드 화면 안내를 본 기록과 따로 센다)
 const NEXT = 'st-rookie:tutor-tour:next';
 const AUDIO = new URL('./audio/', import.meta.url).href;
 const MODEL = '/3d-demo/models/character/tutor.glb';
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// target: 짚을 요소(선택자, 여러 개면 합친 영역). or: target이 안 보일 때 대신 짚을 곳(시험 문제 칸은 응시해야 보이고,
-// [포석호에게 묻기]는 포석호 말이 다 찍힌 뒤에 나타난다). go: 다 들으면 그 화면으로 이어 간다. end: 마지막 줄
+// target: 짚을 요소(선택자, 여러 개면 합친 영역). or: target이 안 보일 때 대신 짚을 곳(시험 문제 칸은 응시해야 보인다).
+// optional: target이 없으면 그 줄을 건너뛴다(사원증 칩은 사원증 정보가 있을 때만 보인다). go: 다 들으면 그 화면으로 이어 간다. end: 마지막 줄
 // motion: tutor.glb에 있는 동작 클립(idle·greet·explain·praise·encourage·celebrate·thinking·ask_again·cheer_retry·sorry), 없으면 explain
 // text: 자막. *말*은 강조(버튼 이름·핵심 낱말). 음성은 audio/의 같은 id 파일(scripts/tutor-tour-lines.json의 발음용 문장 speak로 만들었다)
-const LEARN = [
-  { id: 'learn_01_hello', motion: 'greet', text: '잠깐만요! 여기부터는 제가 설명해 드릴게요! 저는 여러분의 튜터 *포석호*예요.' },
-  { id: 'learn_02_cards', target: '#deck', text: '여기 *카드 열 장*이 학습 기능이에요. 작동 단계부터 사고 사례, What-if, 사원증까지 다 들어 있어요!' },
-  { id: 'learn_03_flip', target: '.cf-nav', text: '*화살표 버튼*이나 키보드 *좌우 키*로 카드를 넘겨 보세요.' },
-  { id: 'learn_04_open', target: '#open', text: '마음에 드는 카드에서 *포석호 설명 듣고 열기*를 누르면, 제가 쓰는 법을 먼저 알려 드리고 그 화면으로 바로 데려다 드려요!' },
-  { id: 'learn_05_ask', target: '#ask', or: '.guide', text: '궁금한 게 생기면 *포석호에게 묻기*를 눌러 주세요. 작동 단계 도면을 보면서 저한테 바로 물어볼 수 있어요!' },
-  { id: 'learn_06_3d', target: ['.nav a[href*="steel-intro"]', '.nav a[href*="steel-index"]'], text: '위쪽 메뉴에서는 *3D 공정 화면*으로 가서 제철소를 직접 둘러볼 수도 있어요.' },
-  { id: 'learn_07_to_exam', target: '.nav a[href="/exam"]', motion: 'encourage', go: 'exam', text: '그리고 *평가 시험*! 시험 보는 법도 알려 드릴게요. 시험 화면으로 같이 가 볼까요?' },
+const DASH = [
+  { id: 'dash_01_hello', motion: 'greet', text: '잠깐만요! 여기부터는 제가 설명해 드릴게요! 저는 여러분의 튜터 *포석호*예요.' },
+  { id: 'dash_02_tabs', target: '.dg-ftabs', text: '위쪽 탭에서 *작동 단계*·*학습 랩*·*설계도·필기*·*사원증*을 골라 볼 수 있어요. 학습 랩에는 복습 일정·사고 사례·What-if·학습 보고서가 모여 있어요.' },
+  { id: 'dash_03_steps', target: 'process-2d', or: '.learn .module', text: '작동 단계에서는 공정을 고르고 *도면에서 설비*를 눌러 보세요. 설비가 어떤 순서로 움직이는지 한 단계씩 보여 드려요!' },
+  { id: 'dash_04_tutor', target: 'aside.tutor', text: '오른쪽이 바로 저, *AI 튜터*예요. 궁금한 걸 물어보면 공개 자료를 근거로 답하고, 도면에서 그 설비도 같이 짚어 드려요.' },
+  { id: 'dash_05_ask', target: ['aside.tutor .dg-chips', 'aside.tutor form'], or: 'aside.tutor', text: '질문은 *여기에 쓰거나*, 위에 있는 *추천 질문*을 눌러도 돼요. 헷갈린 개념이 보이면 *보충학습*도 권해 드릴게요!' },
+  { id: 'dash_06_card', target: '.ec-chip', optional: true, text: '여기는 *연속 학습일*과 *직급*이에요. 누르면 내 *사원증*이 나오고, 공부할수록 직급이 올라가요!' },
+  { id: 'dash_07_3d', target: ['.dg-nav a[href*="steel-intro"]', '.dg-nav a[href*="steel-index"]'], text: '위쪽 메뉴에서는 *3D 공정 화면*으로 가서 제철소를 직접 둘러볼 수도 있어요.' },
+  { id: 'dash_08_to_exam', target: '.dg-nav a[href="/exam"]', motion: 'encourage', go: 'exam', text: '그리고 *평가 시험*! 시험 보는 법도 알려 드릴게요. 시험 화면으로 같이 가 볼까요?' },
 ];
 const EXAM = [
   { id: 'exam_01_hello', target: '.hero', motion: 'greet', text: '여기가 평가 시험 화면이에요! 위쪽에서 공정별 내 이해도와 *통과 기준 80%*를 한눈에 볼 수 있어요. 통과하면 다음 공정이 열려요!' },
@@ -164,6 +166,8 @@ function run(steps) {
   }
   function setNext(label, pulse = false) { next.textContent = label; next.classList.toggle('pulse', pulse); }
   async function say(i) {
+    while (steps[i]?.optional && !els(steps[i].target).length) i++;
+    if (!steps[i]) return finish();
     cur = i; const s = steps[i];
     stepEl.textContent = `${i + 1} / ${steps.length}`;
     char.setAttribute('motion', s.motion || 'explain');
@@ -231,28 +235,22 @@ function flag() {
   for (const w of [window, window.top]) { const v = store(w, (x) => new URLSearchParams(x.location.search).get('tour')); if (v) return v; }
   return null;
 }
-// [안내 다시 보기]: 학습 화면 위 메뉴 맨 앞에 단다(메뉴 버튼 모양 .nb.plain). 누르면 본 기록과 상관없이 처음부터, 시험 화면까지 이어 간다.
-// 버튼을 눌러 시작하므로 소리도 바로 난다. 메뉴를 못 찾으면 왼쪽 아래에 띄운다
-function addReplay() {
-  const nav = document.querySelector('.bar .nav');
-  const b = document.createElement('button');
-  b.type = 'button'; b.className = 'tt-replay'; b.title = '포석호 안내를 처음부터 다시 들어요';
-  b.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M10.5 9.2v5.6l4.5-2.8z" fill="currentColor" stroke="none"/></svg>안내 다시 보기';
-  b.style.fontFamily = 'inherit';
-  if (nav) { b.classList.add('nb', 'plain'); nav.prepend(b); }
-  else Object.assign(b.style, { position: 'fixed', left: '20px', bottom: '20px', zIndex: 50, display: 'inline-flex', alignItems: 'center', gap: '8px', height: '40px', padding: '0 16px', border: '0', borderRadius: '999px', background: '#1d1714', color: '#fff', fontWeight: 700, cursor: 'pointer' }), document.body.append(b);
-  b.addEventListener('click', () => run(LEARN));
+// 학습 화면은 support.js가 템플릿을 그린 뒤에야 짚을 곳이 생기므로 학습 모듈 탭이 나올 때까지 기다린다(최대 10초)
+async function ready(sel) {
+  for (let t = 0; t < 100 && !document.querySelector(sel); t++) await sleep(100);
 }
 
 const path = location.pathname, f = flag();
-if (/\/learn\/learn\.html$/.test(path)) {
-  addReplay();
-  const u = user();
+if (/\/Trainee(%20| )Dashboard\.dc\.html$/.test(path)) {
+  // [안내 다시 보기](헤더 버튼): 본 기록과 상관없이 처음부터, 시험 화면까지 이어 간다. 버튼을 눌러 시작하므로 소리도 바로 난다
+  window.stRookieTour = () => run(DASH);
+  const u = user(), q = new URLSearchParams(location.search);
+  const toTutor = q.has('p') || q.has('eq') || q.has('ask');
   if (f === 'reset' && u) store(localStorage, (s) => s.removeItem(SEEN(u.id)));
   const seen = u && store(localStorage, (s) => s.getItem(SEEN(u.id))) === '1';
-  if (f === '1' || (u && u.role !== 'admin' && !seen)) {
+  if (f === '1' || (u && u.role !== 'admin' && !seen && !toTutor)) {
     if (u) store(localStorage, (s) => s.setItem(SEEN(u.id), '1')); // 보이기 시작하면 본 것으로 한다(중간에 나가도 다시 띄우지 않는다)
-    setTimeout(() => run(LEARN), 700);
+    ready('.dg-ftabs').then(() => setTimeout(() => run(DASH), 700));
   }
 } else if (/^\/exam\/?$|\/exam\.html$/.test(path)) {
   const next = store(sessionStorage, (s) => s.getItem(NEXT));

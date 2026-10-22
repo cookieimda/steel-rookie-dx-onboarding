@@ -47,10 +47,8 @@ class Component extends DCLogic {
   }
   renderVals() {
     const u = this.state.user;
-    // 신입사원은 새 학습 기록(LEARN & ASK 포석호 도감, learn/learn.html)으로 간다. 기능 화면은 도감의 [사용하기]가 기존 대시보드를 띄운다.
-    // 공정 화면에서 넘어온 맥락(?p=공정&eq=설비&ask=1)은 AI 튜터가 있는 기존 신입사원 대시보드에 그대로 넘긴다(#140)
-    const q = new URLSearchParams(window.location.search), toTutor = q.has('p') || q.has('eq') || q.has('ask');
-    return { isAdmin: !!u && u.role === 'admin', isTrainee: !!u && u.role !== 'admin', traineeSrc: toTutor ? './Trainee%20Dashboard.dc.html' + window.location.search : './learn/learn.html' };
+    // 공정 화면에서 넘어온 맥락(?p=공정&eq=설비&ask=1)은 그대로 신입사원 대시보드에 넘긴다(#140)
+    return { isAdmin: !!u && u.role === 'admin', isTrainee: !!u && u.role !== 'admin', traineeSrc: './Trainee%20Dashboard.dc.html' + window.location.search };
   }
 }
 </script>

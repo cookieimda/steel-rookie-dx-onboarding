@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="/login_ui/brand.css"><!-- 공통 브랜드 토큰(한 브랜드, 두 가지 조명). 지우면 원래 화면 -->
   <script type="module" src="../3d-demo/process-2d.js"></script>
   <script type="module" src="./sketch-pad.js"></script>
+  <script type="module" src="/login_ui/tutor-tour/tour.js"></script><!-- 말하는 포석호 첫 안내: 계정마다 처음 한 번, 헤더 [안내 다시 보기]로 다시 -->
   <style>
     /* 색·글꼴·모서리 토큰과 dg- 클래스는 공용 diagonal.css(설계: docs/learning-diagonal-ui.md). 여기에는 이 페이지 배치만 둔다.
        테마는 밝은 테마로 고정한다(다크 모드 뺌). 저장값 st-rookie-theme은 3D 화면이 쓰므로 여기서는 읽지도 쓰지도 않는다 */
@@ -359,6 +360,7 @@
       </span>
       <!-- 사원증 칩: 연속 학습일과 직급. 누르면 학습 모듈의 사원증 탭을 연다 -->
       <sc-if value="{{ hasCard }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ openCard }}" title="내 사원증 보기" class="dg-btn dg-btn-plain dg-cut dg-s ec-chip"><span aria-hidden="true">{{ chipFlame }}</span>{{ streakNow }}일 <em>· {{ rankTitle }}</em></button></sc-if>
+      <button type="button" onClick="{{ replayTour }}" title="포석호 안내를 처음부터 다시 들어요" class="dg-btn dg-btn-plain dg-cut dg-s">안내 다시 보기</button><!-- tutor-tour/tour.js -->
       <a href="/3d-demo/steel-intro.html" target="_top" class="dg-btn dg-btn-plain dg-cut dg-s">3D 공정 화면</a><!-- 처음 4공정 지도(steel-intro)로. 로그아웃 자리(2026-10-19 요청) -->
       <a href="/3d-demo/steel-index.html" target="_top" class="dg-btn dg-btn-soft dg-cut dg-s">3D 공정 시연</a>
       <a href="/exam" target="_top" class="dg-btn dg-btn-primary dg-cut dg-s">평가 시험</a>
@@ -986,6 +988,7 @@ class Component extends DCLogic {
       tutorContext: P ? `지금 보는 화면: ${P.name}${E ? ` · ${E.name}` : ''}` : '설비를 고르면 그 설비 기준으로 답해요',
       focusTutor: () => this.openTutor(),
       showAsk: true,
+      replayTour: () => window.stRookieTour?.(),
       processId: S.processId, selectedAttr: S.selectedId || '', chatRef: this.chatRef,
       // 학습 모듈 탭과 설계도·필기
       moduleTabs: [['steps', '작동 단계'], ['lab', '학습 랩'], ['blueprint', '설계도·필기'], ['card', '사원증']].map(([k, label]) => ({ label, on: S.moduleTab === k,

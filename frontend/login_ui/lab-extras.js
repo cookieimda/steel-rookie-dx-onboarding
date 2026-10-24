@@ -134,7 +134,7 @@ export function createLabExtras(c, { api, set, S, fail }) {
           hasBranch: !!t.branch, brPrompt: t.branch?.prompt || '',
           brOpts: (t.branch?.options || []).map((o, k) => ({ text: o.text, on: pick === k, cls: pick === k ? (o.actual ? 'actual' : 'safe') : '',
             onClick: () => { c.setState(prev => ({ labIncBr: { ...(prev.labIncBr || {}), [i]: k } })); api('POST', `/api/lab/incidents/${cur.id}/branch`, { at: i, pick: k }).catch(() => {}); } })),
-          // 새 3D 화면(steel-index)의 사고 사례 재현: 갈림길 설비에 고른 선택의 결과를 표시(incident-replay.js). v4(sim-lab.js)도 같은 쿼리를 그대로 받는다
+          // 새 3D 화면(steel-index)의 사고 사례 재현: 갈림길 설비에 고른 선택의 결과를 표시(incident-replay.js).
           brHref: opt ? `/3d-demo/steel-index.html?p=${cur.section}&lab=incident&scenario=${cur.id}&at=${i}&pick=${pick}` : '',
           brHasOutcome: !!opt, brOutcome: opt ? `${opt.actual ? '그대로 가면 → ' : '다르게 했다면 → '}${opt.outcome}` : '', brOutCls: opt ? (opt.actual ? 'actual' : 'safe') : '' };
       }),

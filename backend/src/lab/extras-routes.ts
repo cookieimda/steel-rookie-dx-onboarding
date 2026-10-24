@@ -4,7 +4,7 @@
 //   GET  /api/lab/notes?equipment_id=   설비 메모(공개 + 내 비공개) · GET /api/lab/notes/summary  설비별 공개 메모 수
 //   POST /api/lab/notes · DELETE /api/lab/notes/:id · POST …/:id/vote · …/:id/replies · …/:id/report
 //   GET  /api/admin/notes/reported · POST /api/admin/notes/:id/hide {hidden}
-//   GET  /api/admin/practice-stats?include_demo=  3D 실습 통계(관리자) · GET /api/lab/practice-path  오늘의 실습 경로
+//   GET  /api/admin/practice-stats?include_demo=  3D 실습 통계(관리자)
 //   GET  /api/lab/causal/quiz?seed=&process=  인과 퀴즈(process를 주면 그 공정 변수가 든 길 먼저)
 //   GET  /api/lab/lessons · GET /api/lab/lessons/:id  수업 모드(3D 실습 단계 묶음)
 //   GET  /api/lab/faults · GET /api/lab/faults/:id · POST /api/lab/faults/:id/check {step, key} · POST /api/lab/faults/:id/complete {tries}  (이상 상황 훈련)
@@ -30,7 +30,6 @@ const demoConcepts = () => { if (!demoCache) { try { demoCache = loadDemoSection
 const conceptRubrics = () => { if (!rubricCache) { try { rubricCache = loadFinalRubrics(); } catch { rubricCache = []; } } return rubricCache; };
 import { practiceStats } from "./practice-stats.js";
 import type { LessonDef } from "./lessons.js";
-import { practicePath } from "./practice-path.js";
 import { SECTION_ORDER, type Section } from "../checkpoint/types.js";
 
 /** 신고가 이만큼 쌓이면 자동으로 숨긴다(관리자가 다시 열 수 있다). */
@@ -215,7 +214,6 @@ export function createLabExtrasRouter({ db, auth, deck, incidents, faults = { di
     res.json(out);
   });
   // 오늘의 실습 경로: 내 3D 실습 기록으로 가장 약한 공정을 골라 인과 지도 → 인과 퀴즈 → 이상 상황 훈련을 권한다.
-  router.get("/api/lab/practice-path", login, (_req, res) => res.json(practicePath(db, me(res).id, faults.faults, incidents.scenarios)));
   router.post("/api/lab/causal/quiz/check", login, express.json(), (req, res) => {
     const body = z.object({ chain_id: z.string().max(160), dir: z.union([z.literal(1), z.literal(-1)]), hop: z.union([z.literal(1), z.literal(2), z.literal(3)]), choice: z.enum(["up", "down"]) }).safeParse(req.body);
     if (!body.success) return bad(res, 400, "길·방향·칸·답을 보내 주세요.");

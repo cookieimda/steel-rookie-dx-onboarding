@@ -1,4 +1,4 @@
-// 학습 상태 HUD의 순수 계산. 브라우저 없이 테스트한다(backend/test/learn-hud-state.test.ts). 화면 쪽은 learn-hud.js.
+// 학습 상태 HUD의 순수 계산. 브라우저 없이 테스트한다(backend/test/learn-hud-state.test.ts).
 // - 개념 → 설비 연결은 루브릭에 `equipment_ids`(선택)가 생기기 전까지 여기 임시 표로 둔다(CLAUDE.md '다음 단계', docs/equipment-ids.md).
 //   루브릭에 생기면 서버가 progress 응답에 담고 이 표는 지운다.
 // - 설비 상태 우선순위: review(미해결 오개념·재도전 개념) > passed(통과) > unconfirmed(통과 뒤 새로 생긴 개념) > open(기록 없음).

@@ -1,4 +1,4 @@
-// 체크포인트(이해도 확인) 채팅(최종 페이지 Steel Academy v3.dc.html). 설계: docs/checkpoint-integration.md, docs/checkpoint-overlay.md
+// 체크포인트(이해도 확인) 채팅(테스트 페이지 checkpoint-test.html). 설계: docs/checkpoint-integration.md, docs/checkpoint-overlay.md
 // - checkpoint-test.html의 진행 로직(진입 상태, 시작, 답변, 재채점, 새로고침 복원, 결과)을 화면 코드 없이 옮겼다.
 // - learning-chat.js와 같은 방식: 페이지 컴포넌트(c)의 state·setState를 쓰고, 화면 값은 vals()로 돌려준다.
 //   DOM은 쓰지 않는다. 상태 키와 vals() 키는 학습 모드와 겹치지 않게 cp로 시작한다.

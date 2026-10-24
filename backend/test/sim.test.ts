@@ -166,32 +166,6 @@ test("3D 실습 통계: 이상 상황 단계별 시도·사고 사례 약한 문
   assert.equal((await call("GET", "/api/admin/practice-stats")).status, 403, "신입사원은 볼 수 없다");
 });
 
-test("오늘의 실습 경로: 기록이 없으면 제선부터, 틀린 퀴즈·낮은 훈련 점수가 있는 공정을 고르고 틀린 칸의 변수를 먼저 보게 한다", async () => {
-  const { practicePath } = await import("../src/lab/practice-path.js");
-  const { causalQuiz, NODES } = await import("../src/lab/causal.js");
-  const pdb = openDatabase(":memory:"), u = await new UserRepository(pdb).create({ username: "trainee04", password: "password123", name: "다", employee_no: "S4" });
-  const faults = loadFaults().faults, now = new Date().toISOString();
-  const empty = practicePath(pdb, u.id, faults);
-  assert.equal(empty.process, "ironmaking");
-  assert.match(empty.reason, /아직 안 해 봤어요/);
-  assert.deepEqual(empty.steps.map((s) => s.kind), ["map", "quiz", "fault"]);
-  assert.ok(empty.steps.every((s) => s.href.startsWith("/3d-demo/Steel%20Academy%20v4.dc.html?p=ironmaking&lab=")));
-  // 제강이 걸린 칸을 틀리고 제강 훈련 점수가 낮다
-  pdb.prepare("INSERT INTO causal_quiz_answers VALUES(?,?,?,?,?,?)").run("q1", u.id, "coke_rate>hm_temp>scrap_pct", 2, 0, now);
-  const steel = faults.find((f) => f.section === "steelmaking")!;
-  pdb.prepare("INSERT INTO fault_attempts VALUES(?,?,?,?,?,?)").run("f1", u.id, steel.id, "{}", 0.33, now);
-  const path = practicePath(pdb, u.id, faults);
-  assert.equal(path.process, "steelmaking");
-  assert.match(path.steps[0].href, /lab=map&var=scrap_pct$/, "틀린 칸이 지난 제강 변수");
-  assert.match(path.steps[2].href, new RegExp(`lab=fault&fault=${steel.id}$`));
-  assert.match(path.reason, /정답률이 0%/);
-  assert.equal(path.processes.find((p) => p.process === "steelmaking")?.fault_best, 0.33);
-  // 공정을 주면 그 공정 변수가 든 길이 먼저 나온다
-  const rolling = new Set(NODES.filter((n) => n.process === "rolling").map((n) => n.id));
-  assert.ok(causalQuiz(7, 5, "rolling").slice(0, 1).every((c) => c.nodes.some((n) => rolling.has(n.id))));
-  assert.equal((await call("GET", "/api/lab/practice-path")).status, 200);
-});
-
 test("이상 상황 → 인과 지도 재현: 훈련마다 조정 값이 있고, 그 값으로 인과 지도를 돌리면 그 공정에 정상 범위 밖 값이 생긴다", async () => {
   const { simulateCausal } = await import("../src/lab/causal.js");
   for (const f of loadFaults().faults) {
@@ -227,29 +201,6 @@ test("HTTP 갈림길 탐험: 같은 선택은 한 번만 남고, 실제로 일�
   assert.deepEqual(events.map((e) => e.object_id), [`${s.id}#${at}.${other}`], "실제 선택은 XP·배지에 넣지 않는다");
   assert.ok(deleteUserData(db, kim.id, { origin: "live" }).operations >= 1);
   assert.equal(new MeRepository(db).cardEvents(kim.id).filter((e) => e.kind === "branch_explored").length, 0);
-});
-
-test("내 3D 실습 요약: 퀴즈 칸·정답률, 끝낸 훈련 종류·만점, 골라 본 갈림길 수와 전체 선택 수", async () => {
-  const { practicePath } = await import("../src/lab/practice-path.js");
-  const pdb = openDatabase(":memory:"), u = await new UserRepository(pdb).create({ username: "trainee06", password: "password123", name: "라", employee_no: "S6" });
-  const faults = loadFaults().faults, scenarios = loadIncidents().scenarios, now = new Date().toISOString();
-  const empty = practicePath(pdb, u.id, faults, scenarios).summary;
-  const totalOptions = scenarios.reduce((n, s) => n + s.timeline.reduce((m, t) => m + (t.branch?.options.length ?? 0), 0), 0);
-  assert.deepEqual(empty, { quiz_answers: 0, quiz_rate: null, faults_done: 0, faults_total: 4, faults_perfect: 0, diagnose_answers: 0, diagnose_rate: null, rebalance_clean: 0, branches_explored: 0, branches_total: totalOptions });
-  pdb.prepare("INSERT INTO causal_quiz_answers VALUES(?,?,?,?,?,?)").run("a", u.id, "coke_rate>hm_temp>scrap_pct", 1, 1, now);
-  pdb.prepare("INSERT INTO causal_quiz_answers VALUES(?,?,?,?,?,?)").run("b", u.id, "coke_rate>hm_temp>scrap_pct", 2, 0, now);
-  pdb.prepare("INSERT INTO fault_attempts VALUES(?,?,?,?,?,?)").run("f1", u.id, faults[0].id, "{}", 1, now);
-  pdb.prepare("INSERT INTO fault_attempts VALUES(?,?,?,?,?,?)").run("f2", u.id, faults[1].id, "{}", 0.5, now);
-  pdb.prepare("INSERT INTO branch_explorations VALUES(?,?,?,?,?,?,?)").run("x", u.id, scenarios[0].id, 1, 1, 0, now);
-  const s = practicePath(pdb, u.id, faults, scenarios).summary;
-  assert.deepEqual([s.quiz_answers, s.quiz_rate, s.faults_done, s.faults_perfect, s.branches_explored], [2, 0.5, 2, 1, 1]);
-  pdb.prepare("INSERT INTO diagnose_answers VALUES(?,?,?,?,?,?)").run("d1", u.id, "tap_temp:1", "tap_temp:1", 1, now);
-  pdb.prepare("INSERT INTO diagnose_answers VALUES(?,?,?,?,?,?)").run("d2", u.id, "tap_temp:1", "coke_rate:-1", 0, now);
-  pdb.prepare("INSERT INTO rebalance_attempts VALUES(?,?,?,?,?,?,?,?)").run("r1", u.id, "p1", "reheat_temp", 1170, 1, 1, now);
-  pdb.prepare("INSERT INTO rebalance_attempts VALUES(?,?,?,?,?,?,?,?)").run("r2", u.id, "p1", "reheat_temp", 1170, 1, 1, now);
-  const s2 = practicePath(pdb, u.id, faults, scenarios).summary;
-  assert.deepEqual([s2.diagnose_answers, s2.diagnose_rate, s2.rebalance_clean], [2, 0.5, 1], "같은 퍼즐은 한 번");
-  assert.ok(totalOptions >= 16, "사례 4개 × 갈림길 2개 × 선택 2개 이상");
 });
 
 test("수업 모드: 수업 파일의 참조(변수·이상 상황·갈림길)가 맞고, 진행자 안내의 인과 설명이 모델과 맞는다, 잘못된 참조는 막는다", async () => {
@@ -395,17 +346,3 @@ test("3D 실습 통계 · 되돌리기 퍼즐: 퍼즐별 시도·푼 비율·부
   assert.deepEqual(x.common_far, { control: "코크스비", times: 2 });
 });
 
-test("오늘의 실습 경로 · 거꾸로 추론: 원인 변수 공정의 정답률이 약한 정도에 들어가고 이유 문장에 나온다", async () => {
-  const { practicePath } = await import("../src/lab/practice-path.js");
-  const pdb = openDatabase(":memory:"), u = await new UserRepository(pdb).create({ username: "trainee10", password: "password123", name: "아", employee_no: "S10" });
-  const faults = loadFaults().faults, now = new Date().toISOString();
-  const before = practicePath(pdb, u.id, faults).processes.find((p) => p.process === "rolling")!;
-  assert.equal(before.diagnose_rate, null);
-  for (const [i, c] of [0, 0, 0].entries()) pdb.prepare("INSERT INTO diagnose_answers VALUES(?,?,?,?,?,?)").run(`d${i}`, u.id, "cool_banks:1", "reheat_temp:-1", c, now);
-  const path = practicePath(pdb, u.id, faults);
-  const rolling = path.processes.find((p) => p.process === "rolling")!;
-  assert.equal(rolling.diagnose_rate, 0);
-  assert.ok(rolling.weakness > before.weakness);
-  assert.equal(path.process, "rolling", "거꾸로 추론을 다 틀린 공정이 가장 약하다");
-  assert.match(path.reason, /거꾸로 추론 정답률이 0%/);
-});

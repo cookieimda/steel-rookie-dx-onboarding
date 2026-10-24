@@ -1,5 +1,5 @@
 // 사고 사례 갈림길 재현(새 3D 화면 steel-index.html). 학습 기록 → 학습 랩 → 사고 사례의 '🏭 3D 공장에서 이 갈림길 보기'
-// (?p=공정&lab=incident&scenario=사례 id&at=장면 번호&pick=고른 선택)로 들어오면 붙는다. v4(sim-lab.js의 incidentPanel)와 같은 동작을
+// (?p=공정&lab=incident&scenario=사례 id&at=장면 번호&pick=고른 선택)로 들어오면 붙는다. 예전 v4 실습 패널(incidentPanel)과 같은 동작을
 // steel-index의 장면·설비(EQ_ 노드 상자) 위에 다시 만든 것이다.
 // - 오른쪽 What-if 열 자리에 사례 패널(장면 · 갈림길 선택 · 결과)을 띄우고, 닫으면 What-if 열이 돌아온다.
 // - 3D: 지난 장면 설비를 옅은 흐름으로 잇고, 갈림길 설비에 결과 링(그대로 가면 빨강 · 다르게 했다면 초록)과 이름표.

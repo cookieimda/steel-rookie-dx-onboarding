@@ -13,6 +13,7 @@ import { StepFx } from './step-fx.js';
 import { createWorkFx } from './work-fx.js';
 import { createOutline } from './lab-outline.js';
 import { icon, parseTemp, heatOf, TOUR_MS, STEP_MS, nextSpeed, keepProgress } from './steel-index-ui.js';
+import { PROCESS_GUIDE, LEGEND, KEYS, legendSeen, markLegendSeen } from './tour-guide.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 function formulaChips(f) { if (!f || !f.includes('→')) return ''; const [l, r] = f.split('→').map((t) => t.split('+').map((q) => q.trim()).filter(Boolean)); const chip = (t, hot) => `<span class="${hot ? 'hot' : ''}">${esc(t)}</span>`; return `<div class="tp-fml"><small>무엇이 조합되나요</small><div>${l.map((t) => chip(t)).join('<i>+</i>')}<b>→</b>${r.map((t) => chip(t, true)).join('<i>+</i>')}</div></div>`; }
@@ -22,18 +23,26 @@ function formulaChips(f) { if (!f || !f.includes('→')) return ''; const [l, r]
 const ease = (k) => { k = Math.min(1, Math.max(0, k)); return 1 - Math.pow(1 - k, 3); };
 StepFx.prototype._arrow = function (o, f) {
   const A0 = this._p(f, o.from), B0 = this._p(f, o.to); if (A0.distanceTo(B0) < 1e-4) return;
-  const el = this._dom('sfx-arrow2d', `<svg width="1" height="1"><line/><path/></svg>`, A0, 'c', 0, o.color2 || o.color || '#ffffff');
-  const svg = el.querySelector('svg'), line = svg.querySelector('line'), head = svg.querySelector('path'), d = o.delay || 0, dur = o.dur || 1, v = new THREE.Vector3(), a = new THREE.Vector3();
+  const el = this._dom('sfx-arrow2d', ARROW_SVG, A0, 'c', 0, o.color2 || o.color || '#ffffff');
+  const svg = el.querySelector('svg'), d = o.delay || 0, dur = o.dur || 1, v = new THREE.Vector3(), a = new THREE.Vector3();
   this.items.push((t) => {
     const h = this.h, w = h.clientWidth, H = h.clientHeight, g = ease((t - d) / dur);
     a.copy(A0).project(h.camera); v.copy(B0).project(h.camera);
     const dx = (v.x - a.x) / 2 * w * g, dy = -(v.y - a.y) / 2 * H * g, L = Math.hypot(dx, dy);
     svg.style.opacity = g > 0 && L > 6 ? '1' : '0'; if (L <= 6) return;
-    const ux = dx / L, uy = dy / L, hl = Math.min(14, L * 0.45), bx = dx - ux * hl, by = dy - uy * hl;
-    line.setAttribute('x1', '0'); line.setAttribute('y1', '0'); line.setAttribute('x2', bx.toFixed(1)); line.setAttribute('y2', by.toFixed(1));
-    head.setAttribute('d', `M${dx.toFixed(1)} ${dy.toFixed(1)}L${(bx - uy * 6).toFixed(1)} ${(by + ux * 6).toFixed(1)}L${(bx + uy * 6).toFixed(1)} ${(by - ux * 6).toFixed(1)}Z`);
+    arrowPath(svg, dx, dy, L);
   });
+  // 글(무엇이 움직이는지): 3D 화살표처럼 끝점 옆에 붙인다. 2D로 바꾸면서 빠졌던 것(2026-10-24 "무슨 소리인지 모르겠다")
+  if (o.label) { const lx = o.labelAt ? o.labelAt[0] : o.to[0] - o.from[0], ly = o.labelAt ? o.labelAt[1] : o.to[1] - o.from[1]; this._label(o.label, o.labelAt ? this._p(f, o.labelAt) : B0, Math.abs(lx) >= Math.abs(ly) ? (lx > 0 ? 'r' : 'l') : (ly > 0 ? 't' : 'b'), o.color2 || o.color, d + dur * 0.7); }
 };
+/** 화면 좌표 화살표: 어두운 테두리 선 + 색 선 + 큰 화살촉(멀리서도 보이게 굵게, 2026-10-24) */
+function arrowPath(svg, dx, dy, L) {
+  const ux = dx / L, uy = dy / L, hl = Math.min(26, L * 0.5), hw = hl * 0.55, bx = dx - ux * hl * 0.8, by = dy - uy * hl * 0.8;
+  for (const line of svg.querySelectorAll('line')) { line.setAttribute('x1', '0'); line.setAttribute('y1', '0'); line.setAttribute('x2', bx.toFixed(1)); line.setAttribute('y2', by.toFixed(1)); }
+  const hx = dx - ux * hl, hy = dy - uy * hl;
+  svg.querySelector('path').setAttribute('d', `M${dx.toFixed(1)} ${dy.toFixed(1)}L${(hx - uy * hw).toFixed(1)} ${(hy + ux * hw).toFixed(1)}L${(hx + uy * hw).toFixed(1)} ${(hy - ux * hw).toFixed(1)}Z`);
+}
+const ARROW_SVG = '<svg width="1" height="1"><line class="halo"/><line class="core"/><path/></svg>';
 
 // ---- 설비 단위 모델 ------------------------------------------------------------------------------------------
 /** 원본 재질 하나를 지도 장면 값으로 맞춘 복제본(steel-intro.js의 tune과 같은 값) + 외곽선·단면이 되돌릴 원래 색 */
@@ -108,28 +117,91 @@ export function createIntroTour({ scene, renderer, composer, hud, getCamera, loa
     bar.querySelector('[data-x]').onclick = () => stop();
     bar.querySelectorAll('[data-eq]').forEach((b) => { b.onclick = () => { run.playing = false; enter(run.d.eqs[+b.dataset.eq]); }; });
   }
-  // 오른쪽 단계 카드: 지금 단계 하나만(1이면 1만, 2면 2만). 위 진행 막대로 몇 번째 단계인지 보인다
+  // 오른쪽 설명 카드(2026-10-24 개편): 설비가 하는 일 → 넣는 것·나오는 것 → 지금 단계 → 온도·반응 → 왜 중요한지 → 출처 있는 숫자.
+  // 한 화면에 다 보이게(스크롤 없음): 넘치면 덜 중요한 칸부터 감춘다(fitPanel)
   function paintPanel() {
-    const { p, e, step } = run, dd = e.data, steps = dd.steps || [], st = steps[step], lay = dd.interior?.[step] || null, n = steps.length;
+    const { p, d, e, step } = run, dd = e.data, steps = dd.steps || [], st = steps[step], lay = dd.interior?.[step] || null, n = steps.length;
     const rng = st ? parseTemp(st.temp || lay?.temp) : null, [hA, , hC] = heatOf(rng ? rng[1] : 0), pct = (v) => `${Math.min(100, Math.max(0, v / 2000 * 100)).toFixed(1)}%`;
-    panel.innerHTML = `<header><img class="ic" width="34" height="34" alt="" src="${icon(dd.shape || 'box', '#e6ebf1', 1.4)}"><div><small>${esc(p.data.num)} · ${esc(p.data.name)}</small><h2>${esc(dd.name)}</h2></div></header>
-      <div class="tp-body">${st ? `<div class="tp-prog"><span>STEP ${step + 1} / ${n}</span><div>${steps.map((_, i) => `<i class="${i < step ? 'done' : i === step ? 'on' : ''}"></i>`).join('')}</div></div>
-        <h3>${esc(st.zone)}</h3><p class="tp-text">${esc(st.text)}</p>` : `<p class="tp-text">${esc(dd.role || '')}</p>`}
-        ${rng ? `<div class="tp-heat" style="--hA:${hA};--hC:${hC}"><span>해당 영역의 온도(예시)</span><strong>${esc(st.temp || lay?.temp || '')}</strong>
-          <div class="tp-hbar"><div class="fill" style="left:${pct(rng[0])};width:calc(${pct(rng[1])} - ${pct(rng[0])})"></div></div><div class="tp-scale"><span>0℃</span><span>500</span><span>1,000</span><span>1,500</span><span>2,000℃</span></div>
-          ${lay?.label ? `<em>${esc(lay.label)}</em>` : ''}</div>` : ''}
-        ${formulaChips(lay?.formula)}
-        <small class="tp-note">원본 예시값 · 교육용 개념 표현으로, 실제 운전 조건과 다를 수 있습니다.</small></div>
-      <footer><button type="button" data-prev>‹ 이전 단계</button><button type="button" class="primary" data-next>다음 단계 ›</button></footer>`;
-    if (st) typewrite(panel.querySelector('.tp-text'), st.text); // 설명은 타자 치듯 한 글자씩(시선 유도, 공정 화면 steel-index.js의 typewrite와 같은 방식)
+    const notes = dd.notes || [], facts = dd.facts || [];
+    panel.innerHTML = `<header><img class="ic" width="34" height="34" alt="" src="${icon(dd.shape || 'box', '#e6ebf1', 1.4)}"><div><small>${esc(p.data.num)} ${esc(p.data.name)} · 설비 ${e.i + 1}/${d.eqs.length}</small><h2>${esc(dd.name)}</h2></div>
+        <button type="button" class="tp-help" data-help title="화면 보는 법" aria-label="화면 보는 법">?</button></header>
+      <div class="tp-body">
+        <p class="tp-role">${esc(dd.role || '')}</p>
+        ${dd.input || dd.output ? `<div class="tp-io"><div><span>넣는 것</span><b>${esc(dd.input || '')}</b></div><i aria-hidden="true">→</i><div><span>나오는 것</span><b>${esc(dd.output || '')}</b></div></div>` : ''}
+        ${st ? `<section class="tp-step"><div class="tp-prog"><span>단계 ${step + 1} / ${n}</span><div>${steps.map((_, i) => `<i class="${i < step ? 'done' : i === step ? 'on' : ''}"></i>`).join('')}</div></div>
+          <h3>${esc(st.zone)}</h3><p class="tp-text">${esc(st.text)}</p></section>` : ''}
+        ${rng || lay?.formula ? `<div class="tp-row">${rng ? `<div class="tp-heat" style="--hA:${hA};--hC:${hC}"><span>이 자리의 온도(예시)</span><strong>${esc(st.temp || lay?.temp || '')}</strong>
+            <div class="tp-hbar"><div class="fill" style="left:${pct(rng[0])};width:calc(${pct(rng[1])} - ${pct(rng[0])})"></div></div><div class="tp-scale"><span>0</span><span>1,000</span><span>2,000℃</span></div></div>` : ''}
+          ${formulaChips(lay?.formula)}</div>` : ''}
+        ${notes.length ? `<div class="tp-why"><span>왜 중요할까요</span><ul>${notes.slice(0, 2).map((t, i) => `<li data-opt="${i ? 2 : 4}">${esc(t)}</li>`).join('')}</ul></div>` : ''}
+        ${facts.length ? `<div class="tp-facts"><span>숫자로 보기 · 출처</span>${facts.slice(0, 2).map((f, i) => `<div data-opt="${i ? 1 : 5}"><b>${esc(f.v)}</b><p>${esc(f.k)}<cite>${esc(f.src)}</cite></p></div>`).join('')}</div>` : ''}
+        <small class="tp-note" data-opt="3">교육용 개념 표현이에요. 실제 운전 조건과 다를 수 있어요.</small></div>
+      <footer><button type="button" data-prev>‹ 이전</button><button type="button" class="primary" data-next>다음 ›</button></footer>`;
+    fitPanel(); const tx = panel.querySelector('.tp-text'); if (tx) tx.style.minHeight = `${tx.offsetHeight}px`; // 타자 효과 동안 아래 칸이 들썩이지 않게 자리를 고정
+    if (st) typewrite(panel.querySelector('.tp-text'), st.text); // 설명은 타자 치듯 한 글자씩(자리는 미리 잡아 두었으므로 카드 높이는 바뀌지 않는다)
     panel.querySelector('[data-prev]').onclick = () => { run.playing = false; paintBar(); move(-1); };
     panel.querySelector('[data-next]').onclick = () => { run.playing = false; paintBar(); move(1); };
+    panel.querySelector('[data-help]').onclick = () => openGuide(true);
+  }
+  /** 카드가 화면보다 길면 data-opt가 작은 칸부터(1 두 번째 숫자 → 2 두 번째 이유 → 3 안내 글 → 4 첫 이유 → 5 첫 숫자) 감춰 스크롤 없이 맞춘다 */
+  function fitPanel() {
+    const body = panel.querySelector('.tp-body'); if (!body) return;
+    const opts = [...body.querySelectorAll('[data-opt]')].sort((a, b) => a.dataset.opt - b.dataset.opt);
+    for (const el of opts) { if (body.scrollHeight <= body.clientHeight + 1) break; el.hidden = true; }
+    body.querySelectorAll('.tp-why, .tp-facts').forEach((box) => { box.hidden = ![...box.querySelectorAll('[data-opt]')].some((x) => !x.hidden); });
+  }
+  addEventListener('resize', () => { if (run) paintPanel(); });
+
+  // ---- 안내 창: 재생을 시작할 때 공정 개요 + (처음 한 번) 화면 보는 법. [?]로 화면 보는 법만 다시 ----
+  const guide = document.createElement('div'); guide.className = 'tguide'; guide.hidden = true; guide.setAttribute('role', 'dialog'); guide.setAttribute('aria-modal', 'true'); document.body.append(guide);
+  let guideWasPlaying = false;
+  function overviewHtml(p, d) {
+    const g = PROCESS_GUIDE[p.id]; if (!g) return '';
+    return `<section class="tg-ov"><small>${esc(p.data.num)} · ${esc(p.data.en || '')}</small><h2 id="tg-title">${esc(p.data.name)} 공정 · ${esc(p.data.sub || '')}</h2>
+      <p class="tg-io">${esc(p.data.io || '')}</p><p class="tg-why">${esc(g.why)}</p>
+      <div class="tg-flow" aria-label="설비 순서">${d.eqs.map((q, i) => `${i ? '<i aria-hidden="true">→</i>' : ''}<span>${esc(q.data.name)}</span>`).join('')}</div>
+      <ol class="tg-key">${g.key.map((t) => `<li>${esc(t)}</li>`).join('')}</ol>
+      <div class="tg-foot">${g.reaction ? `<div><span>대표 반응</span><b>${esc(g.reaction)}</b></div>` : ''}<div><span>다음 공정으로</span><b>${esc(g.handoff)}</b></div></div>
+      <small class="tg-note">교육용 요약이에요. 숫자는 설비 카드의 '숫자로 보기' 출처를 따릅니다.</small></section>`;
+  }
+  function legendHtml() {
+    return `<section class="tg-lg"><h3>화면 보는 법</h3><dl>${LEGEND.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
+      <p class="tg-keys">${KEYS.map(([k, v]) => `<kbd>${esc(k)}</kbd> ${esc(v)}`).join('<span>·</span>')}</p></section>`;
+  }
+  /** helpOnly: [?]로 연 경우(화면 보는 법만). 아니면 공정 개요 + 처음이면 화면 보는 법 */
+  function openGuide(helpOnly = false) {
+    if (!run) return; guideWasPlaying = helpOnly ? run.playing : true; run.playing = false; paintBar();
+    const legend = helpOnly || !legendSeen();
+    guide.innerHTML = `<div class="tg-card ${legend && !helpOnly ? 'two' : ''}">${helpOnly ? '' : overviewHtml(run.p, run.d)}${legend ? legendHtml() : ''}
+      <footer>${!helpOnly && !legend ? '<button type="button" class="tg-link" data-legend>화면 보는 법</button>' : '<span></span>'}<button type="button" class="tg-go" data-go>${helpOnly ? '확인' : '▶ 재생 시작'} <small>Enter</small></button></footer></div>`;
+    guide.setAttribute('aria-labelledby', helpOnly ? '' : 'tg-title'); guide.setAttribute('aria-label', helpOnly ? '화면 보는 법' : '공정 개요');
+    guide.hidden = false; document.body.classList.add('tguide-on');
+    guide.querySelector('[data-go]').onclick = closeGuide; guide.querySelector('[data-go]').focus();
+    guide.querySelector('[data-legend]')?.addEventListener('click', (ev) => { guide.querySelector('.tg-card').classList.add('two'); guide.querySelector('.tg-ov').insertAdjacentHTML('afterend', legendHtml()); ev.currentTarget.replaceWith(document.createElement('span')); });
+    if (legend) markLegendSeen();
+  }
+  function closeGuide() {
+    if (guide.hidden) return; guide.hidden = true; document.body.classList.remove('tguide-on');
+    if (run && guideWasPlaying) { run.playing = true; run.t0 = performance.now(); paintBar(); }
+  }
+  // 창이 열려 있으면 Enter·Space·Esc는 창만 닫는다(지도 쪽 Esc = 재생 끝내기보다 먼저 받는다)
+  addEventListener('keydown', (ev) => { if (guide.hidden) return; if (ev.key === 'Enter' || ev.key === ' ' || ev.key === 'Escape') { ev.preventDefault(); ev.stopImmediatePropagation(); closeGuide(); } }, true);
+  guide.addEventListener('click', (ev) => { if (ev.target === guide) closeGuide(); });
+
+  // ---- 설비가 바뀔 때 위에 잠깐: "설비 2/6 · 코크스 오븐 — 하는 일" ----
+  const toast = document.createElement('div'); toast.className = 'ttoast'; toast.setAttribute('aria-hidden', 'true'); document.body.append(toast);
+  let toastTimer = 0;
+  function showToast(e) {
+    toast.innerHTML = `<small>설비 ${e.i + 1}/${run.d.eqs.length}</small><b>${esc(e.data.name)}</b><span>${esc(e.data.role || '')}</span>`;
+    toast.classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('on'), 3200);
   }
   let typer = null;
   function typewrite(el, text) {
     clearInterval(typer); if (reduced) { el.textContent = text; return; }
     let i = 0; el.textContent = ''; const out = document.createTextNode(''), caret = document.createElement('span'); caret.className = 'tp-caret'; caret.textContent = '▍'; el.append(out, caret);
-    typer = setInterval(() => { i++; out.nodeValue = text.slice(0, i); if (i >= text.length) { clearInterval(typer); caret.remove(); } }, Math.max(12, Math.min(28, 1400 / Math.max(1, text.length))));
+    // 글자 수는 지난 시간으로 정한다(화면이 버벅여 타이머가 늦게 와도 약 1.4초 안에 다 보이게)
+    const per = Math.max(12, Math.min(28, 1400 / Math.max(1, text.length))), t0 = performance.now();
+    typer = setInterval(() => { i = Math.min(text.length, Math.ceil((performance.now() - t0) / per)); out.nodeValue = text.slice(0, i); if (i >= text.length) { clearInterval(typer); caret.remove(); } }, per);
   }
   function move(dir) { // 단계 → 끝나면 다음 설비
     const n = run.e.data.steps?.length || 0, s = run.step + dir;
@@ -153,7 +225,7 @@ export function createIntroTour({ scene, renderer, composer, hud, getCamera, loa
       const shaft = cyls.filter((c) => Math.abs(axis(c).dot(dir)) > 0.95).sort((a, b) => a.getWorldPosition(new THREE.Vector3()).distanceTo(cp) - b.getWorldPosition(new THREE.Vector3()).distanceTo(cp))[0];
       const from = shaft ? shaft.getWorldPosition(new THREE.Vector3()).addScaledVector(dir, -shaft.geometry.parameters.height / 2) : cp.clone().addScaledVector(dir, -cone.geometry.parameters.height * 2);
       cone.visible = false; if (shaft) shaft.visible = false;
-      const el = document.createElement('div'); el.className = 'sfx sfx-arrow2d'; el.innerHTML = '<svg width="1" height="1"><line/><path/></svg>';
+      const el = document.createElement('div'); el.className = 'sfx sfx-arrow2d'; el.innerHTML = ARROW_SVG;
       el.style.setProperty('--c', `#${cone.material.color.getHexString()}`); hud.appendChild(el);
       flat.arrows.push({ from, tip, el, layer: shaft?.userData.layerIdx });
     }
@@ -169,9 +241,7 @@ export function createIntroTour({ scene, renderer, composer, hud, getCamera, loa
       const ax = (_a.x + 1) / 2 * w, ay = (1 - _a.y) / 2 * h, dx = (_b.x - _a.x) / 2 * w, dy = -(_b.y - _a.y) / 2 * h, L = Math.hypot(dx, dy), svg = a.el.firstChild;
       a.el.style.left = `${ax.toFixed(1)}px`; a.el.style.top = `${ay.toFixed(1)}px`; a.el.style.display = _a.z < 1 && L > 6 ? '' : 'none'; if (L <= 6) continue;
       svg.style.opacity = a.layer == null || a.layer === run?.step ? '1' : '.35';
-      const ux = dx / L, uy = dy / L, hl = Math.min(14, L * 0.45), bx = dx - ux * hl, by = dy - uy * hl;
-      const [line, head] = svg.children; line.setAttribute('x2', bx.toFixed(1)); line.setAttribute('y2', by.toFixed(1));
-      head.setAttribute('d', `M${dx.toFixed(1)} ${dy.toFixed(1)}L${(bx - uy * 6).toFixed(1)} ${(by + ux * 6).toFixed(1)}L${(bx + uy * 6).toFixed(1)} ${(by - ux * 6).toFixed(1)}Z`);
+      arrowPath(svg, dx, dy, L);
     }
   }
   function clearDim(d) { outline.clear(); section.hide(); work.stop(); warm.intensity = 0; d.eqs.forEach((q) => q.node.traverse((o) => { if (!o.isMesh || !o.material.userData.color) return; const m = o.material; m.color.copy(m.userData.color); if (m.userData.emissive) { m.emissive.copy(m.userData.emissive); m.emissiveIntensity = m.userData.emissiveI; } })); }
@@ -181,6 +251,7 @@ export function createIntroTour({ scene, renderer, composer, hud, getCamera, loa
     const c = e.box.getCenter(new THREE.Vector3()), s = e.box.getSize(new THREE.Vector3()); warm.position.set(c.x, e.box.max.y + 2, c.z); warm.intensity = 14;
     animateTo({ yaw: yawOf(run.p), pitch: 0.34, dist: Math.max(14, Math.max(s.x, s.z, s.y) * 2.4), target: new THREE.Vector3(c.x - s.x * 0.15, c.y, c.z) }, 1200);
     paintBar(); const n = e.data.steps?.length || 0; showStep(last && n ? n - 1 : 0);
+    if (e.i > 0 || last) showToast(e);
   }
   function toggle() { run.playing = !run.playing; run.t0 = performance.now(); paintBar(); }
 
@@ -190,10 +261,11 @@ export function createIntroTour({ scene, renderer, composer, hud, getCamera, loa
     placed[p.id] = { ...(anchors[p.id] || {}), scale: 1, offset: [p.c[0], 0, p.c[1]] };
     p.root.visible = false; p.swapped = true; scene.add(d.root);
     run = { p, d, sp: { id: p.id, root: d.root, eqs: d.eqs }, e: null, step: 0, t0: 0, playing: true, speed: 1 }; // sp: 단면 모듈이 보는 공정(설비 단위 모델)
-    document.body.classList.add('tour-on'); enter(d.eqs[0]); return true;
+    document.body.classList.add('tour-on'); enter(d.eqs[0]); openGuide(false); return true; // 공정 개요 창을 닫으면 재생을 시작한다
   }
   function stop(notify = true) {
     if (!run) return; const { p, d } = run; clearDim(d); clearFlat();
+    guide.hidden = true; document.body.classList.remove('tguide-on'); toast.classList.remove('on');
     clearInterval(typer); scene.remove(d.root); p.swapped = false; run = null; document.body.classList.remove('tour-on'); panel.innerHTML = ''; bar.innerHTML = '';
     if (notify) onEnd(p);
   }

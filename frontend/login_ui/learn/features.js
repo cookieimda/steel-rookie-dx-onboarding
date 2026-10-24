@@ -1,4 +1,4 @@
-// 새 학습 기록(LEARN & ASK, learn.html) 포석호 도감이 쓰는 기능 10개와 아이콘. 기존 화면은 고치지 않는다.
+// 새 학습 기록(LEARN & ASK, learn.html) 포석호 도감이 쓰는 기능 10개(캐비닛 랙 5×2 칸)와 아이콘. 기존 화면은 고치지 않는다.
 // art(): 200×140 SVG 아이콘. 색은 브랜드 3색(주황 · 차콜 · 미색)만 쓴다.
 // id: [사용하기]를 누르면 실제 화면 창(live.html#id)이 그 기능의 화면을 연다.
 
@@ -19,7 +19,19 @@ export const FEATURES = [
       ${[1, 2, 3].map((i) => `<circle cx="${40 + i * 30}" cy="120" r="7" fill="${i === 1 ? O : 'none'}" stroke="${O}" stroke-width="2"/><text x="${40 + i * 30}" y="124" font-size="9" text-anchor="middle" fill="${i === 1 ? D : O}" font-family="monospace">${i}</text>`).join('')}`),
   },
   {
-    id: 'todo', num: '02', name: '안 해 본 실습', en: 'UNTRIED LABS', group: '해 보기',
+    id: 'blueprint', num: '02', name: '설계도·필기', en: 'BLUEPRINT & SKETCH', group: '배우기',
+    line: '공정 도면 위에 펜으로 직접 그리고 적어요. 흐름을 손으로 따라 그리면 순서가 오래 남아요.',
+    how: ['위 공정 칩(제선·제강·연주·열간압연)과 도면(위·평면·정면)을 고른다', '펜으로 재료가 들어가고 나오는 길을 따라 그린다', '헷갈린 설비 옆에 한 줄 메모를 적는다(내 계정에 저장된다)'],
+    say: '보기만 하면 금방 잊어. 쇳물이 가는 길을 손으로 한 번 그려 봐!',
+    keys: ['설계도', '도면', '필기', '그리기', '펜', '스케치'],
+    art: () => svg(`<rect x="18" y="16" width="164" height="108" rx="8" fill="#0f2c4c"/>
+      ${[1, 2, 3, 4, 5, 6, 7].map((i) => `<path d="M${18 + i * 20.5} 16 V124" stroke="rgba(215,236,255,.12)"/>`).join('')}${[1, 2, 3, 4].map((i) => `<path d="M18 ${16 + i * 21.6} H182" stroke="rgba(215,236,255,.12)"/>`).join('')}
+      <rect x="36" y="40" width="34" height="58" rx="4" fill="none" stroke="#d7ecff" stroke-width="2"/><rect x="104" y="62" width="52" height="36" rx="4" fill="none" stroke="#d7ecff" stroke-width="2"/>
+      <path d="M58 104 C72 120 92 118 104 92" stroke="${O}" stroke-width="4" fill="none" stroke-linecap="round" stroke-dasharray="1 0"/><path d="M98 86 l8 4 l-3 8" stroke="${O}" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M150 26 l14 14 l-30 30 l-17 4 l4 -17 z" fill="${C}"/><path d="M117 74 l4 -17 l13 13 z" fill="${O}"/>`),
+  },
+  {
+    id: 'todo', num: '03', name: '안 해 본 실습', en: 'UNTRIED LABS', group: '해 보기',
     line: '학습 랩 맨 위 "오늘의 실습 경로"에서 아직 안 해 본 실습과 공정별 진행을 보여 줘요.',
     how: ['학습 랩을 연다', '오늘의 실습 경로 1·2·3단계를 본다', '아래 공정 칸에서 아직 비어 있는 공정을 고른다'],
     say: '오늘의 실습 경로 1단계부터 해 봐. 아래 공정 칸이 차오르면 다 해 본 거야!',
@@ -31,7 +43,7 @@ export const FEATURES = [
       <path d="M150 112 l8 8 l16 -18" stroke="${C}" stroke-width="4" fill="none" stroke-linecap="round"/>`),
   },
   {
-    id: 'report', num: '03', name: '학습 보고서', en: 'REPORT · PDF', group: '기록',
+    id: 'report', num: '04', name: '학습 보고서', en: 'REPORT · PDF', group: '기록',
     line: '공정을 고르면 내 이해도·오개념·복습 기록을 A4 보고서로 보여 주고 PDF로 저장해요.',
     how: ['학습 랩 → 보고서를 연다', '공정 칩(제선·제강…)을 고르고 미리보기를 확인한다', '[PDF로 저장]을 누른다'],
     say: '보고서는 A4 한 장으로 뽑혀. 설비마다 봤는지 안 봤는지도 다 나와!',
@@ -43,7 +55,7 @@ export const FEATURES = [
       <rect x="120" y="96" width="34" height="20" rx="5" fill="${O}"/><text x="137" y="110" font-size="10" font-weight="700" text-anchor="middle" fill="${D}" font-family="sans-serif">PDF</text>`),
   },
   {
-    id: 'whatif', num: '04', name: 'What-if', en: 'WHAT-IF', group: '해 보기',
+    id: 'whatif', num: '05', name: 'What-if', en: 'WHAT-IF', group: '해 보기',
     line: '고로 조건(소결광·코크스·송풍 온도…)을 바꾸면 용선 온도·슬래그·CO2가 어떻게 변하는지 계산해요.',
     how: ['왼쪽 슬라이더로 조건 하나를 바꾼다', '오른쪽 수치 칸과 용선 온도 막대의 변화를 본다', '[기준 조건으로]로 되돌려 비교한다'],
     say: '한 번에 하나만 바꿔 봐. 그래야 무엇 때문에 변했는지 알 수 있어.',
@@ -54,7 +66,7 @@ export const FEATURES = [
       <text x="168" y="96" font-size="12" text-anchor="middle" fill="${C}" font-family="monospace">1500</text>`),
   },
   {
-    id: 'synapse', num: '05', name: 'What-if 시냅스', en: 'SYNAPSE', group: '해 보기',
+    id: 'synapse', num: '06', name: 'What-if 시냅스', en: 'SYNAPSE', group: '해 보기',
     line: '조건 → 성분 → 결과로 이어지는 선을 따라 원인과 결과를 그래프로 봐요.',
     how: ['[해 보기] 칩 하나를 누른다', '빛이 번지는 선을 따라간다', '노드를 눌러 풀이를 읽는다'],
     say: '선이 굵을수록 영향이 커. 빛이 어디로 번지는지 따라가 봐!',
@@ -67,7 +79,7 @@ export const FEATURES = [
     },
   },
   {
-    id: 'notes', num: '06', name: '설비 메모', en: 'EQUIPMENT NOTES', group: '기록',
+    id: 'notes', num: '07', name: '설비 메모', en: 'EQUIPMENT NOTES', group: '기록',
     line: '설비를 고르고 질문·메모·팁을 남겨요. 그 설비를 다시 고르면 남긴 메모가 보여요.',
     how: ['위 목록에서 공정·설비를 고른다(또는 [2D에서 고른 설비])', '질문·메모·팁 중 하나를 고르고 적는다', '[남기기]를 누른다. 나만 보기도 고를 수 있다'],
     say: '현장에서 들은 말, 헷갈린 점을 한 줄씩 적어 둬. 나중에 큰 도움 돼!',
@@ -78,7 +90,7 @@ export const FEATURES = [
       <path d="M150 112 L176 60 L186 66 L160 118 Z" fill="${O}"/><path d="M150 112 L160 118 L148 124 Z" fill="${C}"/>`),
   },
   {
-    id: 'patterns', num: '07', name: '내 오답 유형', en: 'MY MISTAKES', group: '기록',
+    id: 'patterns', num: '08', name: '내 오답 유형', en: 'MY MISTAKES', group: '기록',
     line: '비슷한 오개념끼리 묶어 보여 줘요. 같은 묶음이 여러 번 나오면 그 부분을 집중 복습해요.',
     how: ['학습 랩 → 내 오답 유형을 연다', '여러 번 나온 묶음부터 본다', '그 묶음의 개념을 다시 복습한다'],
     say: '틀린 건 부끄러운 게 아니야. 제일 자주 나온 묶음 하나만 오늘 잡자!',
@@ -89,7 +101,7 @@ export const FEATURES = [
       ${[0, 1, 2].map((i) => `<rect x="128" y="${40 + i * 22}" width="${[54, 34, 20][i]}" height="10" rx="5" fill="${i ? L : O}"/>`).join('')}`),
   },
   {
-    id: 'card', num: '08', name: '사원증', en: 'EMPLOYEE CARD', group: '기록',
+    id: 'card', num: '09', name: '사원증', en: 'EMPLOYEE CARD', group: '기록',
     line: '연속 학습일·직급·XP·오늘의 미션을 사원증 한 장에 모아 보여 줘요. 다시 볼 개념(복습)도 여기서 해요.',
     how: ['헤더의 🔥 칩이나 사원증 탭을 누른다', '오늘의 미션 체크와 XP 막대를 본다', '아래 다시 볼 개념을 복습한다'],
     say: '매일 조금씩 하면 직급이 올라가! 오늘 연속 기록 끊기지 않게 하자.',
@@ -101,7 +113,7 @@ export const FEATURES = [
       <rect x="66" y="110" width="68" height="8" rx="4" fill="${L}"/><rect x="66" y="110" width="44" height="8" rx="4" fill="${O}"/>`),
   },
   {
-    id: 'exam', num: '09', name: '평가 시험', en: 'PROVE & PASS', group: '평가',
+    id: 'exam', num: '10', name: '평가 시험', en: 'PROVE & PASS', group: '평가',
     line: '공정별 시험을 보고 이해도 80%를 넘으면 다음 공정이 열려요.',
     how: ['열린 공정의 시험지를 고른다', '[시험 응시]를 누르고 내 말로 답을 쓴다', '80%를 넘으면 다음 공정이 열린다'],
     say: '외운 말 말고 네 말로 설명해 봐. 그게 진짜 아는 거야. 준비됐어?',

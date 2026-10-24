@@ -15,7 +15,7 @@ import { createSection } from './steel-index-section.js';
 import { attachLabConsole } from './lab-console.js';
 import { createWorkFx } from './work-fx.js';
 import { createOutline } from './lab-outline.js';
-import { tuneRenderer, tuneShadowLight, tuneBloom, autoQuality, frameGate } from './perf-mode.js'; // 발표 모드·자동 화질·프레임 상한
+import { tuneRenderer, tuneShadowLight, tuneBloom, autoQuality, frameGate, warmShaders } from './perf-mode.js'; // 발표 모드·자동 화질·프레임 상한
 
 const { PROCESSES } = DATA;
 const ORANGE = 0xffa63d, RIPPLE = 0xffcc66; // 공정 자리 발광 테두리·선택 설비 물결은 노랑~주황 불빛(2026-10-14 요청, 전에는 물결이 시안)
@@ -476,6 +476,7 @@ const q = new URLSearchParams(location.search);
 const firstLoaded = async () => { const want = procs.find((p) => p.id === q.get('p')) || procs[0]; for (const p of [want, ...procs.filter((x) => x !== want)]) if (await loadOne(p)) return p; return null; };
 fetch('models/anchors-v2b.json').then((r) => (r.ok ? r.json() : {})).catch(() => ({})).then((a) => { anchors = a || {}; return firstLoaded(); }).then((first) => {
   if (!first) { const er = $('loaderr'); er.style.display = 'block'; er.textContent = '3D 모델(models/*.glb)을 불러오지 못했어요. 서버가 켜져 있는지, models 폴더가 있는지 확인해 주세요.'; return; }
+  warmShaders(renderer, scene, camera, composer.renderTarget1); composer.render(); // 셰이더를 로딩 화면 뒤에서 미리 만든다(처음 보일 때 멈춤 방지, perf-mode.js)
   $('load').classList.add('off');
   loadRest().then(() => { const failed = procs.filter((p) => !p.loaded); if (failed.length) toast(`${failed.map((p) => p.data.name).join('·')} 모델을 불러오지 못해 탭을 닫아 두었어요`, 5000); });
   requestAnimationFrame(frame);

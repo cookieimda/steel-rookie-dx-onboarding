@@ -1,10 +1,9 @@
-// 3D 실습 통계(관리자 운영 콘솔): 이상 상황 훈련(013)·사고 사례(012)·인과 퀴즈(014) 기록을 묶어 어디서 막히는지 보여 준다.
+// 3D 실습 통계(관리자 운영 콘솔): 이상 상황 훈련(013)·인과 퀴즈(014) 기록을 묶어 어디서 막히는지 보여 준다.
 // 사람별 내용은 내지 않고 문항·단계 단위 개수와 비율만 낸다. 점수는 이해도·통과와 상관없는 자가 훈련 점수다.
 // includeDemo: false면 시연 계정(users.is_demo = 1)을 뺀다(?include_demo=false).
 import type { DatabaseSync } from "node:sqlite";
 import { NODES, controlAncestorsOf } from "./causal.js";
 import type { FaultDrill, Step } from "./faults.js";
-import type { IncidentScenario } from "./incidents.js";
 import type { LessonDef } from "./lessons.js";
 
 const STEPS: Step[] = ["signal", "cause", "action"];
@@ -20,7 +19,7 @@ function tableExists(db: DatabaseSync, name: string) {
   return !!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name);
 }
 
-export function practiceStats(db: DatabaseSync, content: { faults: FaultDrill[]; scenarios: IncidentScenario[]; lessons?: LessonDef[] }, { includeDemo = true } = {}) {
+export function practiceStats(db: DatabaseSync, content: { faults: FaultDrill[]; lessons?: LessonDef[] }, { includeDemo = true } = {}) {
   const who = includeDemo ? "" : " AND user_id IN (SELECT id FROM users WHERE is_demo = 0)";
   const rows = (table: string, cols: string) => (tableExists(db, table) ? db.prepare(`SELECT ${cols} FROM ${table} WHERE 1 = 1${who}`).all() : []);
 
@@ -39,20 +38,6 @@ export function practiceStats(db: DatabaseSync, content: { faults: FaultDrill[];
       avg_score: mine.length ? round(mine.reduce((a, r) => a + Number(r.score), 0) / mine.length) : null,
       first_try_rate: mine.length ? round(mine.filter((r) => Number(r.score) === 1).length / mine.length) : null,
       steps: tries, hardest_step: hardest && (hardest.avg_tries ?? 0) > 1 ? hardest.step : null,
-    };
-  });
-
-  // ── 사고 사례: 평균 점수, 문항별 정답률, 가장 많이 틀린 문항 ──
-  const incRows = rows("incident_attempts", "user_id, scenario_id, answers_json, score");
-  const incidents = content.scenarios.map((s) => {
-    const mine = incRows.filter((r) => r.scenario_id === s.id);
-    const answers = mine.map((r) => ((JSON.parse(String(r.answers_json)) as { answers?: Record<string, number> }).answers ?? {}));
-    const questions = s.questions.map((q) => ({ id: q.id, prompt: q.prompt, rate: answers.length ? round(answers.filter((a) => a[q.id] === q.answer).length / answers.length) : null }));
-    const weakest = answers.length ? [...questions].sort((a, b) => (a.rate ?? 1) - (b.rate ?? 1))[0] : null;
-    return {
-      id: s.id, section: s.section, title: s.title, attempts: mine.length, learners: new Set(mine.map((r) => r.user_id)).size,
-      avg_score: mine.length ? round(mine.reduce((a, r) => a + Number(r.score), 0) / mine.length) : null,
-      questions, weakest: weakest && (weakest.rate ?? 1) < 1 ? weakest : null,
     };
   });
 
@@ -119,5 +104,5 @@ export function practiceStats(db: DatabaseSync, content: { faults: FaultDrill[];
       common_far: topFar ? { control: label.get(topFar[0]) ?? topFar[0], times: topFar[1] } : null,
     };
   }).sort((a, b) => b.attempts - a.attempts);
-  return { faults, incidents, causal, lessons, diagnose, rebalance, min_link_answers: MIN_LINK_ANSWERS };
+  return { faults, causal, lessons, diagnose, rebalance, min_link_answers: MIN_LINK_ANSWERS };
 }

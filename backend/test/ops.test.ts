@@ -14,7 +14,6 @@ import { lineDiff, MaterialWorkflow, stageOf } from "../src/education/workflow.j
 import { createWorkflowRouter, materialCheckJob } from "../src/education/workflow-routes.js";
 import { buildDeck } from "../src/lab/deck.js";
 import { createLabExtrasRouter } from "../src/lab/extras-routes.js";
-import { gradeIncident, loadIncidents, scenarioView, shuffledKeys } from "../src/lab/incidents.js";
 import { ASSUMPTIONS, BASELINE, normalizeInput, simulate, whatIf } from "../src/lab/whatif.js";
 import { Notifier } from "../src/notify/service.js";
 import { createNotifyRouter } from "../src/notify/routes.js";
@@ -50,22 +49,6 @@ test("What-if: 기준 조건은 슬래그 175~350kg·염기도 1.0~1.2(BREF)·1,
   const n = normalizeInput({ sinter_pct: 50, pellet_pct: 50, lump_pct: 100, coke_kg: 9999 });
   assert.equal(Math.round(n.sinter_pct + n.pellet_pct + n.lump_pct), 100);
   assert.equal(n.coke_kg, 550);
-});
-
-test("사고 사례: 파일 형식·설비 id 확인, 보기 순서는 사람마다 같게 섞고 채점은 원래 key로", () => {
-  const known = new Set(["coke_oven", "oxygen_lance_offgas", "tundish", "finishing_mill"]);
-  const file = loadIncidents(undefined, known);
-  assert.equal(file.scenarios.length, 4);
-  assert.throws(() => loadIncidents(undefined, new Set(["x"])), /없는 설비 id/);
-  const keys = shuffledKeys("u1", "s", "q", 4);
-  assert.deepEqual([...keys].sort(), [0, 1, 2, 3]);
-  assert.deepEqual(shuffledKeys("u1", "s", "q", 4), keys);
-  const s = file.scenarios[0];
-  const view = scenarioView(s, "u1");
-  assert.ok(!JSON.stringify(view).includes("explain"), "보기 화면에는 해설이 없다");
-  const right = Object.fromEntries(s.questions.map((q) => [q.id, q.answer]));
-  assert.equal(gradeIncident(s, right).score, 1);
-  assert.equal(gradeIncident(s, {}).score, 0);
 });
 
 test("오답 패턴: 비슷한 설명끼리 묶고 낱말 이름표를 단다", () => {
@@ -122,14 +105,13 @@ before(async () => {
     env: { NOTIFY_MESSENGER_WEBHOOK: "https://hooks.example.test/x" }, fetch: (async (_url: string, init: RequestInit) => { sent.push(JSON.parse(String(init.body))); return new Response("ok"); }) as never });
   const workflow = new MaterialWorkflow(db);
   const deck = buildDeck([{ id: "ironmaking", name: "제선", equipment: [{ id: "blast_furnace", name: "고로", role: "철광석을 녹여 용선을 만든다." }, { id: "taphole_casthouse", name: "출선구", role: "용선을 꺼낸다." }] }], () => []);
-  const incidents = { disclaimer: "가상", scenarios: [loadIncidents().scenarios[0]] };
   const app = express();
   app.use(express.json());
   app.use(createJobRouter(auth, jobs));
   app.use(createWorkflowRouter({ auth, jobs, notifier }, workflow));
   app.use(createNotifyRouter(auth, notifier));
   app.use(createOpsRouter(auth, db));
-  app.use(createLabExtrasRouter({ db, auth, deck, incidents, notifier }));
+  app.use(createLabExtrasRouter({ db, auth, deck, notifier }));
   // 자료 등록은 기존 API 대신 직접 넣는다(routes.ts의 등록과 같은 기록)
   app.post("/test/material", (req, res) => {
     const id = crypto.randomUUID();
@@ -264,16 +246,7 @@ test("HTTP 설비 메모: 공개·비공개, 이름 가림, 공감 토글, 답�
   assert.equal((await call("GET", "/api/lab/notes/summary", lee)).json.counts.blast_furnace, 1);
 });
 
-test("HTTP 사고 사례·What-if: 문항 풀이 기록, 최고 점수, 숫자가 아니면 400", async () => {
-  const list = await call("GET", "/api/lab/incidents", kim);
-  const sid = list.json.scenarios[0].id;
-  const view = await call("GET", `/api/lab/incidents/${sid}`, kim);
-  const scenario = loadIncidents().scenarios[0];
-  const answers = Object.fromEntries(scenario.questions.map((q) => [q.id, q.answer]));
-  const graded = await call("POST", `/api/lab/incidents/${sid}/submit`, kim, { answers });
-  assert.equal(graded.json.score, 1);
-  assert.equal(view.json.scenario.questions.length, scenario.questions.length);
-  assert.equal((await call("GET", "/api/lab/incidents", kim)).json.scenarios[0].best, 1);
+test("HTTP What-if: 숫자가 아니면 400", async () => {
   assert.equal((await call("POST", "/api/lab/whatif", kim, { coke_kg: "많이" })).status, 400);
   assert.equal((await call("POST", "/api/lab/whatif", kim, { coke_kg: 400 })).json.result.fuel_rate_kg, 500);
 });

@@ -1,7 +1,7 @@
 // Learning-lab branch: original process visuals with thermal / What-if panels and a quotation board.
 // The process models and existing section views remain; no stage or wall is instantiated.
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/+esm';
-import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js/+esm';
+import { createGLTFLoader } from './gltf-loader.js'; // Draco 압축 GLB
 import { RoomEnvironment } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/environments/RoomEnvironment.js/+esm';
 import { EffectComposer } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/EffectComposer.js/+esm';
 import { RenderPass } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/RenderPass.js/+esm';
@@ -10,20 +10,18 @@ import { OutputPass } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/
 import * as DATA from './data_v2.js';
 import { createApiClient } from './api-client.js';
 import { conceptStatuses, equipmentStatuses, groupBySection } from './learn-hud-state.js';
-import { icon, stepIcon, parseTemp, heatOf } from './steel-index-ui.js';
+import { icon, stepIcon, parseTemp, heatOf, TOUR_MS, STEP_MS, nextSpeed, keepProgress } from './steel-index-ui.js';
 import { createSection } from './steel-index-section.js';
 import { attachLabConsole } from './lab-console.js';
 import { createWorkFx } from './work-fx.js';
 import { createOutline } from './lab-outline.js';
-import { tuneRenderer, tuneShadowLight, tuneBloom, shadowTick, autoQuality } from './perf-mode.js'; // 발표 모드·자동 화질
+import { tuneRenderer, tuneShadowLight, tuneBloom, autoQuality, frameGate, warmShaders } from './perf-mode.js'; // 발표 모드·자동 화질·프레임 상한
 
 const { PROCESSES } = DATA;
 const ORANGE = 0xffa63d, RIPPLE = 0xffcc66; // 공정 자리 발광 테두리·선택 설비 물결은 노랑~주황 불빛(2026-10-14 요청, 전에는 물결이 시안)
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const RISE = { dur: 1100, gap: 240, depth: 22, sinkGap: 60, sinkDur: 480 };
 const THEME_KEY = 'st-rookie:index-theme';
-const TOUR_MS = 5200;      // 재생 바: 설비 하나당 최소 머무는 시간(1×). 단계가 많으면 단계당 2.6초
-const STEP_MS = 2600;
 
 const stage = document.getElementById('stage'), hud = document.getElementById('hud');
 const $ = (id) => document.getElementById(id);
@@ -33,6 +31,7 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 tuneRenderer(renderer);
+renderer.shadowMap.autoUpdate = false; // 그림자 지도는 frame()에서 필요할 때만 다시 그린다(빛과 공장은 카메라를 돌려도 그대로)
 renderer.clippingPlanes = [new THREE.Plane(new THREE.Vector3(0, 1, 0), 0.001)]; // 바닥판 밑면(= 테이블 윗면, y=-STAGE_H) 아래는 그리지 않는다
 stage.appendChild(renderer.domElement);
 
@@ -86,12 +85,12 @@ let rippleR = 3;
 ripples.forEach((r) => { r.visible = false; }); // 선택 설비는 바닥 물결 대신 카메라 기준 외곽선으로 보인다(lab-outline.js)
 
 // ---- 공정·설비 -------------------------------------------------------------------------------------
-const loader = new GLTFLoader();
+const loader = createGLTFLoader();
 let anchors = {};
 const procs = PROCESSES.map((p, i) => ({ id: p.id, data: p, idx: i, root: null, eqs: [], loaded: false, error: null, foot: null, seen: new Set(), progress: null, review: new Set() }));
 let cur = null, curEq = null, seq = null, sinking = null, mode = 'overview';
 let panel = null, stepIdx = 0, tour = null, speed = 1;
-const loadbar = $('loadbar'); let loadedN = 0;
+const loadbar = $('loadbar');
 const api = createApiClient();
 // 단면 연출(엑스레이 + 색 층 + step-fx). 단계 보기에서만 켠다
 const section = createSection({ scene, renderer, hud, getCamera: () => camera, getAnchors: () => anchors, isDark: () => theme === 'dark', onHotspot: (i) => focusHotspot(i) });
@@ -115,7 +114,8 @@ function tuneMaterial(o) {
   if (nm === 'Blue_Steel') { m.envMapIntensity = 0.5; m.roughness = Math.max(0.55, m.roughness); }
   m.userData.color = m.color.clone(); m.userData.emissive = m.emissive ? m.emissive.clone() : null; m.userData.emissiveI = m.emissiveIntensity;
 }
-const loadAll = () => Promise.all(procs.map((p) => new Promise((resolve) => {
+// 공정 모델은 하나씩 받는다: 지금 볼 공정을 먼저 받아 바로 보여 주고, 나머지는 뒤에서 차례로 받는다(loadRest). 같은 공정을 두 번 받지 않는다
+const loadOne = (p) => p.loading ||= new Promise((resolve) => {
   loader.load(`models/${p.id}.glb`, (gltf) => {
     const root = gltf.scene; root.visible = false;
     const cfg = anchors[p.id] || {}; const sc = cfg.scale ?? 1, off = cfg.offset || [0, 0, 0];
@@ -128,9 +128,10 @@ const loadAll = () => Promise.all(procs.map((p) => new Promise((resolve) => {
     p.bounds = all; p.foot = { w: fb.max.x - fb.min.x + 6, d: fb.max.z - fb.min.z + 6, cx: (fb.min.x + fb.max.x) / 2, cz: (fb.min.z + fb.max.z) / 2 };
     p.eqs = p.data.equipment.map((e, i) => { const node = root.getObjectByName(`EQ_${e.id}`); if (!node) return null; const box = new THREE.Box3().setFromObject(node); return { id: e.id, data: e, i, node, box, baseY: node.position.y, y: 0, up: false, tag: null }; }).filter(Boolean);
     p.root = root; p.loaded = true; scene.add(root);
-    loadedN++; loadbar.style.width = `${Math.round(loadedN / procs.length * 100)}%`; resolve(true);
-  }, undefined, (err) => { p.error = err?.message || '모델을 불러오지 못했어요'; p.tab?.setAttribute('disabled', ''); p.tab?.setAttribute('title', `${p.data.name}: 3D 모델을 불러오지 못했어요`); loadedN++; loadbar.style.width = `${Math.round(loadedN / procs.length * 100)}%`; resolve(false); });
-})));
+    resolve(true);
+  }, (e) => { if (e.total && !cur) loadbar.style.width = `${Math.round(e.loaded / e.total * 100)}%`; }, (err) => { p.error = err?.message || '모델을 불러오지 못했어요'; p.tab?.setAttribute('disabled', ''); p.tab?.setAttribute('title', `${p.data.name}: 3D 모델을 불러오지 못했어요`); resolve(false); });
+});
+const loadRest = async () => { for (const p of procs) await loadOne(p); };
 
 // ---- 학습 현황(실제 값만) --------------------------------------------------------------------------------
 let sectionsInfo = null; // GET /api/sections
@@ -173,7 +174,7 @@ function toast(msg, ms = 2600) { const t = $('toast'); t.textContent = msg; t.cl
 // ---- 하단 재생 바 --------------------------------------------------------------------------------------
 $('icPlay').src = icon('play', '#f2f2f2', 1.6);
 $('btnPlay').onclick = () => (tour ? stopTour() : startTour());
-$('btnSpeed').onclick = () => { speed = speed === 1 ? 2 : 1; $('btnSpeed').textContent = `${speed}×`; if (tour) tour.t0 = performance.now(); };
+$('btnSpeed').onclick = () => { const to = nextSpeed(speed), now = performance.now(); if (tour) tour.t0 = keepProgress(tour.t0, now, speed, to); speed = to; $('btnSpeed').textContent = `${speed}×`; }; // 0.5·1·1.5·2× (재생 시간은 steel-index-ui.js)
 function renderTrack(p) {
   const tr = $('track'); tr.innerHTML = '';
   p.eqs.forEach((e) => { const b = document.createElement('button'); b.className = 'stop'; b.innerHTML = `<i></i><span>${esc(e.data.name)}</span>`; b.onclick = () => enterStep(e); e.dot = b; tr.appendChild(b); });
@@ -277,7 +278,10 @@ function fitHome(p) {
   const heightDistance = (size.y + size.z * .3) / (2 * tan * Math.max(.25, freeH / h));
   return { yaw: -.2, pitch: .25, dist: Math.max(22, widthDistance, heightDistance) * 1.05, target: new THREE.Vector3(c.x, c.y, c.z) };
 }
+let want = null;
 async function show(p, replay = false) {
+  want = p;
+  if (!p.loaded && !p.error) { toast(`${p.data.name} 3D 모델을 불러오는 중이에요`, 1500); await loadOne(p); if (want !== p) return; } // 뒤에서 받는 중인 공정을 먼저 누른 경우
   if (!p.loaded) { toast(`${p.data.name}: 3D 모델을 불러오지 못했어요`); return; }
   stopTour(); if (view === 'board') setView('3d', false); // 공정을 바꾸면 외관으로(앞 공정의 옅게 한 재질도 되돌린다)
   if (cur && cur !== p) await sink(cur);
@@ -450,28 +454,31 @@ function placeHud() {
     e.tag.style.display = vis ? '' : 'none'; if (vis) e.tag.style.transform = `translate(${((v.x + 1) / 2 * w).toFixed(1)}px, ${Math.max(110, (1 - v.y) / 2 * h).toFixed(1)}px) translate(-50%, -100%)`;
   }
 }
-let last = 0;
+const gate = frameGate();
+let lastShadow = 0;
 function frame(now) {
   requestAnimationFrame(frame);
-  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const moving = !!(seq || sinking || drive); // 설비가 솟거나 가라앉거나 움직이는 중
+  if (!gate(now, moving || !!anim || !!drag || !!tour || !!curEq)) return;
   riseTick(now); viewOffsetTick();
   if (anim) { const k = Math.min(1, (now - anim.t0) / anim.dur), s = easeOut(k); orbit.yaw = anim.from.yaw + (anim.to.yaw - anim.from.yaw) * s; orbit.pitch = anim.from.pitch + (anim.to.pitch - anim.from.pitch) * s; orbit.dist = anim.from.dist + (anim.to.dist - anim.from.dist) * s; orbit.target.lerpVectors(anim.from.target, anim.to.target, s); if (k >= 1) anim = null; }
 
   const o = orbit; camera.position.set(o.target.x + o.dist * Math.sin(o.yaw) * Math.cos(o.pitch), o.target.y + o.dist * Math.sin(o.pitch), o.target.z + o.dist * Math.cos(o.yaw) * Math.cos(o.pitch)); camera.lookAt(o.target);
   if (curEq && !REDUCED) { warm.intensity = 14 + 3 * Math.sin(now / 420); ripples.forEach((r, k) => { const ph = ((now / 2200) + k * 0.5) % 1; r.scale.setScalar(rippleR * (0.8 + 0.8 * ph)); r.material.opacity = 0.15 * (1 - ph); }); }
   driveTick(now); section.tick(now); labConsole.tick(now); work.tick(now);
-  shadowTick(renderer, now); composer.render(); placeHud();
+  if (moving || now - lastShadow > 200) { renderer.shadowMap.needsUpdate = true; lastShadow = now; } // 움직일 때는 매번, 아니면 1초에 5번
+  composer.render(); placeHud();
 }
 
 applyTheme();
-fetch('models/anchors-v2b.json').then((r) => (r.ok ? r.json() : {})).catch(() => ({})).then((a) => { anchors = a || {}; return loadAll(); }).then(() => {
-  const failed = procs.filter((p) => !p.loaded);
-  if (failed.length === procs.length) { const er = $('loaderr'); er.style.display = 'block'; er.textContent = '3D 모델(models/*.glb)을 불러오지 못했어요. 서버가 켜져 있는지, models 폴더가 있는지 확인해 주세요.'; return; }
+const q = new URLSearchParams(location.search);
+// 주소의 공정(없으면 제선)을 먼저 받는다. 그 공정을 못 받으면 다음 공정을 차례로 시도한다
+const firstLoaded = async () => { const want = procs.find((p) => p.id === q.get('p')) || procs[0]; for (const p of [want, ...procs.filter((x) => x !== want)]) if (await loadOne(p)) return p; return null; };
+fetch('models/anchors-v2b.json').then((r) => (r.ok ? r.json() : {})).catch(() => ({})).then((a) => { anchors = a || {}; return firstLoaded(); }).then((first) => {
+  if (!first) { const er = $('loaderr'); er.style.display = 'block'; er.textContent = '3D 모델(models/*.glb)을 불러오지 못했어요. 서버가 켜져 있는지, models 폴더가 있는지 확인해 주세요.'; return; }
+  warmShaders(renderer, scene, camera, composer.renderTarget1); composer.render(); // 셰이더를 로딩 화면 뒤에서 미리 만든다(처음 보일 때 멈춤 방지, perf-mode.js)
   $('load').classList.add('off');
-  if (failed.length) toast(`${failed.map((p) => p.data.name).join('·')} 모델을 불러오지 못해 탭을 닫아 두었어요`, 5000);
-  const q = new URLSearchParams(location.search), first = procs.find((p) => p.id === q.get('p') && p.loaded) || procs.find((p) => p.loaded);
+  loadRest().then(() => { const failed = procs.filter((p) => !p.loaded); if (failed.length) toast(`${failed.map((p) => p.data.name).join('·')} 모델을 불러오지 못해 탭을 닫아 두었어요`, 5000); });
   requestAnimationFrame(frame);
-  if (first) setTimeout(() => show(first), 250);
-  // 학습 기록 사고 사례의 '3D 공장에서 이 갈림길 보기'(?lab=incident&scenario=…&at=…&pick=…): 재현 패널·3D 표시는 incident-replay.js
-  if (q.get('lab') === 'incident') import('./incident-replay.js').then(({ readIncidentQuery, attachIncidentReplay }) => { const query = readIncidentQuery(q); if (query) attachIncidentReplay({ api, scene, camera, hud, stage, reduced: REDUCED, current: () => cur, focusEquipment: (id) => { const e = cur?.eqs.find((x) => x.id === id); if (e) enterStep(e); return !!e; }, showProcess: (id) => { const p = procs.find((x) => x.id === id); if (p) show(p); }, toast, query }); else toast('사고 사례 주소가 올바르지 않아요'); }).catch(() => toast('사고 사례 재현을 불러오지 못했어요'));
+  setTimeout(() => show(first), 250);
 });

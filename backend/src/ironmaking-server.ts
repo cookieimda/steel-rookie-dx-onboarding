@@ -18,7 +18,6 @@ import { defaultDemoSections } from "./admin/trainee-stats.js";
 import { loadDeck } from "./lab/deck.js";
 import { createLabRouter } from "./lab/routes.js";
 import { createLabExtrasRouter } from "./lab/extras-routes.js";
-import { loadIncidents } from "./lab/incidents.js";
 import { loadFaults } from "./lab/faults.js";
 import { loadLessons } from "./lab/lessons.js";
 import { MeRepository } from "./me/repository.js";
@@ -147,7 +146,7 @@ app.use(createMeRouter(db, auth, { scene: sceneCatalog }));
 // 학습 랩(학습 기록 화면의 '학습 랩' 탭): 간격 반복·주간 리그·xAPI 기록·세션 리플레이.
 const deck = await loadDeck();
 app.use(createLabRouter({ db, auth, deck }));
-// 운영 기능(012): 알림 · 자료 검수 워크플로 · 작업 대기열 일반화 · 오답 패턴 · 채점 근거 하이라이트 · 사고 사례 · What-if · 설비 주석 공유
+// 운영 기능(012): 알림 · 자료 검수 워크플로 · 작업 대기열 일반화 · 오답 패턴 · 채점 근거 하이라이트 · What-if · 설비 주석 공유
 const meRepo = new MeRepository(db);
 const notifier = new Notifier({ db, cardEvents: (id) => meRepo.cardEvents(id),
   passed: (userId, section) => { try { return engine.sectionProgress(userId, section as Section).unlocked; } catch { return false; } } });
@@ -162,11 +161,11 @@ app.use(createNotifyRouter(auth, notifier));
 app.use(createOpsRouter(auth, db));
 app.use(createHighlightRouter(auth, db, rubrics));
 const knownEquipment = new Set(deck.map((c) => c.equipment_id));
-// 사고 사례·이상 상황 훈련 콘텐츠는 형식·설비 id가 틀리면 서버가 시작하지 않는다
+// 이상 상황 훈련 콘텐츠는 형식·설비 id가 틀리면 서버가 시작하지 않는다(사고 사례는 2026-10-25에 뺐다)
 {
-  // 수업 모드는 이상 상황·사고 사례를 가리키므로 같은 내용으로 참조를 검사한다(틀리면 서버가 시작하지 않는다)
-  const incidents = loadIncidents(undefined, knownEquipment), faults = loadFaults(undefined, knownEquipment);
-  app.use(createLabExtrasRouter({ db, auth, deck, notifier, incidents, faults, lessons: loadLessons(undefined, { faults: faults.faults, scenarios: incidents.scenarios }) }));
+  // 수업 모드는 이상 상황을 가리키므로 같은 내용으로 참조를 검사한다(틀리면 서버가 시작하지 않는다)
+  const faults = loadFaults(undefined, knownEquipment);
+  app.use(createLabExtrasRouter({ db, auth, deck, notifier, faults, lessons: loadLessons(undefined, { faults: faults.faults }) }));
 }
 // 정기 알림: NOTIFY_INTERVAL_MIN분마다(기본 15, 0이면 끔) 전체 학습자의 알림을 만들고 켠 채널로 발송한다
 const notifyEvery = Number(process.env.NOTIFY_INTERVAL_MIN ?? 15);

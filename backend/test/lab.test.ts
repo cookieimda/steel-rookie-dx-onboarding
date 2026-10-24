@@ -209,14 +209,13 @@ test("사용자 기록 지우기에 학습 랩 기록도 들어간다(시연 기
   assert.equal(Number(db.prepare("SELECT COUNT(*) AS n FROM sr_cards WHERE user_id = ?").get(kim.id)?.n), 0);
 });
 
-test("HTTP xAPI 3D 실습 살펴봄: 인과 따라가기·조건 링크(변수)·갈림길 3D(사례)는 서버가 이름을 정하고 실습 활동으로 남는다", async () => {
+test("HTTP xAPI 3D 실습 살펴봄: 인과 따라가기·조건 링크(변수)는 서버가 이름을 정하고 실습 활동으로 남는다", async () => {
   const tour = await call("POST", "/api/me/lab/xapi", lee, { verb: "experienced", practice: "causal-tour", object_id: "coke_rate" });
   assert.equal(tour.status, 201);
   assert.equal(tour.json.object.definition.name["ko-KR"], "인과 따라가기 · 코크스비");
   assert.match(tour.json.object.id, /\/activities\/causal-tour\/coke_rate$/);
-  const inc = await call("POST", "/api/me/lab/xapi", lee, { verb: "experienced", practice: "incident-3d", object_id: "coke-night-inspection" });
-  assert.equal(inc.status, 201);
-  assert.match(inc.json.object.definition.name["ko-KR"], /^사고 사례 갈림길 3D · /);
+  assert.equal((await call("POST", "/api/me/lab/xapi", lee, { verb: "experienced", practice: "incident-3d", object_id: "coke-night-inspection" })).status, 400, "사고 사례 갈림길 3D는 뺐다(2026-10-25)");
+  assert.equal((await call("POST", "/api/me/lab/xapi", lee, { verb: "experienced", practice: "causal-map-link", object_id: "coke_rate" })).status, 201);
   assert.equal((await call("POST", "/api/me/lab/xapi", lee, { verb: "experienced", practice: "causal-map-link", object_id: "nope" })).status, 404);
   assert.equal((await call("POST", "/api/me/lab/xapi", lee, { verb: "experienced", practice: "made-up", object_id: "coke_rate" })).status, 400);
   assert.equal((await call("POST", "/api/me/lab/xapi", lee, { verb: "experienced", object_id: "blast-furnace" })).status, 400, "설비 살펴봄은 예전 형식 그대로");
@@ -229,7 +228,7 @@ test("HTTP xAPI 3D 실습 살펴봄: 인과 따라가기·조건 링크(변수)�
 test("HTTP xAPI 종류로 거르기: 활동 종류별 개수를 주고 ?kind=로 거르며, 동사와 함께 쓸 수 있다", async () => {
   const all = await call("GET", "/api/me/lab/xapi", lee);
   assert.equal(all.json.kinds["causal-tour"], 1);
-  assert.equal(all.json.kinds["incident-3d"], 1);
+  assert.equal(all.json.kinds["causal-map-link"], 1);
   assert.ok(all.json.statements.every((s: any) => typeof s.kind === "string"));
   const tour = await call("GET", "/api/me/lab/xapi?kind=causal-tour", lee);
   assert.deepEqual([tour.json.total, tour.json.statements[0].kind], [1, "causal-tour"]);
@@ -241,7 +240,7 @@ test("HTTP xAPI 종류로 거르기: 활동 종류별 개수를 주고 ?kind=로
 test("HTTP xAPI 수업 열람: '<수업>_<단계>'로 남기고 이름은 수업·단계 제목, 없는 단계는 404", async () => {
   const ok = await call("POST", "/api/me/lab/xapi", lee, { verb: "experienced", practice: "lesson", object_id: "causal-101_2" });
   assert.equal(ok.status, 201);
-  assert.equal(ok.json.object.definition.name["ko-KR"], "수업 · 공정을 잇는 원인과 결과 · 2/6 코크스를 줄이면?");
+  assert.equal(ok.json.object.definition.name["ko-KR"], "수업 · 공정을 잇는 원인과 결과 · 2/5 코크스를 줄이면?");
   assert.equal((await call("POST", "/api/me/lab/xapi", lee, { verb: "experienced", practice: "lesson", object_id: "causal-101_9" })).status, 404);
   assert.equal((await call("POST", "/api/me/lab/xapi", lee, { verb: "experienced", practice: "lesson", object_id: "causal-101" })).status, 404);
 });

@@ -1,6 +1,6 @@
 [
   {"id":"learn_01_hello","screen":"학습 화면(LEARN & ASK)","target":"포석호 등장","speak":"잠깐만요! 여기부터는 제가 설명해 드릴게요! 저는 여러분의 튜터 포석호예요."},
-  {"id":"learn_02_cards","screen":"학습 화면(LEARN & ASK)","target":"카드 덱","speak":"여기 카드 열 장이 학습 기능이에요. 작동 단계부터 사고 사례, 왓 이프, 사원증까지 다 들어 있어요!"},
+  {"id":"learn_02_cards","screen":"학습 화면(LEARN & ASK)","target":"캐비닛 랙","speak":"여기 캐비닛 열 칸이 학습 기능이에요. 칸을 고르면 빛이 쏙 나가서 왼쪽에 설명이 떠요!"},
   {"id":"learn_03_flip","screen":"학습 화면(LEARN & ASK)","target":"넘기기 버튼","speak":"화살표 버튼이나 키보드 좌우 키로 카드를 넘겨 보세요."},
   {"id":"learn_04_open","screen":"학습 화면(LEARN & ASK)","target":"[▶ 포석호 설명 듣고 열기]","speak":"마음에 드는 카드에서, 포석호 설명 듣고 열기를 누르면, 제가 쓰는 법을 먼저 알려 드리고 그 화면으로 바로 데려다 드려요!"},
   {"id":"learn_05_ask","screen":"학습 화면(LEARN & ASK)","target":"[💬 포석호에게 묻기]","speak":"궁금한 게 생기면, 포석호에게 묻기를 눌러 주세요. 작동 단계 도면을 보면서 저한테 바로 물어볼 수 있어요!"},

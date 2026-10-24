@@ -1,6 +1,7 @@
-// 새 학습 기록(LEARN & ASK): 기능 10개를 카드로 넘겨 보고, 가운데 카드를 누르면(Enter) 그 기능의 실제 화면(live.html#기능)이 바로 뜬다.
-// [▶ 포석호 설명 듣고 열기]를 누를 때만 화면으로 가기 전에 포석호가 목소리(동물의 숲 같은 포석호 말투, animalese.js)와 자막으로
-// 사용법을 설명하는 짧은 브리핑 영상이 나온다(2026-10-21 팀 회의, 카드는 바로 열기로 바꿈). 브리핑이 끝나거나 [바로 사용하기]를 누르면 실제 화면이 뜬다. ✕ · Esc면 돌아온다.
+// 새 학습 기록(LEARN & ASK): 캐비닛 랙(5×2 칸)에서 기능을 고르면 그 칸에서 빛줄기가 나가 왼쪽 도감(HUD)에 설명이 뜬다(2026-10-24 시안 C).
+// 고른 칸을 한 번 더 누르거나 [사용하기 ↗]·Enter면 그 기능의 실제 화면(live.html#기능)이 바로 뜬다.
+// [▶ 포석호 설명 듣고 열기]를 누를 때만 포석호가 목소리(동물의 숲 같은 포석호 말투, animalese.js)와 자막으로 사용법을 먼저 설명한다:
+// 도감의 사용법 단계가 차례로 켜지고 오른쪽 아래 포석호 말풍선에 자막이 찍힌다. 다 들으면 실제 화면이 뜬다. ✕ · Esc면 돌아온다.
 import { FEATURES, POSEOKHO } from './features.js';
 import { createVoice } from './animalese.js';
 
@@ -12,10 +13,6 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 const N = FEATURES.length, wrap = (i) => ((i % N) + N) % N;
 const LIVE = new URL('./live.html', import.meta.url).href;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-// 카드 바탕: 주황 계열 단계 + 차콜(브랜드 안에서만 색을 바꾼다)
-const TONES = ['linear-gradient(160deg,#ff9e64,#c4521a)', 'linear-gradient(160deg,#3a3f4b,#1d2027)', 'linear-gradient(160deg,#f3c492,#b8692f)', 'linear-gradient(160deg,#ff7a59,#9b3320)',
-  'linear-gradient(160deg,#ffb074,#d9682a)', 'linear-gradient(160deg,#2f343e,#15171c)', 'linear-gradient(160deg,#ffd2a8,#c98446)', 'linear-gradient(160deg,#e98a5a,#7c2f17)',
-  'linear-gradient(160deg,#ff9e64,#5a2410)', 'linear-gradient(160deg,#4a4f5c,#1d2027)'];
 function typeInto(el, text, ms = 22, done) {
   clearInterval(el._t); if (reduce) { el.textContent = text; done?.(); return; }
   let i = 0; el.textContent = ''; el._t = setInterval(() => { el.textContent = text.slice(0, ++i); if (i >= text.length) { clearInterval(el._t); done?.(); } }, ms);
@@ -38,59 +35,105 @@ logoutBtn.addEventListener('click', () => {
   window.top.location.href = '/';
 });
 
-$stage.innerHTML = `<section class="cf">
-    <div class="cf-deck" id="deck">${FEATURES.map((f, i) => `<button type="button" class="cf-card" data-i="${i}" aria-label="${esc(f.name)} 열기" style="--tone:${TONES[i]}">
-      <div class="cf-face"><div class="art">${f.art()}</div><div class="cap"><span class="num">${f.num} · ${f.en}</span><h3>${esc(f.name)}</h3></div>
-      <span class="cf-play" aria-hidden="true">▶</span></div></button>`).join('')}</div>
-    <div class="cf-text"><span class="num" id="cNum"></span><h2 id="cName"></h2><p id="cLine"></p>
-      <div class="cf-nav"><button type="button" id="prev" aria-label="이전">←</button><div class="dots" id="dots">${FEATURES.map((f, i) => `<button type="button" data-i="${i}" aria-label="${esc(f.name)}"></button>`).join('')}</div><button type="button" id="next" aria-label="다음">→</button></div>
-      <button type="button" class="btn" id="open">▶ 포석호 설명 듣고 열기</button></div>
+$stage.innerHTML = `<section class="cab" id="cab">
+    <aside class="hud" id="hud" aria-live="polite">
+      <div class="hud-title"><span class="n" id="hNum"></span><h2 id="hName"></h2><span class="en" id="hEn"></span></div>
+      <div class="hud-body">
+        <div class="hud-art"><span id="hArt" style="display:contents"></span><span class="chip" id="hTag"></span></div>
+        <div><div class="sec">효과</div><p class="eff" id="hEff"></p><div class="sec">사용법</div><ol class="steps" id="hHow"></ol></div>
+      </div>
+      <div class="hud-prog" aria-hidden="true"><i id="bProg"></i></div>
+      <div class="hud-foot"><button type="button" class="hn" id="prev" aria-label="이전 칸">←</button><button type="button" class="hn" id="next" aria-label="다음 칸">→</button>
+        <button type="button" class="btn ghost" id="open">▶ 포석호 설명 듣고 열기</button><button type="button" class="btn" id="use">사용하기 ↗</button></div>
+    </aside>
+    <div class="right">
+      <div class="rack"><div class="rack-body" id="rack">
+        <div class="rack-top"><span>ST-ROOKIE · LEARNING CABINET</span><span class="meter" id="meter"></span><span class="rack-led"></span></div>
+        <div class="rack-grid" id="grid">${FEATURES.map((f, i) => `<button type="button" class="slot" data-i="${i}" aria-label="${esc(f.name)}">
+          <span class="slot-face"><span class="slot-plate"><b>${f.num}</b><span class="slot-g">${f.group}</span><i></i></span><span class="slot-art">${f.art()}</span>
+          <span class="slot-name">${esc(f.name)}</span><span class="slot-grip"></span></span></button>`).join('')}</div>
+        <div class="rack-foot"></div>
+      </div></div>
+      <div class="guide">${char('greet')}<div class="bubble"><b>${POSEOKHO.name}<button type="button" class="voice" id="bMute" hidden></button></b><span id="say"></span>
+        <button type="button" class="ask" id="ask">💬 포석호에게 묻기</button>
+        <div class="keys" aria-label="단축키"><span><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> 고르기</span><span><kbd>Enter</kbd> 사용하기</span><span><kbd>Esc</kbd> 닫기</span></div></div></div>
+    </div>
   </section>
-  <div class="guide">${char('greet')}<div class="bubble"><b>${POSEOKHO.name}</b><span id="say"></span>
-    <button type="button" class="ask" id="ask">💬 포석호에게 묻기</button>
-    <div class="keys" aria-label="단축키"><span><kbd>←</kbd><kbd>→</kbd> 넘기기</span><span><kbd>Enter</kbd> 열기</span><span><kbd>Esc</kbd> 카드로</span></div></div></div>
-  <div class="brief" id="brief" hidden role="dialog" aria-label="포석호 설명"><button type="button" class="live-x brief-x" id="bClose" aria-label="닫기" title="닫기 (Esc)">✕</button>
-    <div class="brief-stage"><div class="brief-glow"></div>${char('explain')}</div>
-    <div class="brief-side"><span class="num" id="bNum"></span><h2 id="bName"></h2>
-      <ol class="brief-steps" id="bSteps"></ol>
-      <div class="brief-sub" aria-live="polite"><b>${POSEOKHO.name}</b><span id="bSub"></span></div>
-      <div class="brief-bar"><i id="bProg"></i></div>
-      <div class="brief-ctl"><button type="button" class="btn ghost sm" id="bMute"></button><button type="button" class="btn ghost sm" id="bAgain">↺ 다시 듣기</button>
-        <button type="button" class="btn" id="bGo">바로 사용하기 →</button></div></div>
-  </div>
+  <svg class="beam" id="beam" aria-hidden="true"><defs>
+      <linearGradient id="bmGrad" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#ffd2a8" stop-opacity=".75"/><stop offset=".35" stop-color="#ff9e64" stop-opacity=".32"/><stop offset="1" stop-color="#ff9e64" stop-opacity=".05"/></linearGradient>
+      <filter id="bmGlow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+    <polygon class="bm-cone" id="bmCone"/><path class="bm-halo" id="bmHalo"/><path class="bm-core" id="bmCore" filter="url(#bmGlow)"/><path class="bm-flow" id="bmFlow"/>
+    <circle class="bm-src" id="bmSrc" r="7" filter="url(#bmGlow)"/><circle class="bm-hit" id="bmHit" r="5"/></svg>
   <div class="live" id="live" hidden><div class="live-bar"><button type="button" class="btn ghost sm" id="full" aria-pressed="false">⛶ 전체 화면으로 보기</button><span class="num" id="lNum"></span><span class="live-t" id="lName"></span>
     <button type="button" class="btn ghost sm" id="askBar">💬 포석호에게 묻기</button><button type="button" class="live-x" id="back" aria-label="닫기" title="닫기 (Esc)">✕</button></div><iframe id="frame" title="실제 화면"></iframe></div>`;
 
 const $ = (id) => $stage.querySelector(`#${id}`);
-const deck = $('deck'), cards = [...deck.children], dots = [...$('dots').children];
+const cab = $('cab'), hud = $('hud'), grid = $('grid'), slots = [...grid.children];
 const guide = $stage.querySelector('.guide cp-character'), say = $('say');
-const brief = $('brief'), bChar = brief.querySelector('cp-character'), live = $('live'), frame = $('frame');
+const live = $('live'), frame = $('frame');
 let cur = 0;
 // [포석호에게 묻기]는 말이 다 찍힌 뒤에 나타난다(타이핑하는 동안 글자를 따라 밀려가지 않게)
 const talk = (text, motion = 'explain', back = 2600) => { const btn = $('ask'); btn.hidden = true; typeInto(say, text, 22, () => { btn.hidden = false; }); guide.setAttribute('motion', motion); clearTimeout(guide._t); guide._t = setTimeout(() => guide.setAttribute('motion', 'idle'), back); };
 
-// ── 카드 넘기기 ──
-function show(i, speak = true) {
-  cur = wrap(i);
-  cards.forEach((el, k) => {
-    let d = k - cur; if (d > N / 2) d -= N; if (d < -N / 2) d += N;
-    const a = Math.abs(d);
-    el.style.transform = `translateX(${d * 210}px) translateZ(${-a * 120}px) rotateY(${d * -10}deg) scale(${1 - Math.min(a, 3) * 0.08})`;
-    el.style.opacity = a > 2 ? 0 : 1 - a * 0.18; el.style.zIndex = 10 - a; el.style.filter = a ? 'brightness(.6) saturate(.8)' : 'none';
-    el.style.pointerEvents = a > 2 ? 'none' : 'auto'; el.tabIndex = a ? -1 : 0; el.classList.toggle('on', !a);
-  });
-  const f = FEATURES[cur];
-  $('cNum').textContent = `${f.num} · ${f.group}`; $('cName').textContent = f.name; $('cLine').textContent = f.line;
-  dots.forEach((b, k) => b.setAttribute('aria-current', String(k === cur)));
+// ── 빔: 고른 칸에서 왼쪽 도감(HUD) 꼬리까지 빛줄기를 쏜다. 칸 → 빛줄기가 HUD에 닿는 순간 HUD가 튀어나온다 ──
+// 위치는 화면 좌표(getBoundingClientRect)로 잡는다. 랙이 3D로 기울어 있어도 보이는 자리 그대로 이어진다.
+// 좁은 화면(위아래로 쌓임)·동작 줄이기 설정에서는 쏘는 애니메이션 없이 선만 둔다(좁은 화면은 CSS로 숨김)
+const beam = { svg: $('beam'), cone: $('bmCone'), halo: $('bmHalo'), core: $('bmCore'), flow: $('bmFlow'), src: $('bmSrc'), hit: $('bmHit'), anims: [] };
+function beamGeom() {
+  const s = slots[cur].firstElementChild.getBoundingClientRect(), h = hud.getBoundingClientRect(); // 앞으로 나온 칸 얼굴(slot-face) 기준
+  const sx = s.left + 4, sy = s.top + s.height / 2;
+  const ty = Math.min(h.bottom - 40, Math.max(h.top + 40, sy)); // HUD 꼬리를 빛줄기 높이에 맞춘다
+  hud.style.setProperty('--tail', `${ty - h.top - 9}px`);
+  const tx = h.right + 9, spread = Math.min(h.height * 0.42, 220);
+  return { sx, sy, tx, ty, top: Math.max(h.top + 18, ty - spread), bot: Math.min(h.bottom - 18, ty + spread), hx: h.right };
+}
+function placeBeam() {
+  const g = beamGeom(), d = `M${g.sx} ${g.sy} C${g.sx - (g.sx - g.tx) * 0.45} ${g.sy} ${g.tx + (g.sx - g.tx) * 0.35} ${g.ty} ${g.tx} ${g.ty}`;
+  for (const el of [beam.halo, beam.core, beam.flow]) el.setAttribute('d', d);
+  beam.cone.setAttribute('points', `${g.sx},${g.sy - 6} ${g.hx},${g.top} ${g.hx},${g.bot} ${g.sx},${g.sy + 6}`);
+  const lg = beam.svg.querySelector('#bmGrad'); lg.setAttribute('x1', g.sx); lg.setAttribute('x2', g.hx); lg.setAttribute('y1', g.sy); lg.setAttribute('y2', g.sy);
+  beam.src.setAttribute('cx', g.sx); beam.src.setAttribute('cy', g.sy); beam.hit.setAttribute('cx', g.tx); beam.hit.setAttribute('cy', g.ty);
+  return beam.core.getTotalLength();
+}
+function shootBeam(onHit) {
+  beam.anims.forEach((a) => a.cancel()); beam.anims = [];
+  const len = placeBeam(); beam.svg.classList.add('on');
+  if (reduce) { onHit(); return; }
+  const ease = 'cubic-bezier(.2,.8,.2,1)', A = (el, k, o) => beam.anims.push(el.animate(k, { fill: 'forwards', ...o }));
+  A(beam.src, [{ opacity: 0, transform: 'scale(.2)' }, { opacity: 1, transform: 'scale(1.6)', offset: .4 }, { opacity: .9, transform: 'scale(1)' }], { duration: 420, easing: ease });
+  for (const el of [beam.core, beam.halo]) A(el, [{ strokeDasharray: `${len}`, strokeDashoffset: len }, { strokeDasharray: `${len}`, strokeDashoffset: 0 }], { duration: 300, easing: 'cubic-bezier(.5,0,.2,1)' });
+  A(beam.cone, [{ opacity: 0 }, { opacity: 0, offset: .3 }, { opacity: 1, offset: .5 }, { opacity: 0 }], { duration: 1100, easing: 'ease-out' }); // 빛 원뿔은 번쩍 퍼졌다가 사라진다(칸을 가리지 않게)
+  A(beam.flow, [{ opacity: 0 }, { opacity: 0, offset: .6 }, { opacity: .85 }], { duration: 500 });
+  A(beam.hit, [{ opacity: 0, transform: 'scale(.4)' }, { opacity: 0, offset: .55 }, { opacity: 1, transform: 'scale(2.4)', offset: .75 }, { opacity: .8, transform: 'scale(1)' }], { duration: 560, easing: ease });
+  setTimeout(onHit, 230); // 빛줄기가 HUD에 닿을 즈음 HUD가 튀어나온다
+  clearTimeout(beam.t); beam.t = setTimeout(placeBeam, 420); // 칸이 다 나온(.35s) 뒤 시작점을 칸 얼굴에 다시 맞춘다
+}
+// 글꼴·포석호 모델이 늦게 들어와 자리가 바뀌거나 창 크기가 바뀌면 다시 잇는다
+const replace = () => { if (beam.svg.classList.contains('on')) placeBeam(); };
+addEventListener('resize', replace); document.fonts?.ready.then(replace);
+if ('ResizeObserver' in window) { const ro = new ResizeObserver(replace); ro.observe(hud); ro.observe($('rack')); }
+
+// ── 캐비닛 칸 고르기: 칸이 앞으로 나오고 → 빔 → 왼쪽 도감(HUD)이 바뀐다 ──
+function fillHud(f) {
+  $('hNum').textContent = f.num; $('hName').textContent = f.name; $('hEn').textContent = f.en;
+  $('hArt').innerHTML = f.art(); $('hTag').textContent = f.group; $('hEff').textContent = f.line;
+  $('hHow').innerHTML = f.how.map((h, k) => `<li><b>${k + 1}</b><span>${esc(h)}</span></li>`).join('');
+  hud.classList.remove('pop'); void hud.offsetWidth; hud.classList.add('pop');
+}
+function show(i, { speak = true, focus = false } = {}) {
+  if (briefing) stopBrief();
+  cur = wrap(i); const f = FEATURES[cur];
+  slots.forEach((s, k) => { s.classList.toggle('on', k === cur); s.setAttribute('aria-pressed', String(k === cur)); });
+  $('meter').innerHTML = `<b>${f.num}</b> / ${String(N).padStart(2, '0')}`;
+  if (focus) slots[cur].focus({ preventScroll: true });
+  shootBeam(() => fillHud(f));
   if (speak) talk(f.say);
 }
-deck.addEventListener('click', (e) => { const c = e.target.closest('.cf-card'); if (!c) return; const i = +c.dataset.i; if (i === cur) go(); else show(i); }); // 가운데 카드는 브리핑 없이 바로 연다
-$('dots').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) show(+b.dataset.i); });
+grid.addEventListener('click', (e) => { const s = e.target.closest('.slot'); if (!s) return; const i = +s.dataset.i; if (i === cur && !briefing) go(); else show(i); }); // 고른 칸을 한 번 더 누르면 바로 연다
 $('prev').addEventListener('click', () => show(cur - 1));
 $('next').addEventListener('click', () => show(cur + 1));
-$('open').addEventListener('click', () => openBrief());
-let x0 = null; deck.addEventListener('pointerdown', (e) => { x0 = e.clientX; });
-addEventListener('pointerup', (e) => { if (x0 == null) return; const dx = e.clientX - x0; x0 = null; if (Math.abs(dx) > 60 && brief.hidden && live.hidden) show(cur + (dx < 0 ? 1 : -1)); });
+$('open').addEventListener('click', () => (briefing ? stopBrief() : openBrief()));
+$('use').addEventListener('click', () => go());
 
 // ── 브리핑 영상: 포석호가 말하고 자막·단계 강조가 따라간다. 목소리 3가지: 포석호 말투(동물어, 기본)·사람 목소리(브라우저 TTS)·끔 ──
 const VOICE_MODES = [['bear', '🐻 포석호 말투'], ['tts', '🗣 사람 목소리'], ['off', '🔇 소리 끔']];
@@ -114,14 +157,13 @@ function speakLine(text, sub) {
   });
 }
 const hush = () => { tts?.cancel(); bear.stop(); };
-let run = 0;
+// 포석호 설명: 따로 창을 띄우지 않고 왼쪽 도감(HUD) 안에서 한다. 사용법 단계가 차례로 켜지고, 아래 포석호가 커지며 말풍선에 자막이 찍힌다.
+// 끝나면(또는 [사용하기 ↗]) 실제 화면이 뜬다. 다른 칸을 고르거나 [■ 그만 듣기]·Esc면 멈춘다
+let run = 0, briefing = false;
 async function openBrief() {
   const f = FEATURES[cur], my = ++run;
-  $('bNum').textContent = `${f.num} · ${f.en}`; $('bName').textContent = f.name;
-  $('bSteps').innerHTML = f.how.map((h) => `<li>${esc(h)}</li>`).join('');
-  const steps = [...$('bSteps').children];
-  brief.hidden = false; hush();
-  // 대사: 인사 → 무엇인지 → 사용법 1·2·3 → 한마디 → 마무리
+  hush(); briefing = true; cab.classList.add('briefing'); $('open').textContent = '■ 그만 듣기'; $('bMute').hidden = false; $('ask').hidden = true;
+  const steps = [...$('hHow').children];
   const lines = [
     { text: `${f.name}! ${f.line}`, motion: 'greet' },
     ...f.how.map((h, k) => ({ text: `${k + 1}. ${h}.`, motion: 'explain', step: k })),
@@ -130,21 +172,23 @@ async function openBrief() {
   ];
   const bar = $('bProg'); bar.style.transition = 'none'; bar.style.width = '0%';
   for (let k = 0; k < lines.length; k++) {
-    if (my !== run || brief.hidden) return;
+    if (my !== run) return;
     const l = lines[k];
-    bChar.setAttribute('motion', l.motion);
+    clearTimeout(guide._t); guide.setAttribute('motion', l.motion);
     steps.forEach((s, j) => { s.classList.toggle('on', j === l.step); s.classList.toggle('done', l.step != null ? j < l.step : k > f.how.length); });
     requestAnimationFrame(() => { bar.style.transition = 'width .5s'; bar.style.width = `${((k + 1) / lines.length) * 100}%`; });
-    await speakLine(l.text, $('bSub'));
+    await speakLine(l.text, say);
     await sleep(250);
   }
-  if (my === run && !brief.hidden) { await sleep(400); if (my === run && !brief.hidden) go(); }
+  if (my === run) { await sleep(400); if (my === run) go(); }
 }
-function closeBrief() { run++; hush(); brief.hidden = true; bChar.setAttribute('motion', 'idle'); }
-function go() { const f = FEATURES[cur]; closeBrief(); openLive(f); talk(`좋아, ${f.name}! "${f.how[0]}"부터 해 봐.`, 'praise', 1600); }
-$('bGo').addEventListener('click', go);
-$('bClose').addEventListener('click', () => { closeBrief(); cards[cur].focus(); });
-$('bAgain').addEventListener('click', () => openBrief());
+function stopBrief() {
+  run++; hush(); briefing = false; cab.classList.remove('briefing');
+  $('open').textContent = '▶ 포석호 설명 듣고 열기'; $('bMute').hidden = true; $('bProg').style.width = '0%';
+  $('hHow').querySelectorAll('li').forEach((s) => s.classList.remove('on', 'done'));
+  guide.setAttribute('motion', 'idle'); $('ask').hidden = false;
+}
+function go() { const f = FEATURES[cur]; stopBrief(); openLive(f); talk(`좋아, ${f.name}! "${f.how[0]}"부터 해 봐.`, 'praise', 1600); }
 $('bMute').addEventListener('click', () => { const k = VOICE_MODES.findIndex(([m]) => m === voiceMode); voiceMode = VOICE_MODES[(k + 1) % VOICE_MODES.length][0]; try { localStorage.setItem(MUTE_KEY, voiceMode); } catch (e) {} muteLabel(); openBrief(); }); // 바꾸면 그 목소리로 처음부터
 
 // ── 실제 화면: 처음 열 때 한 번만 띄우고, 그다음부터는 주소 뒤 #기능만 바꾼다(학습 기록을 매번 새로 불러오지 않는다) ──
@@ -158,20 +202,22 @@ function openLive(f, route = f.id) {
   else frame.contentWindow.location.replace(url);
   live.hidden = false;
 }
-function ask() { closeBrief(); show(FEATURES.findIndex((f) => f.id === 'steps'), false); openLive(FEATURES[cur], 'ask'); talk('궁금한 걸 채팅에 물어봐! 도면에서 설비를 먼저 고르면 그 설비를 보고 답해 줄게.', 'greet', 1800); }
+function ask() { stopBrief(); show(FEATURES.findIndex((f) => f.id === 'steps'), { speak: false }); openLive(FEATURES[cur], 'ask'); talk('궁금한 걸 채팅에 물어봐! 도면에서 설비를 먼저 고르면 그 설비를 보고 답해 줄게.', 'greet', 1800); }
 // [전체 화면으로 보기]: 실제 화면 창이 위 메뉴까지 덮어 페이지 전체를 쓴다. 닫으면 원래 크기로 돌아간다
 const full = (on) => { live.classList.toggle('full', on); $('full').setAttribute('aria-pressed', on); $('full').textContent = on ? '↙ 원래 크기로' : '⛶ 전체 화면으로 보기'; };
-const back = () => { full(false); live.hidden = true; cards[cur].focus(); };
+const back = () => { full(false); live.hidden = true; slots[cur].focus({ preventScroll: true }); placeBeam(); };
 $('ask').addEventListener('click', ask); $('askBar').addEventListener('click', ask); $('back').addEventListener('click', back);
 $('full').addEventListener('click', () => full(!live.classList.contains('full')));
 
 addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') { if (!brief.hidden) closeBrief(); else if (!live.hidden) back(); return; }
-  if (!brief.hidden || !live.hidden) return;
-  if (e.key === 'ArrowLeft') show(cur - 1); else if (e.key === 'ArrowRight') show(cur + 1);
-  else if (e.key === 'Enter' && document.activeElement?.closest('.cf-card, #open') == null) { e.preventDefault(); go(); }
+  if (e.key === 'Escape') { if (!live.hidden) back(); else if (briefing) stopBrief(); return; }
+  if (!live.hidden || document.querySelector('.tt:not([hidden])')) return; // 실제 화면·포석호 첫 안내 중에는 칸을 옮기지 않는다
+  const cols = getComputedStyle(grid).gridTemplateColumns.split(' ').length;
+  const move = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -cols, ArrowDown: cols }[e.key];
+  if (move) { e.preventDefault(); show(cur + move, { focus: true }); }
+  else if (e.key === 'Enter' && !document.activeElement?.matches('button:not(.slot), a')) { e.preventDefault(); go(); }
 });
-// ?f=기능 id로 들어오면 그 카드를 고른 채 시작한다(예: /login_ui/learn/learn.html?f=report)
+// ?f=기능 id로 들어오면 그 칸을 고른 채 시작한다(예: /login_ui/learn/learn.html?f=report)
 const f0 = FEATURES.findIndex((f) => f.id === new URLSearchParams(location.search).get('f'));
-show(f0 >= 0 ? f0 : 0, false);
-talk('어서 와! 카드를 넘겨서 하나 골라 봐. 카드를 누르면 바로 열리고, [포석호 설명 듣고 열기]를 누르면 내가 먼저 쓰는 법을 말로 알려 줄게.', 'greet');
+show(f0 >= 0 ? f0 : 0, { speak: false });
+talk('어서 와! 캐비닛에서 칸을 고르면 왼쪽에 설명이 떠. 고른 칸을 한 번 더 누르면 바로 열리고, [포석호 설명 듣고 열기]를 누르면 내가 먼저 쓰는 법을 말로 알려 줄게.', 'greet');

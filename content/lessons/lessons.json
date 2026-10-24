@@ -39,14 +39,6 @@
           "lab": "fault",
           "fault": "casting-breakout-alarm",
           "note": "이상 값 → 원인 → 조치 순서로 판단하게 하세요. 끝나면 [인과 지도에서 하류까지 따라가기]로 압연 영향까지 이어 볼 수 있어요."
-        },
-        {
-          "title": "다르게 했다면?",
-          "lab": "incident",
-          "scenario": "coke-night-inspection",
-          "at": 1,
-          "pick": 1,
-          "note": "안전한 선택과 실제 선택을 번갈아 눌러 결과를 비교하게 하세요. 철강산업 중대재해 사례집의 실제 사례예요."
         }
       ]
     },

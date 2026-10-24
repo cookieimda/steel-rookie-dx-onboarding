@@ -22,7 +22,7 @@ async function api(method, path, body) {
 }
 
 export const SUBTABS = [['review', '간격 반복'], ['league', '주간 리그'], ['report', '보고서'], ['replay', '세션 리플레이'],
-  ['incident', '사고 사례'], ['whatif', 'What-if'], ['synapse', 'What-if 시냅스'], ['notes', '설비 메모'], ['patterns', '내 오답 유형']];
+  ['whatif', 'What-if'], ['synapse', 'What-if 시냅스'], ['notes', '설비 메모'], ['patterns', '내 오답 유형']];
 const GRADE_LABEL = { 0: '다시', 3: '어려움', 4: '보통', 5: '쉬움' };
 const GRADE_TONE = { 0: 'bad', 3: 'mid', 4: 'ok', 5: 'easy' };
 const TAB_LABEL = { steps: '작동 단계', lab: '학습 랩', blueprint: '설계도·필기', card: '사원증' };
@@ -114,16 +114,11 @@ export function createLearningLab(c) {
     league: () => api('GET', '/api/me/lab/league').then(r => set({ labLeague: r })),
     replay: () => api('GET', '/api/me/lab/replays').then(r => set({ labReplays: r.sessions })),
   };
-  // 추가 기능(lab-extras.js): 사고 사례·What-if·설비 메모·내 오답 유형과 알림 벨
+  // 추가 기능(lab-extras.js): What-if·설비 메모·내 오답 유형과 알림 벨
   const extras = createLabExtras(c, { api, set, S, fail });
   Object.assign(loaders, extras.loaders);
   const load = sub => { set({ labError: null }); return (loaders[sub]?.() || Promise.resolve()).catch(fail); };
-  // 오늘의 실습 경로는 학습 랩을 열 때 한 번 읽는다(실패하면 조용히 숨긴다).
-  let pathLoaded = false;
-  const open = sub => {
-    set({ labTab: sub }); track('lab', { sub }); load(sub);
-    if (!pathLoaded) { pathLoaded = true; api('GET', '/api/lab/practice-path').then(r => set({ labPath: r }), () => { pathLoaded = false; }); }
-  };
+  const open = sub => { set({ labTab: sub }); track('lab', { sub }); load(sub); };
 
   // ── 간격 반복 ──
   const grade = g => {
@@ -156,27 +151,11 @@ export function createLearningLab(c) {
       labError: s.labError || '', hasLabError: !!s.labError,
       labShowReview: sub === 'review' ? 'flex' : 'none', labShowLeague: sub === 'league' ? 'flex' : 'none', labShowReport: sub === 'report' ? 'flex' : 'none',
       labShowReplay: sub === 'replay' ? 'flex' : 'none',
-      labShowIncident: sub === 'incident' ? 'flex' : 'none', labShowWhatif: sub === 'whatif' ? 'flex' : 'none', labShowSynapse: sub === 'synapse' ? 'flex' : 'none',
+      labShowWhatif: sub === 'whatif' ? 'flex' : 'none', labShowSynapse: sub === 'synapse' ? 'flex' : 'none',
       labShowNotes: sub === 'notes' ? 'flex' : 'none', labShowPatterns: sub === 'patterns' ? 'flex' : 'none',
       ...extras.vals(sub),
     };
 
-    // 오늘의 실습 경로
-    const P = s.labPath, ICON = { map: '🗺', quiz: '🧩', fault: '🚨' };
-    Object.assign(v, {
-      ppHas: !!P?.steps?.length, ppName: P?.name || '', ppReason: P?.reason || '',
-      // 내 3D 실습 요약: 숫자 칩 + 공정별(퀴즈 정답률·훈련 최고 점수) 막대
-      ppStats: P?.summary ? [
-        ['인과 퀴즈', P.summary.quiz_answers ? `${Math.round(P.summary.quiz_rate * 100)}% · ${P.summary.quiz_answers}칸` : '아직 없음'],
-        ['이상 상황 훈련', `${P.summary.faults_done} / ${P.summary.faults_total}종${P.summary.faults_perfect ? ` · 만점 ${P.summary.faults_perfect}` : ''}`],
-        ['갈림길 탐험', `${P.summary.branches_explored} / ${P.summary.branches_total}`],
-        ['거꾸로 추론', P.summary.diagnose_answers ? `${Math.round(P.summary.diagnose_rate * 100)}% · ${P.summary.diagnose_answers}문제` : '아직 없음'],
-        ['되돌리기 퍼즐', `부작용 없이 ${P.summary.rebalance_clean ?? 0}개`],
-      ].map(([k, val]) => ({ k, v: val })) : [],
-      ppProcs: (P?.processes || []).map(x => ({ name: x.name, quiz: x.quiz_rate == null ? '퀴즈 —' : `퀴즈 ${Math.round(x.quiz_rate * 100)}%`, fault: x.fault_best == null ? '훈련 —' : `훈련 ${Math.round(x.fault_best * 100)}점`,
-        w: `${Math.round((1 - x.weakness) * 100)}%`, weak: x.process === P.process ? 'weak' : '' })),
-      ppSteps: (P?.steps || []).map((x, i) => ({ n: `${i + 1}단계 ${ICON[x.kind] || ''}${x.done ? ' · 완료' : ''}`, title: x.title, why: x.why, href: x.href })),
-    });
 
     // 간격 반복
     const R = s.labReview, card = R?.queue?.[0];

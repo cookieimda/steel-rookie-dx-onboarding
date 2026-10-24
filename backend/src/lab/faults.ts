@@ -7,7 +7,16 @@ import { join } from "node:path";
 import { z } from "zod";
 import { SECTION_ORDER, type Section } from "../checkpoint/types.js";
 import { NODES } from "./causal.js";
-import { shuffledKeys } from "./incidents.js";
+import { createHash } from "node:crypto";
+
+
+/** 사람·문항마다 같은 순서로 섞는다(새로고침해도 같다). */
+export function shuffledKeys(userId: string, scenarioId: string, questionId: string, n: number): number[] {
+  const keys = Array.from({ length: n }, (_, i) => i);
+  const seed = createHash("sha256").update(`${userId}|${scenarioId}|${questionId}`).digest();
+  for (let i = n - 1; i > 0; i--) { const j = seed[i % seed.length] % (i + 1); [keys[i], keys[j]] = [keys[j], keys[i]]; }
+  return keys;
+}
 
 const Reading = z.object({ id: z.string(), name: z.string(), unit: z.string(), value: z.number(), normal: z.tuple([z.number(), z.number()]), fixed: z.number() });
 const Choice = z.object({ options: z.array(z.string()).min(2).max(6), answer: z.number().int().min(0), explain: z.string() });

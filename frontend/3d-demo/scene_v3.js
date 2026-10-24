@@ -2,7 +2,7 @@
 // GLB 교체: buildProcess() 안의 primitive 생성 부분을 GLTFLoader.load(`models/${processId}.glb`)로 바꾸고,
 // scene.getObjectByName(`EQ_${id}`)로 노드를 찾으면 나머지(라벨·클릭·하이라이트·흐름)는 그대로 동작.
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/+esm';
-import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js/+esm';
+import { createGLTFLoader } from './gltf-loader.js'; // Draco 압축 GLB
 import { RoomEnvironment } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/environments/RoomEnvironment.js/+esm';
 import { PROCESSES, findProcess } from './data_v2.js';
 import { StepFx } from './step-fx.js';
@@ -742,7 +742,7 @@ class SteelScene extends HTMLElement {
     let cfg = null;
     try { const all = await (await fetch(new URL('models/anchors-v2b.json', document.baseURI))).json(); cfg = all[p.id] || null; } catch (e) {}
     const done = (status, mapped) => { z.modelStatus = status; z.mapped = mapped; z.root.visible = true; this._zoneVis(); if (this.zone === z) { this.eqs.forEach(e => { e.label.style.display = 'flex'; }); if (this.material) this.material.visible = true; this._emitModel(status, url, mapped); this._zoneLight(); } this._dirty = true; };
-    new GLTFLoader().load(url, (gltf) => {
+    createGLTFLoader().load(url, (gltf) => {
       const model = gltf.scene; model.name = `GLB_${p.id}`;
       const sc = cfg?.scale ?? 1, off = new THREE.Vector3().fromArray(cfg?.offset || [0, 0, 0]).add(new THREE.Vector3(z.ox, 0, z.oz || 0));
       model.scale.setScalar(sc); model.position.copy(off);

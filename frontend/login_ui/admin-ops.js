@@ -184,7 +184,7 @@ async function showPatterns(pane) {
   pane.replaceChildren(wrap);
 }
 
-// ── 3D 실습 통계: 이상 상황 훈련·사고 사례·인과 퀴즈에서 어디서 막히는지(문항·단계 단위, 사람별 내용 없음) ──
+// ── 3D 실습 통계: 이상 상황 훈련·인과 퀴즈에서 어디서 막히는지(문항·단계 단위, 사람별 내용 없음) ──
 const pct = (x) => (x == null ? '—' : `${Math.round(x * 100)}%`);
 const rateBar = (x) => { const b = el('div', 'pbar'); const i = el('i'); i.style.width = `${Math.round((x ?? 0) * 100)}%`; b.append(i); return b; };
 async function showPractice(pane) {
@@ -219,31 +219,6 @@ async function showPractice(pane) {
     table.append(tr);
   }
   ft.append(el('strong', '', '🚨 이상 상황 훈련'), el('span', 'micro', '점수는 단계마다 몇 번 만에 맞혔는지로 내요(한 번에 맞히면 1).'), table);
-  // 사고 사례
-  const it = el('div', 'card ops-card'), t2 = el('table', 'ops'), h2 = el('tr');
-  for (const h of ['사고 사례', '공정', '시도 · 사람', '평균 점수', '가장 많이 틀린 문항']) h2.append(el('th', '', h));
-  t2.append(h2);
-  for (const s of data.incidents) {
-    const tr = el('tr'), score = el('td');
-    score.append(el('span', '', pct(s.avg_score)), rateBar(s.avg_score));
-    tr.append(el('td', '', s.title), el('td', '', SECTIONS[s.section] || s.section), el('td', '', `${s.attempts}회 · ${s.learners}명`), score,
-      el('td', '', s.weakest ? `${s.weakest.prompt} (정답 ${pct(s.weakest.rate)})` : s.attempts ? '모두 잘 맞힘' : '—'));
-    t2.append(tr);
-  }
-  it.append(el('strong', '', '📰 사고 사례'), t2);
-  // 수업 모드: 3D 화면에서 수업 막대와 함께 연다(교육 담당자가 화면 공유로 진행)
-  const lessons = await api('GET', '/api/lab/lessons').catch(() => ({ lessons: [] }));
-  const lc = el('div', 'card ops-card');
-  lc.append(el('strong', '', '🎓 수업 모드'), el('span', 'micro', '3D 화면 위쪽 막대로 단계를 넘기며 진행해요. 단계마다 진행자 안내가 있어요.'));
-  for (const l of lessons.lessons) {
-    const row = el('div', 'ops-item'), a = el('a', 'btn sm', '3D에서 수업 열기');
-    a.href = `/3d-demo/Steel%20Academy%20v4.dc.html?p=ironmaking&lab=lesson&lesson=${encodeURIComponent(l.id)}&step=1`; a.target = '_blank'; a.rel = 'noopener';
-    const st = (data.lessons || []).find((x) => x.id === l.id);
-    row.append(el('span', '', `${l.title} · ${l.steps}단계 · ${l.minutes}분`), a, el('small', '', l.goal));
-    if (st) row.append(el('small', '', `연 사람 ${st.learners}명 · 마지막 단계까지 ${st.reached_last}명 · 수업 마침 ${st.finished}명 · 단계별 ${st.by_step.map((x, k) => `${k + 1}:${x.learners}`).join(' ')}`));
-    lc.append(row);
-  }
-  if (!lessons.lessons.length) lc.append(el('p', 'muted', '수업이 없어요.'));
   // 거꾸로 추론: 정답률과 헷갈리는 원인
   const dg = data.diagnose, dc = el('div', 'card ops-card');
   dc.append(el('strong', '', '🔍 거꾸로 추론'), el('span', 'micro', `답 ${dg?.answers ?? 0}개 · ${dg?.learners ?? 0}명 · 정답률 ${pct(dg?.rate)}. 증상을 보고 원인을 고르는 문제예요.`));
@@ -262,7 +237,7 @@ async function showPractice(pane) {
     rc.append(row);
   }
   if (!data.rebalance?.length) rc.append(el('p', 'muted', '아직 기록이 없어요.'));
-  wrap.append(top, lc, quiz, dc, rc, ft, it);
+  wrap.append(top, quiz, dc, rc, ft);
   pane.replaceChildren(wrap);
 }
 

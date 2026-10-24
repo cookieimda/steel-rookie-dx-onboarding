@@ -1,4 +1,4 @@
-// 새 학습 기록(LEARN & ASK, learn.html) 포석호 도감이 쓰는 기능 10개와 아이콘. 기존 화면은 고치지 않는다.
+// 새 학습 기록(LEARN & ASK, learn.html) 포석호 도감이 쓰는 기능 10개(캐비닛 랙 5×2 칸)와 아이콘. 기존 화면은 고치지 않는다.
 // art(): 200×140 SVG 아이콘. 색은 브랜드 3색(주황 · 차콜 · 미색)만 쓴다.
 // id: [사용하기]를 누르면 실제 화면 창(live.html#id)이 그 기능의 화면을 연다.
 
@@ -19,7 +19,19 @@ export const FEATURES = [
       ${[1, 2, 3].map((i) => `<circle cx="${40 + i * 30}" cy="120" r="7" fill="${i === 1 ? O : 'none'}" stroke="${O}" stroke-width="2"/><text x="${40 + i * 30}" y="124" font-size="9" text-anchor="middle" fill="${i === 1 ? D : O}" font-family="monospace">${i}</text>`).join('')}`),
   },
   {
-    id: 'todo', num: '02', name: '안 해 본 실습', en: 'UNTRIED LABS', group: '해 보기',
+    id: 'blueprint', num: '02', name: '설계도·필기', en: 'BLUEPRINT & SKETCH', group: '배우기',
+    line: '공정 도면 위에 펜으로 직접 그리고 적어요. 흐름을 손으로 따라 그리면 순서가 오래 남아요.',
+    how: ['위 공정 칩(제선·제강·연주·열간압연)과 도면(위·평면·정면)을 고른다', '펜으로 재료가 들어가고 나오는 길을 따라 그린다', '헷갈린 설비 옆에 한 줄 메모를 적는다(내 계정에 저장된다)'],
+    say: '보기만 하면 금방 잊어. 쇳물이 가는 길을 손으로 한 번 그려 봐!',
+    keys: ['설계도', '도면', '필기', '그리기', '펜', '스케치'],
+    art: () => svg(`<rect x="18" y="16" width="164" height="108" rx="8" fill="#0f2c4c"/>
+      ${[1, 2, 3, 4, 5, 6, 7].map((i) => `<path d="M${18 + i * 20.5} 16 V124" stroke="rgba(215,236,255,.12)"/>`).join('')}${[1, 2, 3, 4].map((i) => `<path d="M18 ${16 + i * 21.6} H182" stroke="rgba(215,236,255,.12)"/>`).join('')}
+      <rect x="36" y="40" width="34" height="58" rx="4" fill="none" stroke="#d7ecff" stroke-width="2"/><rect x="104" y="62" width="52" height="36" rx="4" fill="none" stroke="#d7ecff" stroke-width="2"/>
+      <path d="M58 104 C72 120 92 118 104 92" stroke="${O}" stroke-width="4" fill="none" stroke-linecap="round" stroke-dasharray="1 0"/><path d="M98 86 l8 4 l-3 8" stroke="${O}" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M150 26 l14 14 l-30 30 l-17 4 l4 -17 z" fill="${C}"/><path d="M117 74 l4 -17 l13 13 z" fill="${O}"/>`),
+  },
+  {
+    id: 'todo', num: '03', name: '안 해 본 실습', en: 'UNTRIED LABS', group: '해 보기',
     line: '학습 랩 맨 위 "오늘의 실습 경로"에서 아직 안 해 본 실습과 공정별 진행을 보여 줘요.',
     how: ['학습 랩을 연다', '오늘의 실습 경로 1·2·3단계를 본다', '아래 공정 칸에서 아직 비어 있는 공정을 고른다'],
     say: '오늘의 실습 경로 1단계부터 해 봐. 아래 공정 칸이 차오르면 다 해 본 거야!',
@@ -31,7 +43,7 @@ export const FEATURES = [
       <path d="M150 112 l8 8 l16 -18" stroke="${C}" stroke-width="4" fill="none" stroke-linecap="round"/>`),
   },
   {
-    id: 'report', num: '03', name: '학습 보고서', en: 'REPORT · PDF', group: '기록',
+    id: 'report', num: '04', name: '학습 보고서', en: 'REPORT · PDF', group: '기록',
     line: '공정을 고르면 내 이해도·오개념·복습 기록을 A4 보고서로 보여 주고 PDF로 저장해요.',
     how: ['학습 랩 → 보고서를 연다', '공정 칩(제선·제강…)을 고르고 미리보기를 확인한다', '[PDF로 저장]을 누른다'],
     say: '보고서는 A4 한 장으로 뽑혀. 설비마다 봤는지 안 봤는지도 다 나와!',
@@ -41,18 +53,6 @@ export const FEATURES = [
       ${[0, 1, 2, 3].map((i) => `<rect x="${72 + i * 15}" y="${86 - [20, 34, 26, 44][i]}" width="10" height="${[20, 34, 26, 44][i]}" rx="2" fill="${i === 3 ? O : '#c9b9b0'}"/>`).join('')}
       ${[0, 1, 2].map((i) => `<rect x="70" y="${96 + i * 8}" width="${60 - i * 14}" height="4" rx="2" fill="#c9b9b0"/>`).join('')}
       <rect x="120" y="96" width="34" height="20" rx="5" fill="${O}"/><text x="137" y="110" font-size="10" font-weight="700" text-anchor="middle" fill="${D}" font-family="sans-serif">PDF</text>`),
-  },
-  {
-    id: 'incident', num: '04', name: '사고 사례', en: 'INCIDENT CASES', group: '해 보기',
-    line: '실제 철강 중대재해 사례를 장면별로 따라가며 역할·관문을 보고 "다르게 했다면?"을 골라 봐요.',
-    how: ['왼쪽 목록에서 사례를 고른다', '[다음 장면 ▶]으로 장면을 넘기며 역할과 관문을 본다', '갈림길에서 다른 선택을 골라 결과를 비교한다'],
-    say: '갈림길에서 안전한 선택을 고르면 관문이 초록으로 바뀌어. 실제 사례라 꼭 해 봐.',
-    keys: ['안전', '재해', '갈림길', '사례', '관문'],
-    art: () => svg(`<path d="M100 128 V78" stroke="${C}" stroke-width="5" stroke-linecap="round"/>
-      <path d="M100 78 L54 34" stroke="#ff6b6b" stroke-width="5" stroke-linecap="round"/><path d="M100 78 L146 34" stroke="#6fcf97" stroke-width="5" stroke-linecap="round"/>
-      <circle cx="54" cy="30" r="12" fill="#ff6b6b"/><text x="54" y="35" font-size="14" text-anchor="middle" fill="${D}" font-weight="700">!</text>
-      <circle cx="146" cy="30" r="12" fill="#6fcf97"/><path d="M140 30 l4 4 l8 -8" stroke="${D}" stroke-width="3" fill="none"/>
-      <circle cx="100" cy="78" r="9" fill="${O}"/>`),
   },
   {
     id: 'whatif', num: '05', name: 'What-if', en: 'WHAT-IF', group: '해 보기',

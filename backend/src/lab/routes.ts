@@ -18,7 +18,6 @@ import { LabRepository } from "./repository.js";
 import { addDays, GRADES, MATURE_DAYS, NEW_PER_DAY, nextReview, type Grade, type SrState } from "./spaced.js";
 import { actorOf, PRACTICE_KINDS, statementFor, storedStatement, XAPI_VERSION, type PracticeKind, type Statement, type VerbKey } from "./xapi.js";
 import { josa, NODES } from "./causal.js";
-import { loadIncidents } from "./incidents.js";
 import { loadLessons, type LessonDef } from "./lessons.js";
 
 /** 수업 단계 이름(수업 열람 문장 이름). object_id는 "<수업 id>_<단계 번호>". */
@@ -32,13 +31,6 @@ const lessonStepTitle = (id: string) => {
   if (!m) return undefined;
   const l = lessonCache.find((x) => x.id === m[1]), s = l?.steps[Number(m[2]) - 1];
   return l && s ? `${l.title} · ${m[2]}/${l.steps.length} ${s.title}` : undefined;
-};
-
-/** 사고 사례 제목(3D 갈림길 문장 이름). 처음 쓸 때 한 번 읽는다. */
-let incidentTitles: Map<string, string> | null = null;
-const incidentTitle = (id: string) => {
-  if (!incidentTitles) { try { incidentTitles = new Map(loadIncidents().scenarios.map((s) => [s.id, s.title])); } catch { incidentTitles = new Map(); } }
-  return incidentTitles.get(id);
 };
 
 export interface LabDeps {
@@ -55,7 +47,7 @@ const ReplayBody = z.object({ events: z.array(ReplayEvent).min(1).max(200) });
 const ReviewBody = z.object({ grade: z.union([z.literal(0), z.literal(3), z.literal(4), z.literal(5)]) });
 const XapiBody = z.object({
   verb: z.literal("experienced"), object_id: z.string().regex(/^[a-z0-9_-]{1,60}$/),
-  /** 3D 실습 살펴봄: 인과 따라가기·조건 링크(object_id = 인과 지도 변수), 사고 사례 갈림길 3D(object_id = 사례 id). 없으면 설비 살펴봄. */
+  /** 3D 실습 살펴봄: 인과 따라가기·조건 링크(object_id = 인과 지도 변수), 수업 단계(object_id = 수업_단계). 없으면 설비 살펴봄. */
   practice: z.enum(Object.keys(PRACTICE_KINDS) as [PracticeKind, ...PracticeKind[]]).optional(),
 });
 
@@ -160,7 +152,7 @@ export function createLabRouter({ db, auth, deck, now = () => new Date() }: LabD
     if (!body.success) return bad(res, "문장 형식이 올바르지 않아요.", "INVALID_STATEMENT");
     if (body.data.practice) {
       const kind = body.data.practice, id = body.data.object_id;
-      const what = kind === "incident-3d" ? incidentTitle(id) : kind === "lesson" ? lessonStepTitle(id) : NODES.find((n) => n.id === id)?.label;
+      const what = kind === "lesson" ? lessonStepTitle(id) : NODES.find((n) => n.id === id)?.label;
       if (!what) return bad(res, "없는 실습 대상이에요.", "UNKNOWN_PRACTICE", 404);
       const user = userOf(res), stamp = now().toISOString();
       const row = repo.addStatement(user.id, { verb: "experienced", object_id: `practice:${kind}:${id}`, object_name: `${PRACTICE_KINDS[kind]} · ${what}`, timestamp: stamp }, stamp);

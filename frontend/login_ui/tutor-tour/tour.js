@@ -20,8 +20,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // text: 자막. *말*은 강조(버튼 이름·핵심 낱말). 음성은 audio/의 같은 id 파일(scripts/tutor-tour-lines.json의 발음용 문장 speak로 만들었다)
 const LEARN = [
   { id: 'learn_01_hello', motion: 'greet', text: '잠깐만요! 여기부터는 제가 설명해 드릴게요! 저는 여러분의 튜터 *포석호*예요.' },
-  { id: 'learn_02_cards', target: '#deck', text: '여기 *카드 열 장*이 학습 기능이에요. 작동 단계부터 사고 사례, What-if, 사원증까지 다 들어 있어요!' },
-  { id: 'learn_03_flip', target: '.cf-nav', text: '*화살표 버튼*이나 키보드 *좌우 키*로 카드를 넘겨 보세요.' },
+  { id: 'learn_02_cards', target: '#rack', text: '여기 *캐비닛 열 칸*이 학습 기능이에요. 칸을 고르면 빛이 쏙 나가서 왼쪽에 설명이 떠요!' },
+  { id: 'learn_03_flip', target: ['#prev', '#next'], text: '*화살표 버튼*이나 키보드 *좌우 키*로 카드를 넘겨 보세요.' },
   { id: 'learn_04_open', target: '#open', text: '마음에 드는 카드에서 *포석호 설명 듣고 열기*를 누르면, 제가 쓰는 법을 먼저 알려 드리고 그 화면으로 바로 데려다 드려요!' },
   { id: 'learn_05_ask', target: '#ask', or: '.guide', text: '궁금한 게 생기면 *포석호에게 묻기*를 눌러 주세요. 작동 단계 도면을 보면서 저한테 바로 물어볼 수 있어요!' },
   { id: 'learn_06_3d', target: ['.nav a[href*="steel-intro"]', '.nav a[href*="steel-index"]'], text: '위쪽 메뉴에서는 *3D 공정 화면*으로 가서 제철소를 직접 둘러볼 수도 있어요.' },
@@ -179,7 +179,11 @@ function run(steps) {
       if (!active || cur !== i) return;
       reveal();
       // 자동 재생이 막혔다: 글은 먼저 보여 주고 누르면 그 줄부터 말한다. 파일을 못 읽었으면 글만 보여 주고 [다음]을 기다린다
-      if (e?.name === 'NotAllowedError') { blocked = true; setNext(startLabel, true); char.setAttribute('motion', 'greet'); }
+      if (e?.name === 'NotAllowedError') { blocked = true; setNext(startLabel, true); char.setAttribute('motion', 'greet'); return; }
+      // 음성 파일이 없으면(문장을 고친 뒤 아직 다시 만들지 않은 줄) 읽을 시간만큼 기다렸다가 다음 줄로 넘어간다
+      if (s.go || s.end) return;
+      await sleep(Math.max(2500, s.text.length * 90));
+      if (active && cur === i && !blocked) say(i + 1);
     }
   }
   audio.addEventListener('playing', () => {

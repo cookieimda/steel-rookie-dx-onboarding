@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>실제 화면 · ST-ROOKIE</title>
-  <!-- 새 학습 기록(learn.html)의 [사용하기] 창. 주소 뒤 #기능 id(steps·todo·report·incident·whatif·synapse·notes·patterns·card·exam)를 보고
+  <!-- 새 학습 기록(learn.html)의 [사용하기] 창. 주소 뒤 #기능 id(steps·blueprint·todo·report·whatif·synapse·notes·patterns·card·exam)를 보고
        실제 학습 기록(Trainee Dashboard.dc.html) 또는 평가 시험(/exam)을 안쪽에 띄워 그 탭을 눌러 둔다.
        기존 화면 파일은 고치지 않는다: 같은 서버(같은 출처)라 안쪽 문서에 '이 창 전용' 스타일만 넣고 버튼을 대신 누른다. -->
   <style>
@@ -40,8 +40,8 @@
     const ROUTES = {
       // todo: 하위 탭을 한 번 눌러야 실습 경로를 불러온다
       // tutor: 오른쪽 포석호 채팅을 함께 보인다(채팅은 2D 작동 단계와 이어져 있어 작동 단계에서만). ask: 채팅 입력창에 바로 커서를 둔다
-      steps: { tab: '작동 단계', tutor: true }, ask: { tab: '작동 단계', tutor: true, ask: true }, todo: { tab: '학습 랩', sub: '간격 반복', only: 'path' },
-      report: { tab: '학습 랩', sub: '보고서' }, incident: { tab: '학습 랩', sub: '사고 사례' },
+      steps: { tab: '작동 단계', tutor: true }, blueprint: { tab: '설계도·필기' }, ask: { tab: '작동 단계', tutor: true, ask: true }, todo: { tab: '학습 랩', sub: '간격 반복', only: 'path' },
+      report: { tab: '학습 랩', sub: '보고서' },
       whatif: { tab: '학습 랩', sub: 'What-if' }, synapse: { tab: '학습 랩', sub: 'What-if 시냅스' }, notes: { tab: '학습 랩', sub: '설비 메모' },
       patterns: { tab: '학습 랩', sub: '내 오답 유형' }, card: { tab: '사원증' }, exam: { page: 'exam' },
     };

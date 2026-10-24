@@ -170,3 +170,9 @@ npm start
 - 교육 내용은 **포스코 홈페이지와 포스코그룹 뉴스룸의 공개 공식 자료**와 공개 문헌만 사용했습니다. 사내 자료는 사용하지 않았습니다. 출처 목록: [backend/data/ironmaking-sources.json](backend/data/ironmaking-sources.json)
 - 인과 모델의 계수는 교육용 대략값이며, 실제 설비의 운전 조건이나 작업 절차가 아닙니다. 화면에도 이 점을 밝혔습니다.
 - 포스코의 공식 서비스가 아니며, 공개 자료로 만든 교육용 프로토타입입니다.
+
+## 저작권
+
+Copyright (c) 2026 cookieimda 및 ST-ROOKIE 팀. All rights reserved.
+
+이 저장소는 포트폴리오 열람용으로만 공개합니다. 허락 없이 코드·내용·자료를 사용, 복제, 수정, 배포할 수 없습니다. 자세한 내용은 [LICENSE](LICENSE)를 보세요.

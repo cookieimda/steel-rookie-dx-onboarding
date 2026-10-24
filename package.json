@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "포스코 공개 자료 기반 제선 공정 질문형 교육 MVP",
   "private": true,
+  "license": "UNLICENSED",
   "type": "module",
   "engines": {
     "node": ">=22.13"

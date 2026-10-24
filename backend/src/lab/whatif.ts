@@ -200,7 +200,91 @@ export const SYN_SOURCES = {
   babich: { title: "Babich & Senk (2015), Recent developments in blast furnace iron-making technology, 『Iron Ore』 17장(Elsevier)", url: "https://www.sciencedirect.com/topics/engineering/reduction-process" },
   carpenter: { title: "Carpenter (2006), Use of PCI in blast furnaces, IEA Clean Coal Centre CCC/116", url: "https://www.sustainable-carbon.org/wp-content/uploads/dlm_uploads/reports/Combustion/use-of-pci-in-blast-furnaces-ccc-116.pdf" },
   ipcc: { title: "IPCC (2006), 2006 IPCC Guidelines, 3권 2장 광물 산업 배출", url: "https://www.ipcc-nggip.iges.or.jp/public/2006gl/pdf/3_Volume3/V3_2_Ch2_Mineral_Industry.pdf" },
+  // 계산에 쓰는데 화면 출처 목록에는 없던 두 자료(2026-10-24 보완): 원료 성분·비율·슬래그·염기도·연료비 범위(BREF), 코크스·미분탄·송풍 온도(JFE)
+  bref: { title: "EU JRC (2013), Best Available Techniques (BAT) Reference Document for Iron and Steel Production", url: "https://bureau-industrial-transformation.jrc.ec.europa.eu/sites/default/files/2019-11/IS_Adopted_03_2012.pdf" },
+  jfe: { title: "JFE 21세기재단, 2D(2) BF Operation(고로 조업)", url: "https://www.jfe-21st-cf.or.jp/chapter_2/2d_2.html" },
 } as const;
+type SourceKey = keyof typeof SYN_SOURCES;
+
+/**
+ * 결과마다 근거 수준(2026-10-24): 화면에서 숫자를 얼마나 믿어도 되는지 같이 보여 준다.
+ * - balance: 성분 질량 수지(문헌 성분값으로 계산) · literature: 문헌 계수 · assumption: 방향만 보여 주는 가정
+ * range는 실제 고로의 보통 범위와 그 출처(경고 기준과 같은 값).
+ */
+export const OUTPUT_EVIDENCE: Record<string, { level: "balance" | "literature" | "assumption"; basis: string; range?: string; sources: SourceKey[] }> = {
+  ore_kg: { level: "balance", basis: "용선 1톤의 철 950kg ÷ 배합 원료의 평균 철 함량", sources: ["bref", "jfe"] },
+  slag_kg: { level: "balance", basis: "원료 맥석 + 연료 회분 + 석회석 CaO − 용선으로 간 규소", range: "보통 175~350kg/t", sources: ["bref"] },
+  basicity: { level: "balance", basis: "슬래그의 CaO ÷ SiO2(질량비)", range: "보통 1.0~1.2", sources: ["bref"] },
+  co2_kg: { level: "balance", basis: "연료 탄소 중 용선에 녹지 않은 탄소가 모두 CO2가 된다는 단순 상한 + 석회석 분해 CO2. 소결·코크스 공장·전력 배출은 넣지 않음", sources: ["ipcc", "babich"] },
+  fuel_rate_kg: { level: "balance", basis: "코크스 + 미분탄(입력 합)", range: "EU 고로 환원제 453~514kg/t", sources: ["bref", "jfe"] },
+  raft_c: { level: "literature", basis: "대표값 2,200℃ + 송풍 온도·산소 부화·미분탄 계수(문헌 범위의 가운데 값)", range: "보통 2,000~2,300℃", sources: ["babich", "carpenter"] },
+  hot_metal_temp_c: { level: "assumption", basis: "기준 1,500℃ 주변의 선형 근사. 계수는 방향만 보여 주는 가정", range: "출선 용선 약 1,440~1,500℃", sources: ["bref"] },
+};
+
+/**
+ * 학습 미션(2026-10-24): 현장에서 실제로 마주치는 상황에서 시작해 목표를 맞춘다. goals는 결과(result) 또는 조건(input) 값의 범위.
+ * solution은 테스트가 '풀 수 있는 미션인지' 확인하는 데만 쓴다(화면에 보이지 않음). 출발 조건은 목표를 하나 이상 못 맞춘다(테스트로 확인).
+ */
+export interface MissionGoal { on: "result" | "input"; key: string; label: string; min?: number; max?: number; unit: string }
+export const MISSIONS: { id: string; title: string; situation: string; start: Partial<WhatIfInput>; goals: MissionGoal[]; hint: string; learn: string; sources: SourceKey[]; solution: Partial<WhatIfInput> }[] = [
+  {
+    id: "pellet-basicity", title: "펠릿 위주 배합에서 염기도 되살리기",
+    situation: "소결광이 모자라 펠릿을 60%로 늘렸어요. 슬래그는 줄었지만 염기도가 0.7 아래로 떨어져 황이 잘 빠지지 않을 것 같아요.",
+    start: { sinter_pct: 30, pellet_pct: 60, lump_pct: 10 },
+    goals: [
+      { on: "result", key: "basicity", label: "염기도", min: 1.0, max: 1.2, unit: "" },
+      { on: "input", key: "pellet_pct", label: "펠릿 비율", min: 55, unit: "%" },
+    ],
+    hint: "펠릿은 CaO가 거의 없어요. CaO를 따로 넣는 원료(플럭스)를 찾아보세요.",
+    learn: "소결광은 석회석을 미리 섞어 구워 CaO를 품고 있어(EU 평균 염기도 약 1.8) 고로 슬래그의 염기도를 받쳐 줘요. 펠릿을 늘리면 그 CaO가 빠지므로 석회석으로 채워요. 대신 석회석이 분해되며 CO2가 늘어나요(1kg당 약 0.42kg).",
+    sources: ["bref", "ipcc"], solution: { sinter_pct: 30, pellet_pct: 60, lump_pct: 10, limestone_kg: 50 },
+  },
+  {
+    id: "pci-raft", title: "미분탄을 늘려도 풍구 앞 온도 지키기",
+    situation: "값비싼 코크스를 300kg/t로 줄이고 미분탄을 200kg/t로 늘렸어요. 풍구 앞 화염 온도가 내려가 노 아래쪽이 식을까 걱정돼요.",
+    start: { coke_kg: 300, pci_kg: 200 },
+    goals: [
+      { on: "result", key: "raft_c", label: "풍구 앞 화염 온도", min: 2150, max: 2300, unit: "℃" },
+      { on: "input", key: "pci_kg", label: "미분탄", min: 180, unit: "kg/t" },
+      { on: "input", key: "coke_kg", label: "코크스", max: 320, unit: "kg/t" },
+    ],
+    hint: "미분탄은 풍구 앞에서 분해되며 열을 먹어요. 바람을 더 뜨겁게 하거나 산소를 더 넣으면 어떻게 될까요?",
+    learn: "미분탄을 많이 넣는 고로는 송풍 온도를 올리거나 산소 부화를 늘려 화염 온도를 보상해요(송풍 +100℃ → 약 +70℃, 산소 +1%p → 약 +47℃). 너무 올리면 2,300℃를 넘어 가스가 잘 안 통할 수 있어요.",
+    sources: ["babich", "carpenter"], solution: { coke_kg: 300, pci_kg: 200, oxygen_pct: 7 },
+  },
+  {
+    id: "co2-fuel", title: "연료비를 지키면서 CO2 줄이기",
+    situation: "탄소 감축 목표가 내려왔어요. 용선 1톤당 CO2(이 모델의 단순 상한)를 1,320kg 아래로 낮춰 보세요. 단, 노가 식지 않게 연료는 450kg/t 아래로 내리면 안 돼요.",
+    start: {},
+    goals: [
+      { on: "result", key: "co2_kg", label: "CO2", max: 1320, unit: "kg/t" },
+      { on: "result", key: "fuel_rate_kg", label: "연료비", min: 450, unit: "kg/t" },
+      { on: "result", key: "warnings", label: "경고", max: 0, unit: "개" },
+    ],
+    hint: "이 모델의 CO2는 대부분 연료의 탄소에서 나와요. 어떤 연료를 얼마나 줄일 수 있을까요?",
+    learn: "고로 CO2는 거의 전부 환원제(코크스·미분탄)의 탄소에서 나와요. 그래서 연료비를 낮추는 것이 가장 직접적인 감축이지만, EU 고로도 453~514kg/t 범위에 있을 만큼 열과 환원에 필요한 최소량이 있어요. 그 아래로는 수소 환원 같은 다른 방법이 필요해요.",
+    sources: ["bref", "ipcc"], solution: { coke_kg: 360 },
+  },
+  {
+    id: "sinter-slag", title: "소결광만 쓸 때 슬래그 줄이기",
+    situation: "펠릿·괴광 입고가 늦어 소결광만 100% 쓰게 됐어요. 슬래그가 너무 많고 염기도도 높아 슬래그가 잘 흐르지 않아요.",
+    start: { sinter_pct: 100, pellet_pct: 0, lump_pct: 0 },
+    goals: [
+      { on: "result", key: "slag_kg", label: "슬래그", max: 260, unit: "kg/t" },
+      { on: "result", key: "basicity", label: "염기도", min: 1.0, max: 1.2, unit: "" },
+    ],
+    hint: "철 함량이 높고 맥석이 적은 원료를 조금 섞어 보세요.",
+    learn: "소결광은 철 함량이 약 58%로 펠릿(약 65%)보다 낮고 CaO를 품고 있어, 소결광만 쓰면 슬래그가 많고 염기도가 높아져요. 그래서 실제 고로는 소결광·펠릿·괴광을 섞어 슬래그량과 염기도를 함께 맞춰요(EU 평균 소결광 67 · 펠릿 22 · 괴광 11%).",
+    sources: ["bref", "jfe"], solution: { sinter_pct: 67, pellet_pct: 22, lump_pct: 11 },
+  },
+];
+/** 미션 목표를 지금 조건·결과로 판정한다(화면과 테스트가 같이 쓴다). */
+export function missionStatus(goals: MissionGoal[], input: WhatIfInput, result: WhatIfResult) {
+  return goals.map((g) => {
+    const v = g.on === "input" ? Number(input[g.key as keyof WhatIfInput]) : g.key === "warnings" ? result.warnings.length : Number(result[g.key as keyof WhatIfResult]);
+    return { key: g.key, value: v, ok: (g.min == null || v >= g.min - 1e-9) && (g.max == null || v <= g.max + 1e-9) };
+  });
+}
 
 /** 고로 안에서 실제로 일어나는 반응(식과 반응열은 문헌 그대로). */
 export const SYN_REACTIONS: { id: SynapseReactionId; name: string; eq: string; note: string; sources: (keyof typeof SYN_SOURCES)[] }[] = [
@@ -292,6 +376,8 @@ export function synapseOf(input: WhatIfInput) {
     nodes: SYN_NODES.map((n) => ({ ...n, value: rd(valueOf(now, r, input, n)), base: rd(valueOf(base, b, BASELINE, n)) })),
     edges: now.edges.map((x, i) => ({ ...x, value: rd(x.value), base: rd(base.edges[i].value) })),
     reactions: SYN_REACTIONS.map((x) => ({ ...x, sources: x.sources.map((k) => SYN_SOURCES[k]) })),
+    evidence: Object.fromEntries(Object.entries(OUTPUT_EVIDENCE).map(([k, v]) => [k, { ...v, sources: v.sources.map((s) => SYN_SOURCES[s]) }])),
+    missions: MISSIONS.map(({ solution: _solution, ...m }) => ({ ...m, sources: m.sources.map((k) => SYN_SOURCES[k]), status: missionStatus(m.goals, input, r) })),
   };
 }
 

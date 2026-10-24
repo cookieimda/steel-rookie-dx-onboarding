@@ -2,7 +2,7 @@
 // 문헌에서 가져온 값(석회석 CO2 0.44, 풍구 앞 화염 온도 계수, 용선 C 4.2~4.8%)이 계산에 그대로 들어갔는지.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { BASELINE, normalizeInput, simulate, synapseOf, whatIf } from "../src/lab/whatif.js";
+import { BASELINE, MISSIONS, OUTPUT_EVIDENCE, SYN_SOURCES, missionStatus, normalizeInput, simulate, synapseOf, whatIf } from "../src/lab/whatif.js";
 
 const near = (a: number, b: number, tol = 0.15) => assert.ok(Math.abs(a - b) <= tol, `${a} ≈ ${b}`);
 const inflow = (s: ReturnType<typeof synapseOf>, to: string) => s.edges.filter((e) => e.to === to).reduce((a, e) => a + e.value, 0);
@@ -65,4 +65,28 @@ test("시냅스: 반응마다 식·설명·근거 문헌(제목·주소)이 있�
   for (const e of synapse.edges) assert.ok(nodeIds.has(e.from) && nodeIds.has(e.to), `${e.from}→${e.to}`);
   assert.ok(synapse.edges.find((e) => e.from === "oxygen_pct" && e.to === "raceway")!.value > 0);
   assert.ok(!synapse.nodes.some((n) => n.id === "hot_metal_temp_c"), "문헌 계수가 없는 용선 온도는 시냅스에 없다");
+});
+
+test("학습 미션: 출발 조건에서는 목표를 하나 이상 못 맞추고, 준비한 풀이로는 모든 목표를 맞춘다(풀 수 있는 미션)", () => {
+  assert.ok(MISSIONS.length >= 4);
+  for (const m of MISSIONS) {
+    const start = normalizeInput(m.start), solved = normalizeInput({ ...m.start, ...m.solution });
+    assert.ok(missionStatus(m.goals, start, simulate(start)).some((g) => !g.ok), `${m.id}: 출발 조건이 이미 목표를 다 맞춤`);
+    const st = missionStatus(m.goals, solved, simulate(solved));
+    assert.ok(st.every((g) => g.ok), `${m.id}: 풀이로 못 맞춘 목표 ${JSON.stringify(st.filter((g) => !g.ok))}`);
+    for (const g of m.goals) assert.ok(g.min != null || g.max != null, `${m.id}.${g.key}: 범위 없음`);
+    assert.ok(m.sources.length > 0 && m.sources.every((k) => k in SYN_SOURCES), `${m.id}: 출처`);
+  }
+});
+
+test("근거 수준: 시냅스의 결과 노드는 모두 근거 수준·출처가 있고, 화면 응답에 미션 상태와 함께 실린다(풀이는 싣지 않음)", () => {
+  const s = synapseOf(normalizeInput({}));
+  for (const n of s.nodes.filter((x) => x.kind === "output")) {
+    const ev = OUTPUT_EVIDENCE[n.id]; assert.ok(ev, `${n.id}: 근거 수준 없음`);
+    assert.ok(["balance", "literature", "assumption"].includes(ev.level));
+    assert.ok(s.evidence[n.id].sources.every((x) => typeof x.url === "string" && x.url.startsWith("https://")));
+  }
+  assert.equal(s.missions.length, MISSIONS.length);
+  for (const m of s.missions) { assert.ok(!("solution" in m)); assert.equal(m.status.length, m.goals.length); }
+  assert.equal(OUTPUT_EVIDENCE.hot_metal_temp_c.level, "assumption"); // 용선 온도는 출처 없는 선형 근사라 '가정'으로 보여야 한다
 });

@@ -5,6 +5,8 @@
 // - 실선은 성분 질량 수지(kg), 점선은 풍구 앞 화염 온도의 문헌 계수(℃). 끝이 막대(⊣)인 선은 억제(늘면 결과가 줄어듦: SiO2 → 염기도, 미분탄 → 화염 온도).
 // - 아래 '반응' 버튼을 누르면 그 반응이 일어나는 선만 밝히고, 풀이에 반응식·설명·출처를 보여 준다.
 // - 노드를 누르면 그 노드로 들어오고 나가는 선을 풀이(아래 '풀이')하고, 이어진 경로만 밝힌다. 조건을 바꿀 때마다 '변화 기록'에 한 줄씩 남는다.
+// - 학습 미션(2026-10-24): 현장 상황에서 시작해 목표(염기도·화염 온도·CO2·슬래그)를 맞춘다. 목표는 바꿀 때마다 ✓/✗로 바로 보이고, 다 맞추면 배울 점과 출처를 보여 준다.
+// - 결과 노드를 누르면 근거 수준(질량 수지 · 문헌 계수 · 가정)과 보통 범위·출처가 같이 보인다(응답의 synapse.evidence).
 // 그래프 판은 테마와 상관없이 어두운 바탕(참고: Graphify 화면)이고, 나머지 글자·판은 페이지 토큰(--text, --panel …)을 따른다.
 
 const TOKEN_KEY = 'st-rookie-token';
@@ -42,6 +44,10 @@ const fmt = (x, unit) => {
 const changed = (v, b) => Math.abs(v - b) > Math.max(0.05, Math.abs(b) * 0.002);
 const arrow = (v, b, unit) => (changed(v, b) ? `${v > b ? '▲' : '▼'} ${fmt(Math.abs(v - b), unit)}` : '기준과 같음');
 const esc = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+// 달성한 미션(이 브라우저에만, 실패해도 화면은 그대로)
+const MISSION_KEY = 'st-rookie:whatif-missions';
+const doneMissions = () => { try { return new Set(JSON.parse(localStorage.getItem(MISSION_KEY) || '[]')); } catch (e) { return new Set(); } };
+const markMissionDone = (id) => { try { const s = doneMissions(); s.add(id); localStorage.setItem(MISSION_KEY, JSON.stringify([...s])); } catch (e) { /* 저장 못 해도 괜찮다 */ } };
 
 const CSS = `
 :host { display: block; color: var(--text, #1d1714); font: inherit; }
@@ -87,12 +93,33 @@ svg text { font-family: var(--font-ko, sans-serif); paint-order: stroke; stroke:
 .warn { color: var(--bad, #c53030); font-size: 14px; margin-top: 6px; }
 .err { color: var(--bad, #c53030); font-size: 14px; }
 @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+.ms { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: center; }
+.ms button.done::after { content: " ✓"; color: var(--good, #2f855a); font-weight: 800; }
+.ms button[aria-pressed="true"] { background: var(--text); color: var(--bg, #fff); }
+.mission { margin-top: 10px; padding: 14px 16px; border-radius: 14px; background: var(--panel, rgba(255,255,255,.5)); display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 8px 18px; }
+.mission[hidden] { display: none; }
+.mission h4 { margin: 0; font-size: 16px; grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.mission .sit { margin: 0; font-size: 14px; line-height: 1.55; color: var(--muted); }
+.mission ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.mission li { display: flex; gap: 8px; align-items: baseline; }
+.mission li b { font-family: var(--mono, monospace); }
+.mission li .ok { color: var(--good, #2f855a); font-weight: 800; } .mission li .no { color: var(--bad, #c53030); font-weight: 800; }
+.mission .acts { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.mission .hint, .mission .learn { grid-column: 1 / -1; margin: 0; font-size: 14px; line-height: 1.55; }
+.mission .learn { padding: 10px 12px; border-radius: 10px; background: var(--panel2, rgba(0,0,0,.06)); }
+.mission .learn b { color: var(--good, #2f855a); }
+.mission a { color: inherit; }
+.ev { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 12px; font-weight: 700; vertical-align: 1px; }
+.ev-balance { background: rgba(47,133,90,.16); color: var(--good, #2f855a); }
+.ev-literature { background: rgba(47,111,214,.16); color: #2f6fd6; }
+.ev-assumption { background: rgba(197,48,48,.14); color: var(--bad, #c53030); }
+@media (max-width: 900px) { .mission { grid-template-columns: 1fr; } }
 `;
 
 class WhatIfSynapse extends HTMLElement {
   constructor() {
     super();
-    this.input = {}; this.data = null; this.prev = null; this.sel = null; this.rx = null; this.log = []; this.fireAt = 0; this.timer = 0; this.raf = 0;
+    this.input = {}; this.data = null; this.prev = null; this.sel = null; this.rx = null; this.log = []; this.mission = null; this.hint = false; this.fireAt = 0; this.timer = 0; this.raf = 0;
     const root = this.attachShadow({ mode: 'open' });
     root.innerHTML = `<style>${CSS}</style>
       <div class="top"><b>What-if 시냅스</b>
@@ -100,11 +127,14 @@ class WhatIfSynapse extends HTMLElement {
         <span class="lg"><i class="dot" style="background:${COLOR.air}"></i>바람</span><span class="lg"><i class="dot" style="background:${COLOR.flux}"></i>플럭스</span>
         <span class="lg"><i class="dot" style="background:${COLOR.sio2}"></i>성분</span><span class="lg"><i class="dot" style="background:#9aa3ad;outline:2px solid #e9eef5"></i>결과</span>
         <span class="lg"><i class="ln" style="border-color:${UP}"></i>늘어남</span><span class="lg"><i class="ln" style="border-color:${DOWN}"></i>줄어듦</span>
-        <span class="lg"><i class="ln dash" style="border-color:#9aa3ad"></i>화염 온도 계수(℃, 문헌)</span><span class="lg">⊣ 억제</span></div>
+        <span class="lg"><i class="ln dash" style="border-color:#9aa3ad"></i>화염 온도 계수(℃, 문헌)</span><span class="lg">⊣ 억제</span>
+        <span class="lg">근거: <i class="ev ev-balance">질량 수지</i><i class="ev ev-literature">문헌 계수</i><i class="ev ev-assumption">가정</i></span></div>
       <div class="stage"><div class="hd">synapse · 제선 고로</div><div class="cols">${['조건', '성분', '결과'].map((t, i) => `<span style="left:${(X[i] / W) * 100}%">${t}</span>`).join('')}</div>
         <svg id="g" viewBox="0 0 ${W} ${H}" role="img" aria-label="조건이 성분을 거쳐 결과로 이어지는 그래프"></svg></div>
       <div class="chips" id="pre"><span class="note" style="margin:0;align-self:center;">해 보기</span></div>
       <div class="chips" id="rx" style="margin-top:6px"><span class="note" style="margin:0;align-self:center;">고로 반응</span></div>
+      <div class="ms" id="ms"><span class="note" style="margin:0">학습 미션</span></div>
+      <section class="mission" id="mission" hidden aria-live="polite"></section>
       <div class="grid">
         <div class="box"><h4>조건</h4><div id="sl"></div>
           <button id="reset" type="button">기준 조건으로</button>
@@ -172,6 +202,7 @@ class WhatIfSynapse extends HTMLElement {
     }));
     this.$('share').textContent = `철 원료 비율은 합이 100%가 되게 맞춰 계산해요(지금 소결 ${Math.round(input.sinter_pct)} · 펠릿 ${Math.round(input.pellet_pct)} · 괴광 ${Math.round(input.lump_pct)}).`;
     this.drawRx();
+    this.drawMissions();
     this.drawGraph();
     this.explain();
     this.$('log').innerHTML = this.log.map((l) => `<div><span class="t">${l.t}</span>${esc(l.text)}</div>`).join('');
@@ -314,6 +345,41 @@ class WhatIfSynapse extends HTMLElement {
     return { nodes, edges: es };
   }
 
+  // 결과의 근거 수준: 질량 수지(문헌 성분으로 계산) · 문헌 계수 · 가정(방향만). 보통 범위와 출처도 같이
+  evidenceHtml(id) {
+    const ev = this.data.synapse.evidence?.[id]; if (!ev) return '';
+    const name = { balance: '질량 수지', literature: '문헌 계수', assumption: '가정(방향만)' }[ev.level];
+    return `<div class="ex-d"><span class="ev ev-${ev.level}">${name}</span> ${esc(ev.basis)}${ev.range ? ` · 실제 ${esc(ev.range)}` : ''}<br>출처: ${ev.sources.map((x) => `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>`).join(' · ')}</div>`;
+  }
+
+  // 학습 미션: 칩을 누르면 출발 조건으로 바꾸고, 목표를 바꿀 때마다 ✓/✗로 보여 준다. 다 맞추면 배울 점·출처(이 브라우저에 달성 표시)
+  drawMissions() {
+    const list = this.data.synapse.missions || [], box = this.$('ms'), done = doneMissions();
+    box.querySelectorAll('button').forEach((b) => b.remove());
+    for (const m of list) {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = m.title; b.setAttribute('aria-pressed', String(this.mission === m.id));
+      if (done.has(m.id)) b.classList.add('done');
+      b.addEventListener('click', () => { if (this.mission === m.id) { this.mission = null; this.render(); return; } this.mission = m.id; this.hint = false; this.apply(m.start, `미션 시작: ${m.title}`); });
+      box.append(b);
+    }
+    const sec = this.$('mission'), m = list.find((x) => x.id === this.mission);
+    if (!m) { sec.hidden = true; sec.innerHTML = ''; return; }
+    const all = m.status.every((g) => g.ok);
+    if (all) markMissionDone(m.id);
+    const unit = (g, v) => (g.unit === '개' ? `${v}개` : fmt(v, g.unit));
+    const goal = (g) => [g.min != null ? `${unit(g, g.min)} 이상` : '', g.max != null ? `${unit(g, g.max)} 이하` : ''].filter(Boolean).join(' · ');
+    sec.hidden = false;
+    sec.innerHTML = `<h4>🎯 ${esc(m.title)} ${all ? '<span class="ev ev-balance">달성</span>' : ''}</h4>
+      <p class="sit">${esc(m.situation)}</p>
+      <ul>${m.goals.map((g, i) => { const st = m.status[i]; return `<li><span class="${st.ok ? 'ok' : 'no'}">${st.ok ? '✓' : '✗'}</span><span>${esc(g.label)} ${goal(g)}</span><b>지금 ${unit(g, st.value)}</b></li>`; }).join('')}</ul>
+      ${all ? `<p class="learn"><b>왜 그럴까요?</b> ${esc(m.learn)}<br><small>출처: ${m.sources.map((x) => `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>`).join(' · ')}</small></p>`
+        : this.hint ? `<p class="hint">💡 ${esc(m.hint)}</p>` : ''}
+      <div class="acts">${all || this.hint ? '' : '<button type="button" data-hint>힌트 보기</button>'}<button type="button" data-restart>처음 조건으로</button><button type="button" data-close>미션 닫기</button></div>`;
+    sec.querySelector('[data-hint]')?.addEventListener('click', () => { this.hint = true; this.drawMissions(); });
+    sec.querySelector('[data-restart]').addEventListener('click', () => { this.hint = false; this.apply(m.start, `미션 다시: ${m.title}`); });
+    sec.querySelector('[data-close]').addEventListener('click', () => { this.mission = null; this.render(); });
+  }
+
   explain() {
     const ex = this.$('ex');
     if (!this.data) return;
@@ -334,7 +400,7 @@ class WhatIfSynapse extends HTMLElement {
     const line = (e, other, dirSym) => `<div class="row"><span>${dirSym} ${esc(byId[other].label)}</span><b>${fmt(e.value, e.unit)}</b><span class="tag">기준 ${fmt(e.base, e.unit)}</span><span class="${cls(e.value, e.base)}">${arrow(e.value, e.base, e.unit)}</span><span class="tag">[${e.unit === 'kg' ? '질량 수지' : '문헌 계수'}${e.sign < 0 ? ' · 억제' : ''}] ${esc(e.why)}</span></div>`;
     const ins = edges.filter((e) => e.to === n.id), outs = edges.filter((e) => e.from === n.id);
     ex.innerHTML = `<div class="ex-t">${esc(n.label)} <span class="tag">${KIND_LABEL[n.kind]}</span> · ${fmt(n.value, n.unit)} <span class="${cls(n.value, n.base)}">${arrow(n.value, n.base, n.unit)}</span></div>
-      <div class="ex-d">${esc(n.desc)}</div>
+      <div class="ex-d">${esc(n.desc)}</div>${this.evidenceHtml(n.id)}
       ${ins.map((e) => line(e, e.from, '←')).join('')}${outs.map((e) => line(e, e.to, '→')).join('')}`;
   }
 }

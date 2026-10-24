@@ -28,7 +28,7 @@
 //   2D에서 드래그하면 위에서 본 채로 평면 회전만 하고, 위아래로 끌거나 V 키를 누르면 3D로 바뀐다(markView로 위 토글도 같이).
 
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/+esm';
-import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js/+esm';
+import { createGLTFLoader } from './gltf-loader.js'; // Draco 압축 GLB
 import { RoomEnvironment } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/environments/RoomEnvironment.js/+esm';
 import { EffectComposer } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/EffectComposer.js/+esm';
 import { RenderPass } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/RenderPass.js/+esm';
@@ -38,7 +38,7 @@ import { PROCESSES } from './data_v2.js';
 import { icon } from './steel-index-ui.js';
 import { makeStockpile, makeSlabYard, makeSlabStack, makeCoilYard } from './plant-props.js';
 import { mergeGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/utils/BufferGeometryUtils.js/+esm';
-import { tuneRenderer, tuneShadowLight, tuneBloom, autoQuality } from './perf-mode.js'; // 발표 모드·자동 화질
+import { tuneRenderer, tuneShadowLight, tuneBloom, autoQuality, frameGate } from './perf-mode.js'; // 발표 모드·자동 화질·프레임 상한
 import { createIntroTour } from './intro-tour.js'; // [▶ 재생]: 단면·단계 재생
 
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -158,7 +158,7 @@ function buildAmbientLights() {
 }
 
 // ---- 공정 구역(받침 없이 땅에서 솟는 모델) --------------------------------------------------------------------------
-const loader = new GLTFLoader();
+const loader = createGLTFLoader();
 const above = (y) => [new THREE.Plane(new THREE.Vector3(0, 1, 0), -y)]; // y 이상만 그린다
 function glowTex() { const c = document.createElement('canvas'); c.width = 256; c.height = 192; const x = c.getContext('2d'); x.shadowColor = '#fff'; x.shadowBlur = 24; x.strokeStyle = 'rgba(255,255,255,.95)'; x.lineWidth = 4; x.beginPath(); x.roundRect(28, 28, 200, 136, 14); x.stroke(); x.stroke(); return new THREE.CanvasTexture(c); }
 const GLOW = glowTex();
@@ -635,8 +635,10 @@ function placeHud(now) {
   procs.forEach((p) => { if (!chipVisible(p, now)) { p.chip.classList.remove('on'); return; } V.set(p.foot.cx, p.modelTop + 3, p.foot.cz).project(camera); const vis = V.z < 1; p.chip.classList.toggle('on', vis); if (vis) p.chip.style.transform = `translate(${Math.min(w - 140, Math.max(140, (V.x + 1) / 2 * w)).toFixed(1)}px, ${Math.max(150, (1 - V.y) / 2 * h).toFixed(1)}px) translate(-50%, -100%)`; p.chip.style.zIndex = p.i === cur ? '3' : '1'; });
   links.forEach((l) => { const vis = l.on && (now < l.showUntil || l.a.hoverZone || l.b.hoverZone); l.label.classList.toggle('on', vis); if (!vis) return; V.copy(l.mid).setY(2).project(camera); l.label.style.transform = `translate(${((V.x + 1) / 2 * w).toFixed(1)}px, ${((1 - V.y) / 2 * h).toFixed(1)}px) translate(-50%, -50%)`; });
 }
+const gate = frameGate();
 function frame(now) {
   requestAnimationFrame(frame);
+  if (!gate(now, tour || !!anim || !!drag || (playing && !finished))) return; // 공정이 차례로 올라오는 동안은 60fps, 다 올라온 뒤 천천히 도는 대기 화면은 30fps
   procs.forEach((p) => { rise(p, now); growSurroundings(p, now); });
   const busy = tour; // [재생] 중에는 장식(트럭·열차·불빛 깜빡임)을 멈춘다(계산·업로드를 쉰다)
   if (!busy) trafficTick(now);

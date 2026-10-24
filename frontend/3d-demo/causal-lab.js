@@ -6,7 +6,7 @@
 //   설비 위치는 GLB의 EQ_<설비 id> 노드 경계 상자로 잡는다(scene_v3.js와 같은 방식).
 
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/+esm';
-import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js/+esm';
+import { createGLTFLoader } from './gltf-loader.js'; // Draco 압축 GLB
 import { RoomEnvironment } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/environments/RoomEnvironment.js/+esm';
 import { mergeGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/utils/BufferGeometryUtils.js/+esm';
 import { PROCESSES } from './data_v2.js';
@@ -80,7 +80,7 @@ function inside(poly, x, z) { let r = false; for (let i = 0, j = poly.length - 1
 const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
 
 // ---- 공정 구역(처음부터 서 있음) + 설비 위치(EQ_ 노드) ------------------------------------------------------------------
-const loader = new GLTFLoader();
+const loader = createGLTFLoader();
 const above = (y) => [new THREE.Plane(new THREE.Vector3(0, 1, 0), -y)];
 function tune(m) {
   m = m.clone(); const nm = m.name || ''; m.envMapIntensity = 0.9;

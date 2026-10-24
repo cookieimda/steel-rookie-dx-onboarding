@@ -1,5 +1,6 @@
 // Express 앱 구성. 실행(포트·DB·LLM 연결)은 ironmaking-server.ts가 한다.
 // 프론트(frontend/3d-demo)도 이 서버가 같은 출처로 서빙하고, 프론트는 API를 상대 경로(/api/...)로 부른다.
+import compression from "compression";
 import express from "express";
 import { join } from "node:path";
 import { OllamaClient } from "../../llm/src/ollama.js";
@@ -24,6 +25,8 @@ export interface AppDeps {
 export function createApp({ engine, usage, webRoot = join(process.cwd(), "frontend", "3d-demo"), learning, traceSink }: AppDeps): express.Express {
   const app = express();
   app.disable("x-powered-by");
+  // 화면 파일(HTML·JS·3D 모델)은 gzip으로 줄여 보낸다. /api는 빼다: 학습 모드 답변 스트리밍(NDJSON)을 압축하면 버퍼에 쌓여 한꺼번에 도착한다.
+  app.use(compression({ filter: (req, res) => !req.path.startsWith("/api/") && compression.filter(req, res) }));
   // 요청 본문은 16kb까지. 마이페이지 펜 필기 저장(PUT /api/me/sketches)만 획이 많아 자기 라우트에서 400kb로 따로 읽는다(me/routes.ts).
   const json16 = express.json({ limit: "16kb" });
   const materialJson = express.json({ limit: "128kb" });

@@ -225,49 +225,17 @@
     .lb-ev { display: flex; flex-direction: column; gap: 2px; max-height: 220px; overflow-y: auto; }
     .lb-ev button { display: grid; grid-template-columns: 52px 1fr; gap: 8px; padding: 5px 8px; border: 0; border-radius: var(--cut-s); background: transparent; color: var(--dim); font-size: 15px; text-align: left; cursor: pointer; }
     .lb-ev button.past { color: var(--muted); } .lb-ev button.now { color: var(--text); background: color-mix(in srgb, var(--orange) 16%, transparent); font-weight: 700; }
-    /* 두 칸 배치(왼쪽 목록 + 오른쪽 본문)·고르기·입력: 사고 사례 등 추가 기능이 쓴다 */
+    /* 두 칸 배치(왼쪽 목록 + 오른쪽 본문)·고르기·입력: 학습 랩 추가 기능이 쓴다 */
     .lb-soc { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 14px; }
     .lb-select { height: 38px; padding: 0 10px; border-radius: var(--cut-s); border: 1px solid var(--line); background: var(--panel2); color: var(--text); font-size: 15px; width: 100%; }
     .lb-input { display: flex; gap: 8px; }
     .lb-input input { flex: 1; min-width: 0; height: 40px; padding: 0 12px; border-radius: var(--cut-s); border: 1px solid var(--line); background: var(--panel2); color: var(--text); font-size: 15px; }
     @media (max-width: 900px) { .lb-rp, .lb-soc { grid-template-columns: 1fr; } .lb-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (prefers-reduced-motion: reduce) { .lb-flash, .lb-back { animation: none !important; } }
-    /* ── 학습 랩 추가(2026-10-15): 사고 사례 · What-if · 설비 메모 · 내 오답 유형 · 알림 벨(lab-extras.js) ── */
+    /* ── 학습 랩 추가(2026-10-15): What-if · 설비 메모 · 내 오답 유형 · 알림 벨(lab-extras.js) ── */
     .lb-area { width: 100%; padding: 10px 12px; border-radius: var(--cut-s); border: 1px solid var(--line); background: var(--panel2); color: var(--text); font-size: 15px; font-family: inherit; resize: vertical; }
     /* 사고 진행 한 덩어리: 왼쪽 사례 목록 카드처럼 얇은 테두리·둥근 모서리, 머리 띠와 기록 사이에 선 */
-    .ic-run { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--cut-s); }
-    .ic-run > x-import, .ic-run > incident-board { padding-bottom: 12px; border-bottom: 1px solid var(--line); }
-    .ic-hint { font-size: 15px; }
-    .ic-src { align-self: flex-start; font-size: 15px; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
-    .ic-src:hover { color: var(--text); }
-    .ic-eq { font-style: normal; font-weight: 700; font-size: 15px; color: var(--muted); margin-right: 8px; white-space: nowrap; }
-    .ic-time li.now .ic-eq { color: var(--orange-text); }
-    .ic-time { list-style: none; margin: 0; padding: 0 0 0 14px; border-left: 3px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
-    .ic-time li { position: relative; display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; gap: 10px; align-items: start; font-size: 15px; line-height: 1.55; animation: lb-in .35s ease; }
-    .ic-time li::before { content: ""; position: absolute; left: -22px; top: 6px; width: 12px; height: 12px; border-radius: 50%; background: var(--line); }
-    .ic-time li.now::before { background: var(--bad); box-shadow: 0 0 0 4px color-mix(in srgb, var(--bad) 25%, transparent); }
-    .ic-time li b { font-family: var(--mono); color: var(--muted); white-space: nowrap; }
-    .ic-time .lb-btn { height: 32px; padding: 0 10px; }
     /* 갈림길: 장면 아래 줄 전체. 고른 선택이 안전하면 초록, 실제로 일어난 일이면 빨강 */
-    .ic-br { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: var(--cut-s); background: var(--panel2); }
-    .ic-br-q { font-weight: 700; font-size: 15px; }
-    .ic-br-opts { display: flex; flex-wrap: wrap; gap: 6px; }
-    .ic-br-opts button { padding: 7px 12px; border-radius: var(--cut-s); border: 1px solid var(--line); background: transparent; color: var(--text); font-size: 15px; cursor: pointer; text-align: left; }
-    .ic-br-opts button.safe { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
-    .ic-br-opts button.actual { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 10%, transparent); }
-    .ic-br-out { font-size: 15px; line-height: 1.55; padding: 8px 10px; border-radius: var(--cut-s); animation: lb-in .3s ease; }
-    .ic-br-out.safe { color: var(--ok); background: color-mix(in srgb, var(--ok) 10%, transparent); }
-    .ic-br-out.actual { color: var(--bad); background: color-mix(in srgb, var(--bad) 8%, transparent); }
-    .ic-br-3d { align-self: flex-start; font-size: 15px; font-weight: 700; color: var(--orange); text-decoration: none; }
-    .ic-br-3d:hover, .ic-br-3d:focus-visible { text-decoration: underline; }
-    .ic-q { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: var(--cut-s); background: var(--panel2); font-size: 15px; }
-    .ic-q.ok { box-shadow: inset 3px 0 0 var(--ok); } .ic-q.bad { box-shadow: inset 3px 0 0 var(--bad); }
-    .ic-opts { display: flex; flex-direction: column; gap: 6px; }
-    .ic-opts button { text-align: left; padding: 9px 12px; border-radius: var(--cut-s); border: 1px solid var(--line); background: transparent; color: var(--text); font-size: 15px; cursor: pointer; }
-    .ic-opts button[aria-pressed="true"] { border-color: var(--orange); background: color-mix(in srgb, var(--orange) 12%, transparent); }
-    .ic-opts button.right { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
-    .ic-opts button.wrong { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 12%, transparent); }
-    .ic-explain { color: var(--muted); line-height: 1.55; }
     .wi { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 14px; }
     .wi-s { display: grid; grid-template-columns: 96px minmax(0, 1fr) 76px; gap: 8px; align-items: center; font-size: 15px; }
     .wi-s input { accent-color: var(--orange); width: 100%; }
@@ -300,7 +268,7 @@
     .nt-item small { color: var(--muted); font-size: 15px; }
     .nt-prefs { display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: var(--cut-s); background: var(--panel2); font-size: 15px; }
     .nt-prefs label { display: flex; align-items: center; gap: 8px; }
-    @media (max-width: 900px) { .wi { grid-template-columns: 1fr; } .wi-out { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ic-time li { grid-template-columns: 48px minmax(0, 1fr); } .ic-time .lb-btn { grid-column: 2; justify-self: start; } }
+    @media (max-width: 900px) { .wi { grid-template-columns: 1fr; } .wi-out { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     /* 좁은 화면: 고정 헤더를 화면 폭에 붙이고 버튼을 줄인다 */
     @media (max-width: 600px) {
       .dashboard-header { top: 0 !important; width: 100% !important; margin-top: 0 !important; padding: 8px 12px !important; gap: 6px !important; }
@@ -561,45 +529,6 @@
           </div>
         </div>
 
-        <!-- ⑥ 사고 사례: 교육용 가상 사례를 한 단계씩 보고 원인 분석 문제를 푼다(lab-extras.js) -->
-        <div class="lb-pane" style="display:{{ labShowIncident }};">
-          <span class="lb-muted">⚠ {{ icDisclaimer }}</span>
-          <div class="lb-soc">
-            <div class="lb-list"><sc-for list="{{ icList }}" as="x" hint-placeholder-count="4"><button type="button" aria-pressed="{{ x.on }}" onClick="{{ x.onClick }}">{{ x.title }}<span>{{ x.section }} · {{ x.hazard }}</span><span>{{ x.best }}</span></button></sc-for></div>
-            <div class="lb-box" style="min-width:0;">
-              <sc-if value="{{ icNone }}" hint-placeholder-val="{{ true }}"><span class="lb-muted">왼쪽에서 사례를 고르면 사고가 일어난 과정을 한 단계씩 보여 줘요.</span></sc-if>
-              <sc-if value="{{ icHas }}" hint-placeholder-val="{{ false }}">
-                <div class="lb-row" style="justify-content:space-between;"><strong style="font-size:18px;">{{ icTitle }}</strong><span class="lb-chip">위험 · {{ icHazard }}</span></div>
-                <span>{{ icSummary }}</span>
-                <sc-if value="{{ icHasSource }}" hint-placeholder-val="{{ false }}"><a class="ic-src" href="{{ icSourceUrl }}" target="_blank" rel="noopener">📄 출처 · {{ icSource }}</a></sc-if>
-                <!-- 사고 진행: 머리 띠(incident-board.js: 장면 시각·장면 사슬·상태·현황 칩) 아래에 타임라인을 기록처럼 이어 붙여 한 덩어리로 -->
-                <div class="ic-run">
-                <x-import component-from-global-scope="incident-board" board="{{ icBoard }}" hint-size="100%,120" style="display:block;width:100%;min-width:0;"></x-import>
-                <span class="lb-muted ic-hint">장면마다 "다르게 했다면?"을 눌러 결과를 비교해 보세요</span>
-                <ol class="ic-time"><sc-for list="{{ icSteps }}" as="t" hint-placeholder-count="2"><li class="{{ t.cls }}"><b>{{ t.time }}</b><span><em class="ic-eq">{{ t.eq }}</em>{{ t.text }}</span><button type="button" class="lb-btn ghost" onClick="{{ t.onShow }}">설비 보기</button>
-                  <sc-if value="{{ t.hasBranch }}" hint-placeholder-val="{{ false }}"><div class="ic-br"><span class="ic-br-q">🔀 {{ t.brPrompt }}</span>
-                    <div class="ic-br-opts"><sc-for list="{{ t.brOpts }}" as="o" hint-placeholder-count="2"><button type="button" class="{{ o.cls }}" aria-pressed="{{ o.on }}" onClick="{{ o.onClick }}">{{ o.text }}</button></sc-for></div>
-                    <sc-if value="{{ t.brHasOutcome }}" hint-placeholder-val="{{ false }}"><span class="ic-br-out {{ t.brOutCls }}" role="status">{{ t.brOutcome }}</span><a class="ic-br-3d" href="{{ t.brHref }}">🏭 3D 공장에서 이 갈림길 보기</a></sc-if></div></sc-if></li></sc-for></ol>
-                </div>
-                <sc-if value="{{ icMoreSteps }}" hint-placeholder-val="{{ true }}"><div class="lb-row"><button type="button" class="lb-btn" onClick="{{ icNext }}">다음 장면 ▶</button><button type="button" class="lb-btn ghost" onClick="{{ icAllSteps }}">끝까지 보기</button></div></sc-if>
-                <sc-if value="{{ icShowQs }}" hint-placeholder-val="{{ false }}">
-                  <strong>원인 분석</strong>
-                  <sc-for list="{{ icQs }}" as="q" hint-placeholder-count="2">
-                    <div class="ic-q {{ q.cls }}"><span><b>Q{{ q.n }}.</b> {{ q.prompt }}</span>
-                      <div class="ic-opts"><sc-for list="{{ q.options }}" as="o" hint-placeholder-count="4"><button type="button" class="{{ o.cls }}" aria-pressed="{{ o.on }}" onClick="{{ o.onClick }}">{{ o.text }}</button></sc-for></div>
-                      <sc-if value="{{ q.hasExplain }}" hint-placeholder-val="{{ false }}"><span class="ic-explain">{{ q.explain }}</span></sc-if>
-                    </div>
-                  </sc-for>
-                  <label class="lb-muted" for="icRefl">{{ icReflection }}</label>
-                  <textarea id="icRefl" class="lb-area" rows="3" value="{{ icRefl }}" onChange="{{ icOnRefl }}" placeholder="채점하지 않아요. 내 생각을 정리해 보세요."></textarea>
-                  <div class="lb-row"><button type="button" class="lb-btn" onClick="{{ icSubmit }}" disabled="{{ icCantSubmit }}">채점하기</button>
-                    <sc-if value="{{ icHasScore }}" hint-placeholder-val="{{ false }}"><strong>{{ icScore }}</strong><button type="button" class="lb-btn ghost" onClick="{{ icRetry }}">다시 풀기</button></sc-if></div>
-                </sc-if>
-              </sc-if>
-            </div>
-          </div>
-        </div>
-
         <!-- ⑦ What-if: 고로 조건을 바꾸면 결과가 어떻게 달라지는지(교육용 간이 모델) -->
         <div class="lb-pane" style="display:{{ labShowWhatif }};">
           <span class="lb-muted">고로에 넣는 원료·연료·바람을 바꿔 보세요. 실제 조업 계산이 아니라 경향을 보는 교육용 간이 모델이에요(아래 가정 참고).</span>
@@ -769,7 +698,7 @@ const token = () => { try { return localStorage.getItem('st-rookie-token') || se
 const DRAW_MODES = { top: ['탑뷰', '위에서 내려다본 실제 모습', '배치 탑뷰', 'T'], plan: ['평면도', '위에서 본 선 도면', '배치 평면도', 'P'], front: ['정면도', '앞에서 본 선 도면', '정면도', 'E'] };
 
 // 사원증 탭(값은 /api/me/dashboard의 employee_card). 배지 그림, XP 얻는 법, 바코드(사번으로 만든 장식).
-const BADGE_ICONS = { first_question: '💬', curious: '🔎', explorer: '🧭', streak_3: '🔥', streak_7: '📅', first_pass: '🎓', perfect: '💯', fixer: '🛠️', supplement: '📘', sketcher: '✏️', causal_detective: '🧩', field_ready: '🚨', what_if_explorer: '🔀', compensator: '🧰' };
+const BADGE_ICONS = { first_question: '💬', curious: '🔎', explorer: '🧭', streak_3: '🔥', streak_7: '📅', first_pass: '🎓', perfect: '💯', fixer: '🛠️', supplement: '📘', sketcher: '✏️', causal_detective: '🧩', field_ready: '🚨', compensator: '🧰' };
 const CARD_HOWTO = [['튜터 질문', 10], ['설계도 필기', 10], ['개념 맞힘', 20], ['오개념 해결', 15], ['보충학습 해결', 40], ['이해도 확인 통과', 100], ['인과 퀴즈 한 칸', 3], ['이상 상황 훈련', 20], ['갈림길 탐험', 5], ['되돌리기 퍼즐(부작용 없이)', 15]];
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 const CONFETTI_COLORS = ['#ff9e64', '#ffd166', '#6fcf97', '#4fb3ff', '#ff4fa3', '#b388ff'];
@@ -830,8 +759,6 @@ class Component extends DCLogic {
     if (!auth) { this.setState({ error: '로그인한 뒤 학습 현황을 볼 수 있습니다.' }); return; }
     // 학습 랩(learning-lab.js): 이 화면의 리플레이 기록을 시작한다(본인만 보고 [기록 끄기]로 멈춘다)
     import('./learning-lab.js').then(({ createLearningLab }) => { this.lab = createLearningLab(this); this.lab.track('start', { tab: this.state.moduleTab, process: this.state.processId }); this.lab.startBell(); this.forceUpdate(); });
-    // 학습 랩 사고 사례의 상황판 <incident-board>(x-import가 등록을 기다린다)
-    import('./incident-board.js').catch(e => console.warn('[incident-board] 불러오지 못함', e));
     fetch('/api/me/dashboard', { headers: { authorization: 'Bearer ' + auth } })
       .then(async response => { if (!response.ok) throw new Error('학습 현황을 DB에서 불러오지 못했습니다.'); return response.json(); })
       .then(data => { this.setState({ data, loadedAt: new Date() }); this.checkPromotion(data); }, error => this.setState({ error: error.message }));

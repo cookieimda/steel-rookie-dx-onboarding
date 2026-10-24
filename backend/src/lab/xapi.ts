@@ -75,7 +75,6 @@ export function statementFor(e: CardEvent, actor: Statement["actor"], names: Nam
     },
     socratic_reached: () => ({ verb: "mastered", object: equipment(e.object_id), result: { success: true, extensions: { [`${BASE}/xapi/ext/via`]: "소크라테스 모드" } } }),
     causal_correct: () => ({ verb: "answered", object: activity("causal-link", e.object_id ?? "link", "공정 인과 퀴즈", `${ACT}/interaction`), result: { success: true } }),
-    branch_explored: () => ({ verb: "experienced", object: activity("incident-branch", e.object_id ?? "branch", "사고 사례 갈림길 · 다르게 했다면", `${ACT}/simulation`) }),
     rebalance_clean: () => ({ verb: "completed", object: activity("rebalance", e.object_id ?? "puzzle", "되돌리기 퍼즐", `${ACT}/simulation`), result: { success: true, completion: true } }),
     fault_drill: () => ({ verb: "completed", object: activity("fault-drill", e.object_id ?? "drill", "이상 상황 훈련", `${ACT}/simulation`),
       result: { completion: true, ...(e.understanding == null ? {} : { score: { scaled: e.understanding } }) } }),
@@ -97,7 +96,7 @@ export function statementFor(e: CardEvent, actor: Statement["actor"], names: Nam
 export interface StoredStatementRow { id: string; verb: string; object_id: string; object_name: string; timestamp: string; stored: string }
 
 /** 3D 실습 살펴봄의 종류(화면이 보냄). 저장할 때 object_id는 practice:<종류>:<id>. */
-export const PRACTICE_KINDS = { "causal-tour": "인과 따라가기", "causal-map-link": "인과 지도 조건 링크", "incident-3d": "사고 사례 갈림길 3D", lesson: "수업" } as const;
+export const PRACTICE_KINDS = { "causal-tour": "인과 따라가기", "causal-map-link": "인과 지도 조건 링크", lesson: "수업" } as const;
 export type PracticeKind = keyof typeof PRACTICE_KINDS;
 
 /** 화면이 보낸 문장(설비 살펴봄, 3D 실습 살펴봄) → 문장. */

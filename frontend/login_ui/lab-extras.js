@@ -1,5 +1,4 @@
 // 학습 랩 추가 기능(012) + 알림 벨. learning-lab.js가 불러 같은 상태(c.state의 lab… 키)에 붙인다. 서버는 backend/src/lab/extras-routes.ts·notify/·ops/.
-// - 사고 사례: 교육용 가상 사례를 시간순으로 한 단계씩 보고(설비를 2D 모듈에서 바로 볼 수 있다) 원인 분석 문제를 푼다.
 // - What-if: 고로 원료 배합·연료·송풍 조건 슬라이더 → 슬래그량·염기도·CO2·용선 온도(교육용 간이 모델, 가정을 함께 보여 준다).
 // - 설비 메모: 설비에 남긴 질문·메모·팁을 다른 학습자와 공유(공감·답글·신고). 2D 모듈에서 고른 설비가 기본이다.
 // - 내 오답 유형: 내 오개념 설명을 비슷한 것끼리 묶어 보여 준다.
@@ -50,22 +49,10 @@ export function createLabExtras(c, { api, set, S, fail }) {
 
   // ── 불러오기 ──
   const loaders = {
-    incident: () => api('GET', '/api/lab/incidents').then(r => set({ labInc: r })),
     whatif: () => runWhatIf(S().labWiIn || {}),
     notes: () => { const eq = S().labNoteEq || c.state.selectedId || 'blast_furnace'; set({ labNoteEq: eq }); return Promise.all([loadNotes(eq), api('GET', '/api/lab/notes/summary').then(r => set({ labNoteCounts: r.counts }))]); },
     patterns: () => api('GET', '/api/me/misconception-patterns').then(r => set({ labPat: r.patterns })),
   };
-
-  // 사고 사례
-  const openIncident = id => api('GET', `/api/lab/incidents/${id}`).then(r => set({ labIncCur: r.scenario, labIncDisc: r.disclaimer, labIncStep: 1, labIncAns: {}, labIncRes: null, labIncRefl: '', labIncBr: {} }), fail);
-  const submitIncident = () => {
-    const cur = S().labIncCur;
-    if (!cur) return;
-    api('POST', `/api/lab/incidents/${cur.id}/submit`, { answers: S().labIncAns || {}, reflection: S().labIncRefl || '' })
-      .then(r => { set({ labIncRes: r }); loaders.incident(); }, fail);
-  };
-  // 2D 모듈에서 그 설비 보기(작동 단계 탭으로 옮긴다)
-  const showOn2d = (section, equipmentId) => { c.goProcess?.(section); c.setState({ moduleTab: 'steps' }); setTimeout(() => { c.module?.()?.select?.(equipmentId); }, 300); };
 
   // What-if(입력이 바뀌면 0.25초 뒤 계산)
   let wiTimer = 0;
@@ -105,51 +92,6 @@ export function createLabExtras(c, { api, set, S, fail }) {
       ntSetEmail: e => savePrefs({ email: e.target.checked }), ntSetEmailAddr: e => set({ ntPrefs: { ...(S().ntPrefs || prefs), email_address: e.target.value } }),
       ntSaveEmail: () => savePrefs({}), ntPrefErr: s.ntPrefErr || '', ntHasPrefErr: !!s.ntPrefErr,
       ntKinds: NOTIFY_KINDS.map(([k, label]) => ({ label, on: prefs.kinds?.[k] !== false, onChange: e => savePrefs({ kinds: { ...(S().ntPrefs?.kinds || {}), [k]: e.target.checked } }) })),
-    });
-
-    // 사고 사례
-    const list = s.labInc, cur = s.labIncCur, res = s.labIncRes, step = s.labIncStep || 1;
-    Object.assign(v, {
-      icList: (list?.scenarios || []).map(x => ({ title: x.title, hazard: x.hazard, section: SECTION_LABEL[x.section], best: x.best == null ? '아직 안 풀었어요' : `최고 ${Math.round(x.best * 100)}점 · ${x.attempts}번`, on: cur?.id === x.id, onClick: () => openIncident(x.id) })),
-      icDisclaimer: list?.disclaimer || '', icHas: !!cur, icNone: !cur,
-      icTitle: cur?.title || '', icHazard: cur?.hazard || '', icSummary: cur?.summary || '',
-      // 실제 공개 재해사례의 출처(사례집·사례 번호·쪽)
-      icHasSource: !!cur?.source, icSource: cur?.source ? `${cur.source.publisher} 「${cur.source.title}」 ${cur.source.case}${cur.source.page ? ` (${cur.source.page}쪽)` : ''}` : '', icSourceUrl: cur?.source?.url || '',
-      // 사고 상황판(incident-board.js): 지금 장면까지의 시계·역할 줄·관문 상태·현황. x-import가 속성을 문자열로 넘기므로 JSON으로 준다
-      icBoard: cur ? JSON.stringify({
-        id: cur.id, section: SECTION_LABEL[cur.section], hazard: cur.hazard, step,
-        roles: cur.roles || [], gates: cur.gates || [], reviewed: !!cur.gates_reviewed,
-        steps: cur.timeline.map((t, i) => {
-          const pick = (s.labIncBr || {})[i], opt = t.branch && pick != null ? t.branch.options[pick] : null;
-          const eq = (c.state.processes || []).flatMap(p => p.equipment).find(e => e.id === t.equipment_id);
-          return { time: t.time, text: t.text, equipment: eq?.name || t.equipment_id, actor: t.actor || '', branch: !!t.branch, pickIndex: pick ?? null, pick: opt ? (opt.actual ? 'actual' : 'safe') : null };
-        }),
-      }) : '',
-      icSteps: (cur?.timeline || []).slice(0, step).map((t, i, all) => {
-        // 갈림길: "여기서 다르게 했다면?" 고른 선택의 결과(안전한 결과는 초록, 실제로 일어난 일은 빨강)
-        const pick = (s.labIncBr || {})[i], opt = t.branch && pick != null ? t.branch.options[pick] : null;
-        // 줄 앞 이름표: 이 장면에서 움직인 역할(없으면 설비 이름)
-        const who = (cur.roles || []).find(r => r.id === t.actor)?.name || (c.state.processes || []).flatMap(p => p.equipment).find(e => e.id === t.equipment_id)?.name || t.equipment_id;
-        return { time: t.time, text: t.text, eq: who, cls: i === all.length - 1 ? 'now' : '', onShow: () => showOn2d(cur.section, t.equipment_id),
-          hasBranch: !!t.branch, brPrompt: t.branch?.prompt || '',
-          brOpts: (t.branch?.options || []).map((o, k) => ({ text: o.text, on: pick === k, cls: pick === k ? (o.actual ? 'actual' : 'safe') : '',
-            onClick: () => { c.setState(prev => ({ labIncBr: { ...(prev.labIncBr || {}), [i]: k } })); api('POST', `/api/lab/incidents/${cur.id}/branch`, { at: i, pick: k }).catch(() => {}); } })),
-          // 새 3D 화면(steel-index)의 사고 사례 재현: 갈림길 설비에 고른 선택의 결과를 표시(incident-replay.js).
-          brHref: opt ? `/3d-demo/steel-index.html?p=${cur.section}&lab=incident&scenario=${cur.id}&at=${i}&pick=${pick}` : '',
-          brHasOutcome: !!opt, brOutcome: opt ? `${opt.actual ? '그대로 가면 → ' : '다르게 했다면 → '}${opt.outcome}` : '', brOutCls: opt ? (opt.actual ? 'actual' : 'safe') : '' };
-      }),
-      icMoreSteps: !!cur && step < cur.timeline.length, icNext: () => set({ labIncStep: step + 1 }), icAllSteps: () => set({ labIncStep: cur.timeline.length }),
-      icShowQs: !!cur && step >= cur.timeline.length,
-      icQs: (cur?.questions || []).map((q, qi) => {
-        const r = res?.results?.find(x => x.id === q.id);
-        return { n: qi + 1, prompt: q.prompt, explain: r ? `${r.correct ? '맞아요' : `정답: ${r.answer_text}`} — ${r.explain}` : '', hasExplain: !!r, cls: r ? (r.correct ? 'ok' : 'bad') : '',
-          options: q.options.map(o => ({ text: o.text, on: (s.labIncAns || {})[q.id] === o.key, cls: r ? (o.key === r.answer ? 'right' : (s.labIncAns || {})[q.id] === o.key ? 'wrong' : '') : '',
-            onClick: () => { if (!S().labIncRes) c.setState(prev => ({ labIncAns: { ...(prev.labIncAns || {}), [q.id]: o.key } })); } })) };
-      }),
-      icReflection: cur?.reflection || '', icRefl: s.labIncRefl || '', icOnRefl: e => set({ labIncRefl: e.target.value }),
-      icSubmit: submitIncident, icCantSubmit: !!res || !cur || Object.keys(s.labIncAns || {}).length < (cur?.questions.length || 1),
-      icScore: res ? `${Math.round(res.score * 100)}점 · ${res.results.filter(x => x.correct).length}/${res.results.length} 맞힘` : '', icHasScore: !!res,
-      icRetry: () => cur && openIncident(cur.id),
     });
 
     // What-if

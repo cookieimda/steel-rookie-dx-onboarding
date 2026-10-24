@@ -481,6 +481,4 @@ fetch('models/anchors-v2b.json').then((r) => (r.ok ? r.json() : {})).catch(() =>
   loadRest().then(() => { const failed = procs.filter((p) => !p.loaded); if (failed.length) toast(`${failed.map((p) => p.data.name).join('·')} 모델을 불러오지 못해 탭을 닫아 두었어요`, 5000); });
   requestAnimationFrame(frame);
   setTimeout(() => show(first), 250);
-  // 학습 기록 사고 사례의 '3D 공장에서 이 갈림길 보기'(?lab=incident&scenario=…&at=…&pick=…): 재현 패널·3D 표시는 incident-replay.js
-  if (q.get('lab') === 'incident') import('./incident-replay.js').then(({ readIncidentQuery, attachIncidentReplay }) => { const query = readIncidentQuery(q); if (query) attachIncidentReplay({ api, scene, camera, hud, stage, reduced: REDUCED, current: () => cur, focusEquipment: (id) => { const e = cur?.eqs.find((x) => x.id === id); if (e) enterStep(e); return !!e; }, showProcess: (id) => { const p = procs.find((x) => x.id === id); if (p) show(p); }, toast, query }); else toast('사고 사례 주소가 올바르지 않아요'); }).catch(() => toast('사고 사례 재현을 불러오지 못했어요'));
 });

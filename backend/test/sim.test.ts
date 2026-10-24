@@ -13,7 +13,6 @@ import { deleteUserData } from "../src/db/user-data.js";
 import { buildDeck } from "../src/lab/deck.js";
 import { createLabExtrasRouter } from "../src/lab/extras-routes.js";
 import { checkStep, faultScore, faultView, loadFaults, FAULTS_PATH } from "../src/lab/faults.js";
-import { loadIncidents } from "../src/lab/incidents.js";
 import { MeRepository } from "../src/me/repository.js";
 import { BASELINE, downstreamOf, effectsOf, simulate, whatIf } from "../src/lab/whatif.js";
 import { readFileSync } from "node:fs";
@@ -88,7 +87,7 @@ before(async () => {
   kim = await users.create({ username: "trainee01", password: "password123", name: "김신입", employee_no: "T1" });
   const deck = buildDeck([{ id: "ironmaking", name: "제선", equipment: [{ id: "blast_furnace", name: "고로", role: "용선을 만든다." }] }], () => []);
   const app = express();
-  app.use(createLabExtrasRouter({ db, auth: { users, secret }, deck, incidents: loadIncidents(), faults: loadFaults(), lessons: (await import("../src/lab/lessons.js")).loadLessons() }));
+  app.use(createLabExtrasRouter({ db, auth: { users, secret }, deck, faults: loadFaults(), lessons: (await import("../src/lab/lessons.js")).loadLessons() }));
   server = app.listen(0);
   await new Promise((r) => server.once("listening", r));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -125,43 +124,25 @@ test("HTTP 이상 상황: 목록 → 보기 → 단계 확인 → 완료 기록�
   assert.ok(deleteUserData(db, kim.id, { origin: "live" }).operations >= 3, "이상 상황·퀴즈 기록도 지운다");
 });
 
-test("사고 사례 갈림길: 사례마다 1개 이상, 갈림길마다 실제 선택 하나와 다른 선택, 다른 선택의 결과는 실제와 다르다", () => {
-  const file = loadIncidents();
-  for (const s of file.scenarios) {
-    const branches = s.timeline.filter((t) => t.branch);
-    assert.ok(branches.length >= 1, s.id);
-    for (const t of branches) {
-      const opts = t.branch!.options;
-      assert.equal(opts.filter((o) => o.actual).length, 1);
-      assert.ok(opts.some((o) => !o.actual));
-      assert.ok(opts.filter((o) => !o.actual).every((o) => !o.outcome.startsWith("실제로")));
-    }
-  }
-});
-
-test("3D 실습 통계: 이상 상황 단계별 시도·사고 사례 약한 문항·인과 퀴즈 한 칸/두 칸·헷갈리는 연결, 시연 계정 빼기, 관리자만", async () => {
+test("3D 실습 통계: 이상 상황 단계별 시도·인과 퀴즈 한 칸/두 칸·헷갈리는 연결, 시연 계정 빼기, 관리자만", async () => {
   const sdb = openDatabase(":memory:"), users = new UserRepository(sdb);
   const a = await users.create({ username: "trainee02", password: "password123", name: "가", employee_no: "S2" });
   const b = await users.create({ username: "trainee03", password: "password123", name: "나", employee_no: "S3" });
   sdb.prepare("UPDATE users SET is_demo = 1 WHERE id = ?").run(b.id);
-  const faults = loadFaults().faults, scenarios = loadIncidents().scenarios, f = faults[0], s = scenarios[0];
+  const faults = loadFaults().faults, f = faults[0];
   const now = new Date().toISOString();
   const addFault = (u: User, tries: Record<string, number>) => sdb.prepare("INSERT INTO fault_attempts VALUES(?,?,?,?,?,?)").run(crypto.randomUUID(), u.id, f.id, JSON.stringify(tries), faultScore(tries as never), now);
   addFault(a, { signal: 1, cause: 3, action: 1 });
   addFault(b, { signal: 1, cause: 1, action: 1 });
-  const answers = Object.fromEntries(s.questions.map((q) => [q.id, q.answer]));
-  answers[s.questions[0].id] = (s.questions[0].answer + 1) % s.questions[0].options.length;
-  sdb.prepare("INSERT INTO incident_attempts VALUES(?,?,?,?,?,?)").run(crypto.randomUUID(), a.id, s.id, JSON.stringify({ answers }), 0.5, now);
   const quiz = (u: User, hop: number, correct: number) => sdb.prepare("INSERT INTO causal_quiz_answers VALUES(?,?,?,?,?,?)").run(crypto.randomUUID(), u.id, "coke_rate>hm_temp>scrap_pct", hop, correct, now);
   quiz(a, 1, 1); quiz(b, 1, 1); quiz(a, 2, 0); quiz(b, 2, 1);
   const { practiceStats } = await import("../src/lab/practice-stats.js");
-  const all = practiceStats(sdb, { faults, scenarios });
+  const all = practiceStats(sdb, { faults });
   assert.deepEqual([all.faults[0].attempts, all.faults[0].learners, all.faults[0].hardest_step, all.faults[0].first_try_rate], [2, 2, "cause", 0.5]);
   assert.equal(all.faults[1].avg_score, null);
-  assert.equal(all.incidents[0].weakest?.id, s.questions[0].id);
   assert.deepEqual([all.causal.one_hop, all.causal.two_hop, all.causal.cross_process], [1, 0.5, 0.5]);
   assert.deepEqual(all.causal.confusing.map((l) => [l.path, l.rate]), [["코크스비 → 용선 온도 → 전로 고철 투입 여유", 0.5]]);
-  const real = practiceStats(sdb, { faults, scenarios }, { includeDemo: false });
+  const real = practiceStats(sdb, { faults }, { includeDemo: false });
   assert.deepEqual([real.faults[0].attempts, real.causal.answers, real.causal.confusing.length], [1, 2, 0], "시연 계정 기록은 빠지고 헷갈리는 연결은 답 2칸 미만이라 없다");
   assert.equal((await call("GET", "/api/admin/practice-stats")).status, 403, "신입사원은 볼 수 없다");
 });
@@ -187,26 +168,10 @@ test("이상 상황 → 인과 지도 재현: 훈련마다 조정 값이 있고,
   assert.throws(() => loadFaults(join(dir, "b.json")), /범위/);
 });
 
-test("HTTP 갈림길 탐험: 같은 선택은 한 번만 남고, 실제로 일어난 선택은 사원증 기록에서 빼며, 없는 장면·선택은 404", async () => {
-  const s = loadIncidents().scenarios[0], at = s.timeline.findIndex((t) => t.branch), opts = s.timeline[at].branch!.options;
-  const actual = opts.findIndex((o) => o.actual), other = opts.findIndex((o) => !o.actual);
-  const first = await call("POST", `/api/lab/incidents/${s.id}/branch`, { at, pick: other });
-  assert.deepEqual([first.status, first.json.explored, first.json.new], [201, 1, true]);
-  assert.equal((await call("POST", `/api/lab/incidents/${s.id}/branch`, { at, pick: other })).status, 200, "같은 선택은 다시 세지 않는다");
-  assert.equal((await call("POST", `/api/lab/incidents/${s.id}/branch`, { at, pick: actual })).json.explored, 2);
-  assert.equal((await call("POST", `/api/lab/incidents/${s.id}/branch`, { at: 0, pick: 0 })).status, at === 0 ? 201 : 404);
-  assert.equal((await call("POST", `/api/lab/incidents/${s.id}/branch`, { at, pick: 9 })).status, 404);
-  assert.equal((await call("POST", `/api/lab/incidents/nope/branch`, { at, pick: 0 })).status, 404);
-  const events = new MeRepository(db).cardEvents(kim.id).filter((e) => e.kind === "branch_explored");
-  assert.deepEqual(events.map((e) => e.object_id), [`${s.id}#${at}.${other}`], "실제 선택은 XP·배지에 넣지 않는다");
-  assert.ok(deleteUserData(db, kim.id, { origin: "live" }).operations >= 1);
-  assert.equal(new MeRepository(db).cardEvents(kim.id).filter((e) => e.kind === "branch_explored").length, 0);
-});
-
-test("수업 모드: 수업 파일의 참조(변수·이상 상황·갈림길)가 맞고, 진행자 안내의 인과 설명이 모델과 맞는다, 잘못된 참조는 막는다", async () => {
+test("수업 모드: 수업 파일의 참조(변수·이상 상황)가 맞고, 진행자 안내의 인과 설명이 모델과 맞는다, 잘못된 참조는 막는다", async () => {
   const { loadLessons, LESSONS_PATH } = await import("../src/lab/lessons.js");
   const { simulateCausal } = await import("../src/lab/causal.js");
-  const refs = { faults: loadFaults().faults, scenarios: loadIncidents().scenarios };
+  const refs = { faults: loadFaults().faults };
   const lessons = loadLessons(undefined, refs);
   assert.deepEqual(lessons.map((l) => l.id), ["causal-101", "diagnose-drill", "field-judgment"]);
   // 'diagnose-drill' 1·2단계 안내: 재가열 온도↓는 사상압연 출구·권취 온도를 함께 내리고, 냉각 뱅크↑는 권취 온도만 내린다
@@ -217,7 +182,6 @@ test("수업 모드: 수업 파일의 참조(변수·이상 상황·갈림길)�
   const dir = mkdtempSync(join(tmpdir(), "lessons-"));
   const bad = (mutate: (j: any) => void, re: RegExp) => { const j = structuredClone(raw); mutate(j); const f = join(dir, `${Math.random()}.json`); writeFileSync(f, JSON.stringify(j)); assert.throws(() => loadLessons(f, refs), re); };
   bad((j) => { j.lessons[0].steps[4].fault = "nope"; }, /없는 이상 상황/);
-  bad((j) => { j.lessons[0].steps[5].pick = 9; }, /없는 사고 사례 갈림길/);
   bad((j) => { j.lessons[0].steps[1].set = { hm_temp: 1400 }; }, /조정할 수 없는 값/);
   bad((j) => { delete j.lessons[0].steps[1].set; }, /조건\(set\)/);
   bad((j) => { j.lessons[1].id = "causal-101"; }, /겹칩니다/);
@@ -225,7 +189,7 @@ test("수업 모드: 수업 파일의 참조(변수·이상 상황·갈림길)�
 
 test("HTTP 수업: 목록은 단계 수만, 하나는 단계 전체, 없는 수업 404", async () => {
   const list = await call("GET", "/api/lab/lessons");
-  assert.equal(list.json.lessons[0].steps, 6);
+  assert.equal(list.json.lessons[0].steps, 5);
   const one = await call("GET", "/api/lab/lessons/causal-101");
   assert.equal(one.json.lesson.steps[1].lab, "map");
   assert.equal((await call("GET", "/api/lab/lessons/nope")).status, 404);
@@ -258,28 +222,14 @@ test("3D 실습 통계 · 수업: 수업별 연 사람·끝 단계까지 간 사
   const b = await users.create({ username: "trainee08", password: "password123", name: "바", employee_no: "S8" });
   const add = (u: User, step: number) => sdb.prepare("INSERT INTO xapi_statements (id, user_id, verb, object_id, object_name, timestamp, stored) VALUES (?, ?, 'experienced', ?, 'x', ?, ?)")
     .run(crypto.randomUUID(), u.id, `practice:lesson:causal-101_${step}`, "2026-10-16T00:00:00Z", "2026-10-16T00:00:00Z");
-  for (const s of [1, 2, 3, 4, 5, 6]) add(a, s);
+  for (const s of [1, 2, 3, 4, 5]) add(a, s);
   add(a, 1); add(b, 1); add(b, 2);
-  const st = practiceStats(sdb, { faults: [], scenarios: [], lessons: loadLessons() });
+  const st = practiceStats(sdb, { faults: [], lessons: loadLessons() });
   const l = st.lessons.find((x) => x.id === "causal-101")!;
-  assert.deepEqual([l.learners, l.reached_last, l.finished, l.by_step.map((x) => x.learners)], [2, 1, 0, [2, 2, 1, 1, 1, 1]], "마지막 단계까지 1명, 마치기는 아직 0명");
+  assert.deepEqual([l.learners, l.reached_last, l.finished, l.by_step.map((x) => x.learners)], [2, 1, 0, [2, 2, 1, 1, 1]], "마지막 단계까지 1명, 마치기는 아직 0명");
   sdb.prepare("INSERT INTO xapi_statements (id, user_id, verb, object_id, object_name, timestamp, stored) VALUES (?, ?, 'experienced', 'practice:lesson:causal-101_done', 'x', ?, ?)").run(crypto.randomUUID(), a.id, "2026-10-16T00:00:00Z", "2026-10-16T00:00:00Z");
-  assert.equal(practiceStats(sdb, { faults: [], scenarios: [], lessons: loadLessons() }).lessons.find((x) => x.id === "causal-101")!.finished, 1);
+  assert.equal(practiceStats(sdb, { faults: [], lessons: loadLessons() }).lessons.find((x) => x.id === "causal-101")!.finished, 1);
   assert.equal(st.lessons.find((x) => x.id === "diagnose-drill")!.learners, 0);
-});
-
-test("갈림길 → 인과 지도: 실제 사례로 바꾼 뒤에는 인과 지도 값이 없고, 값을 넣으면 조정할 수 없는 값·범위 밖을 파일 검사에서 막는다", () => {
-  // 사고 사례는 철강산업 중대재해 사례집의 실제 사례라 인과 지도 모델 변수(주조 속도 등)에 맞는 값이 없다
-  assert.ok(loadIncidents().scenarios.every((s) => s.timeline.every((t) => (t.branch?.options ?? []).every((o) => !o.causal))));
-  const raw = JSON.parse(readFileSync(join(process.cwd(), "content", "scenarios", "incidents.json"), "utf8"));
-  const dir = mkdtempSync(join(tmpdir(), "inc-causal-"));
-  const withBranch = raw.scenarios.flatMap((x: any) => x.timeline).find((t: any) => t.branch);
-  withBranch.branch.options[0].causal = { breakout: 50 };
-  writeFileSync(join(dir, "a.json"), JSON.stringify(raw));
-  assert.throws(() => loadIncidents(join(dir, "a.json")), /조정할 수 없는 값/);
-  withBranch.branch.options[0].causal = { cast_speed: 9 };
-  writeFileSync(join(dir, "b.json"), JSON.stringify(raw));
-  assert.throws(() => loadIncidents(join(dir, "b.json")), /범위 밖/);
 });
 
 test("거꾸로 추론 기록·통계: 채점할 때 답을 남기고, 통계는 정답률·헷갈리는 원인(많이 고른 다른 답)·지우기", async () => {
@@ -289,7 +239,7 @@ test("거꾸로 추론 기록·통계: 채점할 때 답을 남기고, 통계는
   assert.equal(r.json.correct, false);
   assert.equal(Number(db.prepare("SELECT COUNT(*) AS n FROM diagnose_answers").get()!.n), before + 1);
   await call("POST", "/api/lab/causal/diagnose/check", { id: "reheat_temp:-1", choice: "reheat_temp:-1", symptoms: ["fdt", "coiling_temp"] });
-  const st = practiceStats(db, { faults: [], scenarios: [] });
+  const st = practiceStats(db, { faults: [] });
   assert.equal(st.diagnose.answers, before + 2);
   const c = st.diagnose.confusing.find((x) => x.cause.startsWith("재가열 온도"))!;
   assert.deepEqual([c.cause, c.mistaken_for, c.rate], ["재가열 온도 ▼", "런아웃 냉각 뱅크 ▲", 0.5]);
@@ -309,11 +259,10 @@ test("수업 '현장 판단': 되돌리기 단계 종류를 받고, 안내의 '�
   }
 });
 
-test("변수 → 관련 실습: 주조 속도는 이상 상황 훈련·되돌리기 퍼즐·갈림길·수업 단계에 나오고, 없는 변수는 404", async () => {
+test("변수 → 관련 실습: 주조 속도는 이상 상황 훈련·되돌리기 퍼즐·수업 단계에 나오고, 없는 변수는 404", async () => {
   const r = await call("GET", "/api/lab/causal/related?var=cast_speed");
   assert.deepEqual(r.json.faults.map((f: any) => f.id), ["casting-breakout-alarm"]);
   assert.ok(r.json.puzzles.length >= 1 && r.json.puzzles.every((p: any) => ["목표", "흔들림"].includes(p.role)));
-  assert.deepEqual(r.json.branches, []); // 실제 사고 사례에는 인과 지도 값이 없다
   assert.ok(r.json.lessons.some((l: any) => l.lesson === "field-judgment"));
   assert.equal((await call("GET", "/api/lab/causal/related?var=nope")).status, 404);
   const coil = await call("GET", "/api/lab/causal/related?var=coiling_temp");
@@ -340,7 +289,7 @@ test("3D 실습 통계 · 되돌리기 퍼즐: 퍼즐별 시도·푼 비율·부
   const sdb = openDatabase(":memory:"), u = await new UserRepository(sdb).create({ username: "trainee09", password: "password123", name: "사", employee_no: "S9" });
   const add = (control: string, solved: number, clean: number) => sdb.prepare("INSERT INTO rebalance_attempts VALUES(?,?,?,?,?,?,?,?)").run(crypto.randomUUID(), u.id, "cool_banks:-1@8>coiling_temp", control, 1, solved, clean, "2026-10-16T00:00:00Z");
   add("coke_rate", 0, 0); add("coke_rate", 0, 0); add("reheat_temp", 1, 1); add("reheat_temp", 1, 0);
-  const x = practiceStats(sdb, { faults: [], scenarios: [] }).rebalance[0];
+  const x = practiceStats(sdb, { faults: [] }).rebalance[0];
   assert.equal(x.puzzle, "런아웃 냉각 뱅크 ▼ → 권취 온도");
   assert.deepEqual([x.attempts, x.learners, x.solved_rate, x.clean_rate], [4, 1, 0.5, 0.25]);
   assert.deepEqual(x.common_far, { control: "코크스비", times: 2 });

@@ -22,7 +22,7 @@ async function api(method, path, body) {
 }
 
 export const SUBTABS = [['review', '간격 반복'], ['league', '주간 리그'], ['report', '보고서'], ['replay', '세션 리플레이'],
-  ['incident', '사고 사례'], ['whatif', 'What-if'], ['synapse', 'What-if 시냅스'], ['notes', '설비 메모'], ['patterns', '내 오답 유형']];
+  ['whatif', 'What-if'], ['synapse', 'What-if 시냅스'], ['notes', '설비 메모'], ['patterns', '내 오답 유형']];
 const GRADE_LABEL = { 0: '다시', 3: '어려움', 4: '보통', 5: '쉬움' };
 const GRADE_TONE = { 0: 'bad', 3: 'mid', 4: 'ok', 5: 'easy' };
 const TAB_LABEL = { steps: '작동 단계', lab: '학습 랩', blueprint: '설계도·필기', card: '사원증' };
@@ -114,7 +114,7 @@ export function createLearningLab(c) {
     league: () => api('GET', '/api/me/lab/league').then(r => set({ labLeague: r })),
     replay: () => api('GET', '/api/me/lab/replays').then(r => set({ labReplays: r.sessions })),
   };
-  // 추가 기능(lab-extras.js): 사고 사례·What-if·설비 메모·내 오답 유형과 알림 벨
+  // 추가 기능(lab-extras.js): What-if·설비 메모·내 오답 유형과 알림 벨
   const extras = createLabExtras(c, { api, set, S, fail });
   Object.assign(loaders, extras.loaders);
   const load = sub => { set({ labError: null }); return (loaders[sub]?.() || Promise.resolve()).catch(fail); };
@@ -151,7 +151,7 @@ export function createLearningLab(c) {
       labError: s.labError || '', hasLabError: !!s.labError,
       labShowReview: sub === 'review' ? 'flex' : 'none', labShowLeague: sub === 'league' ? 'flex' : 'none', labShowReport: sub === 'report' ? 'flex' : 'none',
       labShowReplay: sub === 'replay' ? 'flex' : 'none',
-      labShowIncident: sub === 'incident' ? 'flex' : 'none', labShowWhatif: sub === 'whatif' ? 'flex' : 'none', labShowSynapse: sub === 'synapse' ? 'flex' : 'none',
+      labShowWhatif: sub === 'whatif' ? 'flex' : 'none', labShowSynapse: sub === 'synapse' ? 'flex' : 'none',
       labShowNotes: sub === 'notes' ? 'flex' : 'none', labShowPatterns: sub === 'patterns' ? 'flex' : 'none',
       ...extras.vals(sub),
     };

@@ -43,19 +43,7 @@ export const FEATURES = [
       <rect x="120" y="96" width="34" height="20" rx="5" fill="${O}"/><text x="137" y="110" font-size="10" font-weight="700" text-anchor="middle" fill="${D}" font-family="sans-serif">PDF</text>`),
   },
   {
-    id: 'incident', num: '04', name: '사고 사례', en: 'INCIDENT CASES', group: '해 보기',
-    line: '실제 철강 중대재해 사례를 장면별로 따라가며 역할·관문을 보고 "다르게 했다면?"을 골라 봐요.',
-    how: ['왼쪽 목록에서 사례를 고른다', '[다음 장면 ▶]으로 장면을 넘기며 역할과 관문을 본다', '갈림길에서 다른 선택을 골라 결과를 비교한다'],
-    say: '갈림길에서 안전한 선택을 고르면 관문이 초록으로 바뀌어. 실제 사례라 꼭 해 봐.',
-    keys: ['안전', '재해', '갈림길', '사례', '관문'],
-    art: () => svg(`<path d="M100 128 V78" stroke="${C}" stroke-width="5" stroke-linecap="round"/>
-      <path d="M100 78 L54 34" stroke="#ff6b6b" stroke-width="5" stroke-linecap="round"/><path d="M100 78 L146 34" stroke="#6fcf97" stroke-width="5" stroke-linecap="round"/>
-      <circle cx="54" cy="30" r="12" fill="#ff6b6b"/><text x="54" y="35" font-size="14" text-anchor="middle" fill="${D}" font-weight="700">!</text>
-      <circle cx="146" cy="30" r="12" fill="#6fcf97"/><path d="M140 30 l4 4 l8 -8" stroke="${D}" stroke-width="3" fill="none"/>
-      <circle cx="100" cy="78" r="9" fill="${O}"/>`),
-  },
-  {
-    id: 'whatif', num: '05', name: 'What-if', en: 'WHAT-IF', group: '해 보기',
+    id: 'whatif', num: '04', name: 'What-if', en: 'WHAT-IF', group: '해 보기',
     line: '고로 조건(소결광·코크스·송풍 온도…)을 바꾸면 용선 온도·슬래그·CO2가 어떻게 변하는지 계산해요.',
     how: ['왼쪽 슬라이더로 조건 하나를 바꾼다', '오른쪽 수치 칸과 용선 온도 막대의 변화를 본다', '[기준 조건으로]로 되돌려 비교한다'],
     say: '한 번에 하나만 바꿔 봐. 그래야 무엇 때문에 변했는지 알 수 있어.',
@@ -66,7 +54,7 @@ export const FEATURES = [
       <text x="168" y="96" font-size="12" text-anchor="middle" fill="${C}" font-family="monospace">1500</text>`),
   },
   {
-    id: 'synapse', num: '06', name: 'What-if 시냅스', en: 'SYNAPSE', group: '해 보기',
+    id: 'synapse', num: '05', name: 'What-if 시냅스', en: 'SYNAPSE', group: '해 보기',
     line: '조건 → 성분 → 결과로 이어지는 선을 따라 원인과 결과를 그래프로 봐요.',
     how: ['[해 보기] 칩 하나를 누른다', '빛이 번지는 선을 따라간다', '노드를 눌러 풀이를 읽는다'],
     say: '선이 굵을수록 영향이 커. 빛이 어디로 번지는지 따라가 봐!',
@@ -79,7 +67,7 @@ export const FEATURES = [
     },
   },
   {
-    id: 'notes', num: '07', name: '설비 메모', en: 'EQUIPMENT NOTES', group: '기록',
+    id: 'notes', num: '06', name: '설비 메모', en: 'EQUIPMENT NOTES', group: '기록',
     line: '설비를 고르고 질문·메모·팁을 남겨요. 그 설비를 다시 고르면 남긴 메모가 보여요.',
     how: ['위 목록에서 공정·설비를 고른다(또는 [2D에서 고른 설비])', '질문·메모·팁 중 하나를 고르고 적는다', '[남기기]를 누른다. 나만 보기도 고를 수 있다'],
     say: '현장에서 들은 말, 헷갈린 점을 한 줄씩 적어 둬. 나중에 큰 도움 돼!',
@@ -90,7 +78,7 @@ export const FEATURES = [
       <path d="M150 112 L176 60 L186 66 L160 118 Z" fill="${O}"/><path d="M150 112 L160 118 L148 124 Z" fill="${C}"/>`),
   },
   {
-    id: 'patterns', num: '08', name: '내 오답 유형', en: 'MY MISTAKES', group: '기록',
+    id: 'patterns', num: '07', name: '내 오답 유형', en: 'MY MISTAKES', group: '기록',
     line: '비슷한 오개념끼리 묶어 보여 줘요. 같은 묶음이 여러 번 나오면 그 부분을 집중 복습해요.',
     how: ['학습 랩 → 내 오답 유형을 연다', '여러 번 나온 묶음부터 본다', '그 묶음의 개념을 다시 복습한다'],
     say: '틀린 건 부끄러운 게 아니야. 제일 자주 나온 묶음 하나만 오늘 잡자!',
@@ -101,7 +89,7 @@ export const FEATURES = [
       ${[0, 1, 2].map((i) => `<rect x="128" y="${40 + i * 22}" width="${[54, 34, 20][i]}" height="10" rx="5" fill="${i ? L : O}"/>`).join('')}`),
   },
   {
-    id: 'card', num: '09', name: '사원증', en: 'EMPLOYEE CARD', group: '기록',
+    id: 'card', num: '08', name: '사원증', en: 'EMPLOYEE CARD', group: '기록',
     line: '연속 학습일·직급·XP·오늘의 미션을 사원증 한 장에 모아 보여 줘요. 다시 볼 개념(복습)도 여기서 해요.',
     how: ['헤더의 🔥 칩이나 사원증 탭을 누른다', '오늘의 미션 체크와 XP 막대를 본다', '아래 다시 볼 개념을 복습한다'],
     say: '매일 조금씩 하면 직급이 올라가! 오늘 연속 기록 끊기지 않게 하자.',
@@ -113,7 +101,7 @@ export const FEATURES = [
       <rect x="66" y="110" width="68" height="8" rx="4" fill="${L}"/><rect x="66" y="110" width="44" height="8" rx="4" fill="${O}"/>`),
   },
   {
-    id: 'exam', num: '10', name: '평가 시험', en: 'PROVE & PASS', group: '평가',
+    id: 'exam', num: '09', name: '평가 시험', en: 'PROVE & PASS', group: '평가',
     line: '공정별 시험을 보고 이해도 80%를 넘으면 다음 공정이 열려요.',
     how: ['열린 공정의 시험지를 고른다', '[시험 응시]를 누르고 내 말로 답을 쓴다', '80%를 넘으면 다음 공정이 열린다'],
     say: '외운 말 말고 네 말로 설명해 봐. 그게 진짜 아는 거야. 준비됐어?',

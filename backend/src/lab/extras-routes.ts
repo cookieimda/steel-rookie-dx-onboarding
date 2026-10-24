@@ -1,5 +1,4 @@
-// 학습 랩 추가 기능 API(012): 사고 사례 시나리오, What-if 계산, 설비 주석 공유.
-//   GET  /api/lab/incidents · GET /api/lab/incidents/:id · POST /api/lab/incidents/:id/submit {answers: {문항 id: 보기 key}}
+// 학습 랩 추가 기능 API(012): What-if 계산, 설비 주석 공유. 사고 사례(실제 중대재해 바탕)는 2026-10-25에 뺐다(피해자·유가족이 있는 사례).
 //   POST /api/lab/whatif {입력}  (저장하지 않는 계산)
 //   GET  /api/lab/notes?equipment_id=   설비 메모(공개 + 내 비공개) · GET /api/lab/notes/summary  설비별 공개 메모 수
 //   POST /api/lab/notes · DELETE /api/lab/notes/:id · POST …/:id/vote · …/:id/replies · …/:id/report
@@ -17,7 +16,6 @@ import type { User } from "../auth/users.js";
 import type { Notifier } from "../notify/service.js";
 import type { DeckCard } from "./deck.js";
 import { checkStep, faultScore, faultView, type FaultDrill } from "./faults.js";
-import { gradeIncident, scenarioView, type IncidentScenario } from "./incidents.js";
 import { maskName } from "./league.js";
 import { whatIf } from "./whatif.js";
 import { NODES, causalQuiz, checkDiagnose, checkHop, checkLag, checkRebalance, conceptVars, diagnoseQuiz, lagQuiz, rebalancePuzzles, simulateCausal } from "./causal.js";
@@ -37,7 +35,6 @@ export const AUTO_HIDE_REPORTS = 3;
 
 export interface ExtrasDeps {
   db: DatabaseSync; auth: AuthDeps; deck: DeckCard[];
-  incidents: { disclaimer: string; scenarios: IncidentScenario[] };
   /** 이상 상황 훈련(content/faults/faults.json). 없으면 그 API만 빈 목록. */
   faults?: { disclaimer: string; faults: FaultDrill[] };
   /** 수업 모드(content/lessons/lessons.json). 없으면 빈 목록. */
@@ -49,52 +46,12 @@ const NoteBody = z.object({ equipment_id: z.string().regex(/^[a-z0-9_]{1,40}$/),
 const Reply = z.object({ text: z.string().trim().min(1).max(300) });
 const Report = z.object({ reason: z.string().trim().min(1).max(200) });
 
-export function createLabExtrasRouter({ db, auth, deck, incidents, faults = { disclaimer: "", faults: [] }, notifier, lessons = [] }: ExtrasDeps): express.Router {
+export function createLabExtrasRouter({ db, auth, deck, faults = { disclaimer: "", faults: [] }, notifier, lessons = [] }: ExtrasDeps): express.Router {
   const router = express.Router(), login = requireUser(auth);
   const me = (res: express.Response) => res.locals.user as User;
   const bad = (res: express.Response, status: number, error: string) => res.status(status).json({ error });
   const byEquipment = new Map(deck.map((c) => [c.equipment_id, c]));
-  const scenario = (id: string) => incidents.scenarios.find((s) => s.id === id);
   const nameOf = (userId: string) => String(db.prepare("SELECT name FROM users WHERE id=?").get(userId)?.name ?? "학습자");
-
-  // ── 사고 사례 ──
-  router.get("/api/lab/incidents", login, (_req, res) => {
-    const best = new Map(db.prepare("SELECT scenario_id, MAX(score) AS best, COUNT(*) AS n FROM incident_attempts WHERE user_id=? GROUP BY scenario_id").all(me(res).id)
-      .map((r) => [String(r.scenario_id), { best: Number(r.best), attempts: Number(r.n) }]));
-    res.json({ disclaimer: incidents.disclaimer, scenarios: incidents.scenarios.map((s) => ({ id: s.id, section: s.section, title: s.title, hazard: s.hazard, questions: s.questions.length, ...(best.get(s.id) ?? { best: null, attempts: 0 }) })) });
-  });
-  router.get("/api/lab/incidents/:id", login, (req, res) => {
-    const s = scenario(String(req.params.id));
-    if (!s) return bad(res, 404, "없는 사례예요.");
-    res.json({ disclaimer: incidents.disclaimer, scenario: scenarioView(s, me(res).id) });
-  });
-  router.post("/api/lab/incidents/:id/submit", login, express.json(), (req, res) => {
-    const s = scenario(String(req.params.id));
-    if (!s) return bad(res, 404, "없는 사례예요.");
-    const body = z.object({ answers: z.record(z.string(), z.number().int().min(0).max(10)), reflection: z.string().max(1000).optional() }).safeParse(req.body);
-    if (!body.success) return bad(res, 400, "답안 형식이 올바르지 않아요.");
-    const graded = gradeIncident(s, body.data.answers);
-    db.prepare("INSERT INTO incident_attempts(id,user_id,scenario_id,answers_json,score,created_at) VALUES(?,?,?,?,?,?)")
-      .run(randomUUID(), me(res).id, s.id, JSON.stringify(body.data), graded.score, new Date().toISOString());
-    res.json(graded);
-  });
-
-  // 갈림길 탐험: 고른 선택을 남긴다(같은 선택은 한 번만). 응답은 이 사례에서 골라 본 선택 수와 전체 선택 수.
-  router.post("/api/lab/incidents/:id/branch", login, express.json(), (req, res) => {
-    const s = scenario(String(req.params.id));
-    if (!s) return bad(res, 404, "없는 사례예요.");
-    const body = z.object({ at: z.number().int().min(0).max(50), pick: z.number().int().min(0).max(10) }).safeParse(req.body);
-    if (!body.success) return bad(res, 400, "장면과 선택을 보내 주세요.");
-    const option = s.timeline[body.data.at]?.branch?.options[body.data.pick];
-    if (!option) return bad(res, 404, "없는 갈림길 선택이에요.");
-    const uid = me(res).id;
-    const seen = db.prepare("SELECT 1 FROM branch_explorations WHERE user_id=? AND scenario_id=? AND at_step=? AND pick=?").get(uid, s.id, body.data.at, body.data.pick);
-    if (!seen) db.prepare("INSERT INTO branch_explorations(id,user_id,scenario_id,at_step,pick,actual,created_at) VALUES(?,?,?,?,?,?,?)")
-      .run(randomUUID(), uid, s.id, body.data.at, body.data.pick, option.actual ? 1 : 0, new Date().toISOString());
-    const explored = Number(db.prepare("SELECT COUNT(*) AS n FROM branch_explorations WHERE user_id=? AND scenario_id=?").get(uid, s.id)?.n ?? 0);
-    const total = s.timeline.reduce((n, t) => n + (t.branch?.options.length ?? 0), 0);
-    res.status(seen ? 200 : 201).json({ explored, total, new: !seen });
-  });
 
   // ── 수업 모드: 수업 목록(단계 수만)과 수업 하나(단계 전체) ──
   router.get("/api/lab/lessons", login, (_req, res) => res.json({ lessons: lessons.map(({ steps, ...l }) => ({ ...l, steps: steps.length })) }));
@@ -181,15 +138,14 @@ export function createLabExtrasRouter({ db, auth, deck, incidents, faults = { di
       .run(randomUUID(), me(res).id, body.data.id, control, value, out.solved ? 1 : 0, out.solved && !out.side_effects.length ? 1 : 0, new Date().toISOString());
     res.json(out);
   });
-  // 변수 → 관련 실습(인과 지도 변수 카드): 그 변수를 원인 조건으로 쓰는 이상 상황 훈련·갈림길 선택·수업 단계, 흔들거나 되돌리는 퍼즐
+  // 변수 → 관련 실습(인과 지도 변수 카드): 그 변수를 원인 조건으로 쓰는 이상 상황 훈련·수업 단계, 흔들거나 되돌리는 퍼즐
   router.get("/api/lab/causal/related", login, (req, res) => {
     const v = String(req.query.var ?? "");
     if (!NODES.some((n) => n.id === v)) return bad(res, 404, "없는 변수예요.");
     const faultsOut = faults.faults.filter((f) => f.causal && v in f.causal).map((f) => ({ id: f.id, section: f.section, title: f.title }));
     const puzzles = rebalancePuzzles().filter((p) => p.target === v || v in p.disturb).map((p) => ({ id: p.id, role: p.target === v ? "목표" : "흔들림", clean: p.clean }));
-    const branches = incidents.scenarios.flatMap((s) => s.timeline.flatMap((t, at) => (t.branch?.options ?? []).flatMap((o, pick) => (o.causal && v in o.causal ? [{ scenario: s.id, section: s.section, title: s.title, at, pick, text: o.text }] : []))));
     const lessonSteps = lessons.flatMap((l) => l.steps.flatMap((s, i) => (s.set && v in s.set ? [{ lesson: l.id, title: l.title, step: i + 1, step_title: s.title }] : [])));
-    res.json({ faults: faultsOut, puzzles, branches, lessons: lessonSteps });
+    res.json({ faults: faultsOut, puzzles, lessons: lessonSteps });
   });
   // '언제 나타날까?' 시간 질문(인과 퀴즈 끝): 기록하지 않는 자가 점검
   router.get("/api/lab/causal/lag-quiz", login, (req, res) => res.json(lagQuiz(Number(req.query.seed) || Date.now() % 100000)));
@@ -309,11 +265,11 @@ export function createLabExtrasRouter({ db, auth, deck, incidents, faults = { di
     if (n >= AUTO_HIDE_REPORTS) db.prepare("UPDATE equipment_notes SET hidden=1, updated_at=? WHERE id=?").run(new Date().toISOString(), String(r.id));
     res.json({ reports: n, hidden: n >= AUTO_HIDE_REPORTS });
   });
-  // 3D 실습 통계(이상 상황 훈련·사고 사례·인과 퀴즈). ?include_demo=false면 시연 계정을 뺀다.
+  // 3D 실습 통계(이상 상황 훈련·인과 퀴즈). ?include_demo=false면 시연 계정을 뺀다.
   router.get("/api/admin/practice-stats", login, requireAdmin, (req, res) => {
     const v = req.query.include_demo;
     if (v !== undefined && v !== "true" && v !== "false") return bad(res, 400, "include_demo는 true 또는 false여야 해요.");
-    res.json(practiceStats(db, { faults: faults.faults, scenarios: incidents.scenarios, lessons }, { includeDemo: v !== "false" }));
+    res.json(practiceStats(db, { faults: faults.faults, lessons }, { includeDemo: v !== "false" }));
   });
   router.get("/api/admin/notes/reported", login, requireAdmin, (_req, res) => {
     const rows = db.prepare(`SELECT n.*, COUNT(r.user_id) AS reports, GROUP_CONCAT(r.reason, ' / ') AS reasons FROM equipment_notes n JOIN equipment_note_reports r ON r.note_id=n.id

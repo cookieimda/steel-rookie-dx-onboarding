@@ -1,20 +1,19 @@
 // 첫 화면(steel-intro) 공정 칩의 [▶ 재생]: 고른 공정만 남기고(다른 공정 숨김은 steel-intro.js의 isolate) v4 단면 보기처럼 설비를 차례로 재생한다.
 // - 설비마다: 공정 모델을 반투명(엑스레이)으로, 설비 안 색 층 중 지금 단계만 밝게 + 불티(steel-index-section.js = v4 _showInterior와 step-fx),
 //   설비 작동 연출(work-fx.js), 고른 설비만 초록·나머지 흑백 + 얇은 외곽선(lab-outline.js).
-// - 화면: 오른쪽 단계 카드(반투명 유리, 지금 단계 하나만: 설명 · 해당 영역의 온도 · 조합), 아래 설비 재생 바(■/▶ · 설비 · 1×/2×).
+// - 화면: 오른쪽 단계 카드(반투명 유리, 지금 단계 하나만: 설명 · 해당 영역의 온도 · 조합), 아래 설비 재생 바(■/▶ · 설비 · 0.5×~2×).
 // - 뺀 것(2026-10-16 요청): 설비 위 '최고 온도' 지시선, 3D 위 핫스팟 핀(intro-tour.css에서 숨김), 3D 화살표 → 카메라 기준 2D 화살표(아래 StepFx._arrow 바꿔 끼움).
 // - 렉 줄이기: 지도의 공정 모델은 재질별로 합쳐 두었으므로(batchStatic) 재생하는 동안만 설비 단위 모델로 바꿔 끼운다(처음 한 번 불러와 기억).
 //   이 모델도 설비마다 재질끼리 합친다(mergeByEquipment): 단면·외곽선은 설비 단위로만 색·투명도를 바꾸므로 겉모습은 같고 그리기 횟수만 준다.
-// 공정 화면(steel-index.js)의 재생과 같은 시간 규칙: 설비 하나당 최소 5.2초, 단계당 2.6초(2×면 절반).
+// 공정 화면(steel-index.js)의 재생과 같은 시간 규칙: 1×에서 설비 하나당 최소 10.4초, 단계당 5.2초. 속도는 0.5·1·1.5·2×(steel-index-ui.js).
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/+esm';
 import { mergeGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/utils/BufferGeometryUtils.js/+esm';
 import { createSection } from './steel-index-section.js';
 import { StepFx } from './step-fx.js';
 import { createWorkFx } from './work-fx.js';
 import { createOutline } from './lab-outline.js';
-import { icon, parseTemp, heatOf } from './steel-index-ui.js';
+import { icon, parseTemp, heatOf, TOUR_MS, STEP_MS, nextSpeed, keepProgress } from './steel-index-ui.js';
 
-const TOUR_MS = 5200, STEP_MS = 2600;
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 function formulaChips(f) { if (!f || !f.includes('→')) return ''; const [l, r] = f.split('→').map((t) => t.split('+').map((q) => q.trim()).filter(Boolean)); const chip = (t, hot) => `<span class="${hot ? 'hot' : ''}">${esc(t)}</span>`; return `<div class="tp-fml"><small>무엇이 조합되나요</small><div>${l.map((t) => chip(t)).join('<i>+</i>')}<b>→</b>${r.map((t) => chip(t, true)).join('<i>+</i>')}</div></div>`; }
 
@@ -105,7 +104,7 @@ export function createIntroTour({ scene, renderer, composer, hud, getCamera, loa
       <div class="tb-track">${d.eqs.map((q) => `<button type="button" class="tb-stop ${q === e ? 'cur' : q.i < e.i ? 'done' : ''}" data-eq="${q.i}"><i></i><span>${esc(q.data.name)}</span></button>`).join('')}</div>
       <button type="button" class="tb-speed" data-speed title="재생 속도">${speed}×</button><button type="button" class="tb-x" data-x title="재생을 끝내고 지도로 (Esc)"><span aria-hidden="true">✕</span>나가기</button>`;
     bar.querySelector('[data-play]').onclick = () => toggle();
-    bar.querySelector('[data-speed]').onclick = () => { run.speed = run.speed === 1 ? 2 : 1; run.t0 = performance.now(); paintBar(); };
+    bar.querySelector('[data-speed]').onclick = () => { const to = nextSpeed(run.speed); run.t0 = keepProgress(run.t0, performance.now(), run.speed, to); run.speed = to; paintBar(); };
     bar.querySelector('[data-x]').onclick = () => stop();
     bar.querySelectorAll('[data-eq]').forEach((b) => { b.onclick = () => { run.playing = false; enter(run.d.eqs[+b.dataset.eq]); }; });
   }
@@ -200,7 +199,7 @@ export function createIntroTour({ scene, renderer, composer, hud, getCamera, loa
   }
   function tick(now) {
     if (!run) return;
-    if (run.playing) { // 공정 화면과 같은 규칙: 설비 하나에 max(5.2초, 단계 수 × 2.6초), 단계는 고르게 나눈다
+    if (run.playing) { // 공정 화면과 같은 규칙: 설비 하나에 max(TOUR_MS, 단계 수 × STEP_MS), 단계는 고르게 나눈다
       const n = Math.max(1, run.e.data.steps?.length || 1), hold = Math.max(TOUR_MS, STEP_MS * n) / run.speed, el = now - run.t0, si = Math.min(n - 1, Math.floor(el / (hold / n)));
       if ((run.e.data.steps?.length || 0) && si !== run.step) showStep(si);
       if (el >= hold) { const i = run.e.i + 1; if (i >= run.d.eqs.length) { run.playing = false; paintBar(); } else enter(run.d.eqs[i]); }

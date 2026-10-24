@@ -55,7 +55,7 @@ body.tour-on .tbar { display: flex; }
 .tbar .tb-stop.done i { background: var(--molten); }
 .tbar .tb-stop.cur { color: #ffb37a; font-weight: 700; }
 .tbar .tb-stop.cur i { background: #ff9e64; transform: scale(1.5) rotate(45deg); border-radius: 2px; }
-.tbar .tb-speed { height: 36px; min-width: 40px; padding: 0 8px; border: 0; border-radius: 999px; background: transparent; color: var(--text); font: 700 15px var(--f-mono); cursor: pointer; flex: none; }
+.tbar .tb-speed { height: 36px; min-width: 56px; padding: 0 8px; border: 0; border-radius: 999px; background: transparent; color: var(--text); font: 700 15px var(--f-mono); cursor: pointer; flex: none; }
 .tbar .tb-speed:hover { background: rgba(255,255,255,.08); }
 /* 나가기: ✕만으로는 알아보기 어려워 글자를 붙이고 굵게 */
 .tbar .tb-x { display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 14px; border: 0; border-radius: 999px; background: rgba(255,255,255,.1); color: #fff; font: 700 15px var(--f-body); cursor: pointer; flex: none; white-space: nowrap; }

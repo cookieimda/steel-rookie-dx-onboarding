@@ -57,3 +57,12 @@ export const STEP_ICON = [[/냉각|소화|물|스프레이|수냉/, 'drop'], [/�
 export const stepIcon = (z) => (STEP_ICON.find(([re]) => re.test(z || '')) || [0, 'react'])[1];
 export const parseTemp = (t) => { if (!t) return null; if (/상온/.test(t)) return [15, 35]; const v = (t.replace(/,/g, '').match(/\d+(\.\d+)?/g) || []).map(Number); if (!v.length) return null; let a = Math.min(...v), b = Math.max(...v); if (/이하/.test(t)) a = Math.max(0, b - 140); if (a === b) { a *= 0.96; b *= 1.04; } return [a, b]; };
 export const heatOf = (hi) => hi < 300 ? ['rgba(59,130,246,.5)', 'rgba(96,165,250,.3)', '#9cc6ff'] : hi < 800 ? ['rgba(245,158,11,.5)', 'rgba(251,191,36,.3)', '#ffc46b'] : hi < 1300 ? ['rgba(249,115,22,.6)', 'rgba(251,146,60,.35)', '#ff9e64'] : ['rgba(239,68,68,.6)', 'rgba(249,115,22,.4)', '#ff7a45'];
+
+// 설비 재생 시간(공정 지도 intro-tour.js·공정 화면 steel-index.js가 같이 쓴다). 1×에서 설비 하나에 max(TOUR_MS, 단계 수 × STEP_MS)만큼 머문다.
+// 2026-10-24 요청: 너무 빨라서 예전 0.5×(설비 5.2초→10.4초, 단계 2.6초→5.2초)를 새 1×로 삼고, 그 기준으로 0.5·1·1.5·2×를 고른다.
+export const TOUR_MS = 10400, STEP_MS = 5200;
+export const SPEEDS = [0.5, 1, 1.5, 2];
+/** 속도 버튼을 누를 때마다 0.5 → 1 → 1.5 → 2 → 0.5× 순서로 바꾼다. */
+export const nextSpeed = (s) => SPEEDS[(SPEEDS.indexOf(s) + 1) % SPEEDS.length];
+/** 속도를 바꿔도 지금 설비에서 진행한 비율을 그대로 둔다(처음부터 다시 세지 않게): 새 시작 시각을 돌려준다. */
+export const keepProgress = (t0, now, from, to) => now - (now - t0) * from / to;

@@ -10,7 +10,7 @@ import { OutputPass } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/
 import * as DATA from './data_v2.js';
 import { createApiClient } from './api-client.js';
 import { conceptStatuses, equipmentStatuses, groupBySection } from './learn-hud-state.js';
-import { icon, stepIcon, parseTemp, heatOf } from './steel-index-ui.js';
+import { icon, stepIcon, parseTemp, heatOf, TOUR_MS, STEP_MS, nextSpeed, keepProgress } from './steel-index-ui.js';
 import { createSection } from './steel-index-section.js';
 import { attachLabConsole } from './lab-console.js';
 import { createWorkFx } from './work-fx.js';
@@ -22,8 +22,6 @@ const ORANGE = 0xffa63d, RIPPLE = 0xffcc66; // 공정 자리 발광 테두리·�
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const RISE = { dur: 1100, gap: 240, depth: 22, sinkGap: 60, sinkDur: 480 };
 const THEME_KEY = 'st-rookie:index-theme';
-const TOUR_MS = 5200;      // 재생 바: 설비 하나당 최소 머무는 시간(1×). 단계가 많으면 단계당 2.6초
-const STEP_MS = 2600;
 
 const stage = document.getElementById('stage'), hud = document.getElementById('hud');
 const $ = (id) => document.getElementById(id);
@@ -176,7 +174,7 @@ function toast(msg, ms = 2600) { const t = $('toast'); t.textContent = msg; t.cl
 // ---- 하단 재생 바 --------------------------------------------------------------------------------------
 $('icPlay').src = icon('play', '#f2f2f2', 1.6);
 $('btnPlay').onclick = () => (tour ? stopTour() : startTour());
-$('btnSpeed').onclick = () => { speed = speed === 1 ? 2 : 1; $('btnSpeed').textContent = `${speed}×`; if (tour) tour.t0 = performance.now(); };
+$('btnSpeed').onclick = () => { const to = nextSpeed(speed), now = performance.now(); if (tour) tour.t0 = keepProgress(tour.t0, now, speed, to); speed = to; $('btnSpeed').textContent = `${speed}×`; }; // 0.5·1·1.5·2× (재생 시간은 steel-index-ui.js)
 function renderTrack(p) {
   const tr = $('track'); tr.innerHTML = '';
   p.eqs.forEach((e) => { const b = document.createElement('button'); b.className = 'stop'; b.innerHTML = `<i></i><span>${esc(e.data.name)}</span>`; b.onclick = () => enterStep(e); e.dot = b; tr.appendChild(b); });

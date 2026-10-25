@@ -1,5 +1,7 @@
 // 공정 인덱스 페이지(steel-index.js)의 단면 연출. v4(scene_v3.js _showInterior)의 층 배치를 옮겨 왔고, 단계 시각화는 step-fx.js(StepFx)를 그대로 쓴다.
 // - show(p, e): 공정 모델 전체를 반투명(엑스레이)으로 만들고, 설비 안에 data_v2.js의 interior 층을 그린다. 층 좌표는 anchors-v2b.json의 interiors.<설비 id>(없으면 설비 노드의 경계 상자).
+//   anchors에 line(압연·절단처럼 소재가 옆으로 흐르는 설비)이나 parts(층마다 모델의 실제 자리·모양)가 있으면 그 배치를 쓴다(2026-10-25: 제강·열연 단면이
+//   설비 상자로 만든 세로 원통이라 모델과 따로 놀던 것을 고침). 좌표는 GLB 부품을 재서 정했다.
 //   층 재질(피드백 반영): 고로는 광석층(짙은 갈색)·코크스층(검정)이 번갈아 쌓인 띠 텍스처, 열풍로는 내화벽돌 격자(체커) 텍스처, 소결 베드는 덩어리 텍스처가 왼쪽 → 오른쪽으로 흐르고(UV 스크롤) 아래에 윈드박스(흡입 덕트) 실루엣을 둔다.
 // - layer(idx): 그 층만 밝히고(나머지 흐리게) step-fx의 단계 시각화를 튼다. step-fx가 3D 위에 붙이는 글자 말풍선은 작은 맥동 핫스팟 핀으로 바꾸고, 글은 { hotspots }로 돌려줘 오른쪽 패널에서 펼친다(점진적 공개).
 //   입자는 공중에 흩날리는 종류(가스·수증기·분진 등)를 15%로 줄이고, 쇳물·불꽃·화염(풍구·출선구) 종류만 50%로 둔다.
@@ -67,14 +69,68 @@ export function createSection({ scene, renderer, hud, getCamera, getAnchors, isD
 
   function interiorOf(p, e) {
     const cfg = getAnchors()?.[p.id], sc = cfg?.scale ?? 1, off = cfg?.offset || [0, 0, 0], iv = cfg?.interiors?.[e.id];
+    const P = (x, y, z) => [x * sc + off[0], y * sc + off[1], z * sc + off[2]];
+    // 라인형(line): 소재가 옆(+x)으로 흐르는 설비. 층을 압연 라인을 따라 구간으로 나눈다
+    if (iv?.line) { const [x0, x1, y, z] = iv.line, a = P(x0, y, z), b = P(x1, y, z); return { kind: 'line', x0: a[0], x1: b[0], y: a[1], cz: a[2], cx: (a[0] + b[0]) / 2, depth: iv.depth * sc, th: (iv.th || [0.1, 0.1]).map((t) => t * sc), hy: (iv.hy || 0.4) * sc, pieces: !!iv.pieces, coils: (iv.coils || []).map((c) => c && [...P(c[0], c[1], c[2]), c[3] * sc, c[4] * sc]), r: (iv.r || 0.5) * sc }; }
+    // 부품형(parts): 층마다 모델의 실제 자리와 모양(원뿔대 f·상자 b·코일 c·관 t)을 지정한다
+    if (iv?.parts) return { kind: 'parts', parts: iv.parts.map((ls) => ls.map((q) => ({ ...q, f: q.f && [...P(q.f[0], q.f[1], q.f[2]), q.f[3] * sc, q.f[4] * sc, q.f[5] * sc], b: q.b && [...P(q.b[0], q.b[1], q.b[2]), q.b[3] * sc, q.b[4] * sc, q.b[5] * sc], c: q.c && [...P(q.c[0], q.c[1], q.c[2]), q.c[3] * sc, q.c[4] * sc], t: q.t && [...P(q.t[0], q.t[1], q.t[2]), ...P(q.t[3], q.t[4], q.t[5]), q.t[6] * sc], frame: q.frame && [...P(q.frame[0], q.frame[1], q.frame[2]), q.frame[3] * sc, q.frame[4] * sc, q.frame[5] * sc] }))), r: (iv.r || 0.5) * sc };
     if (iv) return { cx: iv.center[0] * sc + off[0], cz: iv.center[1] * sc + off[2], y0: iv.y0 * sc + off[1], y1: iv.y1 * sc + off[1], r: iv.r * sc, box: iv.box ? [iv.box[0] * sc, iv.box[1] * sc] : null, w: iv.w ? iv.w * sc : null };
     const b = e.box, c = b.getCenter(new THREE.Vector3()), s = b.getSize(new THREE.Vector3());
     return { cx: c.x, cz: c.z, y0: b.min.y + s.y * 0.08, y1: b.max.y - s.y * 0.08, r: Math.max(0.8, Math.min(s.x, s.z) * 0.3), box: null, w: null };
   }
   const mat = (c, op = 0.9, map = null) => new THREE.MeshBasicMaterial({ color: map ? 0xffffff : c, map, transparent: true, opacity: op, depthTest: false });
 
+  // 층 묶음의 기준점을 층 가운데로(단계 시각화의 누르기·찌그러뜨리기가 묶음 크기를 바꿔도 제자리에서 바뀌게)
+  const recenter = (m, mid) => { m.children.forEach((c) => c.position.sub(mid)); m.position.copy(mid); };
+  // 라인형: 층 i = 압연 라인의 i번째 구간. 보이는 것은 라인 위 소재(두께 th[0] → th[1]로 얇아짐, pieces면 슬라브 여러 장),
+  // 단계 시각화 좌표틀은 보이지 않는 상자(구간 길이 × 위아래 hy)라서 v = 0이 소재, v = ±1이 위·아래 롤 자리가 된다.
+  // coils: 그 층부터는 소재 대신 코일(축이 z인 원통)을 그린다(권취기)
+  function buildLine(e, info) {
+    const layers = e.data.interior, g = new THREE.Group(); g.name = 'INDEX_INTERIOR';
+    const L0 = info.x1 - info.x0, total = layers.reduce((a, L) => a + L.h, 0), out = [];
+    let x = info.x0;
+    layers.forEach((L, idx) => {
+      const len = L.h / total * L0, m = new THREE.Group(), xm = x + len / 2, k = (xm - info.x0) / L0, th = info.th[0] + (info.th[1] - info.th[0]) * k;
+      const coil = info.coils[idx];
+      if (coil) {
+        const [cx, cy, cz, r, w] = coil, c = new THREE.Mesh(new THREE.CylinderGeometry(r, r, w, 36, 1, false), mat(L.color)); c.rotation.x = Math.PI / 2; c.position.set(cx, cy, cz); m.add(c);
+        const hole = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.32, r * 0.32, w * 1.02, 20), mat(0x15181d, 0.95)); hole.rotation.x = Math.PI / 2; hole.position.copy(c.position); m.add(hole);
+      } else if (info.pieces) {
+        const n = Math.max(1, Math.round(len / (info.depth * 0.22))), pl = len / n;
+        for (let q = 0; q < n; q++) { const sl = new THREE.Mesh(new THREE.BoxGeometry(pl * 0.7, th, info.depth), mat(L.color)); sl.position.set(x + pl * (q + 0.5), info.y + th / 2, info.cz); m.add(sl); }
+      } else { const sl = new THREE.Mesh(new THREE.BoxGeometry(len * 0.98, th, info.depth), mat(L.color)); sl.position.set(xm, info.y + th / 2, info.cz); m.add(sl); }
+      const fr = new THREE.Mesh(new THREE.BoxGeometry(len, info.hy * 2, info.depth), mat(0)); fr.visible = false; fr.position.set(coil ? coil[0] : xm, coil ? coil[1] : info.y, info.cz); if (coil) fr.scale.set(coil[3] * 2.4 / len, coil[3] * 2.4 / (info.hy * 2), 1); m.add(fr);
+      const mid = coil ? new THREE.Vector3(coil[0], coil[1], coil[2]) : new THREE.Vector3(xm, info.y, info.cz); recenter(m, mid);
+      m.renderOrder = 10; m.traverse((o) => { o.renderOrder = 10; o.userData.layerIdx = idx; }); g.add(m); out.push({ m, mid, L });
+      x += len;
+    });
+    return { group: g, layers: out, scroll: [] };
+  }
+  // 부품형: 층마다 지정한 모양을 그린다. f = 원뿔대 [x, 아래 y, z, 높이, 아래 반지름, 위 반지름], b = 상자 [x, y, z, 가로, 높이, 깊이],
+  // c = 코일 [x, y, z, 반지름, 폭], t = 관 [x0, y0, z0, x1, y1, z1, 반지름], frame = 단계 시각화 좌표틀(보이지 않는 상자)
+  function buildParts(e, info) {
+    const layers = e.data.interior, g = new THREE.Group(); g.name = 'INDEX_INTERIOR'; const out = [];
+    layers.forEach((L, idx) => {
+      const m = new THREE.Group(), vis = new THREE.Box3();
+      for (const q of info.parts[idx] || []) {
+        let o = null;
+        if (q.f) { const [x, yb, z, h, rb, rt] = [q.f[0], q.f[1], q.f[2], q.f[3], q.f[4], q.f[5]]; o = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, 36), mat(L.color)); o.position.set(x, yb + h / 2, z); }
+        if (q.b) { const [x, y, z, sx, sy, sz] = q.b; o = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat(L.color)); o.position.set(x, y, z); }
+        if (q.c) { const [x, y, z, r, w] = q.c; o = new THREE.Mesh(new THREE.CylinderGeometry(r, r, w, 36), mat(L.color)); o.rotation.x = Math.PI / 2; o.position.set(x, y, z); }
+        if (q.t) { const a = new THREE.Vector3(q.t[0], q.t[1], q.t[2]), b = new THREE.Vector3(q.t[3], q.t[4], q.t[5]), d = b.clone().sub(a); o = new THREE.Mesh(new THREE.CylinderGeometry(q.t[6], q.t[6], d.length(), 16), mat(L.color)); o.position.copy(a).add(b).multiplyScalar(0.5); o.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()); }
+        if (o) { m.add(o); o.updateMatrixWorld(true); vis.expandByObject(o); }
+        if (q.frame) { const [x, y, z, sx, sy, sz] = q.frame, fr = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat(0)); fr.visible = false; fr.position.set(x, y, z); m.add(fr); }
+      }
+      const mid = vis.isEmpty() ? new THREE.Vector3() : vis.getCenter(new THREE.Vector3()); recenter(m, mid);
+      m.renderOrder = 10; m.traverse((o) => { o.renderOrder = 10; o.userData.layerIdx = idx; }); g.add(m); out.push({ m, mid, L });
+    });
+    return { group: g, layers: out, scroll: [] };
+  }
+
   // v4 _showInterior의 층 배치(stack / bed / chambers / stove / strand) + 층 텍스처
   function build(e, info) {
+    if (info.kind === 'line') return buildLine(e, info);
+    if (info.kind === 'parts') return buildParts(e, info);
     const { cx, cz, y0, y1, r } = info, layers = e.data.interior, H = y1 - y0, layout = e.data.interiorLayout || 'stack';
     const g = new THREE.Group(); g.name = 'INDEX_INTERIOR'; let y = y1, x = cx - r * 1.6;
     const W = info.w || r * 3.2, x0 = cx - W / 2; if (layout === 'strand') x = x0;

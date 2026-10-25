@@ -125,10 +125,11 @@ export const PROCESSES = [
           { zone: '출강 · 합금 투입', temp: '약 1,650℃', text: '전로를 기울여 옆 구멍(출강구)으로 용강만 래들에 받습니다. 이때 합금철을 넣어 성분을 맞춥니다.' },
         ],
         interior: [
-          { label: '배가스 CO 회수 (후드)', temp: '약 1,500℃', color: '#8a8f98', h: 0.16, formula: 'CO → 연료 재사용' },
+          // 층 번호 = 단계 번호(장입 → 취련 → 슬래그 → 배가스 → 출강). 자리·모양은 anchors-v2b.json interiors.bof_converter.parts
+          { label: '용선 + 고철 → 용강 (탄소 4% → 0.1%)', temp: '약 1,300 → 1,650℃', color: '#ffc23a', h: 0.32, formula: '고철 = 냉각재 겸 원료' },
           { label: '산소 랜스 · 초음속 취입', temp: '약 1,650℃', color: '#8fd3ff', h: 0.18, formula: 'C + ½O₂ → CO' },
-          { label: '슬래그 (CaO·SiO₂·P₂O₅)', temp: '약 1,600℃', color: '#7a7f88', h: 0.16, formula: 'Si + O₂ → SiO₂' },
-          { label: '용강 · 탄소 4% → 0.1%', temp: '약 1,650℃', color: '#ffc23a', h: 0.32, formula: '2P + 5O → P₂O₅' },
+          { label: '슬래그 (CaO·SiO₂·P₂O₅)', temp: '약 1,600℃', color: '#7a7f88', h: 0.16, formula: '2P + 5O → P₂O₅' },
+          { label: '배가스 후드 · CO 회수', temp: '약 1,600℃', color: '#8a8f98', h: 0.16, formula: 'CO → 연료 재사용' },
           { label: '출강구 → 래들 (합금 투입)', temp: '약 1,650℃', color: '#ffa63a', h: 0.18, formula: 'Fe-Mn, Fe-Si, Al' },
         ] },
       { id: 'oxygen_lance_offgas', name: '산소 랜스·배가스 설비', shape: 'gate', role: '랜스로 전로에 산소를 불어 넣고, 생긴 배가스를 후드로 모아 정화합니다.',
@@ -142,10 +143,11 @@ export const PROCESSES = [
           { zone: '냉각 · 집진', temp: '약 70℃', text: '물을 뿌려 가스를 식히고 먼지를 걸러냅니다. 깨끗해진 CO 가스는 공장 연료로 다시 씁니다.' },
         ],
         interior: [
+          // 층 번호 = 단계 번호(랜스 하강 → 산소 분사 → 후드 회수 → 냉각·집진). 자리·모양은 anchors-v2b.json interiors.oxygen_lance_offgas.parts
           { label: '산소 랜스 (수냉 구리 노즐)', temp: '상온', color: '#8fd3ff', h: 0.2, formula: 'O₂' },
-          { label: '배가스 후드 · CO 회수', temp: '약 1,500℃', color: '#d8551a', h: 0.26, formula: '2C + O₂ → 2CO' },
-          { label: '냉각 · 집진탑', temp: '약 70℃', color: '#5a7fa0', h: 0.26, formula: '' },
-          { label: '정화 가스 → 가스홀더', temp: '상온', color: '#7d838c', h: 0.28, formula: 'LDG 재사용' },
+          { label: '산소 제트 · CO 발생', temp: '약 1,650℃', color: '#ff9a3a', h: 0.26, formula: '2C + O₂ → 2CO' },
+          { label: '후드 · 배가스 회수', temp: '약 1,650 → 900℃', color: '#d8551a', h: 0.26, formula: 'CO를 그대로 모음' },
+          { label: '냉각 · 집진 → 연료', temp: '약 70℃', color: '#5a7fa0', h: 0.28, formula: 'LDG 재사용' },
         ] },
       { id: 'tapping_ladle_crane', name: '출강 래들·크레인', shape: 'ladle', role: '정련된 용강을 래들에 받아 크레인으로 옮깁니다. 이때 합금을 넣어 성분을 조절합니다.',
         input: '용강', output: '래들에 담긴 용강', notes: ['전로를 기울여 출강구로 용강만 따릅니다.', '합금철(Fe-Mn, Fe-Si, Al)을 함께 넣습니다.'],

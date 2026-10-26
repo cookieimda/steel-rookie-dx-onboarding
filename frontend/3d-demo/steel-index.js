@@ -168,7 +168,7 @@ function toast(msg, ms = 2600) { const t = $('toast'); t.textContent = msg; t.cl
 
 // ---- 하단 재생 바 --------------------------------------------------------------------------------------
 $('icPlay').src = icon('play', '#f2f2f2', 1.6);
-$('btnPlay').onclick = () => (tourMod?.active ? stopTour() : startTour());
+$('btnPlay').onclick = () => (tourMod?.active ? stopTour() : startTour(curEq ? { eq: curEq.id, guide: false } : {})); // 설비를 고른 채 누르면 그 설비부터
 function renderTrack(p) {
   const tr = $('track'); tr.innerHTML = '';
   p.eqs.forEach((e) => { const b = document.createElement('button'); b.className = 'stop'; b.innerHTML = `<i></i><span>${esc(e.data.name)}</span>`; b.onclick = () => enterStep(e); e.dot = b; tr.appendChild(b); });

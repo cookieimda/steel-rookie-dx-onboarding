@@ -2,7 +2,7 @@
 // 압축을 푸는 디코더(wasm)는 three와 같은 버전을 jsDelivr에서 처음 한 번 받아 Web Worker에서 돌린다(화면을 멈추지 않는다).
 import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js/+esm';
 import { DRACOLoader } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/DRACOLoader.js/+esm';
-import './asset-version.js'; // GLB 주소에 ?v=내용 해시(브라우저 1년 캐시)
+import { cdn } from './asset-version.js'; // GLB 주소에 ?v=내용 해시(브라우저 1년 캐시) · 공정 모델 CDN
 
 const draco = new DRACOLoader().setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/libs/draco/gltf/');
 
@@ -22,6 +22,8 @@ function cloneScene(src) {
 }
 /** GLB 하나의 복제본(장면 루트). onProgress는 처음 받을 때만 불린다. 실패하면 다음 호출에서 다시 받는다 */
 export function loadModel(url, onProgress) {
-  if (!parsed.has(url)) parsed.set(url, new Promise((resolve, reject) => loaderForCache.load(url, resolve, onProgress, reject)).catch((e) => { parsed.delete(url); throw e; }));
+  const once = () => new Promise((resolve, reject) => loaderForCache.load(url, resolve, onProgress, reject));
+  // CDN에서 못 받으면 CDN을 끄고 이 서버에서 한 번 더 받는다(이 페이지의 다음 모델도 이 서버에서)
+  if (!parsed.has(url)) parsed.set(url, once().catch((e) => { if (!cdn.base) throw e; console.warn('[모델] CDN에서 받지 못해 이 서버에서 받습니다', e); cdn.off(); return once(); }).catch((e) => { parsed.delete(url); throw e; }));
   return parsed.get(url).then((g) => cloneScene(g.scene));
 }

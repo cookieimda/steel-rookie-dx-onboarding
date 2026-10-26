@@ -8,7 +8,7 @@ import { providerInfo } from "../../llm/src/provider.js";
 import { traceMiddleware, type TraceSink } from "../../llm/src/trace.js";
 import type { CheckpointEngine } from "./checkpoint/engine.js";
 import { createCheckpointRouter } from "./checkpoint/routes.js";
-import { assetHashes, assetHashesScript, cacheVersionedGlb } from "./asset-version.js";
+import { assetHashes, assetHashesScript, cacheVersionedGlb, modelCdnBase } from "./asset-version.js";
 import { withRequestUser } from "./request-user.js";
 import { passcodeGuard, passcodeRequired } from "./test-access.js";
 import type { LlmUsage } from "./usage.js";
@@ -48,7 +48,7 @@ export function createApp({ engine, usage, webRoot = join(process.cwd(), "fronte
   app.use(createCheckpointRouter(engine));
   if (learning) app.use(learning);
   // GLB 내용 해시(asset-version.ts). /?p=…처럼 3D 화면을 주소 맨 앞에서 열 때도 상대 경로로 찾으므로 두 자리에 둔다
-  const hashesJs = assetHashesScript(assetHashes(join(webRoot, "models")));
+  const hashesJs = assetHashesScript(assetHashes(join(webRoot, "models")), modelCdnBase());
   app.get(["/asset-hashes.js", "/3d-demo/asset-hashes.js"], (_req, res) => { res.type("text/javascript").setHeader("Cache-Control", "no-cache"); res.send(hashesJs); });
   app.use(express.static(webRoot, { setHeaders: cacheVersionedGlb }));
 

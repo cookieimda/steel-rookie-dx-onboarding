@@ -22,8 +22,24 @@ export function assetHashes(modelsDir: string): Record<string, string> {
   return out;
 }
 
-/** 화면이 import하는 모듈 본문 */
-export const assetHashesScript = (hashes: Record<string, string>) => `export const V = ${JSON.stringify(hashes)};\n`;
+/**
+ * 공정 모델을 CDN에서 받을 주소(끝이 /). MODEL_CDN이 비었거나 off면 '' = 이 서버에서 받는다.
+ * - jsdelivr: GitHub 공개 저장소를 그대로 내주는 jsDelivr(계정 불필요). Render가 넣어 주는 저장소 이름·커밋(RENDER_GIT_REPO_SLUG·RENDER_GIT_COMMIT)으로
+ *   커밋을 고정한 주소를 만든다(바뀌지 않는 주소라 CDN·브라우저가 오래 캐시한다). 두 값이 없으면(로컬) 쓰지 않는다.
+ * - https://로 시작하는 주소: 그 주소를 그대로 앞에 붙인다(다른 CDN을 쓸 때).
+ */
+export function modelCdnBase(env: NodeJS.ProcessEnv = process.env): string {
+  const v = (env.MODEL_CDN || "").trim();
+  if (!v || v === "off") return "";
+  if (v === "jsdelivr") {
+    const slug = env.RENDER_GIT_REPO_SLUG, sha = env.RENDER_GIT_COMMIT;
+    return slug && sha && /^[\w.-]+\/[\w.-]+$/.test(slug) && /^[0-9a-f]{7,40}$/.test(sha) ? `https://cdn.jsdelivr.net/gh/${slug}@${sha}/frontend/3d-demo/models/` : "";
+  }
+  return /^https:\/\/\S+$/.test(v) ? v.replace(/\/?$/, "/") : "";
+}
+
+/** 화면이 import하는 모듈 본문. BASE가 있으면 공정 모델을 그 주소에서 받는다(실패하면 화면이 이 서버로 다시 받는다) */
+export const assetHashesScript = (hashes: Record<string, string>, base = "") => `export const V = ${JSON.stringify(hashes)};\nexport const BASE = ${JSON.stringify(base)};\n`;
 
 /** express.static의 setHeaders: ?v=가 붙은 GLB만 1년 캐시. 나머지(HTML·JS·CSS)는 기본값(매번 ETag로 확인) */
 export function cacheVersionedGlb(res: Response, path: string): void {

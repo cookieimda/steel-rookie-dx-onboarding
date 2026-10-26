@@ -12,6 +12,7 @@ import { createSection } from './steel-index-section.js';
 import { StepFx } from './step-fx.js';
 import { createWorkFx } from './work-fx.js';
 import { createOutline } from './lab-outline.js';
+import { loadModel } from './gltf-loader.js';
 import { icon, parseTemp, heatOf, TOUR_MS, STEP_MS, nextSpeed, keepProgress } from './steel-index-ui.js';
 import { PROCESS_GUIDE, LEGEND, KEYS, legendSeen, markLegendSeen } from './tour-guide.js';
 
@@ -78,11 +79,11 @@ function mergeByEquipment(root, nodes) {
 }
 
 /**
- * @param {{ scene, renderer, composer, hud: HTMLElement, getCamera: () => THREE.Camera, loader, reduced: boolean,
+ * @param {{ scene, renderer, composer, hud: HTMLElement, getCamera: () => THREE.Camera, reduced: boolean,
  *   animateTo: (pose: object, ms: number) => void, yawOf: (p) => number, onEnd: (p) => void }} o
  */
 // keepFloor: 공정 화면(steel-index)처럼 지도 땅이 없는 곳에서는 모델의 바닥(Floor_)을 남긴다
-export function createIntroTour({ scene, renderer, composer, hud, getCamera, loader, reduced, animateTo, yawOf, onEnd, keepFloor = false }) {
+export function createIntroTour({ scene, renderer, composer, hud, getCamera, reduced, animateTo, yawOf, onEnd, keepFloor = false }) {
   let anchors = {}; fetch('models/anchors-v2b.json').then((r) => (r.ok ? r.json() : {})).then((a) => { anchors = a || {}; }).catch(() => {});
   const placed = {}; // 단면 층 좌표: anchors의 모델 좌표 + 지도에서 공정 자리
   const section = createSection({ scene, renderer, hud, getCamera, getAnchors: () => placed, isDark: () => true });
@@ -99,14 +100,22 @@ export function createIntroTour({ scene, renderer, composer, hud, getCamera, loa
 
   function loadDetail(p) {
     if (details.has(p.id)) return Promise.resolve(details.get(p.id));
-    return new Promise((resolve, reject) => loader.load(`models/${p.id}.glb`, (gltf) => {
-      const root = gltf.scene; root.position.set(p.c[0], 0, p.c[1]); root.updateMatrixWorld(true);
+    return loadModel(`models/${p.id}.glb`).then((root) => { // 지도·공정 화면이 이미 받아 푼 모델의 복제본(다시 받거나 풀지 않는다)
+      root.position.set(p.c[0], 0, p.c[1]); root.updateMatrixWorld(true);
       if (!keepFloor) root.traverse((o) => { if (!o.isMesh) return; for (let q = o; q && q !== root; q = q.parent) if (/^Floor_/.test(q.name)) { o.visible = false; break; } });
       const list = p.data.equipment.map((e) => ({ e, node: root.getObjectByName(`EQ_${e.id}`) })).filter((x) => x.node);
       const eqs = list.map(({ e, node }, i) => ({ id: e.id, data: e, i, node, box: new THREE.Box3().setFromObject(node) }));
       mergeByEquipment(root, eqs.map((q) => q.node));
-      const d = { root, eqs }; details.set(p.id, d); resolve(d);
-    }, undefined, reject));
+      const d = { root, eqs }; details.set(p.id, d); return d;
+    });
+  }
+  // 재생 모델의 셰이더를 화면에 넣기 전에 미리 만든다(KHR_parallel_shader_compile이 있으면 GPU가 병렬로 만들고 기다리는 동안 화면은 계속 그린다).
+  // 장면은 효과 합성용 렌더 타깃에 그려지므로 그 타깃 기준으로 만든다(perf-mode.js warmShaders와 같은 이유). 실패해도 재생은 그대로
+  async function precompile(root) {
+    if (!renderer.compileAsync || !renderer.extensions.has('KHR_parallel_shader_compile')) return; // 병렬 컴파일이 없으면 미리 만들어도 똑같이 멈추므로 하지 않는다
+    const prev = renderer.getRenderTarget(), vis = root.visible; root.visible = true;
+    let job; try { renderer.setRenderTarget(composer.renderTarget1); job = renderer.compileAsync(root, getCamera(), scene); } catch (e) { job = null; } finally { renderer.setRenderTarget(prev); root.visible = vis; }
+    try { await job; } catch (e) { /* 미리 못 만들면 처음 그릴 때 만든다 */ }
   }
   function paintBar() {
     const { d, e, playing, speed } = run;
@@ -260,6 +269,7 @@ export function createIntroTour({ scene, renderer, composer, hud, getCamera, loa
   async function start(p, opts = {}) {
     if (run) stop(false);
     const d = await loadDetail(p); if (!d.eqs.length) return false;
+    await precompile(d.root);
     placed[p.id] = { ...(anchors[p.id] || {}), scale: 1, offset: [p.c[0], 0, p.c[1]] };
     p.root.visible = false; p.swapped = true; scene.add(d.root);
     run = { p, d, sp: { id: p.id, root: d.root, eqs: d.eqs }, e: null, step: 0, t0: 0, playing: true, speed: 1 }; // sp: 단면 모듈이 보는 공정(설비 단위 모델)

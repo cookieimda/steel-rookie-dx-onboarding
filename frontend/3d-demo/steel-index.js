@@ -1,7 +1,7 @@
 // Learning-lab branch: original process visuals with thermal / What-if panels and a quotation board.
 // The process models and existing section views remain; no stage or wall is instantiated.
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/+esm';
-import { createGLTFLoader } from './gltf-loader.js'; // Draco 압축 GLB
+import { loadModel } from './gltf-loader.js'; // Draco 압축 GLB(같은 모델은 한 번만 받아 풀고 복제본을 쓴다)
 import { RoomEnvironment } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/environments/RoomEnvironment.js/+esm';
 import { EffectComposer } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/EffectComposer.js/+esm';
 import { RenderPass } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/RenderPass.js/+esm';
@@ -85,7 +85,6 @@ let rippleR = 3;
 ripples.forEach((r) => { r.visible = false; }); // 선택 설비는 바닥 물결 대신 카메라 기준 외곽선으로 보인다(lab-outline.js)
 
 // ---- 공정·설비 -------------------------------------------------------------------------------------
-const loader = createGLTFLoader();
 let anchors = {};
 const procs = PROCESSES.map((p, i) => ({ id: p.id, data: p, idx: i, root: null, eqs: [], loaded: false, error: null, foot: null, seen: new Set(), progress: null, review: new Set() }));
 let cur = null, curEq = null, seq = null, sinking = null, mode = 'overview';
@@ -111,8 +110,8 @@ function tuneMaterial(o) {
 }
 // 공정 모델은 하나씩 받는다: 지금 볼 공정을 먼저 받아 바로 보여 주고, 나머지는 뒤에서 차례로 받는다(loadRest). 같은 공정을 두 번 받지 않는다
 const loadOne = (p) => p.loading ||= new Promise((resolve) => {
-  loader.load(`models/${p.id}.glb`, (gltf) => {
-    const root = gltf.scene; root.visible = false;
+  loadModel(`models/${p.id}.glb`, (e) => { if (e.total && !cur) loadbar.style.width = `${Math.round(e.loaded / e.total * 100)}%`; }).then((root) => {
+    root.visible = false;
     const cfg = anchors[p.id] || {}; const sc = cfg.scale ?? 1, off = cfg.offset || [0, 0, 0];
     root.scale.setScalar(sc); root.position.set(off[0], off[1], off[2]);
     root.traverse((o) => { if (o.isMesh) tuneMaterial(o); });
@@ -124,7 +123,7 @@ const loadOne = (p) => p.loading ||= new Promise((resolve) => {
     p.eqs = p.data.equipment.map((e, i) => { const node = root.getObjectByName(`EQ_${e.id}`); if (!node) return null; const box = new THREE.Box3().setFromObject(node); return { id: e.id, data: e, i, node, box, baseY: node.position.y, y: 0, up: false, tag: null }; }).filter(Boolean);
     p.root = root; p.loaded = true; scene.add(root);
     resolve(true);
-  }, (e) => { if (e.total && !cur) loadbar.style.width = `${Math.round(e.loaded / e.total * 100)}%`; }, (err) => { p.error = err?.message || '모델을 불러오지 못했어요'; p.tab?.setAttribute('disabled', ''); p.tab?.setAttribute('title', `${p.data.name}: 3D 모델을 불러오지 못했어요`); resolve(false); });
+  }).catch((err) => { p.error = err?.message || '모델을 불러오지 못했어요'; p.tab?.setAttribute('disabled', ''); p.tab?.setAttribute('title', `${p.data.name}: 3D 모델을 불러오지 못했어요`); resolve(false); });
 });
 const loadRest = async () => { for (const p of procs) await loadOne(p); };
 
@@ -378,7 +377,7 @@ renderer.domElement.addEventListener('wheel', (e) => { e.preventDefault(); orbit
 const composer = new EffectComposer(renderer);
 const renderPass = new RenderPass(scene, camera); composer.addPass(renderPass);
 const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.15, 0.3, 1.6); composer.addPass(bloom); tuneBloom(bloom); const outline = createOutline(scene, camera); composer.addPass(outline.pass);
-tourMod = createIntroTour({ scene, renderer, composer, hud, getCamera: () => camera, loader, reduced: REDUCED, animateTo: (pose, ms) => { anim = null; animateTo(pose, ms); }, yawOf: () => home.yaw, onEnd: tourEnded, keepFloor: true }); composer.addPass(new OutputPass());
+tourMod = createIntroTour({ scene, renderer, composer, hud, getCamera: () => camera, reduced: REDUCED, animateTo: (pose, ms) => { anim = null; animateTo(pose, ms); }, yawOf: () => home.yaw, onEnd: tourEnded, keepFloor: true }); composer.addPass(new OutputPass());
 function resize() { const w = stage.clientWidth || 1, h = stage.clientHeight || 1; renderer.setSize(w, h, false); composer.setSize(w, h); bloom.resolution.set(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); applyViewOffset();  if (cur && !curEq) { home = fitHome(cur); animateTo(home, 450); } }
 // 오른쪽 패널이 열리면 패널 폭의 절반만큼 장면을 왼쪽으로 밀어, 고른 설비가 패널에 가리지 않고 남은 영역 가운데에 온다(2026-10-14 요청). 천천히 옮겨 간다
 let viewOff = 0;

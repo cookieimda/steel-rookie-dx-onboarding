@@ -28,7 +28,7 @@
 //   2D에서 드래그하면 위에서 본 채로 평면 회전만 하고, 위아래로 끌거나 V 키를 누르면 3D로 바뀐다(markView로 위 토글도 같이).
 
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/+esm';
-import { createGLTFLoader } from './gltf-loader.js'; // Draco 압축 GLB
+import { loadModel } from './gltf-loader.js'; // Draco 압축 GLB(같은 모델은 한 번만 받아 풀고 복제본을 쓴다)
 import { RoomEnvironment } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/environments/RoomEnvironment.js/+esm';
 import { EffectComposer } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/EffectComposer.js/+esm';
 import { RenderPass } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/RenderPass.js/+esm';
@@ -158,7 +158,6 @@ function buildAmbientLights() {
 }
 
 // ---- 공정 구역(받침 없이 땅에서 솟는 모델) --------------------------------------------------------------------------
-const loader = createGLTFLoader();
 const above = (y) => [new THREE.Plane(new THREE.Vector3(0, 1, 0), -y)]; // y 이상만 그린다
 function glowTex() { const c = document.createElement('canvas'); c.width = 256; c.height = 192; const x = c.getContext('2d'); x.shadowColor = '#fff'; x.shadowBlur = 24; x.strokeStyle = 'rgba(255,255,255,.95)'; x.lineWidth = 4; x.beginPath(); x.roundRect(28, 28, 200, 136, 14); x.stroke(); x.stroke(); return new THREE.CanvasTexture(c); }
 const GLOW = glowTex();
@@ -192,8 +191,8 @@ function batchStatic(root) {
 const procs = PROCESSES.map((p, i) => ({ id: p.id, data: p, i, c: SITE[p.id], root: null, glow: null, ripples: [], hit: null, flood: null, warm: null, foot: null, modelTop: 10, t0: null, up: false, upAt: 0, chip: null, showUntil: 0, hoverZone: false, hoverOff: 0, hoverChip: false }));
 let loaded = 0;
 const loadAll = () => Promise.all(procs.map((p) => new Promise((resolve) => {
-  loader.load(`models/${p.id}.glb`, (gltf) => {
-    const root = gltf.scene; root.position.set(p.c[0], 0, p.c[1]);
+  loadModel(`models/${p.id}.glb`).then((root) => {
+    root.position.set(p.c[0], 0, p.c[1]);
     root.traverse((o) => { if (!o.isMesh) return; o.material = Array.isArray(o.material) ? o.material.map(tune) : tune(o.material); o.castShadow = true; o.receiveShadow = true; });
     root.updateMatrixWorld(true);
     const fb = new THREE.Box3();
@@ -215,7 +214,7 @@ const loadAll = () => Promise.all(procs.map((p) => new Promise((resolve) => {
     root.position.y = -RISE_DEPTH; root.visible = false; scene.add(root);
     Object.assign(p, { root, glow, hit, warm });
     loaded++; $('loadbar').style.width = `${Math.round(loaded / procs.length * 100)}%`; resolve(true);
-  }, undefined, () => { loaded++; resolve(false); });
+  }).catch(() => { loaded++; resolve(false); });
 })));
 
 
@@ -492,7 +491,7 @@ composer.addPass(new RenderPass(scene, camera));
 const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.3, 0.4, 0.97); // 불빛·쇳물만 번지게 임계값을 높게(빛번짐 완화)
 composer.addPass(bloom); tuneBloom(bloom);
 composer.addPass(new OutputPass());
-const tourMod = createIntroTour({ scene, renderer, composer, hud, getCamera: () => camera, loader, reduced: REDUCED, animateTo: (pose, ms) => { anim = null; animateTo(pose, ms); }, yawOf: (p) => zonePose(p).yaw, onEnd: tourEnded });
+const tourMod = createIntroTour({ scene, renderer, composer, hud, getCamera: () => camera, reduced: REDUCED, animateTo: (pose, ms) => { anim = null; animateTo(pose, ms); }, yawOf: (p) => zonePose(p).yaw, onEnd: tourEnded });
 function resize() { const w = stage.clientWidth || 1, h = stage.clientHeight || 1; renderer.setSize(w, h, false); composer.setSize(w, h); bloom.resolution.set(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); shiftView(); }
 new ResizeObserver(resize).observe(stage); resize();
 autoQuality({ renderer, composer });

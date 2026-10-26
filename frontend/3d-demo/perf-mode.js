@@ -5,7 +5,7 @@
 //  - 패널 뒤 흐림(backdrop-filter)을 끄고 판을 조금 더 진하게(3D가 움직일 때마다 다시 흐리게 만드는 비용을 없앤다)
 // 늘 켜짐: 시작 2초 뒤부터 1.5초쯤 본 프레임 간격의 중앙값이 24ms(약 40fps)보다 느리면 렌더 해상도를 1로 낮춘다(한 번만, quality-rule.js).
 // 늘 켜짐: 프레임 상한(frameGate). 조작·움직임 중에는 60fps, 대기 중에는 30fps까지만 그린다.
-// 늘 켜짐: 셰이더 오류 검사 끄기(?debug면 켬), 셰이더 미리 만들기(warmShaders).
+// 늘 켜짐: 셰이더 오류 검사 끄기(?debug면 켬), 셰이더 미리 만들기(warmShaders, 지원하면 병렬로 warmShadersAsync).
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/+esm';
 import { QUALITY, shouldLowerQuality } from './quality-rule.js';
 
@@ -66,6 +66,24 @@ export function warmShaders(renderer, scene, camera, target = null) {
     renderer.shadowMap.needsUpdate = true; renderer.render(scene, camera);
   } catch (e) { console.warn('셰이더 미리 준비 실패', e); }
   finally { renderer.setRenderTarget(prev); renderer.shadowMap.autoUpdate = shadowAuto; renderer.shadowMap.needsUpdate = true; hidden.forEach((o) => { o.visible = false; }); culled.forEach((o) => { o.frustumCulled = true; }); }
+}
+
+/**
+ * 셰이더 병렬 준비(2026-10-26): 그래픽 드라이버가 KHR_parallel_shader_compile을 지원하면 셰이더를 드라이버 스레드들이 동시에 만들게 하고,
+ * 다 될 때까지 기다리는 동안 메인 스레드(로딩 막대·화면)는 멈추지 않는다. 그다음 warmShaders로 한 번 그려 남은 것(그림자·양면 반투명)만 마저 만든다
+ * (이미 만든 프로그램은 다시 만들지 않으므로 이 마무리는 짧다). 지원하지 않으면 warmShaders와 똑같다.
+ * 실제 기기 측정(Intel Iris Plus): 동기로 만들 때 로딩 직후 한 프레임이 1.17초 멈췄다.
+ */
+export async function warmShadersAsync(renderer, scene, camera, target = null) {
+  if (renderer.compileAsync && renderer.extensions.has('KHR_parallel_shader_compile')) {
+    const hidden = [], culled = [];
+    scene.traverse((o) => { if (!o.visible) { hidden.push(o); o.visible = true; } if (o.frustumCulled) { culled.push(o); o.frustumCulled = false; } });
+    const prev = renderer.getRenderTarget(); let job = null;
+    try { renderer.setRenderTarget(target); job = renderer.compileAsync(scene, camera); } catch (e) { console.warn('셰이더 병렬 준비 실패', e); } finally { renderer.setRenderTarget(prev); }
+    try { await job; } catch (e) { /* 마무리 단계에서 만든다 */ }
+    hidden.forEach((o) => { o.visible = false; }); culled.forEach((o) => { o.frustumCulled = true; });
+  }
+  warmShaders(renderer, scene, camera, target);
 }
 
 /**

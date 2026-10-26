@@ -38,7 +38,7 @@ import { PROCESSES } from './data_v2.js';
 import { icon } from './steel-index-ui.js';
 import { makeStockpile, makeSlabYard, makeSlabStack, makeCoilYard } from './plant-props.js';
 import { mergeGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/utils/BufferGeometryUtils.js/+esm';
-import { tuneRenderer, tuneShadowLight, tuneBloom, autoQuality, frameGate, warmShaders } from './perf-mode.js'; // 발표 모드·자동 화질·프레임 상한
+import { tuneRenderer, tuneShadowLight, tuneBloom, autoQuality, frameGate, warmShadersAsync } from './perf-mode.js'; // 발표 모드·자동 화질·프레임 상한
 import { createIntroTour } from './intro-tour.js'; // [▶ 재생]: 단면·단계 재생
 
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -658,5 +658,5 @@ function frame(now) {
   placeHud(now);
 }
 // 셰이더 미리 준비: 공정 모델은 솟기 전까지 숨겨 두어 처음 보일 때 셰이더를 만드느라 0.2초쯤 멈췄다. 숨긴 채로 한 번 컴파일해 둔다
-function warmUp() { warmShaders(renderer, scene, camera, composer.renderTarget1); composer.render(); } // 효과(빛번짐·외곽선) 셰이더도 로딩 화면 뒤에서 만든다
-loadAll().then(() => { buildLinks(); buildTraffic(); buildSurroundings(); buildAmbientLights(); warmUp(); $('load').classList.add('off'); startMap(); requestAnimationFrame(frame); });
+async function warmUp() { await warmShadersAsync(renderer, scene, camera, composer.renderTarget1); composer.render(); } // 효과(빛번짐·외곽선) 셰이더도 로딩 화면 뒤에서 만든다(지원하면 병렬로, perf-mode.js)
+loadAll().then(async () => { buildLinks(); buildTraffic(); buildSurroundings(); buildAmbientLights(); await warmUp(); $('load').classList.add('off'); startMap(); requestAnimationFrame(frame); });

@@ -3,10 +3,11 @@
 //  - 렌더 해상도 배율 1(윈도우 배율 150% 노트북에서 1.5배로 그리던 것을 줄인다)
 //  - 빛번짐(블룸)은 절반 해상도로, 그림자 지도 1024(그림자를 다시 그리는 횟수는 각 화면이 정한다)
 //  - 패널 뒤 흐림(backdrop-filter)을 끄고 판을 조금 더 진하게(3D가 움직일 때마다 다시 흐리게 만드는 비용을 없앤다)
-// 늘 켜짐: 3초 동안 평균 프레임이 24ms(약 40fps)보다 느리면 렌더 해상도를 1로 낮춘다(한 번만).
+// 늘 켜짐: 시작 2초 뒤부터 1.5초쯤 본 프레임 간격의 중앙값이 24ms(약 40fps)보다 느리면 렌더 해상도를 1로 낮춘다(한 번만, quality-rule.js).
 // 늘 켜짐: 프레임 상한(frameGate). 조작·움직임 중에는 60fps, 대기 중에는 30fps까지만 그린다.
 // 늘 켜짐: 셰이더 오류 검사 끄기(?debug면 켬), 셰이더 미리 만들기(warmShaders).
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/+esm';
+import { QUALITY, shouldLowerQuality } from './quality-rule.js';
 
 const KEY = 'st-rookie:present';
 const read = () => { try { return localStorage.getItem(KEY) === '1'; } catch { return false; } };
@@ -83,17 +84,20 @@ export function frameGate() {
 }
 
 /**
- * 자동 화질: 3초 동안 평균 프레임이 24ms보다 느리면 렌더 해상도 배율을 1로 낮춘다(한 번만). 이미 1이면 아무것도 하지 않는다.
+ * 자동 화질: 꾸준히 느리면(프레임 간격 중앙값이 24ms, 약 40fps보다 느리면) 렌더 해상도 배율을 1로 낮춘다(한 번만). 이미 1이면 아무것도 하지 않는다.
+ * 시작 뒤 2초(모델 올리기·셰이더 준비)는 보지 않고, 판단은 quality-rule.js(중앙값)로 한다: 순간 멈춤 하나로 해상도를 낮추지 않게.
  * @param {{ renderer: THREE.WebGLRenderer, composer?: { setPixelRatio(n: number): void, setSize(w: number, h: number): void } }} o
  */
 export function autoQuality({ renderer, composer }) {
   let samples = [], last = performance.now(), done = false;
+  const t0 = last;
   const loop = (now) => {
     if (done) return;
-    samples.push(now - last); last = now;
-    if (samples.length >= 90) {
-      const avg = samples.reduce((s, x) => s + x, 0) / samples.length; samples = [];
-      if (avg > 24 && avg < 500 && renderer.getPixelRatio() > 1) { // 500ms 넘는 건 탭이 숨겨진 것이라 무시
+    const dt = now - last; last = now;
+    if (now - t0 > QUALITY.warmupMs) samples.push(dt);
+    if (samples.length >= QUALITY.window) {
+      const slow = shouldLowerQuality(samples); samples = [];
+      if (slow && renderer.getPixelRatio() > 1) {
         const el = renderer.domElement, w = el.clientWidth || 1, h = el.clientHeight || 1;
         renderer.setPixelRatio(1); renderer.setSize(w, h, false);
         composer?.setPixelRatio?.(1); composer?.setSize(w, h);

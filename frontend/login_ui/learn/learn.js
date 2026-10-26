@@ -1,5 +1,5 @@
-// 새 학습 기록(LEARN & ASK): 캐비닛 랙(5×2 칸)에서 기능을 고르면 그 칸에서 빛줄기가 나가 왼쪽 도감(HUD)에 설명이 뜬다(2026-10-24 시안 C).
-// 고른 칸을 한 번 더 누르거나 [사용하기 ↗]·Enter면 그 기능의 실제 화면(live.html#기능)이 바로 뜬다.
+// 새 학습 기록(LEARN & ASK): 캐비닛 랙(5×2 칸)에서 기능을 고르면 그 칸의 카드가 커지며 왼쪽 도감(HUD) 자리로 날아가 설명이 된다(2026-10-24 시안 C, 2026-10-26 빛줄기 → 날아가는 카드).
+// 고른 칸을 한 번 더 누르거나 [사용하기 ↗]·Enter면 그 기능의 실제 화면(live.html#기능)이 화면 전체로 바로 뜬다(오른쪽 아래 [← 캐비닛으로 돌아가기]·Esc로 돌아옴).
 // [▶ 포석호 설명 듣고 열기]를 누를 때만 포석호가 목소리(동물의 숲 같은 포석호 말투, animalese.js)와 자막으로 사용법을 먼저 설명한다:
 // 도감의 사용법 단계가 차례로 켜지고 오른쪽 아래 포석호 말풍선에 자막이 찍힌다. 다 들으면 실제 화면이 뜬다. ✕ · Esc면 돌아온다.
 import { FEATURES, POSEOKHO } from './features.js';
@@ -59,13 +59,9 @@ $stage.innerHTML = `<section class="cab" id="cab">
         <div class="keys" aria-label="단축키"><span><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> 고르기</span><span><kbd>Enter</kbd> 사용하기</span><span><kbd>Esc</kbd> 닫기</span></div></div></div>
     </div>
   </section>
-  <svg class="beam" id="beam" aria-hidden="true"><defs>
-      <linearGradient id="bmGrad" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#ffd2a8" stop-opacity=".75"/><stop offset=".35" stop-color="#ff9e64" stop-opacity=".32"/><stop offset="1" stop-color="#ff9e64" stop-opacity=".05"/></linearGradient>
-      <filter id="bmGlow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-    <polygon class="bm-cone" id="bmCone"/><path class="bm-halo" id="bmHalo"/><path class="bm-core" id="bmCore" filter="url(#bmGlow)"/><path class="bm-flow" id="bmFlow"/>
-    <circle class="bm-src" id="bmSrc" r="7" filter="url(#bmGlow)"/><circle class="bm-hit" id="bmHit" r="5"/></svg>
-  <div class="live" id="live" hidden><div class="live-bar"><button type="button" class="btn ghost sm" id="full" aria-pressed="false">⛶ 전체 화면으로 보기</button><span class="num" id="lNum"></span><span class="live-t" id="lName"></span>
-    <button type="button" class="btn ghost sm" id="askBar">💬 포석호에게 묻기</button><button type="button" class="live-x" id="back" aria-label="닫기" title="닫기 (Esc)">✕</button></div><iframe id="frame" title="실제 화면"></iframe></div>`;
+  <div class="live" id="live" hidden><div class="live-bar"><span class="num" id="lNum"></span><span class="live-t" id="lName"></span>
+    <button type="button" class="btn ghost sm" id="askBar">💬 포석호에게 묻기</button></div><iframe id="frame" title="실제 화면"></iframe>
+    <button type="button" class="live-back" id="back" title="캐비닛으로 돌아가기 (Esc)">← 캐비닛으로 돌아가기</button></div>`;
 
 const $ = (id) => $stage.querySelector(`#${id}`);
 const cab = $('cab'), hud = $('hud'), grid = $('grid'), slots = [...grid.children];
@@ -75,43 +71,33 @@ let cur = 0;
 // [포석호에게 묻기]는 말이 다 찍힌 뒤에 나타난다(타이핑하는 동안 글자를 따라 밀려가지 않게)
 const talk = (text, motion = 'explain', back = 2600) => { const btn = $('ask'); btn.hidden = true; typeInto(say, text, 22, () => { btn.hidden = false; }); guide.setAttribute('motion', motion); clearTimeout(guide._t); guide._t = setTimeout(() => guide.setAttribute('motion', 'idle'), back); };
 
-// ── 빔: 고른 칸에서 왼쪽 도감(HUD) 꼬리까지 빛줄기를 쏜다. 칸 → 빛줄기가 HUD에 닿는 순간 HUD가 튀어나온다 ──
-// 위치는 화면 좌표(getBoundingClientRect)로 잡는다. 랙이 3D로 기울어 있어도 보이는 자리 그대로 이어진다.
-// 좁은 화면(위아래로 쌓임)·동작 줄이기 설정에서는 쏘는 애니메이션 없이 선만 둔다(좁은 화면은 CSS로 숨김)
-const beam = { svg: $('beam'), cone: $('bmCone'), halo: $('bmHalo'), core: $('bmCore'), flow: $('bmFlow'), src: $('bmSrc'), hit: $('bmHit'), anims: [] };
-function beamGeom() {
-  const s = slots[cur].firstElementChild.getBoundingClientRect(), h = hud.getBoundingClientRect(); // 앞으로 나온 칸 얼굴(slot-face) 기준
-  const sx = s.left + 4, sy = s.top + s.height / 2;
-  const ty = Math.min(h.bottom - 40, Math.max(h.top + 40, sy)); // HUD 꼬리를 빛줄기 높이에 맞춘다
-  hud.style.setProperty('--tail', `${ty - h.top - 9}px`);
-  const tx = h.right + 9, spread = Math.min(h.height * 0.42, 220);
-  return { sx, sy, tx, ty, top: Math.max(h.top + 18, ty - spread), bot: Math.min(h.bottom - 18, ty + spread), hx: h.right };
+// ── 고른 칸의 카드가 그 자리에서 커지며 왼쪽 도감(HUD) 자리로 날아가 도감이 된다(FLIP: 처음·끝 위치를 재고 transform으로 옮긴다) ──
+// 카드 복제본만 움직이고 진짜 도감은 복제본이 닿을 때 채운다. 동작 줄이기 설정이면 바로 바꾼다
+let flyer = null;
+const tailTo = () => { // 도감 꼬리를 고른 칸 높이에 맞춘다(좁은 화면에서는 CSS로 감춘다)
+  const s = slots[cur].getBoundingClientRect(), h = hud.getBoundingClientRect();
+  hud.style.setProperty('--tail', `${Math.min(h.height - 40, Math.max(22, s.top + s.height / 2 - h.top)) - 9}px`);
+};
+function flyCard(onLand) {
+  flyer?.remove(); flyer = null;
+  const face = slots[cur].querySelector('.slot-face'), from = face.getBoundingClientRect(), to = hud.getBoundingClientRect();
+  if (reduce || !from.width || !to.width || matchMedia('(max-width: 1100px), (max-height: 560px)').matches) { // 위아래로 쌓인 좁은 화면은 날리지 않는다
+    onLand(); tailTo(); return; }
+  const c = face.cloneNode(true); c.className = 'slot-face flyer'; c.setAttribute('aria-hidden', 'true');
+  Object.assign(c.style, { left: `${from.left}px`, top: `${from.top}px`, width: `${from.width}px`, height: `${from.height}px` });
+  document.body.append(c); flyer = c;
+  const dx = to.left - from.left, dy = to.top - from.top, sx = to.width / from.width, sy = to.height / from.height;
+  hud.classList.add('waiting'); // 날아오는 동안 도감은 비워 둔다
+  const anim = c.animate([
+    { transform: 'translate(0, 0) scale(1)', opacity: 1, offset: 0 },
+    { transform: `translate(${dx * 0.12}px, ${dy * 0.12 - 18}px) scale(1.18)`, opacity: 1, offset: 0.22 }, // 칸에서 툭 튀어나와 커지고
+    { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`, opacity: 0.9, offset: 0.86 },          // 왼쪽 도감 자리로 날아가
+    { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`, opacity: 0, offset: 1 },               // 도감과 겹치며 사라진다
+  ], { duration: 640, easing: 'cubic-bezier(.3,.7,.2,1)', fill: 'forwards' });
+  setTimeout(() => { hud.classList.remove('waiting'); onLand(); tailTo(); }, 520);
+  anim.onfinish = () => { if (flyer === c) { c.remove(); flyer = null; } };
 }
-function placeBeam() {
-  const g = beamGeom(), d = `M${g.sx} ${g.sy} C${g.sx - (g.sx - g.tx) * 0.45} ${g.sy} ${g.tx + (g.sx - g.tx) * 0.35} ${g.ty} ${g.tx} ${g.ty}`;
-  for (const el of [beam.halo, beam.core, beam.flow]) el.setAttribute('d', d);
-  beam.cone.setAttribute('points', `${g.sx},${g.sy - 6} ${g.hx},${g.top} ${g.hx},${g.bot} ${g.sx},${g.sy + 6}`);
-  const lg = beam.svg.querySelector('#bmGrad'); lg.setAttribute('x1', g.sx); lg.setAttribute('x2', g.hx); lg.setAttribute('y1', g.sy); lg.setAttribute('y2', g.sy);
-  beam.src.setAttribute('cx', g.sx); beam.src.setAttribute('cy', g.sy); beam.hit.setAttribute('cx', g.tx); beam.hit.setAttribute('cy', g.ty);
-  return beam.core.getTotalLength();
-}
-function shootBeam(onHit) {
-  beam.anims.forEach((a) => a.cancel()); beam.anims = [];
-  const len = placeBeam(); beam.svg.classList.add('on');
-  if (reduce) { onHit(); return; }
-  const ease = 'cubic-bezier(.2,.8,.2,1)', A = (el, k, o) => beam.anims.push(el.animate(k, { fill: 'forwards', ...o }));
-  A(beam.src, [{ opacity: 0, transform: 'scale(.2)' }, { opacity: 1, transform: 'scale(1.6)', offset: .4 }, { opacity: .9, transform: 'scale(1)' }], { duration: 420, easing: ease });
-  for (const el of [beam.core, beam.halo]) A(el, [{ strokeDasharray: `${len}`, strokeDashoffset: len }, { strokeDasharray: `${len}`, strokeDashoffset: 0 }], { duration: 300, easing: 'cubic-bezier(.5,0,.2,1)' });
-  A(beam.cone, [{ opacity: 0 }, { opacity: 0, offset: .3 }, { opacity: 1, offset: .5 }, { opacity: 0 }], { duration: 1100, easing: 'ease-out' }); // 빛 원뿔은 번쩍 퍼졌다가 사라진다(칸을 가리지 않게)
-  A(beam.flow, [{ opacity: 0 }, { opacity: 0, offset: .6 }, { opacity: .85 }], { duration: 500 });
-  A(beam.hit, [{ opacity: 0, transform: 'scale(.4)' }, { opacity: 0, offset: .55 }, { opacity: 1, transform: 'scale(2.4)', offset: .75 }, { opacity: .8, transform: 'scale(1)' }], { duration: 560, easing: ease });
-  setTimeout(onHit, 230); // 빛줄기가 HUD에 닿을 즈음 HUD가 튀어나온다
-  clearTimeout(beam.t); beam.t = setTimeout(placeBeam, 420); // 칸이 다 나온(.35s) 뒤 시작점을 칸 얼굴에 다시 맞춘다
-}
-// 글꼴·포석호 모델이 늦게 들어와 자리가 바뀌거나 창 크기가 바뀌면 다시 잇는다
-const replace = () => { if (beam.svg.classList.contains('on')) placeBeam(); };
-addEventListener('resize', replace); document.fonts?.ready.then(replace);
-if ('ResizeObserver' in window) { const ro = new ResizeObserver(replace); ro.observe(hud); ro.observe($('rack')); }
+addEventListener('resize', () => tailTo());
 
 // ── 캐비닛 칸 고르기: 칸이 앞으로 나오고 → 빔 → 왼쪽 도감(HUD)이 바뀐다 ──
 function fillHud(f) {
@@ -120,13 +106,13 @@ function fillHud(f) {
   $('hHow').innerHTML = f.how.map((h, k) => `<li><b>${k + 1}</b><span>${esc(h)}</span></li>`).join('');
   hud.classList.remove('pop'); void hud.offsetWidth; hud.classList.add('pop');
 }
-function show(i, { speak = true, focus = false } = {}) {
+function show(i, { speak = true, focus = false, anim = true } = {}) {
   if (briefing) stopBrief();
   cur = wrap(i); const f = FEATURES[cur];
   slots.forEach((s, k) => { s.classList.toggle('on', k === cur); s.setAttribute('aria-pressed', String(k === cur)); });
   $('meter').innerHTML = `<b>${f.num}</b> / ${String(N).padStart(2, '0')}`;
   if (focus) slots[cur].focus({ preventScroll: true });
-  shootBeam(() => fillHud(f));
+  if (anim) flyCard(() => fillHud(f)); else { fillHud(f); tailTo(); }
   if (speak) talk(f.say);
 }
 grid.addEventListener('click', (e) => { const s = e.target.closest('.slot'); if (!s) return; const i = +s.dataset.i; if (i === cur && !briefing) go(); else show(i); }); // 고른 칸을 한 번 더 누르면 바로 연다
@@ -204,10 +190,9 @@ function openLive(f, route = f.id) {
 }
 function ask() { stopBrief(); show(FEATURES.findIndex((f) => f.id === 'steps'), { speak: false }); openLive(FEATURES[cur], 'ask'); talk('궁금한 걸 채팅에 물어봐! 도면에서 설비를 먼저 고르면 그 설비를 보고 답해 줄게.', 'greet', 1800); }
 // [전체 화면으로 보기]: 실제 화면 창이 위 메뉴까지 덮어 페이지 전체를 쓴다. 닫으면 원래 크기로 돌아간다
-const full = (on) => { live.classList.toggle('full', on); $('full').setAttribute('aria-pressed', on); $('full').textContent = on ? '↙ 원래 크기로' : '⛶ 전체 화면으로 보기'; };
-const back = () => { full(false); live.hidden = true; slots[cur].focus({ preventScroll: true }); placeBeam(); };
+// 실제 화면은 늘 화면 전체로 연다(2026-10-26 요청: 창 크기 전환 없이). 돌아가기는 오른쪽 아래 버튼·Esc
+const back = () => { live.hidden = true; slots[cur].focus({ preventScroll: true }); tailTo(); };
 $('ask').addEventListener('click', ask); $('askBar').addEventListener('click', ask); $('back').addEventListener('click', back);
-$('full').addEventListener('click', () => full(!live.classList.contains('full')));
 
 addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { if (!live.hidden) back(); else if (briefing) stopBrief(); return; }
@@ -219,5 +204,5 @@ addEventListener('keydown', (e) => {
 });
 // ?f=기능 id로 들어오면 그 칸을 고른 채 시작한다(예: /login_ui/learn/learn.html?f=report)
 const f0 = FEATURES.findIndex((f) => f.id === new URLSearchParams(location.search).get('f'));
-show(f0 >= 0 ? f0 : 0, { speak: false });
+show(f0 >= 0 ? f0 : 0, { speak: false, anim: false });
 talk('어서 와! 캐비닛에서 칸을 고르면 왼쪽에 설명이 떠. 고른 칸을 한 번 더 누르면 바로 열리고, [포석호 설명 듣고 열기]를 누르면 내가 먼저 쓰는 법을 말로 알려 줄게.', 'greet');

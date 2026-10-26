@@ -58,7 +58,12 @@ const CSS = `
 .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 .ln { width: 22px; height: 0; border-top: 3px solid; display: inline-block; }
 .ln.dash { border-top-style: dashed; border-top-width: 2px; }
-.grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 1fr); gap: 12px; margin-top: 12px; }
+.split { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr); gap: 12px; height: clamp(440px, calc(100vh - 230px), 820px); }
+.side { min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 4px; }
+.side .chips, .side .ms { margin-top: 0; }
+.side .note { margin: 0; align-self: center; }
+.sl { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 14px; }
+.box h4 { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .box { background: var(--panel, rgba(255,255,255,.5)); border-radius: 14px; padding: 14px 16px; min-width: 0; }
 .box h4 { margin: 0 0 10px; font-size: 15px; }
 .s { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; font-size: 14px; margin-bottom: 8px; }
@@ -72,11 +77,10 @@ button { font: inherit; cursor: pointer; border: 0; border-radius: 9px; padding:
 button:hover { background: var(--chip-on, rgba(0,0,0,.12)); }
 button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 .note { font-size: 13px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
-.stage { position: relative; background: var(--surface-dark, #12141a); border-radius: 14px; overflow: hidden; min-height: 300px; }
+.stage { position: relative; background: var(--surface-dark, #12141a); border-radius: 14px; overflow: hidden; min-height: 0; height: 100%; }
 .stage .hd { position: absolute; right: 14px; top: 10px; font: 600 13px var(--mono, monospace); color: #9aa3ad; letter-spacing: .02em; pointer-events: none; }
-.stage .cols { position: absolute; top: 10px; left: 0; right: 0; height: 18px; pointer-events: none; font: 600 12px var(--mono, monospace); color: #6e7681; }
-.stage .cols span { position: absolute; transform: translateX(-50%); }
 svg { display: block; width: 100%; height: auto; }
+.stage svg { height: 100%; } /* 판 높이에 맞춰 줄인다(viewBox 비율 유지) */
 svg text { font-family: var(--font-ko, sans-serif); paint-order: stroke; stroke: var(--surface-dark, #12141a); stroke-width: 4px; stroke-linejoin: round; }
 .node { cursor: pointer; }
 .node:focus { outline: none; }
@@ -92,11 +96,11 @@ svg text { font-family: var(--font-ko, sans-serif); paint-order: stroke; stroke:
 .log .t { color: var(--dim); margin-right: 8px; }
 .warn { color: var(--bad, #c53030); font-size: 14px; margin-top: 6px; }
 .err { color: var(--bad, #c53030); font-size: 14px; }
-@media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .split { grid-template-columns: 1fr; height: auto; } .stage { height: 70vw; } .side { overflow: visible; } .sl { grid-template-columns: 1fr; } }
 .ms { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: center; }
 .ms button.done::after { content: " ✓"; color: var(--good, #2f855a); font-weight: 800; }
 .ms button[aria-pressed="true"] { background: var(--text); color: var(--bg, #fff); }
-.mission { margin-top: 10px; padding: 14px 16px; border-radius: 14px; background: var(--panel, rgba(255,255,255,.5)); display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 8px 18px; }
+.mission { padding: 14px 16px; border-radius: 14px; background: var(--panel, rgba(255,255,255,.5)); display: grid; grid-template-columns: 1fr; gap: 8px; }
 .mission[hidden] { display: none; }
 .mission h4 { margin: 0; font-size: 16px; grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .mission .sit { margin: 0; font-size: 14px; line-height: 1.55; color: var(--muted); }
@@ -113,7 +117,6 @@ svg text { font-family: var(--font-ko, sans-serif); paint-order: stroke; stroke:
 .ev-balance { background: rgba(47,133,90,.16); color: var(--good, #2f855a); }
 .ev-literature { background: rgba(47,111,214,.16); color: #2f6fd6; }
 .ev-assumption { background: rgba(197,48,48,.14); color: var(--bad, #c53030); }
-@media (max-width: 900px) { .mission { grid-template-columns: 1fr; } }
 `;
 
 class WhatIfSynapse extends HTMLElement {
@@ -129,18 +132,19 @@ class WhatIfSynapse extends HTMLElement {
         <span class="lg"><i class="ln" style="border-color:${UP}"></i>늘어남</span><span class="lg"><i class="ln" style="border-color:${DOWN}"></i>줄어듦</span>
         <span class="lg"><i class="ln dash" style="border-color:#9aa3ad"></i>화염 온도 계수(℃, 문헌)</span><span class="lg">⊣ 억제</span>
         <span class="lg">근거: <i class="ev ev-balance">질량 수지</i><i class="ev ev-literature">문헌 계수</i><i class="ev ev-assumption">가정</i></span></div>
-      <div class="stage"><div class="hd">synapse · 제선 고로</div><div class="cols">${['조건', '성분', '결과'].map((t, i) => `<span style="left:${(X[i] / W) * 100}%">${t}</span>`).join('')}</div>
-        <svg id="g" viewBox="0 0 ${W} ${H}" role="img" aria-label="조건이 성분을 거쳐 결과로 이어지는 그래프"></svg></div>
-      <div class="chips" id="pre"><span class="note" style="margin:0;align-self:center;">해 보기</span></div>
-      <div class="chips" id="rx" style="margin-top:6px"><span class="note" style="margin:0;align-self:center;">고로 반응</span></div>
-      <div class="ms" id="ms"><span class="note" style="margin:0">학습 미션</span></div>
-      <section class="mission" id="mission" hidden aria-live="polite"></section>
-      <div class="grid">
-        <div class="box"><h4>조건</h4><div id="sl"></div>
-          <button id="reset" type="button">기준 조건으로</button>
-          <div class="note" id="share"></div></div>
-        <div class="box"><h4>풀이</h4><div id="ex" class="mono"></div></div>
-        <div class="box"><h4>변화 기록</h4><div id="log" class="mono log"></div><div id="warn"></div></div>
+      <!-- 2026-10-26: 한 화면에 들어오게 2분할. 왼쪽 그래프(화면 높이에 맞춤) · 오른쪽 조절 슬라이더·해 보기·미션·풀이(오른쪽만 스크롤) -->
+      <div class="split">
+        <div class="stage"><div class="hd">synapse · 제선 고로</div>
+          <svg id="g" viewBox="0 0 ${W} ${H}" role="img" aria-label="조건이 성분을 거쳐 결과로 이어지는 그래프"></svg></div>
+        <div class="side">
+          <div class="box"><h4>조건 조절 <button id="reset" type="button">기준 조건으로</button></h4><div id="sl" class="sl"></div><div class="note" id="share"></div></div>
+          <div class="chips" id="pre"><span class="note">해 보기</span></div>
+          <div class="chips" id="rx"><span class="note">고로 반응</span></div>
+          <div class="ms" id="ms"><span class="note">학습 미션</span></div>
+          <section class="mission" id="mission" hidden aria-live="polite"></section>
+          <div class="box"><h4>풀이</h4><div id="ex" class="mono"></div></div>
+          <div class="box"><h4>변화 기록</h4><div id="log" class="mono log"></div><div id="warn"></div></div>
+        </div>
       </div>
       <div class="note">교육용 간이 모델이에요. kg 선은 성분 질량 수지, ℃ 선은 풍구 앞 화염 온도의 문헌 계수(Babich & Senk 2015 표 17.3 범위의 가운데 값)예요(학습 랩 What-if의 '계산 가정'과 같아요). <span id="err" class="err"></span></div>`;
     this.$ = (id) => root.getElementById(id);
@@ -233,6 +237,7 @@ class WhatIfSynapse extends HTMLElement {
     const bg = document.createElementNS(NS, 'g');
     for (let i = 0; i < 70; i++) { const c = document.createElementNS(NS, 'circle'); c.setAttribute('cx', (i * 137.5) % W); c.setAttribute('cy', (i * 71.3 + 40) % H); c.setAttribute('r', i % 5 ? 0.8 : 1.4); c.setAttribute('fill', '#2a2f38'); bg.append(c); }
     svg.append(bg);
+    ['조건', '성분', '결과'].forEach((t, i) => { const tx = document.createElementNS(NS, 'text'); tx.setAttribute('x', X[i]); tx.setAttribute('y', 22); tx.setAttribute('text-anchor', 'middle'); tx.setAttribute('fill', '#6e7681'); tx.setAttribute('font-size', '13'); tx.setAttribute('font-weight', '600'); tx.textContent = t; svg.append(tx); });
 
     this.paths = [];
     const eg = document.createElementNS(NS, 'g');

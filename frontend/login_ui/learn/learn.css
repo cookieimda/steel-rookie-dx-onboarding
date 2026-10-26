@@ -53,7 +53,7 @@ cp-character { display: block; }
 .hud { position: relative; z-index: 3; align-self: center; max-height: 100%; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; gap: clamp(10px, 1.6vh, 16px); padding: clamp(16px, 2.2vh, 24px) 24px;
   border-radius: 22px; background: linear-gradient(170deg, rgba(36,40,48,.96), rgba(21,23,28,.96)); border: 1px solid var(--line2);
   box-shadow: 0 30px 70px rgba(0,0,0,.55), 0 0 0 1px rgba(255,158,100,.08), inset 0 1px 0 rgba(255,255,255,.06); transform-origin: 100% 40%; }
-/* 랙을 가리키는 꼬리: 빛줄기가 닿는 높이(--tail, learn.js가 정함)로 따라간다 */
+/* 랙을 가리키는 꼬리: 고른 칸 높이(--tail, learn.js가 정함)로 따라간다 */
 .hud::after { content: ""; position: absolute; right: -9px; top: var(--tail, 38%); width: 18px; height: 18px; transform: rotate(45deg); background: #22252c; border-top: 1px solid var(--line2); border-right: 1px solid var(--line2); transition: top .3s var(--ease); }
 .hud.pop { animation: pop .46s var(--ease) both; }
 @keyframes pop { 0% { opacity: 0; transform: translateX(26px) scale(.94); box-shadow: 0 0 0 2px var(--o), 0 0 60px var(--o-glow); } 60% { opacity: 1; } 100% { opacity: 1; transform: none; } }
@@ -122,17 +122,11 @@ cp-character { display: block; }
 .rack-foot { height: 10px; margin: 12px 8px 0; border-radius: 3px; background: linear-gradient(#0e0f12, #23262c); }
 @keyframes blink { 50% { opacity: .35; } }
 
-/* 빔: 고른 칸 → 도감 꼬리. 빛 원뿔(넓게 퍼지는 빛) + 굵은 빛줄기 + 따라 흐르는 빛 알갱이 */
-.beam { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; opacity: 0; transition: opacity .2s; overflow: visible; }
-.beam.on { opacity: 1; }
-.bm-cone { fill: url(#bmGrad); mix-blend-mode: screen; opacity: 0; }
-.bm-halo { fill: none; stroke: rgba(255,158,100,.28); stroke-width: 12; stroke-linecap: round; }
-.bm-core { fill: none; stroke: #ffd2a8; stroke-width: 3; stroke-linecap: round; }
-.bm-flow { fill: none; stroke: #fff; stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 2 26; animation: flow 1.1s linear infinite; opacity: .85; }
-@keyframes flow { to { stroke-dashoffset: -28; } }
-.bm-src { fill: #ffd2a8; transform-box: fill-box; transform-origin: center; }
-.bm-hit { fill: var(--o); transform-box: fill-box; transform-origin: center; }
-body:has(.live:not([hidden])) .beam { opacity: 0; }
+/* 날아가는 카드: 고른 칸의 카드 복제본이 커지며 왼쪽 도감 자리로(learn.js flyCard). 날아오는 동안 도감은 비워 둔다 */
+.slot-face.flyer { position: fixed; z-index: 6; margin: 0; transform-origin: 0 0; pointer-events: none; transition: none;
+  border-color: var(--o); box-shadow: 0 0 0 1px var(--o), 0 0 40px var(--o-glow), 0 30px 60px rgba(0,0,0,.55); }
+.hud.waiting > * { opacity: 0; }
+.hud > * { transition: opacity .18s; }
 
 /* 오른쪽 아래 포석호 + 말풍선(단축키 안내도 말풍선 안에). 포석호 설명 중에는 포석호가 커진다 */
 .guide { justify-self: end; display: flex; align-items: flex-end; gap: 4px; width: min(560px, 100%); }
@@ -155,12 +149,13 @@ body:has(.live:not([hidden])) .beam { opacity: 0; }
 .bubble kbd { min-width: 20px; height: 20px; padding: 0 5px; display: inline-grid; place-items: center; border-radius: 5px; background: #fff; border: 1px solid rgba(29,23,20,.18); box-shadow: 0 1px 0 rgba(29,23,20,.18); font: 600 11px var(--f-m); color: #1d1714; }
 
 /* 실제 화면 */
-.live { position: fixed; inset: 84px 28px 28px; z-index: 12; display: flex; flex-direction: column; border-radius: 20px; overflow: hidden; background: #f4f0ed; border: 1.5px solid var(--o); animation: grow .35s var(--ease) both; }
+.live { position: fixed; inset: 0; z-index: 30; display: flex; flex-direction: column; border-radius: 0; overflow: hidden; background: #f4f0ed; border: 0; animation: grow .35s var(--ease) both; }
 .live[hidden] { display: none; }
-.live.full { inset: 0; z-index: 30; border-radius: 0; border: 0; }
-body:has(.live.full:not([hidden])) .bar { display: none; } /* 실제 화면 창은 .stage 안이라 위 메뉴(.bar)보다 앞에 못 나온다: 전체 화면일 때 메뉴를 감춘다 */
-.live-x { flex: none; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; border: 0; background: rgba(255,255,255,.08); color: inherit; font-size: 15px; cursor: pointer; transition: background .2s; }
-.live-x:hover { background: rgba(255,255,255,.18); }
+body:has(.live:not([hidden])) .bar { display: none; } /* 실제 화면 창은 .stage 안이라 위 메뉴(.bar)보다 앞에 못 나온다: 전체 화면일 때 메뉴를 감춘다 */
+/* 오른쪽 아래 [← 캐비닛으로 돌아가기]: 실제 화면 위에 떠 있다 */
+.live-back { position: absolute; right: 24px; bottom: 24px; z-index: 2; display: inline-flex; align-items: center; gap: 8px; height: 48px; padding: 0 22px; border: 0; border-radius: 999px;
+  background: var(--o); color: var(--o-ink); font-weight: 800; font-size: 15px; cursor: pointer; box-shadow: 0 10px 30px rgba(0,0,0,.35); transition: transform .2s var(--ease), box-shadow .2s; }
+.live-back:hover { transform: translateY(-2px); box-shadow: 0 14px 34px rgba(0,0,0,.4), 0 0 0 4px var(--o-glow); }
 .live-bar { flex: none; display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--s1); border-bottom: 1px solid var(--line); }
 .live-bar [hidden] { display: none; }
 .live-t { font-weight: 700; margin-right: auto; }
@@ -173,6 +168,6 @@ body:has(.live.full:not([hidden])) .bar { display: none; } /* 실제 화면 창�
   .bar { position: static; flex-wrap: wrap; padding: 12px 16px; } .nav { flex-wrap: wrap; } .nb { white-space: nowrap; }
   .cab { position: static; grid-template-columns: 1fr; padding: 0 16px 24px; } .cab > * { min-width: 0; } .hud-foot { flex-wrap: wrap; } .hud-body { grid-template-rows: 200px auto; }
   .rack-body { transform: none; width: 100%; margin: 0; } .rack-grid { grid-template-columns: repeat(2, 1fr); } .slot { height: 130px; }
-  .beam { display: none; } .hud::after { display: none; } .guide { width: 100%; }
+  .hud::after { display: none; } .guide { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }

@@ -8,6 +8,7 @@ import { providerInfo } from "../../llm/src/provider.js";
 import { traceMiddleware, type TraceSink } from "../../llm/src/trace.js";
 import type { CheckpointEngine } from "./checkpoint/engine.js";
 import { createCheckpointRouter } from "./checkpoint/routes.js";
+import { assetHashes, assetHashesScript, cacheVersionedGlb } from "./asset-version.js";
 import { withRequestUser } from "./request-user.js";
 import { passcodeGuard, passcodeRequired } from "./test-access.js";
 import type { LlmUsage } from "./usage.js";
@@ -46,7 +47,10 @@ export function createApp({ engine, usage, webRoot = join(process.cwd(), "fronte
   app.use("/api/checkpoints", traceMiddleware("checkpoint", traceSink));
   app.use(createCheckpointRouter(engine));
   if (learning) app.use(learning);
-  app.use(express.static(webRoot));
+  // GLB 내용 해시(asset-version.ts). /?p=…처럼 3D 화면을 주소 맨 앞에서 열 때도 상대 경로로 찾으므로 두 자리에 둔다
+  const hashesJs = assetHashesScript(assetHashes(join(webRoot, "models")));
+  app.get(["/asset-hashes.js", "/3d-demo/asset-hashes.js"], (_req, res) => { res.type("text/javascript").setHeader("Cache-Control", "no-cache"); res.send(hashesJs); });
+  app.use(express.static(webRoot, { setHeaders: cacheVersionedGlb }));
 
   // 지금 쓰는 LLM(LLM_PROVIDER). Ollama는 서버가 켜져 있고 모델을 받아 두었는지까지 본다(모델은 부르지 않음).
   app.get("/api/status", async (_req, res) => {
@@ -61,7 +65,7 @@ export function createApp({ engine, usage, webRoot = join(process.cwd(), "fronte
 
   // 로그인·마이페이지(frontend/login_ui)는 ../3d-demo/를 상대 경로로 읽으므로 두 폴더를 같은 깊이에 둔다.
   const loginRoot = join(webRoot, "..", "login_ui");
-  app.use("/3d-demo", express.static(webRoot));
+  app.use("/3d-demo", express.static(webRoot, { setHeaders: cacheVersionedGlb }));
   app.use("/login_ui", express.static(loginRoot));
   app.get("/login", (_req, res) => res.redirect("/login_ui/My%20Page.dc.html"));
   app.get("/exam", (_req, res) => res.sendFile(join(loginRoot, "exam.html")));

@@ -134,7 +134,7 @@ class GltfRenderer {
   }
 
   async load() {
-    const [THREE, { GLTFLoader }, { RoomEnvironment }] = await Promise.all([import(THREE_URL), import(LOADER_URL), import(ROOM_URL)]);
+    const [THREE, { GLTFLoader }, { RoomEnvironment }] = await Promise.all([import(THREE_URL), import(LOADER_URL), import(ROOM_URL), import('./asset-version.js')]); // asset-version: 모델 주소에 ?v=내용 해시(1년 캐시)
     if (this.disposed) return;
     this.THREE = THREE;
     const canvas = document.createElement('canvas');

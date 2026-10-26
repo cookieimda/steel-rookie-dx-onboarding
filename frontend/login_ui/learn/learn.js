@@ -1,4 +1,4 @@
-// 새 학습 기록(LEARN & ASK): 캐비닛 랙(5×2 칸)에서 기능을 고르면 그 칸의 카드가 커지며 왼쪽 도감(HUD) 자리로 날아가 설명이 된다(2026-10-24 시안 C, 2026-10-26 빛줄기 → 날아가는 카드).
+// 새 학습 기록(LEARN & ASK): 캐비닛 랙(5×2 칸)에서 기능을 고르면 왼쪽 도감(HUD)에 설명이 아래에서 스르륵 올라온다(2026-10-24 시안 C, 2026-10-26 빛줄기·날아가는 카드 → 스르륵).
 // 고른 칸을 한 번 더 누르거나 [사용하기 ↗]·Enter면 그 기능의 실제 화면(live.html#기능)이 화면 전체로 바로 뜬다(오른쪽 아래 [← 캐비닛으로 돌아가기]·Esc로 돌아옴).
 // [▶ 포석호 설명 듣고 열기]를 누를 때만 포석호가 목소리(동물의 숲 같은 포석호 말투, animalese.js)와 자막으로 사용법을 먼저 설명한다:
 // 도감의 사용법 단계가 차례로 켜지고 오른쪽 아래 포석호 말풍선에 자막이 찍힌다. 다 들으면 실제 화면이 뜬다. ✕ · Esc면 돌아온다.
@@ -71,40 +71,19 @@ let cur = 0;
 // [포석호에게 묻기]는 말이 다 찍힌 뒤에 나타난다(타이핑하는 동안 글자를 따라 밀려가지 않게)
 const talk = (text, motion = 'explain', back = 2600) => { const btn = $('ask'); btn.hidden = true; typeInto(say, text, 22, () => { btn.hidden = false; }); guide.setAttribute('motion', motion); clearTimeout(guide._t); guide._t = setTimeout(() => guide.setAttribute('motion', 'idle'), back); };
 
-// ── 고른 칸의 카드가 그 자리에서 커지며 왼쪽 도감(HUD) 자리로 날아가 도감이 된다(FLIP: 처음·끝 위치를 재고 transform으로 옮긴다) ──
-// 카드 복제본만 움직이고 진짜 도감은 복제본이 닿을 때 채운다. 동작 줄이기 설정이면 바로 바꾼다
-let flyer = null;
-const tailTo = () => { // 도감 꼬리를 고른 칸 높이에 맞춘다(좁은 화면에서는 CSS로 감춘다)
+// ── 칸을 고르면 왼쪽 도감(HUD)이 아래에서 스르륵 올라오며 바뀐다(2026-10-26: 날아가는 카드 대신). 꼬리는 고른 칸 높이를 가리킨다 ──
+const tailTo = () => { // 좁은 화면에서는 CSS로 꼬리를 감춘다
   const s = slots[cur].getBoundingClientRect(), h = hud.getBoundingClientRect();
   hud.style.setProperty('--tail', `${Math.min(h.height - 40, Math.max(22, s.top + s.height / 2 - h.top)) - 9}px`);
 };
-function flyCard(onLand) {
-  flyer?.remove(); flyer = null;
-  const face = slots[cur].querySelector('.slot-face'), from = face.getBoundingClientRect(), to = hud.getBoundingClientRect();
-  if (reduce || !from.width || !to.width || matchMedia('(max-width: 1100px), (max-height: 560px)').matches) { // 위아래로 쌓인 좁은 화면은 날리지 않는다
-    onLand(); tailTo(); return; }
-  const c = face.cloneNode(true); c.className = 'slot-face flyer'; c.setAttribute('aria-hidden', 'true');
-  Object.assign(c.style, { left: `${from.left}px`, top: `${from.top}px`, width: `${from.width}px`, height: `${from.height}px` });
-  document.body.append(c); flyer = c;
-  const dx = to.left - from.left, dy = to.top - from.top, sx = to.width / from.width, sy = to.height / from.height;
-  hud.classList.add('waiting'); // 날아오는 동안 도감은 비워 둔다
-  const anim = c.animate([
-    { transform: 'translate(0, 0) scale(1)', opacity: 1, offset: 0 },
-    { transform: `translate(${dx * 0.12}px, ${dy * 0.12 - 18}px) scale(1.18)`, opacity: 1, offset: 0.22 }, // 칸에서 툭 튀어나와 커지고
-    { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`, opacity: 0.9, offset: 0.86 },          // 왼쪽 도감 자리로 날아가
-    { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`, opacity: 0, offset: 1 },               // 도감과 겹치며 사라진다
-  ], { duration: 640, easing: 'cubic-bezier(.3,.7,.2,1)', fill: 'forwards' });
-  setTimeout(() => { hud.classList.remove('waiting'); onLand(); tailTo(); }, 520);
-  anim.onfinish = () => { if (flyer === c) { c.remove(); flyer = null; } };
-}
 addEventListener('resize', () => tailTo());
 
 // ── 캐비닛 칸 고르기: 칸이 앞으로 나오고 → 빔 → 왼쪽 도감(HUD)이 바뀐다 ──
-function fillHud(f) {
+function fillHud(f, anim = true) {
   $('hNum').textContent = f.num; $('hName').textContent = f.name; $('hEn').textContent = f.en;
   $('hArt').innerHTML = f.art(); $('hTag').textContent = f.group; $('hEff').textContent = f.line;
   $('hHow').innerHTML = f.how.map((h, k) => `<li><b>${k + 1}</b><span>${esc(h)}</span></li>`).join('');
-  hud.classList.remove('pop'); void hud.offsetWidth; hud.classList.add('pop');
+  hud.classList.remove('rise'); if (anim) { void hud.offsetWidth; hud.classList.add('rise'); }
 }
 function show(i, { speak = true, focus = false, anim = true } = {}) {
   if (briefing) stopBrief();
@@ -112,7 +91,7 @@ function show(i, { speak = true, focus = false, anim = true } = {}) {
   slots.forEach((s, k) => { s.classList.toggle('on', k === cur); s.setAttribute('aria-pressed', String(k === cur)); });
   $('meter').innerHTML = `<b>${f.num}</b> / ${String(N).padStart(2, '0')}`;
   if (focus) slots[cur].focus({ preventScroll: true });
-  if (anim) flyCard(() => fillHud(f)); else { fillHud(f); tailTo(); }
+  fillHud(f, anim); tailTo();
   if (speak) talk(f.say);
 }
 grid.addEventListener('click', (e) => { const s = e.target.closest('.slot'); if (!s) return; const i = +s.dataset.i; if (i === cur && !briefing) go(); else show(i); }); // 고른 칸을 한 번 더 누르면 바로 연다

@@ -55,8 +55,9 @@ cp-character { display: block; }
   box-shadow: 0 30px 70px rgba(0,0,0,.55), 0 0 0 1px rgba(255,158,100,.08), inset 0 1px 0 rgba(255,255,255,.06); transform-origin: 100% 40%; }
 /* 랙을 가리키는 꼬리: 고른 칸 높이(--tail, learn.js가 정함)로 따라간다 */
 .hud::after { content: ""; position: absolute; right: -9px; top: var(--tail, 38%); width: 18px; height: 18px; transform: rotate(45deg); background: #22252c; border-top: 1px solid var(--line2); border-right: 1px solid var(--line2); transition: top .3s var(--ease); }
-.hud.pop { animation: pop .46s var(--ease) both; }
-@keyframes pop { 0% { opacity: 0; transform: translateX(26px) scale(.94); box-shadow: 0 0 0 2px var(--o), 0 0 60px var(--o-glow); } 60% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+/* 칸을 고르면 아래에서 스르륵 올라온다 */
+.hud.rise { animation: rise .55s var(--ease) both; }
+@keyframes rise { 0% { opacity: 0; transform: translateY(56px); } 55% { opacity: 1; } 100% { opacity: 1; transform: none; } }
 .hud-title { display: flex; align-items: center; gap: 12px; padding-bottom: clamp(8px, 1.2vh, 14px); border-bottom: 1px solid var(--line); }
 .hud-title .n { display: inline-grid; place-items: center; min-width: 42px; height: 30px; padding: 0 8px; border-radius: 9px; background: rgba(255,158,100,.14); font: 700 14px var(--f-m); color: var(--o); }
 .hud-title h2 { margin: 0; font: 800 clamp(24px, 3.4vh, 34px)/1.15 var(--f-b); letter-spacing: -.01em; }
@@ -122,11 +123,6 @@ cp-character { display: block; }
 .rack-foot { height: 10px; margin: 12px 8px 0; border-radius: 3px; background: linear-gradient(#0e0f12, #23262c); }
 @keyframes blink { 50% { opacity: .35; } }
 
-/* 날아가는 카드: 고른 칸의 카드 복제본이 커지며 왼쪽 도감 자리로(learn.js flyCard). 날아오는 동안 도감은 비워 둔다 */
-.slot-face.flyer { position: fixed; z-index: 6; margin: 0; transform-origin: 0 0; pointer-events: none; transition: none;
-  border-color: var(--o); box-shadow: 0 0 0 1px var(--o), 0 0 40px var(--o-glow), 0 30px 60px rgba(0,0,0,.55); }
-.hud.waiting > * { opacity: 0; }
-.hud > * { transition: opacity .18s; }
 
 /* 오른쪽 아래 포석호 + 말풍선(단축키 안내도 말풍선 안에). 포석호 설명 중에는 포석호가 커진다 */
 .guide { justify-self: end; display: flex; align-items: flex-end; gap: 4px; width: min(560px, 100%); }

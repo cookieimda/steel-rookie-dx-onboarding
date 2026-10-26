@@ -204,6 +204,12 @@
     .tag .k { border-radius: 4px !important; background: var(--glass) !important; border-color: var(--edge2) !important; backdrop-filter: blur(12px) !important; }
     .tag .k i { border-radius: 3px !important; }
   </style>
+  <link rel="stylesheet" href="./intro-tour.css"><!-- [▶] 재생: 첫 화면과 같은 단계 카드·재생 바·안내 창(intro-tour.js) -->
+  <style>
+    /* 재생 중에는 이 화면의 패널·바·조업 카드·설비 이름표를 숨기고 3D를 화면 전체로 */
+    body.tour-on #right, body.tour-on #bar, body.tour-on .hint, body.tour-on .lab-pane, body.tour-on .lab-dock-card, body.tour-on .lab-dock-split, body.tour-on #hud .eq-pin, body.tour-on #hud .tag { display: none !important; }
+    body.tour-on.lab-dock #stage, body.tour-on.lab-dock #hud { top: 0; left: 0; width: 100%; height: 100%; border-radius: 0; box-shadow: none; }
+  </style>
   <link rel="stylesheet" href="./lab-console.css">
   <link rel="stylesheet" href="./lab-console-glass.css">
   <link rel="stylesheet" href="/login_ui/brand.css"><!-- 공통 브랜드 토큰: ST-ROOKIE [ SEE & RUN ] -->
@@ -234,7 +240,6 @@
   <div class="bar" id="bar">
     <button class="play" id="btnPlay" title="설비 차례로 보기" aria-label="설비 차례로 보기"><img class="ic" id="icPlay" width="26" height="26" alt=""></button>
     <div class="track" id="track"></div>
-    <button class="speed" id="btnSpeed" title="재생 속도">1×</button>
   </div>
 
   <div class="toast" id="toast" role="status"></div>

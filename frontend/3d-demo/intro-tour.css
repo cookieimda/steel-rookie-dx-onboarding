@@ -74,7 +74,7 @@ body.tour-on .tbar { display: flex; }
 @media (prefers-reduced-motion: reduce) { .chip-hint path, .chip-hint p { animation: none; stroke-dashoffset: 0; opacity: 1; } }
 
 /* ---- 3D 위 핫스팟 핀(단면 말풍선을 바꾼 것)은 첫 화면 재생에서는 보이지 않는다 ---- */
-.sfx.lh-hot { display: none !important; }
+body.tour-on .sfx.lh-hot { display: none !important; } /* 공정 화면(steel-index)의 단계 보기에서는 핀을 쓴다 */
 /* ---- 2D 화살표(intro-tour.js): 화면 좌표로 그린 선 + 화살촉 ---- */
 .sfx.sfx-arrow2d { position: absolute; width: 0; height: 0; pointer-events: none; z-index: 4; }
 .sfx.sfx-arrow2d .sfx-in { transform: none !important; }

@@ -10,8 +10,8 @@ import { OutputPass } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/
 import * as DATA from './data_v2.js';
 import { createApiClient } from './api-client.js';
 import { conceptStatuses, equipmentStatuses, groupBySection } from './learn-hud-state.js';
-import { icon, stepIcon, parseTemp, heatOf, TOUR_MS, STEP_MS, nextSpeed, keepProgress } from './steel-index-ui.js';
-import { createSection } from './steel-index-section.js';
+import { icon, stepIcon, parseTemp } from './steel-index-ui.js';
+import { createIntroTour } from './intro-tour.js'; // [▶] 설비 차례로 보기: 첫 화면 [▶ 재생]과 같은 재생(단계 카드·2D 화살표·안내 창)
 import { attachLabConsole } from './lab-console.js';
 import { createWorkFx } from './work-fx.js';
 import { createOutline } from './lab-outline.js';
@@ -89,16 +89,11 @@ const loader = createGLTFLoader();
 let anchors = {};
 const procs = PROCESSES.map((p, i) => ({ id: p.id, data: p, idx: i, root: null, eqs: [], loaded: false, error: null, foot: null, seen: new Set(), progress: null, review: new Set() }));
 let cur = null, curEq = null, seq = null, sinking = null, mode = 'overview';
-let panel = null, stepIdx = 0, tour = null, speed = 1;
+let panel = null, tourMod = null; // tourMod: 재생 모듈(후처리 composer를 만든 뒤 아래에서 만든다)
 const loadbar = $('loadbar');
 const api = createApiClient();
 // 단면 연출(엑스레이 + 색 층 + step-fx). 단계 보기에서만 켠다
-const section = createSection({ scene, renderer, hud, getCamera: () => camera, getAnchors: () => anchors, isDark: () => theme === 'dark', onHotspot: (i) => focusHotspot(i) });
 // 3D 핫스팟 핀 ↔ 오른쪽 패널 '현장 포인트' 행을 잇는다(점진적 공개)
-function focusHotspot(i) { section.highlight(i); right.querySelectorAll('[data-hot]').forEach((r) => { const on = r.dataset.hot === String(i); r.classList.toggle('on', on); if (on) r.scrollIntoView({ block: 'nearest', behavior: REDUCED ? 'auto' : 'smooth' }); }); }
-let typer = null;
-function typewrite(el, text) { clearInterval(typer); if (REDUCED) { el.textContent = text; return; } let i = 0; el.textContent = ''; const caret = document.createElement('span'); caret.style.color = 'var(--hot)'; caret.textContent = '▍'; el.appendChild(caret); typer = setInterval(() => { i++; el.firstChild.nodeValue = text.slice(0, i); if (i >= text.length) { clearInterval(typer); caret.remove(); } }, Math.max(12, Math.min(28, 1400 / Math.max(1, text.length)))); el.insertBefore(document.createTextNode(''), caret); }
-function formulaChips(fml) { if (!fml || !fml.includes('→')) return ''; const [l, r] = fml.split('→').map((t) => t.split('+').map((q) => q.trim()).filter(Boolean)); const chip = (t, hot) => `<span style="padding:6px 10px;border-radius:8px;background:${hot ? 'rgba(255,158,100,.2)' : 'rgba(255,255,255,.08)'};border:1px solid ${hot ? 'rgba(255,158,100,.6)' : 'rgba(255,255,255,.18)'};color:${hot ? '#ffd27a' : '#e6ebf1'};font:700 15px/1 var(--f-mono)">${esc(t)}</span>`; const plus = '<span style="color:#9aa3ad;font:400 15px/1 var(--f-mono)">+</span>'; return `<div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;padding:12px;border-radius:10px;background:rgba(0,0,0,.28)"><span style="font:400 15px/1 var(--f-body);color:#c3ccd7">무엇이 조합되나요</span><div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">${l.map((t) => chip(t, false)).join(plus)}<span style="color:#ff9e64;font:700 18px/1 var(--f-mono)">→</span>${r.map((t) => chip(t, true)).join(plus)}</div></div>`; }
 
 function tuneMaterial(o) {
   const m = o.material = o.material.clone(), nm = m.name || '';
@@ -173,14 +168,29 @@ function toast(msg, ms = 2600) { const t = $('toast'); t.textContent = msg; t.cl
 
 // ---- 하단 재생 바 --------------------------------------------------------------------------------------
 $('icPlay').src = icon('play', '#f2f2f2', 1.6);
-$('btnPlay').onclick = () => (tour ? stopTour() : startTour());
-$('btnSpeed').onclick = () => { const to = nextSpeed(speed), now = performance.now(); if (tour) tour.t0 = keepProgress(tour.t0, now, speed, to); speed = to; $('btnSpeed').textContent = `${speed}×`; }; // 0.5·1·1.5·2× (재생 시간은 steel-index-ui.js)
+$('btnPlay').onclick = () => (tourMod?.active ? stopTour() : startTour(curEq ? { eq: curEq.id, guide: false } : {})); // 설비를 고른 채 누르면 그 설비부터
 function renderTrack(p) {
   const tr = $('track'); tr.innerHTML = '';
   p.eqs.forEach((e) => { const b = document.createElement('button'); b.className = 'stop'; b.innerHTML = `<i></i><span>${esc(e.data.name)}</span>`; b.onclick = () => enterStep(e); e.dot = b; tr.appendChild(b); });
 }
-function startTour() { if (!cur || seq || sinking) return; tour = { t0: performance.now() }; document.body.classList.add('touring'); $('icPlay').src = icon('stop', '#f2f2f2', 1.6); $('btnPlay').title = '멈추기'; enterStep(curEq || cur.eqs[0], false); }
-function stopTour() { tour = null; document.body.classList.remove('touring', 'peek'); $('icPlay').src = icon('play', '#f2f2f2', 1.6); $('btnPlay').title = '설비 차례로 보기'; }
+// [▶] 설비 차례로 보기: 첫 화면과 같은 재생 모듈. 공정 모델을 설비 단위 모델로 바꿔 끼우고(재생이 끝나면 되돌린다),
+// 이 화면의 오른쪽 패널·아래 바·조업 카드는 숨긴다(steel-index.html body.tour-on). 속도·나가기는 재생 바에 있다
+async function startTour(opts = {}) {
+  if (!cur || seq || sinking || !tourMod) return;
+  if (curEq) { clearDim(cur); closePanel(); curEq = null; mode = 'overview'; renderProg(cur); }
+  document.body.classList.add('touring');
+  const p = { id: cur.id, data: cur.data, c: [0, 0], root: cur.root, i: cur.idx };
+  try { if (!(await tourMod.start(p, opts))) throw new Error('설비 없음'); } catch (e) { console.warn('[index] 재생을 시작하지 못했어요', e); p.root.visible = true; document.body.classList.remove('touring'); return; }
+  resize(); syncUi();
+}
+function stopTour() { if (tourMod?.active) tourMod.stop(); }
+function tourEnded(p, e) {
+  p.root.visible = true; document.body.classList.remove('touring', 'peek'); resize(); syncUi();
+  const back = e && cur?.id === p.id ? cur.eqs.find((q) => q.id === e.id) : null;
+  if (back) enterStep(back); else if (cur && view === '3d') animateTo(home, 1100); // 보던 설비 패널로 돌아간다
+}
+/** 설비 패널의 [단계 보기]·단계 목록: 그 설비·단계부터 첫 화면과 같은 재생으로(공정 개요 창 없이) */
+const playFrom = (e, step) => startTour({ eq: e.id, step, guide: false });
 // 재생 중 알약 바: 마우스가 화면 위쪽 56px 안에 오면 내려오고, 110px 아래로 내려가면 다시 숨는다(바 위에 있는 동안은 유지). 키보드로 바에 초점이 가도 내려온다
 // 위 알약 바는 재생 중이 아니어도 평소에 숨기고(lab-console-glass.css), 마우스를 화면 맨 위로 가져가면 body.peek로 내려온다
 addEventListener('pointermove', (e) => { const on = document.body.classList.contains('peek'), want = e.clientY < (on ? 110 : 56); if (want !== on) document.body.classList.toggle('peek', want); });
@@ -189,14 +199,13 @@ $('top').addEventListener('focusin', () => document.body.classList.add('peek'));
 // ---- 오른쪽 패널 ------------------------------------------------------------------------------------------
 const right = $('right');
 const labConsole = attachLabConsole({ api, scene, camera, reduced: REDUCED, pickEquipment: id => { const eq = cur?.eqs.find(eq => eq.id === id); if (eq) enterStep(eq); } });
-function closePanel() { panel = null; right.classList.remove('on'); right.innerHTML = ''; document.body.classList.remove('panel'); section.hide(); clearInterval(typer); }
-function openPanel(kind) { panel = kind; right.classList.add('on'); document.body.classList.add('panel'); renderPanel(); work.setVisible(panel !== 'steps'); } // 단면 보기 중에는 작동 입자를 숨긴다(v4와 같음)
+function closePanel() { panel = null; right.classList.remove('on'); right.innerHTML = ''; document.body.classList.remove('panel'); }
+function openPanel(kind) { panel = kind; right.classList.add('on'); document.body.classList.add('panel'); renderPanel(); } // 단면 보기 중에는 작동 입자를 숨긴다(v4와 같음)
 function renderPanel() {
   if (!panel || !cur) return;
   const e = curEq; if (!e) return closePanel();
   const d = e.data;
   if (panel === 'eq') {
-    section.hide(); clearInterval(typer);
     const steps = (d.steps || []).map((s, i) => `<button data-i="${i}"><span class="tile"><img class="ic" width="30" height="30" alt="" src="${icon(stepIcon(s.zone), '#dfe5ec', 1.5)}"></span><span><span class="zone"><span>${esc(s.zone)}</span>${s.temp ? `<code>${esc(s.temp)}</code>` : ''}</span><span class="tx">${esc(s.text)}</span></span></button>`).join('');
     right.innerHTML = `<div class="scroll">
         <div class="phead"><span class="eyebrow">${cur.data.num} · ${esc(cur.data.name)}</span><h1>${esc(d.name)}</h1></div>
@@ -206,45 +215,12 @@ function renderPanel() {
         ${(d.notes || []).length ? `<h2>알아 두기</h2>${d.notes.map((n) => `<p class="note"><i>—</i><span>${esc(n)}</span></p>`).join('')}` : ''}
         ${steps ? `<h2>단계별 설명 · ${d.steps.length}단계</h2><div class="steps">${steps}</div>` : ''}
       </div>
-      <div class="foot"><button id="askEq" title="마이페이지 AI 튜터로 이동(이 공정·설비를 보고 답해요)"><img class="ic" width="22" height="22" alt="" src="${icon('bot', '#e6ebf1', 1.6)}">튜터에게 묻기</button>${steps ? `<button class="primary" id="openSteps">단계 보기</button>` : ''}</div>`;
+      <div class="foot"><button id="askEq" title="마이페이지 AI 튜터로 이동(이 공정·설비를 보고 답해요)"><img class="ic" width="22" height="22" alt="" src="${icon('bot', '#e6ebf1', 1.6)}">튜터에게 묻기</button>${steps ? `<button class="primary" id="openSteps" title="이 설비부터 첫 화면과 같은 방식으로 단계를 재생해요">▶ 단계 재생</button>` : ''}</div>`;
     $('pxClose').onclick = () => closePanel();
     $('askEq').onclick = () => { location.href = `/login_ui/My%20Page.dc.html?p=${encodeURIComponent(cur.id)}&eq=${encodeURIComponent(e.id)}&ask=1`; }; // 마이페이지 튜터로(맥락 전달, #140). /login은 서버가 쿼리 없이 넘겨서 페이지 주소를 직접 쓴다
-    $('openSteps')?.addEventListener('click', () => { stepIdx = 0; openPanel('steps'); });
-    right.querySelectorAll('.steps button').forEach((b) => { b.onclick = () => { stepIdx = +b.dataset.i; openPanel('steps'); }; });
+    $('openSteps')?.addEventListener('click', () => playFrom(e, 0));
+    right.querySelectorAll('.steps button').forEach((b) => { b.onclick = () => playFrom(e, +b.dataset.i); });
     return;
-  }
-  if (panel === 'steps') {
-    const st = d.steps?.[stepIdx]; if (!st) return openPanel('eq');
-    const lay = d.interior?.[stepIdx] || null; // 같은 번호의 단면 층(라벨·수식)
-    const rng = parseTemp(st.temp || lay?.temp), hi = rng ? rng[1] : 0, [hA, hB, hC] = heatOf(hi), pct = (v) => `${Math.min(100, Math.max(0, v / 2000 * 100)).toFixed(1)}%`;
-    // 단면 연출을 먼저 켜서 핫스팟 글(현장 포인트)을 패널에 함께 그린다
-    const ok = section.show(cur, e); const L = ok ? section.layer(stepIdx) : null, hots = L?.hotspots || [], kpi = d.facts?.[0] || null;
-    right.innerHTML = `<div class="scroll stepcard">
-        <!-- L1: 설비 · 단계 · 상태 -->
-        <div class="lv l1"><div style="display:flex;align-items:center;gap:12px"><img class="ic" width="40" height="40" alt="" src="${icon(d.shape || 'box', '#e6ebf1', 1.4)}"><div style="flex:1;min-width:0"><div class="eyebrow">${cur.data.num} · ${esc(cur.data.name)} · ${esc(d.name)}</div><h1 style="margin-top:6px;font-size:22px">${String(stepIdx + 1).padStart(2, '0')} ${esc(st.zone)}</h1></div><button class="x" style="position:static" id="stBack" title="설비 설명으로" aria-label="설비 설명으로"><img class="ic" width="22" height="22" alt="" src="${icon('close', '#e6ebf1', 1.8)}"></button></div>
-          <div class="badges"><span class="badge ${tour ? 'run' : ''}">${tour ? '재생 중' : '단계 보기'} · ${stepIdx + 1} / ${d.steps.length}</span>${ok ? '<span class="badge">단면</span>' : ''}</div></div>
-        <!-- L2: 핵심 수치(예시 온도) · 현장 포인트 -->
-        <div class="lv l2"><div class="lvh">핵심 수치 · 현장 포인트</div>
-          ${rng ? `<div class="heat"><div class="bg" style="background:radial-gradient(circle at 30% 55%, ${hA} 0%, transparent 55%), radial-gradient(circle at 75% 35%, ${hB} 0%, transparent 50%)"></div>
-            <span class="lab">해당 영역의 온도(예시)</span><span class="val" style="color:${hC}">${esc(st.temp || lay?.temp || '')}</span>
-            <div class="hbar-wrap"><div class="hbar"></div><div class="fill" style="left:${pct(rng[0])};width:calc(${pct(rng[1])} - ${pct(rng[0])});box-shadow:0 0 6px ${hA}"></div><div class="scale"><span>0℃</span><span>500</span><span>1,000</span><span>1,500</span><span>2,000℃</span></div></div>
-            ${lay?.label ? `<span class="lab" style="line-height:1.5">${esc(lay.label)}</span>` : ''}
-            <span class="note2">원본 예시값 · 검증 필요 · 교육용 개념 표현으로, 실제 운전 조건과 다를 수 있습니다.</span></div>` : ''}
-          ${kpi ? `<div class="kpi"><b>${esc(kpi.v)}</b><span>${esc(kpi.k)}</span><small>출처 · ${esc(kpi.src || '-')}</small></div>` : ''}
-          ${hots.length ? `<ul class="hots">${hots.map((h) => `<li data-hot="${h.i}"><button type="button"><i></i><span><b>${esc(h.text)}</b>${h.sub ? `<small>${esc(h.sub)}</small>` : ''}</span></button></li>`).join('')}</ul>` : ''}
-        </div>
-        <!-- L3: 원리 · 반응 -->
-        <div class="lv l3"><div class="lvh">원리 · 반응</div>
-          <p id="stText" style="margin:0 2px;font-size:16px;line-height:1.65;color:#d6dde6;min-height:3.3em">${esc(st.text)}</p>
-          ${formulaChips(lay?.formula)}</div>
-      </div>
-      <div class="foot"><button id="stPrev">‹ 이전 단계</button><button class="primary" id="stNext">다음 단계 ›</button></div>`;
-    typewrite($('stText'), st.text);
-    right.querySelectorAll('[data-hot] button').forEach((b) => { b.onclick = () => focusHotspot(+b.parentElement.dataset.hot); });
-    if (L && view === '3d') animateTo({ yaw: orbit.yaw, pitch: 0.16, dist: Math.max(12, L.span * 2.1), target: L.target }, 1000);
-    $('stBack').onclick = () => openPanel('eq');
-    $('stPrev').onclick = () => { stepIdx = (stepIdx - 1 + d.steps.length) % d.steps.length; renderPanel(); };
-    $('stNext').onclick = () => { stepIdx = (stepIdx + 1) % d.steps.length; renderPanel(); };
   }
 }
 
@@ -321,16 +297,14 @@ function driveTick(now) { if (!drive) return; const T = 9000, u = Math.max(0, no
   warm.position.set(drive.warm0.x + ox, drive.warm0.y, drive.warm0.z + oz); ripples.forEach((r, i) => r.position.set(drive.rip0[i].x + ox, drive.rip0[i].y, drive.rip0[i].z + oz)); work.setOffset(ox, 0, oz);
   drive.e.box.setFromObject(n); }
 const _dv = new THREE.Vector3();
-function clearDim(p) { outline.clear(); stopDrive(); section.hide(); work.stop(); warm.intensity = 0; ripples.forEach((r) => { r.material.opacity = 0; }); p.eqs.forEach((q) => q.node.traverse((o) => { if (!o.isMesh || !o.material.userData.color) return; const m = o.material; m.color.copy(m.userData.color); if (m.userData.emissive) { m.emissive.copy(m.userData.emissive); m.emissiveIntensity = m.userData.emissiveI; } })); }
+function clearDim(p) { outline.clear(); stopDrive(); work.stop(); warm.intensity = 0; ripples.forEach((r) => { r.material.opacity = 0; }); p.eqs.forEach((q) => q.node.traverse((o) => { if (!o.isMesh || !o.material.userData.color) return; const m = o.material; m.color.copy(m.userData.color); if (m.userData.emissive) { m.emissive.copy(m.userData.emissive); m.emissiveIntensity = m.userData.emissiveI; } })); }
 function enterStep(e, userAct = true) {
   if (!cur || !e || !e.up || sinking) return;
-  if (userAct && tour) stopTour();
-  if (curEq !== e) section.hide();
+  stopTour(); // 재생 중에 설비를 직접 고르면 재생을 끝낸다
   stopDrive(); // 움직이던 차를 먼저 제자리로(상자·불빛·입자가 원래 위치 기준으로 잡히게)
-  mode = 'step'; curEq = e; stepIdx = 0; cur.seen.add(e.id);
+  mode = 'step'; curEq = e; cur.seen.add(e.id);
   labConsole.selectEquipment(e.id); // 온도 흐름의 단계 탐색도 이 설비로
-  if (tour) tour.t0 = performance.now();
-  openPanel(tour ? 'steps' : 'eq');
+  openPanel('eq');
   renderProg(cur); syncUi(); if (!REDUCED) work.start(e);
   const c = e.box.getCenter(new THREE.Vector3()), s = e.box.getSize(new THREE.Vector3());
   warm.position.set(c.x, e.box.max.y + 2, c.z); warm.intensity = 14;
@@ -368,7 +342,9 @@ function setView(v, fly = true) {
   if (fly) animateTo(v === 'board' ? boardPose() : curEq ? eqPose(curEq, home.yaw) : home, 900);
   syncUi();
 }
-addEventListener('keydown', (e) => { if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return; if (e.key === 'ArrowRight') step(1); else if (e.key === 'ArrowLeft') step(-1); else if (e.key === 'Escape') leaveStep(); else { const n = parseInt(e.key, 10); if (n >= 1 && n <= procs.length) show(procs[n - 1]); } });
+addEventListener('keydown', (e) => { if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (tourMod?.active) { if (e.key === 'Escape') stopTour(); else if (e.key === ' ') { e.preventDefault(); tourMod.toggle(); } else if (e.key === 'ArrowRight') tourMod.stepEq(1); else if (e.key === 'ArrowLeft') tourMod.stepEq(-1); return; } // 재생 중: 첫 화면과 같은 키
+  if (e.key === 'ArrowRight') step(1); else if (e.key === 'ArrowLeft') step(-1); else if (e.key === 'Escape') leaveStep(); else { const n = parseInt(e.key, 10); if (n >= 1 && n <= procs.length) show(procs[n - 1]); } });
 
 // ---- 카메라·입력 --------------------------------------------------------------------------------------
 let anim = null, drag = null, hot = null;
@@ -377,7 +353,7 @@ const easeOutBack = (k, s = 0.9) => 1 + (s + 1) * Math.pow(k - 1, 3) + s * Math.
 function animateTo(to, dur = 1200) { anim = { t0: performance.now(), dur: REDUCED ? 1 : dur, from: { yaw: orbit.yaw, pitch: orbit.pitch, dist: orbit.dist, target: orbit.target.clone() }, to: { ...to, target: to.target.clone() } }; }
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
 function hitAt(ev) {
-  if (!cur) return null; const r = renderer.domElement.getBoundingClientRect(); ndc.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera);
+  if (!cur || tourMod?.active) return null; const r = renderer.domElement.getBoundingClientRect(); ndc.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera);
   const hit = ray.intersectObject(cur.root, true).find((h) => h.object.visible); if (!hit) return null;
   const eq = cur.eqs.find((e) => { let o = hit.object; while (o) { if (o === e.node) return true; o = o.parent; } return false; });
   return { eq: eq || null };
@@ -401,11 +377,12 @@ renderer.domElement.addEventListener('wheel', (e) => { e.preventDefault(); orbit
 // ---- 루프 ---------------------------------------------------------------------------------------------
 const composer = new EffectComposer(renderer);
 const renderPass = new RenderPass(scene, camera); composer.addPass(renderPass);
-const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.15, 0.3, 1.6); composer.addPass(bloom); tuneBloom(bloom); const outline = createOutline(scene, camera); composer.addPass(outline.pass); composer.addPass(new OutputPass());
+const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.15, 0.3, 1.6); composer.addPass(bloom); tuneBloom(bloom); const outline = createOutline(scene, camera); composer.addPass(outline.pass);
+tourMod = createIntroTour({ scene, renderer, composer, hud, getCamera: () => camera, loader, reduced: REDUCED, animateTo: (pose, ms) => { anim = null; animateTo(pose, ms); }, yawOf: () => home.yaw, onEnd: tourEnded, keepFloor: true }); composer.addPass(new OutputPass());
 function resize() { const w = stage.clientWidth || 1, h = stage.clientHeight || 1; renderer.setSize(w, h, false); composer.setSize(w, h); bloom.resolution.set(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); applyViewOffset();  if (cur && !curEq) { home = fitHome(cur); animateTo(home, 450); } }
 // 오른쪽 패널이 열리면 패널 폭의 절반만큼 장면을 왼쪽으로 밀어, 고른 설비가 패널에 가리지 않고 남은 영역 가운데에 온다(2026-10-14 요청). 천천히 옮겨 간다
 let viewOff = 0;
-function applyViewOffset() { const w = stage.clientWidth || 1, h = stage.clientHeight || 1; if (innerWidth <= 1000) camera.setViewOffset(w, h, 0, h * .19, w, h); else camera.clearViewOffset(); }
+function applyViewOffset() { const w = stage.clientWidth || 1, h = stage.clientHeight || 1, dx = tourMod?.active ? tourMod.panelWidth() / 2 : 0; if (dx) camera.setViewOffset(w, h, dx, 0, w, h); else if (innerWidth <= 1000) camera.setViewOffset(w, h, 0, h * .19, w, h); else camera.clearViewOffset(); }
 function viewOffsetTick() {
   const want = 0;
   if (Math.abs(want - viewOff) < 0.5) return; viewOff += (want - viewOff) * (REDUCED ? 1 : 0.12); if (Math.abs(want - viewOff) < 0.5) viewOff = want; applyViewOffset();
@@ -429,11 +406,6 @@ function riseTick(now) {
     let done = true;
     p.eqs.forEach((e, i) => { const k = Math.min(1, Math.max(0, (t - 150 - i * RISE.gap) / RISE.dur)); e.y = -RISE.depth * (1 - easeOutBack(k)); if (k >= 1) e.y = 0; e.node.position.y = e.baseY + e.y; e.up = k >= 1; if (k < 1) done = false; });
     if (done) { seq = null; syncUi(); }
-  }
-  if (tour && cur && !seq && curEq) {
-    const n = Math.max(1, curEq.data.steps?.length || 1), hold = Math.max(TOUR_MS, STEP_MS * n) / speed, per = hold / n, el = now - tour.t0, si = Math.min(n - 1, Math.floor(el / per));
-    if (panel === 'steps' && si !== stepIdx) { stepIdx = si; renderPanel(); }
-    if (el >= hold) { const i = curEq.i + 1; if (i >= cur.eqs.length) { stopTour(); leaveStep(); } else enterStep(cur.eqs[i], false); }
   }
 }
 const v = new THREE.Vector3();
@@ -459,13 +431,13 @@ let lastShadow = 0;
 function frame(now) {
   requestAnimationFrame(frame);
   const moving = !!(seq || sinking || drive); // 설비가 솟거나 가라앉거나 움직이는 중
-  if (!gate(now, moving || !!anim || !!drag || !!tour || !!curEq)) return;
+  if (!gate(now, moving || !!anim || !!drag || !!tourMod?.active || !!curEq)) return;
   riseTick(now); viewOffsetTick();
   if (anim) { const k = Math.min(1, (now - anim.t0) / anim.dur), s = easeOut(k); orbit.yaw = anim.from.yaw + (anim.to.yaw - anim.from.yaw) * s; orbit.pitch = anim.from.pitch + (anim.to.pitch - anim.from.pitch) * s; orbit.dist = anim.from.dist + (anim.to.dist - anim.from.dist) * s; orbit.target.lerpVectors(anim.from.target, anim.to.target, s); if (k >= 1) anim = null; }
 
   const o = orbit; camera.position.set(o.target.x + o.dist * Math.sin(o.yaw) * Math.cos(o.pitch), o.target.y + o.dist * Math.sin(o.pitch), o.target.z + o.dist * Math.cos(o.yaw) * Math.cos(o.pitch)); camera.lookAt(o.target);
   if (curEq && !REDUCED) { warm.intensity = 14 + 3 * Math.sin(now / 420); ripples.forEach((r, k) => { const ph = ((now / 2200) + k * 0.5) % 1; r.scale.setScalar(rippleR * (0.8 + 0.8 * ph)); r.material.opacity = 0.15 * (1 - ph); }); }
-  driveTick(now); section.tick(now); labConsole.tick(now); work.tick(now);
+  driveTick(now); labConsole.tick(now); work.tick(now); tourMod?.tick(now);
   if (moving || now - lastShadow > 200) { renderer.shadowMap.needsUpdate = true; lastShadow = now; } // 움직일 때는 매번, 아니면 1초에 5번
   composer.render(); placeHud();
 }

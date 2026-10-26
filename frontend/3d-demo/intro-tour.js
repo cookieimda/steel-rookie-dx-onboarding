@@ -5,7 +5,7 @@
 // - 뺀 것(2026-10-16 요청): 설비 위 '최고 온도' 지시선, 3D 위 핫스팟 핀(intro-tour.css에서 숨김), 3D 화살표 → 카메라 기준 2D 화살표(아래 StepFx._arrow 바꿔 끼움).
 // - 렉 줄이기: 지도의 공정 모델은 재질별로 합쳐 두었으므로(batchStatic) 재생하는 동안만 설비 단위 모델로 바꿔 끼운다(처음 한 번 불러와 기억).
 //   이 모델도 설비마다 재질끼리 합친다(mergeByEquipment): 단면·외곽선은 설비 단위로만 색·투명도를 바꾸므로 겉모습은 같고 그리기 횟수만 준다.
-// 공정 화면(steel-index.js)의 재생과 같은 시간 규칙: 1×에서 설비 하나당 최소 10.4초, 단계당 5.2초. 속도는 0.5·1·1.5·2×(steel-index-ui.js).
+// 공정 화면(steel-index.js)의 [▶]도 이 모듈을 쓴다(2026-10-26). 시간 규칙: 1×에서 설비 하나당 최소 10.4초, 단계당 5.2초. 속도는 0.5·1·1.5·2×(steel-index-ui.js).
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/+esm';
 import { mergeGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/utils/BufferGeometryUtils.js/+esm';
 import { createSection } from './steel-index-section.js';
@@ -81,7 +81,8 @@ function mergeByEquipment(root, nodes) {
  * @param {{ scene, renderer, composer, hud: HTMLElement, getCamera: () => THREE.Camera, loader, reduced: boolean,
  *   animateTo: (pose: object, ms: number) => void, yawOf: (p) => number, onEnd: (p) => void }} o
  */
-export function createIntroTour({ scene, renderer, composer, hud, getCamera, loader, reduced, animateTo, yawOf, onEnd }) {
+// keepFloor: 공정 화면(steel-index)처럼 지도 땅이 없는 곳에서는 모델의 바닥(Floor_)을 남긴다
+export function createIntroTour({ scene, renderer, composer, hud, getCamera, loader, reduced, animateTo, yawOf, onEnd, keepFloor = false }) {
   let anchors = {}; fetch('models/anchors-v2b.json').then((r) => (r.ok ? r.json() : {})).then((a) => { anchors = a || {}; }).catch(() => {});
   const placed = {}; // 단면 층 좌표: anchors의 모델 좌표 + 지도에서 공정 자리
   const section = createSection({ scene, renderer, hud, getCamera, getAnchors: () => placed, isDark: () => true });
@@ -100,7 +101,7 @@ export function createIntroTour({ scene, renderer, composer, hud, getCamera, loa
     if (details.has(p.id)) return Promise.resolve(details.get(p.id));
     return new Promise((resolve, reject) => loader.load(`models/${p.id}.glb`, (gltf) => {
       const root = gltf.scene; root.position.set(p.c[0], 0, p.c[1]); root.updateMatrixWorld(true);
-      root.traverse((o) => { if (!o.isMesh) return; for (let q = o; q && q !== root; q = q.parent) if (/^Floor_/.test(q.name)) { o.visible = false; break; } });
+      if (!keepFloor) root.traverse((o) => { if (!o.isMesh) return; for (let q = o; q && q !== root; q = q.parent) if (/^Floor_/.test(q.name)) { o.visible = false; break; } });
       const list = p.data.equipment.map((e) => ({ e, node: root.getObjectByName(`EQ_${e.id}`) })).filter((x) => x.node);
       const eqs = list.map(({ e, node }, i) => ({ id: e.id, data: e, i, node, box: new THREE.Box3().setFromObject(node) }));
       mergeByEquipment(root, eqs.map((q) => q.node));
@@ -255,19 +256,24 @@ export function createIntroTour({ scene, renderer, composer, hud, getCamera, loa
   }
   function toggle() { run.playing = !run.playing; run.t0 = performance.now(); paintBar(); }
 
-  async function start(p) {
+  /** opts.eq·opts.step: 그 설비·단계부터(공정 화면의 [단계 보기]). opts.guide === false면 공정 개요 창 없이 바로 재생 */
+  async function start(p, opts = {}) {
     if (run) stop(false);
     const d = await loadDetail(p); if (!d.eqs.length) return false;
     placed[p.id] = { ...(anchors[p.id] || {}), scale: 1, offset: [p.c[0], 0, p.c[1]] };
     p.root.visible = false; p.swapped = true; scene.add(d.root);
     run = { p, d, sp: { id: p.id, root: d.root, eqs: d.eqs }, e: null, step: 0, t0: 0, playing: true, speed: 1 }; // sp: 단면 모듈이 보는 공정(설비 단위 모델)
-    document.body.classList.add('tour-on'); enter(d.eqs[0]); openGuide(false); return true; // 공정 개요 창을 닫으면 재생을 시작한다
+    document.body.classList.add('tour-on');
+    const e0 = d.eqs.find((q) => q.id === opts.eq) || d.eqs[0]; enter(e0);
+    if (opts.step > 0 && opts.step < (e0.data.steps?.length || 0)) { run.t0 = performance.now() - opts.step * (Math.max(TOUR_MS, STEP_MS * e0.data.steps.length) / e0.data.steps.length) / run.speed; showStep(opts.step); }
+    if (opts.guide !== false) openGuide(false); // 공정 개요 창을 닫으면 재생을 시작한다
+    return true;
   }
   function stop(notify = true) {
-    if (!run) return; const { p, d } = run; clearDim(d); clearFlat();
+    if (!run) return; const { p, d, e } = run; clearDim(d); clearFlat();
     guide.hidden = true; document.body.classList.remove('tguide-on'); toast.classList.remove('on');
     clearInterval(typer); scene.remove(d.root); p.swapped = false; run = null; document.body.classList.remove('tour-on'); panel.innerHTML = ''; bar.innerHTML = '';
-    if (notify) onEnd(p);
+    if (notify) onEnd(p, e); // e: 마지막으로 보던 설비(공정 화면은 그 설비 패널로 돌아간다)
   }
   function tick(now) {
     if (!run) return;

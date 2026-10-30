@@ -4,11 +4,12 @@
 //   GET    /api/jobs/:id · DELETE /api/jobs/:id   내 작업 보기·취소(관리자는 모든 작업)
 //   GET    /api/me/jobs              내 작업 목록
 //   GET    /api/admin/jobs?state=&kind=   전체 목록과 상태·종류별 통계
-import { Router, type Request, type Response } from "express";
+import { Router, type Response } from "express";
 import { z } from "zod";
 import { requireAdmin, requireUser, type AuthDeps } from "../auth/routes.js";
 import type { User } from "../auth/users.js";
 import { CheckpointError } from "../checkpoint/types.js";
+import { handle } from "../http/errors.js";
 import type { EducationJobs } from "./jobs.js";
 
 const Body = z.object({ kind: z.string().regex(/^[a-z0-9-]{2,40}$/), payload: z.unknown().optional() });
@@ -16,14 +17,6 @@ const Body = z.object({ kind: z.string().regex(/^[a-z0-9-]{2,40}$/), payload: z.
 export function createJobRouter(auth: AuthDeps, jobs: EducationJobs): Router {
   const router = Router(), login = requireUser(auth);
   const user = (res: Response) => res.locals.user as User;
-  const handle = (fn: (req: Request, res: Response) => unknown) => (req: Request, res: Response) => {
-    try { fn(req, res); }
-    catch (error) {
-      if (error instanceof CheckpointError) res.status(error.status).json({ error: error.message });
-      else if (error instanceof z.ZodError) res.status(400).json({ error: error.issues[0]?.message ?? "입력이 올바르지 않아요." });
-      else { console.error(error); res.status(500).json({ error: "요청을 처리하지 못했어요." }); }
-    }
-  };
   /** 작업 주인이면 그대로, 관리자면 주인 id로 다시 읽는다. */
   const visible = (id: string, u: User) => {
     try { return jobs.get(id, u.id); }

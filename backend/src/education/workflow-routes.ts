@@ -3,11 +3,12 @@
 //   GET  /api/admin/education/materials/:id/workflow      자료·단계·기록·원본과의 차이
 //   POST …/:id/submit · comment · request-changes · revise  검수 요청 · 의견 · 수정 요청 · 수정본 만들기
 //   POST …/:id/check  검수 도우미(작업 대기열 'material-check'로 넣는다)
-import { Router, type Request, type Response } from "express";
+import { Router, type Response } from "express";
 import { z } from "zod";
 import { requireAdmin, requireUser, type AuthDeps } from "../auth/routes.js";
 import type { User } from "../auth/users.js";
 import { CheckpointError, SECTION_NAMES, type Section } from "../checkpoint/types.js";
+import { handle } from "../http/errors.js";
 import type { Notifier } from "../notify/service.js";
 import type { EducationJobs } from "./jobs.js";
 import { checkMaterial, MaterialWorkflow, STAGE_LABEL, type Stage } from "./workflow.js";
@@ -24,13 +25,6 @@ const Revise = z.object({
 export function createWorkflowRouter({ auth, jobs, notifier }: { auth: AuthDeps; jobs: EducationJobs; notifier?: Notifier }, workflow: MaterialWorkflow): Router {
   const router = Router(), admin = [requireUser(auth), requireAdmin];
   const me = (res: Response) => (res.locals.user as User).id;
-  const handle = (fn: (req: Request, res: Response) => unknown) => (req: Request, res: Response) => {
-    try { fn(req, res); }
-    catch (error) {
-      if (error instanceof CheckpointError) res.status(error.status).json({ error: error.message });
-      else { console.error(error); res.status(500).json({ error: "요청을 처리하지 못했어요." }); }
-    }
-  };
   const parse = <T>(schema: z.ZodType<T>, input: unknown): T => {
     const r = schema.safeParse(input ?? {});
     if (!r.success) throw new CheckpointError(400, r.error.issues[0]?.message ?? "입력이 올바르지 않아요.");

@@ -128,11 +128,30 @@ export interface LearningDeps {
    * provider.ts profileFor().groundingCheck(로컬 모델만 켬).
    */
   groundingCheck?: boolean;
+  /**
+   * 튜터 모델에 연결하지 못하거나 답 형식이 틀리면, 오류 대신 이번에 검색한 근거 원문을 그대로 보여 준다(evidenceFallback).
+   * 검색된 근거가 없으면 원래대로 오류로 답한다. 하루 한도 초과(429)는 정책이라 대신 답하지 않는다.
+   */
+  fallbackOnLlmError?: boolean;
   now?: () => string;
 }
 
 /** 근거 겹침이 없는 답에 붙이는 안내. 답은 지우지 않는다(맞는 내용일 수도 있어서 학습자가 출처를 보고 판단하게 한다). */
 export const LOW_SUPPORT_NOTE = "자료에서 확인하지 못한 내용이 섞여 있을 수 있어요. 아래 출처와 함께 확인해 주세요.";
+
+/** 모델 없이 보여 주는 답에 붙이는 안내. 화면은 답 끝에 붙여 보인다(learning-chat.js toMessage). */
+export const FALLBACK_NOTE = "AI 튜터에 연결하지 못해 자료 원문만 보여 드렸어요(AI가 쓴 답이 아니에요). 연결되면 같은 질문을 다시 보내 주세요.";
+const FALLBACK_INTRO = "지금은 AI 튜터 대신, 질문과 가까운 교육 자료를 그대로 보여 드릴게요.";
+const FALLBACK_CHUNKS = 3;
+const FALLBACK_CHARS = 160;
+
+/** 검색한 근거 앞쪽 조각을 번호를 붙여 이어 쓴다. 모델을 부르지 않으므로 늘 같은 입력에 같은 답이 나온다. */
+export function evidenceFallback(chunks: Chunk[]): { answer: string; source_ids: string[] } {
+  const top = chunks.slice(0, FALLBACK_CHUNKS);
+  const clip = (text: string) => (text.length > FALLBACK_CHARS ? `${text.slice(0, FALLBACK_CHARS).trimEnd()}…` : text);
+  const lines = top.map((c, i) => `${i + 1}. ${clip(c.text.replace(/\s+/g, " ").trim())}`);
+  return { answer: `${FALLBACK_INTRO}\n\n${lines.join("\n")}`, source_ids: [...new Set(top.flatMap((c) => c.source_ids))] };
+}
 
 /** 미리 받아 둘 질문 하나(서버가 켜질 때 warmAnswers로 받는다). */
 export interface WarmItem {
@@ -146,7 +165,7 @@ export interface LearningRouter extends express.Router {
   warmAnswers(items: WarmItem[], options?: { onEach?: (item: WarmItem, result: "cached" | "saved" | "skipped" | "failed", ms: number) => void }): Promise<{ saved: number; cached: number; failed: number }>;
 }
 
-export function createLearningRouter({ repo, retriever, agent, rubrics, scene, screenSteps = [], checkpointProgress, cache, suggestedQuestions, traceSink, groundingCheck = false, now = () => new Date().toISOString() }: LearningDeps): LearningRouter {
+export function createLearningRouter({ repo, retriever, agent, rubrics, scene, screenSteps = [], checkpointProgress, cache, suggestedQuestions, traceSink, groundingCheck = false, fallbackOnLlmError = false, now = () => new Date().toISOString() }: LearningDeps): LearningRouter {
   const router = express.Router() as LearningRouter;
   /**
    * grounded 답의 근거 겹침(trace용, 인용한 조각 기준)과, groundingCheck면 이번에 검색한 근거 전체와도 겹치지 않는 답을 unverified로 낮춘 답.
@@ -307,6 +326,8 @@ export function createLearningRouter({ repo, retriever, agent, rubrics, scene, s
       startStream();
       res.write(`${JSON.stringify({ type: "answer", text })}\n`);
     } : undefined;
+    // 모델이 실패했을 때 대신 보여 줄 근거(fallbackOnLlmError). 검색을 마친 뒤에 채운다.
+    let retrieved: Chunk[] = [];
     try {
       const base = { user_id: userId, session_id: sessionId, section, equipment_id: equipmentId, question };
 
@@ -327,6 +348,7 @@ export function createLearningRouter({ repo, retriever, agent, rubrics, scene, s
       const processId = body.data.screen?.process_id ?? null;
       const { rubric, chunks, input, cacheKey } = trace.time("retrieve", () =>
         prepare({ section, processId, equipmentId, question, history, openMisconceptions, retryConcepts, inProgress: !!progress?.in_progress }));
+      retrieved = chunks;
       trace.set("context", { history_turns: history.length, open_misconceptions: openMisconceptions.length, retry_concepts: retryConcepts.length, checkpoint_in_progress: !!progress?.in_progress });
       trace.set("retrieval", { count: chunks.length, results: chunks.map((c) => ({ id: c.id, score: c.score })) });
 
@@ -373,7 +395,17 @@ export function createLearningRouter({ repo, retriever, agent, rubrics, scene, s
     } catch (error) {
       trace.set("error", { kind: errorKind(error), message: (error as Error)?.message ?? String(error) });
       trace.set("outcome", "error");
-      if (error instanceof UsageLimitError) {
+      const canFallback = fallbackOnLlmError && retrieved.length > 0 && (error instanceof LlmUnavailableError || error instanceof LearningFormatError);
+      if (canFallback) {
+        // 대화는 저장하지 않는다(모델 답이 아니라서 다음 질문의 대화 맥락에 넣지 않는다).
+        console.warn(`학습 모드: 튜터 대신 근거 원문으로 답함(trace ${trace.id}, ${errorKind(error)})`);
+        const { answer, source_ids } = evidenceFallback(retrieved);
+        trace.set("outcome", "fallback");
+        send(200, {
+          answer, status: "unverified", sources: toSources(source_ids), follow_up: null, scene_actions: [], keyword_card: null,
+          grounding_note: FALLBACK_NOTE, generated_by_ai: false, fallback_reason: errorKind(error), session_id: sessionId,
+        });
+      } else if (error instanceof UsageLimitError) {
         send(429, { error: `오늘 쓸 수 있는 튜터 호출(${error.limit}회)을 다 썼어요.`, code: "USAGE_LIMIT" });
       } else if (error instanceof LlmUnavailableError) {
         console.error(`학습 모드 LLM 오류(trace ${trace.id}): ${error.message}`);

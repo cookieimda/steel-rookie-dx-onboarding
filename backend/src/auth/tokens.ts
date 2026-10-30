@@ -22,6 +22,17 @@ export function jwtSecret(): Uint8Array {
   return cachedSecret;
 }
 
+/**
+ * 공개 모드(NODE_ENV=production이거나 접속 비밀번호 TEST_PASSCODE를 켠 터널 공유)에서는 JWT_SECRET이 있어야 서버가 뜬다.
+ * 임시 키로 공개 서버를 띄우면 재시작마다 로그인이 풀리고, 키가 짧으면 토큰을 맞혀 볼 수 있다. 로컬 개발은 그대로 임시 키를 쓴다.
+ */
+export function assertPublicSecrets(env: NodeJS.ProcessEnv = process.env): void {
+  const isPublic = env.NODE_ENV === "production" || Boolean(env.TEST_PASSCODE?.trim());
+  if (!isPublic) return;
+  const secret = env.JWT_SECRET?.trim() ?? "";
+  if (secret.length < 32) throw new Error("공개 모드에서는 .env에 32자 이상의 JWT_SECRET이 있어야 서버를 시작할 수 있어요.");
+}
+
 export function signToken(user: User, secret: Uint8Array, ttl: string = TOKEN_TTL.session): Promise<string> {
   // 권한 확인은 토큰의 role이 아니라 DB에서 다시 읽은 role로 한다(requireUser).
   return new SignJWT({ username: user.username, role: user.role })

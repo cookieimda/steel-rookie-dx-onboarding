@@ -2,7 +2,9 @@
 import express, { type NextFunction, type Request, type Response } from "express";
 import { setTimeout as sleep } from "node:timers/promises";
 import { z } from "zod";
+import { ERRORS } from "../http/errors.js";
 import { DEMO_ACCOUNTS, demoAccountsEnabled, demoPassword } from "./demo-accounts.js";
+import { LoginAttempts } from "./login-attempts.js";
 import { signToken, TOKEN_TTL, verifyToken } from "./tokens.js";
 import { DuplicateUserError, type User, type UserRepository } from "./users.js";
 
@@ -28,7 +30,9 @@ export interface AuthDeps {
   secret: Uint8Array;
 }
 
-export function createAuthRouter({ users, secret }: AuthDeps): express.Router {
+const TOO_MANY = { error: ERRORS.TOO_MANY_ATTEMPTS.message, code: "TOO_MANY_ATTEMPTS" };
+
+export function createAuthRouter({ users, secret }: AuthDeps, attempts = new LoginAttempts()): express.Router {
   const router = express.Router();
 
   router.post("/api/auth/signup", async (req, res) => {
@@ -52,11 +56,17 @@ export function createAuthRouter({ users, secret }: AuthDeps): express.Router {
 
   router.post("/api/auth/login", async (req, res) => {
     const body = LoginBody.safeParse(req.body);
+    const attempt = attempts.begin(`login:${body.data?.username ?? ""}`, req.ip);
+    if (!attempt) {
+      res.status(429).json(TOO_MANY);
+      return;
+    }
     const user = body.success ? await users.verify(body.data.username, body.data.password) : null;
     if (!user) {
       res.status(401).json({ error: "아이디 또는 비밀번호가 맞지 않아요.", code: "INVALID_CREDENTIALS" });
       return;
     }
+    attempt.succeeded();
     const ttl = body.data?.remember ? TOKEN_TTL.remember : TOKEN_TTL.session;
     res.json({ token: await signToken(user, secret, ttl), user });
   });
@@ -67,12 +77,18 @@ export function createAuthRouter({ users, secret }: AuthDeps): express.Router {
       res.status(400).json({ error: body.error.issues[0].message });
       return;
     }
+    const attempt = attempts.begin(`identity:${body.data.employee_no}`, req.ip);
+    if (!attempt) {
+      res.status(429).json(TOO_MANY);
+      return;
+    }
     const user = users.findByIdentity(body.data.name, body.data.employee_no);
     if (!user) {
       await sleep(FAIL_DELAY_MS);
       res.status(404).json({ error: "이름과 사번이 맞는 계정이 없어요.", code: "NOT_FOUND" });
       return;
     }
+    attempt.succeeded();
     res.json({ username: user.username });
   });
 
@@ -82,12 +98,18 @@ export function createAuthRouter({ users, secret }: AuthDeps): express.Router {
       res.status(400).json({ error: body.error.issues[0].message });
       return;
     }
+    const attempt = attempts.begin(`reset:${body.data.username}`, req.ip);
+    if (!attempt) {
+      res.status(429).json(TOO_MANY);
+      return;
+    }
     const user = users.findByIdentity(body.data.name, body.data.employee_no);
     if (!user || user.username !== body.data.username) {
       await sleep(FAIL_DELAY_MS);
       res.status(404).json({ error: "아이디·이름·사번이 맞는 계정이 없어요.", code: "NOT_FOUND" });
       return;
     }
+    attempt.succeeded();
     // 시연 계정은 모두가 같은 비밀번호로 쓰므로 한 사람이 바꾸지 못하게 막는다.
     if (demoAccountsEnabled() && DEMO_ACCOUNTS.some((a) => a.username === user.username)) {
       res.status(403).json({ error: "시연 계정은 비밀번호를 바꿀 수 없어요.", code: "DEMO_ACCOUNT" });

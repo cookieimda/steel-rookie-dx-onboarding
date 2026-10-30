@@ -1,0 +1,23 @@
+# PR과 push마다 타입 검사와 테스트를 돌린다. 병합 충돌을 풀다 빌드가 깨져 테스트가 하나도 돌지 않는 일을 막는다.
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [dev, main, "strookie/**"]
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test

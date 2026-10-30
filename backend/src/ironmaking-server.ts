@@ -10,7 +10,8 @@ import { createAdminRouter } from "./admin/routes.js";
 import { createApp } from "./app.js";
 import { seedDemoAccounts } from "./auth/demo-accounts.js";
 import { createAuthRouter } from "./auth/routes.js";
-import { jwtSecret } from "./auth/tokens.js";
+import { assertPublicSecrets, jwtSecret } from "./auth/tokens.js";
+import { errorHandler } from "./http/errors.js";
 import { UserRepository } from "./auth/users.js";
 import { createMeRouter } from "./me/routes.js";
 import { createTopicResolver } from "./me/concept-topic.js";
@@ -52,6 +53,8 @@ import { LlmUsage } from "./usage.js";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+// 공개 모드(운영·터널 공유)인데 JWT_SECRET이 없거나 짧으면 서버가 시작되지 않는다.
+assertPublicSecrets();
 // 루브릭 형식이 틀리면 여기서 예외가 나 서버가 시작되지 않는다.
 const rubrics = loadFinalRubrics();
 
@@ -134,6 +137,8 @@ const learning = createLearningRouter({
   traceSink,
   // 로컬 모델은 근거와 겹치는 문장이 없는 답을 unverified로 낮추고 안내를 붙인다(grounding.ts lowSupport).
   groundingCheck: profile.groundingCheck,
+  // 튜터 모델이 꺼지거나 느려도 학습 화면이 멈추지 않게 근거 원문으로 대신 답한다. 끄려면 LEARNING_FALLBACK=off.
+  fallbackOnLlmError: (process.env.LEARNING_FALLBACK ?? "on").trim().toLowerCase() !== "off",
 });
 
 const app = createApp({ engine, usage, learning, traceSink });
@@ -182,6 +187,9 @@ app.use("/api/learning/supplements", traceMiddleware("supplement", traceSink));
 app.use(createSupplementRouter(new SupplementEngine({
   repo: new SupplementRepository(db), learningRepo, retriever, agent: learningAgent, tutor, evaluator, rubrics, scene: sceneCatalog, checkpointProgress,
 })));
+
+// 모든 라우터 뒤에 둔다: 어느 라우터에서 던진 오류든 HTML 500 대신 { error, code } JSON으로 나간다(http/errors.ts).
+app.use(errorHandler);
 
 const port = Number(process.env.PORT ?? 3000);
 // 이 컴퓨터에서만 접속을 받는다. 원격 공유는 cloudflared 터널(npm run tunnel)이 localhost로 넘겨준다.

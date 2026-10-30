@@ -1,5 +1,6 @@
 // 체크포인트 저장소. SQL은 이 파일에만 둔다.
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
+import { withTransaction } from "../db/tx.js";
 import type { RecheckVerdict, Verdict } from "../scoring.js";
 import type { AttemptKind, CheckpointState, HistoryMessage, Phase, Section, UtteranceType } from "./types.js";
 
@@ -120,15 +121,7 @@ export class CheckpointRepository {
 
   /** fn 안의 쓰기를 하나의 트랜잭션으로 묶는다. 예외가 나면 모두 되돌린다. */
   transaction<T>(fn: () => T): T {
-    this.db.exec("BEGIN");
-    try {
-      const result = fn();
-      this.db.exec("COMMIT");
-      return result;
-    } catch (error) {
-      this.db.exec("ROLLBACK");
-      throw error;
-    }
+    return withTransaction(this.db, fn);
   }
 
   createAttempt(a: Omit<AttemptRow, "updated_at" | "completed_at" | "understanding" | "unlocked" | "resume_state" | "pending_answer">): void {

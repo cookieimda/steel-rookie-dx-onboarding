@@ -2,6 +2,7 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import type { Section } from "../checkpoint/types.js";
+import { withTransaction } from "../db/tx.js";
 import type { OpenMisconception } from "./repository.js";
 
 export type SupplementState = "awaiting_answer" | "awaiting_recheck" | "completed" | "stopped";
@@ -158,13 +159,6 @@ export class SupplementRepository {
   }
 
   private tx(fn: () => void): void {
-    this.db.exec("BEGIN");
-    try {
-      fn();
-      this.db.exec("COMMIT");
-    } catch (error) {
-      this.db.exec("ROLLBACK");
-      throw error;
-    }
+    withTransaction(this.db, fn);
   }
 }

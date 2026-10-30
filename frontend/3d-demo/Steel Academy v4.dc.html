@@ -544,7 +544,7 @@
         <sc-if value="{{ aiDown }}" hint-placeholder-val="{{ false }}">
           <div style="display:flex;gap:14px;align-items:center;padding:16px 18px;border-radius:10px;background:rgba(245,177,61,.1);border:1px solid rgba(245,177,61,.55);">
             <img src="{{ ic.warn }}" width="34" height="34" alt="" style="flex:none;">
-            <div style="display:flex;flex-direction:column;gap:4px;"><span style="font-size:15px;font-weight:700;color:var(--warn);">AI 연결을 사용할 수 없어요</span><span style="font-size:15px;color:#e6dccb;">준비된 공정 설명은 계속 볼 수 있어요.</span></div>
+            <div style="display:flex;flex-direction:column;gap:4px;"><span style="font-size:15px;font-weight:700;color:var(--warn);">AI 튜터에 연결되지 않았어요</span><span style="font-size:15px;color:#e6dccb;">질문하면 교육 자료 원문으로 대신 답해 드려요.</span></div>
           </div>
         </sc-if>
         <sc-for list="{{ messages }}" as="m" hint-placeholder-count="0">
@@ -981,7 +981,7 @@ class Component extends DCLogic {
       walkEq: () => { if (eq) this.scene()?.walk(eq.id, sp); },
       introSteps: [{ n: 1, title: '공정 선택', text: '왼쪽이나 화면에서 보고 싶은 공정을 선택하세요.' }, { n: 2, title: '설비 살펴보기', text: '3D 설비를 돌려 보고, 작동 보기로 소재가 지나가는 순서를 따라가 보세요.' }, { n: 3, title: '내부 구조 확인', text: '단면 보기로 설비 안쪽 층과 온도, 반응을 확인하세요.' }],
       startFromFirst: () => { const sc = this.scene(); if (sc) sc._pendingTour = true; this.goProcess('ironmaking'); setTimeout(() => this.scene()?.tour(sp), 120); }, // 공정 전환 직후 바로 시연 시작(멀리서 기다리지 않음)
-      askTutorAboutEq: () => { this.setState({ tutorOpen: true }); if (!aiDown) this.ask('이 설비의 역할은?'); this.scrollChat(); },
+      askTutorAboutEq: () => { this.setState({ tutorOpen: true }); this.ask('이 설비의 역할은?'); this.scrollChat(); },
       touring, tourTitle: S.tourStep?.title || '', tourText: S.tourStep?.text || '', tourCount: S.tourStep ? `${String(S.tourStep.i).padStart(2, '0')} / ${String(S.tourStep.total).padStart(2, '0')}` : '',
       matShort: (S.matLabel || p.materialIn.label).split(':')[0].trim(), matIcon: MAT_ICON,
       speeds: [0.5, 1, 2].map(v => ({ label: v + '×', onClick: () => this.setState({ speed: v }), bg: sp === v ? AC : 'var(--chrome2)', border: sp === v ? AC : 'var(--line2)', color: sp === v ? INK : '#c3ccd7' })),
@@ -989,9 +989,10 @@ class Component extends DCLogic {
       showExplain: () => this.setState({ tutorOpen: false }),
       toggleDev: () => this.setState(s => ({ devOpen: !s.devOpen, tutorOpen: false })),
       ctxLabel: eq ? eq.name : p.name,
-      chips: aiDown ? chatV.chips.map(c => ({ ...c, onClick: () => {} })) : chatV.chips, chipOpacity: aiDown ? '0.45' : '1',
-      inputPh: aiDown ? '연결 복구 후 질문할 수 있어요' : '질문을 입력하세요', sendBg: aiDown ? 'var(--chrome3)' : AC, sendColor: aiDown ? '#5f6b7a' : INK,
-      send: e => { e.preventDefault(); if (!aiDown) this.ask(S.input); },
+      // AI가 끊겨도 서버가 교육 자료 원문으로 대신 답하므로(learning/routes.ts fallbackOnLlmError) 질문은 막지 않는다.
+      chips: chatV.chips, chipOpacity: '1',
+      inputPh: aiDown ? '질문하면 자료 원문으로 답해요 (AI 연결 없음)' : '질문을 입력하세요', sendBg: AC, sendColor: INK,
+      send: e => { e.preventDefault(); this.ask(S.input); },
       modelJson: j(S.model), screenContextJson: j(this.screenContext()), lastRequestJson: j(S.lastReq), lastResponseJson: j(S.lastRes),
     };
   }
